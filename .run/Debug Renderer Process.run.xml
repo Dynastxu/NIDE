@@ -1,0 +1,6 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Debug Renderer Process" type="ChromiumRemoteDebugType" factoryName="Chromium Remote" port="9222">
+    <mapping url="http://localhost:9222" local-file="$PROJECT_DIR$/src/renderer" />
+    <method v="2" />
+  </configuration>
+</component>

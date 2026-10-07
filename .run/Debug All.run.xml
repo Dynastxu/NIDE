@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Debug All" type="CompoundRunConfigurationType">
+    <toRun name="Debug Main Process" type="NodeJSConfigurationType" />
+    <toRun name="Debug Renderer Process" type="ChromiumRemoteDebugType" />
+    <method v="2" />
+  </configuration>
+</component>

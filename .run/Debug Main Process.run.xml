@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Debug Main Process" type="NodeJSConfigurationType" application-parameters="dev --sourcemap" path-to-js-file="node_modules/electron-vite/bin/electron-vite.js" working-dir="$PROJECT_DIR$">
+    <envs>
+      <env name="REMOTE_DEBUGGING_PORT" value="9222" />
+    </envs>
+    <method v="2" />
+  </configuration>
+</component>
