@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+
+/* 插件 UI 在项目根的 plugins/ 下（renderer root 之外），显式声明扫描范围 */
+@source '../../../../src';
+@source '../../../../plugins';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #18181b; /* zinc-900 */
+  color: #e4e4e7; /* zinc-200 */
+}

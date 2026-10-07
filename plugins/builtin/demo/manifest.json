@@ -1,0 +1,17 @@
+{
+  "id": "builtin.demo",
+  "name": "Demo Plugin",
+  "version": "0.1.0",
+  "activationEvents": ["onStartup"],
+  "permissions": [],
+  "contributes": {
+    "views": [
+      {
+        "id": "demo.hello",
+        "title": "插件宿主自检",
+        "location": "sidebar",
+        "entry": "src/ui/index.tsx"
+      }
+    ]
+  }
+}

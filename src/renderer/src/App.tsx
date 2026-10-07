@@ -1,35 +1,29 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
+import { MonacoEditor } from './editor/MonacoEditor'
+import { MonacoDiffView } from './editor/MonacoDiffView'
+import { PluginContainer } from './plugins/PluginContainer'
+import { JSX } from 'react'
 
-function App(): React.JSX.Element {
-  const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
-
+export default function App(): JSX.Element {
   return (
-    <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
-        &nbsp;and <span className="ts">TypeScript</span>
-      </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
+    <div className="flex h-screen w-screen bg-zinc-900 text-zinc-200 overflow-hidden">
+      {/* 主编辑区 */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 min-h-0">
+          <MonacoEditor />
         </div>
-        <div className="action">
-          <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-            Send IPC
-          </a>
+        {/* 底部面板：插件在这里注册自己的视图 */}
+        <div className="h-48 border-t border-zinc-800">
+          <PluginContainer location="panel" />
         </div>
       </div>
-      <Versions></Versions>
-    </>
+
+      {/* 右侧侧边栏：AI 对话等插件挂在这里 */}
+      <div className="w-80 border-l border-zinc-800 flex flex-col">
+        <PluginContainer location="sidebar" />
+      </div>
+
+      {/* Diff 弹层 */}
+      <MonacoDiffView />
+    </div>
   )
 }
-
-export default App

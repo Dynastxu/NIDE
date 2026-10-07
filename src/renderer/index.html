@@ -1,17 +1,21 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Electron</title>
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
-    />
-  </head>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>NIDE</title>
+  <!--
+    dev 阶段必须放开 inline：@vitejs/plugin-react 会注入一段 inline module script（HMR preamble），
+    Tailwind 也是运行时注入 <style>。原模板的 script-src 'self' 会把它们全拦掉，
+    症状是白屏或 "can't detect preamble"。发布前可以按需收紧。
+  -->
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: http://localhost:*"
+  />
+</head>
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<body>
+<div id="root"></div>
+<script type="module" src="/src/main.tsx"></script>
+</body>
 </html>
