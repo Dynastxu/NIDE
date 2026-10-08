@@ -47,8 +47,18 @@ export function WorkbenchLayout(): JSX.Element {
   const rightColumnOn = rightTopOn || rightBottomOn
   const bottomOn = bottomLeftOn || bottomRightOn
 
+  /**
+   * 尺寸用 h-full / w-full，**不要**改回 h-screen / w-screen。
+   *
+   * 这个组件从窗口骨架（WindowFrame）的内容区里长出来，而那条路上面还有一条
+   * 32px 的标题栏。100vh 是**视口**高度、不看父容器，于是工作台会比它实际拿到
+   * 的空间高出正好一个标题栏 —— 外层的 overflow-hidden 把多出来的那条裁掉，
+   * 表现就是「左下角和右下角那两组按钮被截断」。
+   *
+   * 100% 则永远等于父容器给的尺寸，标题栏多高都不影响这里。
+   */
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-zinc-900 text-zinc-200">
+    <div className="flex h-full w-full min-h-0 min-w-0 overflow-hidden bg-zinc-900 text-zinc-200">
       {/* 按钮条常驻且通高：工具区隐藏后它是唯一的回程入口，
           同时底栏也不会把它截断到半截高 */}
       <ToolStripe side="left" />

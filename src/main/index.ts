@@ -1,9 +1,10 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerHostIPC } from './ipc/host.ipc'
+import { registerWindowIPC, registerWindowActions } from './ipc/window.ipc'
 import { initPluginHost } from './plugin-host'
 import { initI18n } from './i18n'
-import { createMainWindow } from './window'
+import { createMainWindow, createSettingsWindow, recreateMainWindow } from './window'
 
 app.whenReady().then(() => {
   // 必须和 electron-builder.yml 的 appId 保持一致：Windows 靠 AppUserModelID
@@ -18,8 +19,15 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => console.log('pong'))
 
   // 顺序有约束，不能调换：
-  // 1) IPC 通道要先注册好，渲染进程一打开就可能调用
+  // 1) IPC 通道要先注册好，渲染进程一打开就可能调用。
+  //    registerWindowOpeners 必须在建窗之前 —— 渲染进程随时可能点「全局设置」，
+  //    那时映射表要是空的，这次点击会静默丢掉（见 window.ipc.ts 的注入说明）。
   registerHostIPC()
+  registerWindowIPC()
+  registerWindowActions({
+    openers: { settings: createSettingsWindow },
+    restart: recreateMainWindow
+  })
   // 2) 插件宿主只扫描 manifest、同步执行；语言包是随 manifest 一起注册进
   //    languagePackRegistry 的，所以 i18n 必须排在它后面，否则注册表还是空的，
   //    所有 locale 都会回落成中文

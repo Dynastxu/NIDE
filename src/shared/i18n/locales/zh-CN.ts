@@ -19,8 +19,72 @@ export const zhCN = {
 
   'host.stripe.tooltip': '右键：显示/隐藏标题',
   'host.stripe.menu.showTitles': '显示工具窗口名称',
-  'host.stripe.menu.language': '语言',
 
+  // ---- 窗口（自定义标题栏）----
+  'host.window.minimize': '最小化',
+  'host.window.maximize': '最大化',
+  'host.window.restore': '向下还原',
+  'host.window.close': '关闭',
+
+  // ---- 设置 ----
+  'host.settings.button': '设置',
+  'host.settings.menu.global': '全局设置',
+  'host.settings.menu.project': '项目设置',
+  'host.settings.title': '设置',
+  'host.settings.nav.title': '设置选项',
+  'host.settings.page.general': '通用',
+  'host.settings.page.language': '语言',
+  'host.settings.page.plugins': '插件',
+  'host.settings.tree.expand': '展开',
+  'host.settings.tree.collapse': '收起',
+  'host.settings.index.empty': '这一项下面还没有设置。',
+  'host.settings.apply.ok': '确定',
+  'host.settings.apply.cancel': '取消',
+  'host.settings.apply.apply': '应用',
+
+  // 需要重启的提示
+  'host.settings.restart.title': '需要重启',
+  'host.settings.restart.message':
+    '更改需要重启 IDE 才能完全生效，重启会丢掉编辑器里未保存的内容。是否现在就重启？',
+  'host.settings.restart.now': '立即',
+  'host.settings.restart.later': '稍后',
+
+  // 设置 -> 语言
+  'host.settings.language.description':
+    '选择界面语言。切换语言需要重建窗口才能完全生效，编辑器里未保存的内容会丢失。',
+  'host.settings.language.current': '当前语言',
+  'host.settings.language.restartHint': '切换后窗口会自动重建，需要一点时间。',
+
+  // 设置 -> 插件
+  'host.settings.plugins.tab.marketplace': '插件市场',
+  'host.settings.plugins.tab.installed': '已安装',
+  'host.settings.plugins.marketplace.placeholder': '插件市场：暂未实现。',
+  'host.settings.plugins.empty': '没有找到任何插件。',
+  'host.settings.plugins.group.builtin': '内置',
+  'host.settings.plugins.group.user': '用户安装',
+  'host.settings.plugins.enable': '启用',
+  'host.settings.plugins.detail.select': '在左侧选择一个插件查看详情。',
+  'host.settings.plugins.detail.version': '版本',
+  'host.settings.plugins.detail.source': '来源',
+  'host.settings.plugins.detail.source.builtin': '内置',
+  'host.settings.plugins.detail.source.user': '用户安装',
+  'host.settings.plugins.detail.dir': '目录',
+  'host.settings.plugins.detail.views': '提供的视图',
+  'host.settings.plugins.detail.views.none': '这个插件没有提供任何视图。',
+  'host.settings.plugins.detail.permissions': '权限',
+  'host.settings.plugins.detail.permissions.none': '无',
+  'host.settings.plugins.detail.requiresRestart': '更改后需要重启',
+  'host.settings.plugins.detail.requiresRestart.yes': '是',
+  'host.settings.plugins.detail.requiresRestart.no': '否',
+  'host.settings.plugins.restartBadge': '需重启',
+  'host.settings.plugins.menu.enable': '启用',
+  'host.settings.plugins.menu.disable': '禁用',
+  'host.settings.plugins.menu.uninstall': '卸载',
+  'host.settings.plugins.notImplemented': '尚未实现',
+  'host.settings.plugins.builtinUndeletable': '内置插件不可卸载',
+  'host.settings.plugins.disabledWarning': '该插件已禁用：它的视图不会出现在工作台里。',
+  'host.settings.plugins.note':
+    '启用状态目前只在本次运行内有效（重启后恢复全部启用），也不会卸载磁盘上的插件。',
   'host.diff.title': 'Diff 对比',
   'host.diff.close': '关闭',
 

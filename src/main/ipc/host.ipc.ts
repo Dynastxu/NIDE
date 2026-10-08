@@ -1,10 +1,29 @@
 import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
 import { uiRegistry } from '../plugin-host/ui-registry'
+import { pluginRegistry } from '../plugin-host/plugin-registry'
 import { createMainTranslator, getCurrentLocale, getI18nPayload, switchLocale } from '../i18n'
 import { manifestNlsRegistry } from '../i18n/manifest-nls'
 import { getMainWindow, recreateMainWindow } from '../window'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
-import type { PluginViewDescriptor } from '@shared/plugin-api'
+import type { PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
+
+/**
+ * 被禁用的插件 id。
+ *
+ * 进程内的内存状态，**不落盘** —— 见 host:set-plugin-enabled 的说明。
+ * 放模块作用域而不是塞进某个注册表：它既不属于清单（磁盘事实），
+ * 也不属于视图注册表（贡献点），而是第三种东西：用户偏好。
+ * 等偏好持久化落地时，这里换成一个读写 store 的调用即可，调用点不用动。
+ */
+const disabledPlugins = new Set<string>()
+
+/**
+ * 插件启用状态变化的事件名。
+ *
+ * 走既有的 `host:event-emit` 那套事件总线（host:event 通道 + 频道名），
+ * 而不是新开一条 IPC：这就是一条「宿主通知所有窗口」的广播，形状完全一样。
+ */
+export const PLUGIN_STATE_CHANGED_EVENT = 'plugin:enabled-changed'
 
 /**
  * 切语言：先用**当前**语言征求同意，再落盘、重建窗口。
@@ -95,6 +114,61 @@ export function registerHostIPC(): void {
    */
   ipcMain.handle('host:get-i18n', (): I18nPayload => getI18nPayload())
 
+  /**
+   * 「设置 -> 插件」要的清单：装了哪些插件。
+   *
+   * 和 host:get-plugin-views 是两件事：那个回答「界面上有哪些视图」，这个回答
+   * 「磁盘上有哪些插件」。纯数据插件（语言包）只有后者认得，而设置界面必须
+   * 把它们列出来 —— 用户装了个语言包却在插件列表里找不到，那是最容易踩的坑。
+   */
+  ipcMain.handle('host:get-plugins', (): PluginDescriptor[] => {
+    return pluginRegistry
+      .getAll()
+      .map((plugin) => ({
+        id: plugin.id,
+        name: plugin.name,
+        version: plugin.version,
+        builtin: plugin.source === 'builtin',
+        dir: plugin.dir,
+        permissions: plugin.permissions,
+        views: plugin.views,
+        requiresRestart: plugin.requiresRestart,
+        ...(plugin.description ? { description: plugin.description } : {})
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+  })
+
+  /**
+   * 启用 / 禁用插件。
+   *
+   * 「禁用」的效果**立刻可见**，因为它落在渲染进程侧：被禁用的插件，它的视图
+   * 会从工具区消失（见 renderer 的 plugin.store）。宿主这边只记状态。
+   *
+   * 刻意**不做**的两件事：
+   * - 不落盘。重启后回到全部启用。偏好持久化要等一个统一的宿主偏好存储，
+   *   现在各写各的（布局走 localStorage、语言走 userData 的一个文件）已经够乱了。
+   * - 不重建窗口。禁用是高频的试错操作，每次都重建窗口会丢掉编辑器里未保存的内容 ——
+   *   而语言切换之所以能那样做，是因为它低频且真的无法热更新。
+   */
+  ipcMain.handle('host:set-plugin-enabled', (_event, pluginId: string, enabled: boolean): void => {
+    if (enabled) disabledPlugins.delete(pluginId)
+    else disabledPlugins.add(pluginId)
+
+    console.log(`[plugin-host] ${enabled ? '启用' : '禁用'}插件: ${pluginId}`)
+
+    /**
+     * 广播给**所有**窗口。
+     *
+     * 必要性来自窗口模型：设置窗口和主窗口是两个渲染进程，各自持有一份 zustand
+     * store。在设置窗口里取消勾选、主窗口那边不会有任何变化 —— 除非有人告诉它。
+     * pushEventToRenderer 是既有的宿主 -> 全窗口广播通道，这里正好是它的用途。
+     */
+    pushEventToRenderer(PLUGIN_STATE_CHANGED_EVENT, pluginId, enabled)
+  })
+
+  /** 当前被禁用的插件。渲染进程启动时取一次，用来过滤视图列表 */
+  ipcMain.handle('host:get-disabled-plugins', (): string[] => [...disabledPlugins])
+
   /** 渲染进程/插件请求切换语言；真正生效靠重建窗口，所以走和菜单同一条路径 */
   ipcMain.handle('host:set-locale', async (_e, locale: LocaleId): Promise<void> => {
     await applyLocaleSwitch(locale)
@@ -124,15 +198,14 @@ export function registerHostIPC(): void {
    * 渲染进程 —— 渲染进程不需要知道菜单长什么样。菜单关闭（点了或点外面取消）
    * 后统一 resolve，取消时值不变，渲染进程直接 set 即可。
    *
-   * 语言切换也挂在这里：这是目前宿主**唯一**的原生菜单面，用户已经知道
-   * 右键按钮条能出菜单。等有了设置界面应当把它挪过去。
+   * 语言切换**曾经**也挂在这里，现在挪到设置窗口的语言页了。这里刻意不再放它：
+   * 切语言要重建窗口（会丢未保存内容、要确认），而右键菜单是个轻量、无确认的
+   * 交互面 —— 把一个破坏性操作塞进右键菜单，用户点中的代价和收益不成比例。
    */
   ipcMain.handle('host:show-stripe-menu', (event, showTitles: boolean): Promise<boolean> => {
     return new Promise<boolean>((resolve) => {
       const t = createMainTranslator()
-      const payload = getI18nPayload()
       let next = showTitles
-      let pendingLocale: LocaleId | null = null
 
       const menu = Menu.buildFromTemplate([
         {
@@ -142,37 +215,13 @@ export function registerHostIPC(): void {
           click: (item) => {
             next = item.checked
           }
-        },
-        { type: 'separator' },
-        {
-          label: t('host.stripe.menu.language'),
-          submenu: payload.available.map((descriptor) => ({
-            label: descriptor.label,
-            type: 'radio' as const,
-            checked: descriptor.locale === payload.locale,
-            click: () => {
-              pendingLocale = descriptor.locale
-            }
-          }))
         }
       ])
 
       const win = BrowserWindow.fromWebContents(event.sender)
       menu.popup({
         ...(win ? { window: win } : {}),
-        callback: () => {
-          resolve(next)
-
-          // 关键时序：必须等菜单真正关闭之后再重建窗口。
-          // 在 click 回调里直接 destroy() 会把弹出菜单脚下的窗口拆掉，
-          // 原生菜单在部分平台上会崩或残留。
-          if (pendingLocale !== null) {
-            const target = pendingLocale
-            setImmediate(() => {
-              void applyLocaleSwitch(target)
-            })
-          }
-        }
+        callback: () => resolve(next)
       })
     })
   })

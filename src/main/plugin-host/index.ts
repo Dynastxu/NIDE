@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 import { uiRegistry } from './ui-registry'
+import { pluginRegistry } from './plugin-registry'
 import { PluginLoader } from './loader'
 import { languagePackRegistry } from '../i18n/language-packs'
 import type { LocaleSourceTier } from '@shared/i18n'
@@ -36,7 +37,11 @@ function scanDir(loader: PluginLoader, dir: string, source: LocaleSourceTier): n
     const manifestPath = path.join(dir, name, 'manifest.json')
     if (!fs.existsSync(manifestPath)) continue
     try {
-      loader.loadContributions(manifestPath, source)
+      // loadContributions 返回 manifest 本身，顺手登记进插件清单 ——
+      // 这样「设置 -> 插件」能列出**全部**插件，包括没有任何视图的语言包。
+      // 从 uiRegistry 反推插件列表是不行的，那类插件会整个不可见。
+      const manifest = loader.loadContributions(manifestPath, source)
+      if (manifest) pluginRegistry.register(manifest, source, name)
       loaded += 1
     } catch (err) {
       console.error(`[plugin-host] Failed to load plugin: ${name}`, err)

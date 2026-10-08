@@ -3,7 +3,7 @@ import path from 'node:path'
 import { normalizeLocale } from '@shared/i18n'
 import { permissionManager } from './permission'
 import { uiRegistry } from './ui-registry'
-import { languagePackRegistry } from '../i18n/language-packs'
+import { languagePackRegistry } from '../i18n'
 import {
   DEFAULT_NLS_FILE,
   NLS_FILE_RE,
@@ -199,6 +199,7 @@ export class PluginLoader {
    * 语言包之所以能这么轻，正是因为上面这条约束：它不需要跑任何代码，
    * 宿主只要读一个 JSON 就完事，完全落在「主进程读盘 -> 纯数据下发」的既有链路上。
    *
+   * @param manifestPath manifest.json 文件路径
    * @param source 这个插件是从哪个目录扫出来的，决定它和同名语言包冲突时的优先级
    */
   loadContributions(

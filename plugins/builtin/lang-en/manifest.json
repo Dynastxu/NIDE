@@ -3,6 +3,7 @@
   "name": "English",
   "version": "0.1.0",
   "activationEvents": ["onStartup"],
+  "requiresRestart": true,
   "permissions": [],
   "contributes": {
     "locales": [
