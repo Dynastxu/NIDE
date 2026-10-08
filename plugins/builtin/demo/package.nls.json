@@ -1,0 +1,9 @@
+{
+  "demo.hello.title": "插件宿主自检",
+  "demo.rightTop.title": "右上示例",
+  "demo.leftTop.title": "左上示例",
+  "demo.leftBottom.title": "左下示例",
+  "demo.rightBottom.title": "右下示例",
+  "demo.bottomLeft.title": "底部左示例",
+  "demo.bottomRight.title": "底部右示例"
+}

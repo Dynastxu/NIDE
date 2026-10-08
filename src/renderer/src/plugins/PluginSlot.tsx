@@ -1,5 +1,7 @@
-import { useEffect, useState, type ComponentType, type JSX } from 'react'
+import { useEffect, useMemo, useState, type ComponentType, type JSX } from 'react'
 import { usePluginStore } from '../stores/plugin.store'
+import { useI18nStore, useT } from '../stores/i18n.store'
+import { PluginHostProvider } from './PluginHostProvider'
 import type { PluginViewDescriptor } from '@shared/plugin-api'
 
 /**
@@ -33,38 +35,57 @@ function resolveViewLoader(view: PluginViewDescriptor): (() => Promise<unknown>)
 
 type PluginComponent = ComponentType<Record<string, never>>
 
+/** 异步加载的结果。带上 viewId 才能判断它是不是**当前**这个视图的 */
+interface LoadedView {
+  viewId: string
+  Component: PluginComponent
+}
+
+interface FailedLoad {
+  viewId: string
+  message: string
+}
+
 interface PluginSlotProps {
   viewId: string
 }
 
 export function PluginSlot({ viewId }: PluginSlotProps): JSX.Element {
   const view = usePluginStore((s) => s.views.find((v) => v.id === viewId))
-  const [Component, setComponent] = useState<PluginComponent | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState<LoadedView | null>(null)
+  const [failed, setFailed] = useState<FailedLoad | null>(null)
+
+  // 插件 UI 靠这两个值自己决定用哪套文案 —— 宿主只告诉它「现在是什么语言」
+  const locale = useI18nStore((s) => s.locale)
+  const t = useT()
+
+  /**
+   * 同步就能算出来的错误，**在渲染期派生**，不进 state。
+   *
+   * 这些以前是写在 effect 同步体里的 setState —— 那会触发级联渲染，
+   * React 明确不推荐（react-hooks/set-state-in-effect）。而它们本来就是
+   * 由 view 纯计算出来的，没有理由占一份 state。
+   */
+  const syncError = useMemo<string | null>(() => {
+    if (!view) return `store 里没有视图 ${viewId}`
+    if (resolveViewLoader(view)) return null
+
+    const available = Object.keys(viewModules)
+    return [
+      `没有找到视图 ${view.id} 对应的 UI 模块。`,
+      `主进程给的坐标: dir=${view.dir}, entry=${view.entry}`,
+      `拼出来的 glob key: ${GLOB_PREFIX}${view.dir}/${view.entry}`,
+      `构建期实际打包到的 key:`,
+      available.length ? available.map((k) => `  - ${k}`).join('\n') : '  (空)'
+    ].join('\n')
+  }, [view, viewId])
 
   useEffect(() => {
-    setComponent(null)
-    setError(null)
-
-    if (!view) {
-      setError(`store 里没有视图 ${viewId}`)
-      return
-    }
-
+    // 同步可知的两种失败已经由 syncError 覆盖，这里只负责真正异步的那一段。
+    // setState 一律只在 promise 回调里调用 —— 那正是 effect 该干的事。
+    if (!view) return
     const load = resolveViewLoader(view)
-    if (!load) {
-      const available = Object.keys(viewModules)
-      setError(
-        [
-          `没有找到视图 ${view.id} 对应的 UI 模块。`,
-          `主进程给的坐标: dir=${view.dir}, entry=${view.entry}`,
-          `拼出来的 glob key: ${GLOB_PREFIX}${view.dir}/${view.entry}`,
-          `构建期实际打包到的 key:`,
-          available.length ? available.map((k) => `  - ${k}`).join('\n') : '  (空)'
-        ].join('\n')
-      )
-      return
-    }
+    if (!load) return
 
     let cancelled = false
     load()
@@ -72,19 +93,28 @@ export function PluginSlot({ viewId }: PluginSlotProps): JSX.Element {
         if (cancelled) return
         const candidate = (mod as { default?: unknown }).default ?? mod
         if (typeof candidate !== 'function') {
-          setError(`视图 ${view.id} 的模块没有 default export 一个 React 组件`)
+          setFailed({
+            viewId: view.id,
+            message: `视图 ${view.id} 的模块没有 default export 一个 React 组件`
+          })
           return
         }
-        setComponent(() => candidate as PluginComponent)
+        setLoaded({ viewId: view.id, Component: candidate as PluginComponent })
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(`加载视图 ${view.id} 失败: ${String(err)}`)
+        if (!cancelled)
+          setFailed({ viewId: view.id, message: `加载视图 ${view.id} 失败: ${String(err)}` })
       })
 
     return () => {
       cancelled = true
     }
   }, [view, viewId])
+
+  // 派生而不是重置：结果不属于当前 viewId 就当作还没加载完。
+  // 真正的重置由 ToolZone 的 key={view.id} 重新挂载组件完成。
+  const error = syncError ?? (failed?.viewId === viewId ? failed.message : null)
+  const Component = loaded?.viewId === viewId ? loaded.Component : null
 
   if (error) {
     return (
@@ -95,8 +125,12 @@ export function PluginSlot({ viewId }: PluginSlotProps): JSX.Element {
   }
 
   if (!Component) {
-    return <div className="p-3 text-xs text-zinc-500">Loading…</div>
+    return <div className="p-3 text-xs text-zinc-500">{t('host.plugin.loading')}</div>
   }
 
-  return <Component />
+  return (
+    <PluginHostProvider locale={locale} t={t}>
+      <Component />
+    </PluginHostProvider>
+  )
 }

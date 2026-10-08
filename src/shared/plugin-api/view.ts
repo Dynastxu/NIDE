@@ -10,7 +10,12 @@ export type ViewLocation =
 export interface PluginViewDescriptor {
   /** 视图唯一 ID，例如 'demo.hello' */
   id: string
-  /** 视图标题。同时作为按钮 tooltip 和区域标题栏文字 */
+  /**
+   * 视图标题。同时作为按钮 tooltip 和区域标题栏文字。
+   *
+   * 主进程已经按**当前语言**解析过 manifest 里的 `%key%` 占位符了，
+   * 渲染进程直接显示这个字符串即可，不要再做任何语言判断。
+   */
   title: string
   /** 挂载位置 */
   location: ViewLocation

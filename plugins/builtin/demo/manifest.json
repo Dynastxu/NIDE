@@ -8,49 +8,49 @@
     "views": [
       {
         "id": "demo.hello",
-        "title": "插件宿主自检",
+        "title": "%demo.hello.title%",
         "icon": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round'><circle cx='12' cy='12' r='8'/><path d='M12 4v16M4 12h16'/></svg>",
         "location": "rightTop",
         "entry": "src/ui/index.tsx"
       },
       {
         "id": "demo.rightTop",
-        "title": "右上示例",
+        "title": "%demo.rightTop.title%",
         "icon": "file",
         "location": "rightTop",
         "entry": "src/ui/rightTop.tsx"
       },
       {
         "id": "demo.leftTop",
-        "title": "左上示例",
+        "title": "%demo.leftTop.title%",
         "icon": "folder",
         "location": "leftTop",
         "entry": "src/ui/leftTop.tsx"
       },
       {
         "id": "demo.leftBottom",
-        "title": "左下示例",
+        "title": "%demo.leftBottom.title%",
         "icon": "gitBranch",
         "location": "leftBottom",
         "entry": "src/ui/leftBottom.tsx"
       },
       {
         "id": "demo.rightBottom",
-        "title": "右下示例",
+        "title": "%demo.rightBottom.title%",
         "icon": "search",
         "location": "rightBottom",
         "entry": "src/ui/rightBottom.tsx"
       },
       {
         "id": "demo.bottomLeft",
-        "title": "底部左示例",
+        "title": "%demo.bottomLeft.title%",
         "icon": "terminal",
         "location": "bottomLeft",
         "entry": "src/ui/bottomLeft.tsx"
       },
       {
         "id": "demo.bottomRight",
-        "title": "底部右示例",
+        "title": "%demo.bottomRight.title%",
         "icon": "list",
         "location": "bottomRight",
         "entry": "src/ui/bottomRight.tsx"

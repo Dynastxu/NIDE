@@ -1,0 +1,9 @@
+{
+  "demo.hello.title": "Plugin host self-test",
+  "demo.rightTop.title": "Right-top sample",
+  "demo.leftTop.title": "Left-top sample",
+  "demo.leftBottom.title": "Left-bottom sample",
+  "demo.rightBottom.title": "Right-bottom sample",
+  "demo.bottomLeft.title": "Bottom-left sample",
+  "demo.bottomRight.title": "Bottom-right sample"
+}

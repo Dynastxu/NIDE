@@ -1,4 +1,18 @@
 import { useState, type JSX } from 'react'
+import { usePluginTranslator } from '@renderer/plugins/host-context'
+import type { MessageTable } from '@shared/i18n'
+
+/**
+ * 这个演示插件**自己**维护词条表。
+ *
+ * 宿主只提供两样东西：当前是什么语言，以及 `{name}` 插值怎么做。
+ * 文案数据归插件 —— 宿主既不知道别的插件有哪些文案，也维护不了。
+ * 表里的第一个 key 约定为插件的默认语言，作为兜底。
+ */
+const MESSAGES: Record<string, MessageTable> = {
+  'zh-CN': { clicked: '已点击 {count} 次' },
+  en: { clicked: 'Clicked {count} times' }
+}
 
 /**
  * 各分区示例视图共用的外壳。
@@ -12,6 +26,7 @@ import { useState, type JSX } from 'react'
  */
 export function DemoPanel({ hint }: { hint: string }): JSX.Element {
   const [count, setCount] = useState(0)
+  const t = usePluginTranslator(MESSAGES)
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden p-3 text-zinc-300">
@@ -23,7 +38,7 @@ export function DemoPanel({ hint }: { hint: string }): JSX.Element {
         onClick={() => setCount((c) => c + 1)}
         className="mt-auto shrink-0 self-start rounded bg-zinc-800 px-2 py-1 text-[11px] hover:bg-zinc-700"
       >
-        已点击 {count} 次
+        {t('clicked', { count })}
       </button>
     </div>
   )

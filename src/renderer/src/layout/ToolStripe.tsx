@@ -2,6 +2,7 @@ import { Fragment, JSX, type MouseEvent } from 'react'
 import { ViewIcon } from '@renderer/layout/ViewIcon'
 import { useLayoutStore, type ZoneId } from '@renderer/stores/layout.store'
 import { usePluginStore } from '@renderer/stores/plugin.store'
+import { useT } from '@renderer/stores/i18n.store'
 import type { PluginViewDescriptor } from '@shared/plugin-api'
 
 /**
@@ -27,6 +28,7 @@ export function ToolStripe({ side }: { side: 'left' | 'right' }): JSX.Element {
   const views = usePluginStore((s) => s.views)
   const showTitles = useLayoutStore((s) => s.showStripeTitles)
   const setShowTitles = useLayoutStore((s) => s.setShowStripeTitles)
+  const t = useT()
   const { top, bottom } = STRIPE_LAYOUT[side]
 
   // 没有视图的区不占位，也就不会多出一条孤零零的分割线
@@ -46,7 +48,7 @@ export function ToolStripe({ side }: { side: 'left' | 'right' }): JSX.Element {
   return (
     <aside
       onContextMenu={openMenu}
-      title="右键：显示/隐藏标题"
+      title={t('host.stripe.tooltip')}
       className={[
         'flex shrink-0 flex-col items-center gap-1 overflow-x-hidden overflow-y-auto bg-zinc-950 px-1 py-1',
         showTitles ? 'w-24' : 'w-9',

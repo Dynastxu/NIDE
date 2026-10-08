@@ -1,0 +1,22 @@
+{
+  "host.app.title": "NIDE",
+
+  "host.stripe.tooltip": "Right-click: show/hide titles",
+  "host.stripe.menu.showTitles": "Show tool window names",
+  "host.stripe.menu.language": "Language",
+
+  "host.diff.title": "Diff comparison",
+  "host.diff.close": "Close",
+
+  "host.plugin.loading": "Loading…",
+
+  "host.locale.switch.title": "Switch language",
+  "host.locale.switch.message": "Switching to \"{label}\" requires restarting the window to take full effect. Unsaved editor content will be lost. Continue?",
+  "host.locale.switch.confirm": "Switch and restart",
+  "host.locale.switch.cancel": "Cancel",
+  "host.locale.switch.failed": "Could not switch to \"{locale}\". The current language was kept.",
+
+  "host.locale.fallback.notice": "No language pack found for \"{locale}\"; falling back to Chinese.",
+  "host.locale.diagnostics.missing": "\"{locale}\" has {count} untranslated strings; they fall back to Chinese.",
+  "host.locale.diagnostics.conflict": "\"{locale}\" has {count} strings provided by multiple language packs; the third-party one wins."
+}

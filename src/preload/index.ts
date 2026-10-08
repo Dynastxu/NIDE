@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { DEFAULT_LOCALE, LOCALE_ARG_PREFIX } from '@shared/i18n'
+import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type { Disposable } from '@shared/plugin-api'
 
 // ========== 通用事件总线（渲染进程侧） ==========
@@ -9,12 +11,34 @@ ipcRenderer.on('host:event', (_event, channel: string, ...args: unknown[]) => {
   listeners.get(channel)?.forEach((handler) => handler(...args))
 })
 
+/**
+ * 启动语言：从主进程建窗时喂进来的启动参数里**同步**读出来。
+ *
+ * 只给 Monaco 用（见 renderer 的 monaco-env.ts）—— 它必须在 monaco 模块被求值
+ * 之前拿到语言，而那条路径上没有 await 的机会。完整的词条表仍然走异步的
+ * host:get-i18n，两者不冲突：这份只有一个字符串。
+ */
+function readBootLocale(): LocaleId {
+  const arg = process.argv.find((item) => item.startsWith(LOCALE_ARG_PREFIX))
+  return arg ? arg.slice(LOCALE_ARG_PREFIX.length) : DEFAULT_LOCALE
+}
+
 const api = {
   /**
    * 获取所有插件注册的 UI 视图元信息。
    * 返回 [{ id, title, location, pluginId, dir, entry }] —— 纯数据。
    */
   getPluginViews: () => ipcRenderer.invoke('host:get-plugin-views'),
+
+  /**
+   * 获取当前语言的词条表、可用语言列表和漏翻体检结果。
+   *
+   * 渲染进程没有 fs，也不该知道语言包文件在哪 —— 它只消费主进程算好的结果。
+   */
+  getI18n: (): Promise<I18nPayload> => ipcRenderer.invoke('host:get-i18n'),
+
+  /** 请求切换语言。真正生效需要重建窗口，由主进程自己处理 */
+  setLocale: (locale: LocaleId): Promise<void> => ipcRenderer.invoke('host:set-locale', locale),
 
   /**
    * 事件总线：渲染进程向宿主（或插件后端）发送事件
@@ -75,6 +99,7 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('hostAPI', api)
+    contextBridge.exposeInMainWorld('__NIDE_BOOT__', { locale: readBootLocale() })
   } catch (error) {
     console.error(error)
   }
@@ -83,4 +108,6 @@ if (process.contextIsolated) {
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.hostAPI = api
+  // @ts-ignore (define in dts)
+  window.__NIDE_BOOT__ = { locale: readBootLocale() }
 }

@@ -1,3 +1,4 @@
+import type { LocaleContribution } from '@shared/i18n'
 import type { ViewLocation } from './view'
 
 export interface PluginManifest {
@@ -27,13 +28,42 @@ export interface PluginManifest {
     tools?: PluginToolContribution[]
     /** 注册命令（快捷键/菜单项） */
     commands?: PluginCommandContribution[]
+    /**
+     * 注册语言包。
+     *
+     * 语言包是**纯数据插件**：它不需要 UI 入口、不需要激活事件、也不需要权限，
+     * 宿主只从它的目录里读一个 JSON 词条文件。之所以能这么轻，是因为宿主本来
+     * 就不启动插件后端（见 plugin-host/loader.ts），语言包正好完全落在
+     * 「主进程读盘 -> 作为纯数据下发渲染进程」这条既有链路上。
+     *
+     * 优先级：同一个 locale 被多个包提供时，**第三方覆盖内置**。
+     */
+    locales?: LocaleContribution[]
   }
 }
 
 export interface PluginViewContribution {
   /** 视图唯一 ID，例如 "demo.hello" */
   id: string
-  /** 视图标题，例如 "AI 对话"。同时作为工具区按钮的 tooltip */
+  /**
+   * 视图标题，例如 "AI 对话"。同时作为工具区按钮的 tooltip。
+   *
+   * 两种写法，插件自己选：
+   *
+   * 1. **普通字符串** —— 直接显示，不做本地化。不想做 i18n 的插件保持原样即可。
+   * 2. **`%key%` 占位符** —— 由插件**自己**的词条文件解析，宿主只负责按当前
+   *    语言去查。文件名是约定（照抄 VS Code），不需要在 manifest 里声明：
+   *
+   *      package.nls.json           插件自己声明的默认语言，最后一档回落
+   *      package.nls.<locale>.json  某个语言的翻译，例如 package.nls.en-US.json
+   *
+   *    解析链：精确 locale -> 放宽的 locale（en-US 命中 en）-> 默认表 -> 原样 `%key%`。
+   *    最后一档刻意保留原样：漏翻会**显眼地**出现在界面上，而不是静默变空字符串
+   *    或串到别的语言去。这和宿主自己 t() 的做法一致。
+   *
+   * 只有**整串**被 % 包住才算占位符，所以 "100% done" 这类标题是安全的。
+   * 构建期 check:locales 会穷举校验每个 %key% 在每份词条文件里都存在。
+   */
   title?: string
   /**
    * 工具区按钮的图标，由视图自己声明。**只接受 SVG**：

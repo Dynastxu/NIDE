@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: nide
+appId: com.github.dynastxu.nide
+productName: NIDE
 directories:
   buildResources: build
 files:
@@ -33,11 +33,12 @@ linux:
     - AppImage
     - snap
     - deb
-  maintainer: electronjs.org
+  maintainer: 'Dynastxu <dynastxu@qq.com>'
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: Dynastxu
+  repo: NIDE

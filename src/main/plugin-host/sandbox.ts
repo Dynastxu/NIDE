@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { fileService } from '../services/file.service'
 import { permissionManager } from './permission'
+import { PermissionDeniedError, OperationExceedsWorkspaceError } from './errors'
 import type { FileSystemAPI } from '@shared/plugin-api'
 
 // 宿主允许插件访问的工作区根目录（例如用户打开的项目文件夹）

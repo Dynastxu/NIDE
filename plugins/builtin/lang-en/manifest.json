@@ -1,0 +1,16 @@
+{
+  "id": "builtin.lang-en",
+  "name": "English",
+  "version": "0.1.0",
+  "activationEvents": ["onStartup"],
+  "permissions": [],
+  "contributes": {
+    "locales": [
+      {
+        "locale": "en-US",
+        "label": "English",
+        "file": "locales/en-US.json"
+      }
+    ]
+  }
+}

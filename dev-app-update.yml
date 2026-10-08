@@ -1,3 +1,11 @@
-provider: generic
-url: https://example.com/auto-updates
+# electron-updater 在**开发环境**下读的更新源配置。
+# 打包后用的是另一个文件：由 electron-builder 依据 electron-builder.yml 的 publish
+# 生成的 app-update.yml。两边必须保持一致，否则 dev 与打包版行为不同。
+#
+# 注意：目前代码里**没有任何地方调用 autoUpdater**（electron-updater 只是躺在
+# dependencies 里），所以这份配置现在不产生任何效果。等真要接入更新流程时，
+# 还需要仓库里存在已发布的 Release 才会有内容可更新。
+provider: github
+owner: Dynastxu
+repo: NIDE
 updaterCacheDirName: nide-updater
