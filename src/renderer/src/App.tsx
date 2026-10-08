@@ -1,29 +1,17 @@
-import { MonacoEditor } from './editor/MonacoEditor'
-import { MonacoDiffView } from './editor/MonacoDiffView'
-import { PluginContainer } from './plugins/PluginContainer'
-import { JSX } from 'react'
+import { WorkbenchLayout } from '@renderer/layout/WorkbenchLayout'
+import { JSX, useEffect } from 'react'
+import { usePluginStore } from '@renderer/stores/plugin.store'
 
 export default function App(): JSX.Element {
-  return (
-    <div className="flex h-screen w-screen bg-zinc-900 text-zinc-200 overflow-hidden">
-      {/* 主编辑区 */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        <div className="flex-1 min-h-0">
-          <MonacoEditor />
-        </div>
-        {/* 底部面板：插件在这里注册自己的视图 */}
-        <div className="h-48 border-t border-zinc-800">
-          <PluginContainer location="panel" />
-        </div>
-      </div>
+  const loaded = usePluginStore((s) => s.loaded)
+  const loadViews = usePluginStore((s) => s.loadViews)
 
-      {/* 右侧侧边栏：AI 对话等插件挂在这里 */}
-      <div className="w-80 border-l border-zinc-800 flex flex-col">
-        <PluginContainer location="sidebar" />
-      </div>
+  // 关键：视图列表的加载必须提到这里，不能放在工具区容器里。
+  // 容器只在工具区可见时才挂载 —— 一旦某个区默认隐藏，它不挂载 → 视图列表
+  // 永远加载不出来 → 侧边按钮因为没有视图而不出现 → 用户再也打不开。死锁。
+  useEffect(() => {
+    if (!loaded) void loadViews()
+  }, [loaded, loadViews])
 
-      {/* Diff 弹层 */}
-      <MonacoDiffView />
-    </div>
-  )
+  return <WorkbenchLayout />
 }

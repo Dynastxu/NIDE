@@ -26,7 +26,7 @@ export function initPluginHost(): void {
   const builtinDir = resolveBuiltinPluginsDir()
 
   if (!fs.existsSync(builtinDir)) {
-    console.warn(`[plugin-host] 未找到内置插件目录: ${builtinDir}`)
+    console.warn(`[plugin-host] Built-in plugin directory not found: ${builtinDir}`)
     return
   }
 
@@ -37,9 +37,11 @@ export function initPluginHost(): void {
     try {
       loader.loadContributions(manifestPath)
     } catch (err) {
-      console.error(`[plugin-host] 加载插件失败: ${name}`, err)
+      console.error(`[plugin-host] Failed to load plugin: ${name}`, err)
     }
   }
 
-  console.log(`[plugin-host] 视图注册完成，共 ${uiRegistry.getAll().length} 个`)
+  console.log(
+    `[plugin-host] View registration completed, registered ${uiRegistry.getAll().length} views`
+  )
 }

@@ -7,8 +7,12 @@ import { initPluginHost } from './plugin-host'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    // 七分区工作台：左右两列 + 两条按钮条就要吃掉 650px 左右，
+    // 900 宽的窗口会让编辑器几乎没有立足之地。
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),

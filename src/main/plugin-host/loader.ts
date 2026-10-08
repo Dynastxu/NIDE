@@ -2,10 +2,53 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { permissionManager } from './permission'
 import { uiRegistry } from './ui-registry'
-import type { PluginManifest } from '@shared/plugin-api'
+import type { PluginManifest, ViewLocation } from '@shared/plugin-api'
 
 /** 视图入口的默认约定：插件目录下的 src/ui/index.tsx */
 export const DEFAULT_VIEW_ENTRY = 'src/ui/index.tsx'
+
+/** 合法的挂载位置（与渲染进程的 6 个工具区 + 主编辑区一一对应） */
+const VALID_LOCATIONS: ReadonlySet<string> = new Set([
+  'leftTop',
+  'leftBottom',
+  'rightTop',
+  'rightBottom',
+  'bottomLeft',
+  'bottomRight',
+  'main'
+])
+
+/** 旧契约 -> 新契约：老插件不用改 manifest 也能落在合理的位置 */
+const LEGACY_LOCATIONS: Record<string, ViewLocation> = {
+  sidebar: 'rightTop',
+  panel: 'bottomLeft'
+}
+
+const FALLBACK_LOCATION: ViewLocation = 'rightTop'
+
+/**
+ * 把 manifest 里写的 location 归一化成合法的 ViewLocation。
+ *
+ * 渲染进程按 location 把视图塞进对应的工具区，一个不认识的值会让视图
+ * 在任何区里都匹配不上 —— 表现为「插件加载了但界面上什么都看不到」，
+ * 所以这里宁可回落到默认值并告警，也不把脏值透传给渲染进程。
+ */
+function normalizeLocation(raw: string | undefined, viewId: string): ViewLocation {
+  const key = raw ?? FALLBACK_LOCATION
+
+  if (VALID_LOCATIONS.has(key)) return key as ViewLocation
+
+  const legacy = LEGACY_LOCATIONS[key]
+  if (legacy) {
+    console.warn(`[plugin-host] view ${viewId} 使用了旧 location "${key}"，已映射为 "${legacy}"`)
+    return legacy
+  }
+
+  console.warn(
+    `[plugin-host] view ${viewId} 的 location "${key}" 不合法，已回落到 "${FALLBACK_LOCATION}"`
+  )
+  return FALLBACK_LOCATION
+}
 
 function toPosix(p: string): string {
   return p.replace(/\\/g, '/')
@@ -43,7 +86,8 @@ export class PluginLoader {
       uiRegistry.register({
         id: view.id,
         title: view.title ?? view.id,
-        location: view.location ?? 'sidebar',
+        location: normalizeLocation(view.location, view.id),
+        icon: view.icon,
         pluginId: manifest.id,
         dir,
         entry

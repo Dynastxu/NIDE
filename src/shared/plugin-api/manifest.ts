@@ -1,3 +1,5 @@
+import type { ViewLocation } from './view'
+
 export interface PluginManifest {
   /** 插件唯一标识，例如 "builtin.demo" */
   id: string
@@ -31,10 +33,28 @@ export interface PluginManifest {
 export interface PluginViewContribution {
   /** 视图唯一 ID，例如 "demo.hello" */
   id: string
-  /** 视图标题，例如 "AI 对话" */
+  /** 视图标题，例如 "AI 对话"。同时作为工具区按钮的 tooltip */
   title?: string
-  /** 挂载位置：sidebar（侧边栏）/ panel（底部面板）/ main（主编辑区） */
-  location?: 'sidebar' | 'panel' | 'main'
+  /**
+   * 工具区按钮的图标，由视图自己声明。**只接受 SVG**：
+   *
+   * - 自定义：一整段 SVG 字符串（含 '<'），例如
+   *   "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor'><circle cx='12' cy='12' r='8'/></svg>"
+   * - 内置：只写图标名，例如 "file" / "terminal" / "search" / "gitBranch"
+   *
+   * emoji、文字这类非 SVG 值会被当作未知图标名拒绝并回落到默认图标。
+   */
+  icon?: string
+  /**
+   * 挂载位置。
+   *
+   * 新契约是 6 个工具区 + 主编辑区：
+   * leftTop / leftBottom / rightTop / rightBottom / bottomLeft / bottomRight / main。
+   *
+   * 'sidebar' / 'panel' 是旧契约，宿主会自动映射成 rightTop / bottomLeft，
+   * 老插件不改 manifest 也能正常显示。
+   */
+  location?: ViewLocation | 'sidebar' | 'panel'
   /**
    * UI 组件入口，**相对于插件目录**的 POSIX 路径，例如 "src/ui/index.tsx"。
    * 省略时默认为 "src/ui/index.tsx"。
