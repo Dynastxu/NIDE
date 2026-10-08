@@ -8,6 +8,7 @@ export interface HostAPI {
   notifyEditorChange: (filePath: string, content: string) => void
   onShowDiff: (handler: (original: string, modified: string) => void) => Disposable
   onFileChanged: (handler: (filePath: string, content: string) => void) => Disposable
+  showStripeMenu: (showTitles: boolean) => Promise<boolean>
   reloadPlugin: (pluginId: string) => Promise<void>
 }
 

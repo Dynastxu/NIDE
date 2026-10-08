@@ -22,7 +22,7 @@ export function ViewIcon({ view }: { view: PluginViewDescriptor }): JSX.Element 
     return (
       <span
         aria-hidden="true"
-        className="flex h-4 w-4 items-center justify-center [&_svg]:h-4 [&_svg]:w-4"
+        className="flex items-center justify-center [&_svg]:h-4 [&_svg]:w-4"
         dangerouslySetInnerHTML={{ __html: spec }}
       />
     )

@@ -63,6 +63,10 @@ const api = {
     }
   },
 
+  /** 弹出按钮条的右键菜单，返回「显示标题」的最新勾选状态 */
+  showStripeMenu: (showTitles: boolean): Promise<boolean> =>
+    ipcRenderer.invoke('host:show-stripe-menu', showTitles),
+
   /** 插件管理（占位） */
   reloadPlugin: (pluginId: string) => ipcRenderer.invoke('host:reload-plugin', pluginId)
 }

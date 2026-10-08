@@ -1,4 +1,4 @@
-import { ipcMain, webContents } from 'electron'
+import { BrowserWindow, Menu, ipcMain, webContents } from 'electron'
 import { uiRegistry } from '../plugin-host/ui-registry'
 import type { PluginViewDescriptor } from '@shared/plugin-api'
 
@@ -22,6 +22,36 @@ export function registerHostIPC(): void {
   // 插件重载（占位，等插件后端接上再实现）
   ipcMain.handle('host:reload-plugin', (_e, pluginId: string) => {
     console.log(`[host:reload-plugin] ${pluginId} (not implemented yet)`)
+  })
+
+  /**
+   * 工具区按钮条的右键菜单。
+   *
+   * 原生菜单：勾选状态由 Electron 自己维护，主进程只负责把「最终值」回传给
+   * 渲染进程 —— 渲染进程不需要知道菜单长什么样。菜单关闭（点了或点外面取消）
+   * 后统一 resolve，取消时值不变，渲染进程直接 set 即可。
+   */
+  ipcMain.handle('host:show-stripe-menu', (event, showTitles: boolean): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      let next = showTitles
+
+      const menu = Menu.buildFromTemplate([
+        {
+          label: '显示工具窗口名称',
+          type: 'checkbox',
+          checked: showTitles,
+          click: (item) => {
+            next = item.checked
+          }
+        }
+      ])
+
+      const win = BrowserWindow.fromWebContents(event.sender)
+      menu.popup({
+        ...(win ? { window: win } : {}),
+        callback: () => resolve(next)
+      })
+    })
   })
 }
 

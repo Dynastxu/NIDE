@@ -72,6 +72,9 @@ const initialZones = (): Record<ZoneId, ZoneState> => ({
 
 interface LayoutState extends Record<SizeKey, number> {
   zones: Record<ZoneId, ZoneState>
+  /** 侧边按钮条是否在图标下面显示视图标题（右键按钮条切换） */
+  showStripeTitles: boolean
+  setShowStripeTitles: (show: boolean) => void
   setVisible: (id: ZoneId, visible: boolean) => void
   /** 显示某个视图：打开它所在的区，并把该区切到它 */
   showView: (id: ZoneId, viewId: string) => void
@@ -87,6 +90,9 @@ export const useLayoutStore = create<LayoutState>()(
     (set) => ({
       ...SIZE_DEFAULTS,
       zones: initialZones(),
+      showStripeTitles: true,
+
+      setShowStripeTitles: (show) => set({ showStripeTitles: show }),
 
       setVisible: (id, visible) =>
         set((s) => ({ zones: { ...s.zones, [id]: { ...s.zones[id], visible } } })),
@@ -101,7 +107,7 @@ export const useLayoutStore = create<LayoutState>()(
 
       resetSize: (key) => set({ [key]: SIZE_DEFAULTS[key] } as Partial<LayoutState>),
 
-      reset: () => set({ ...SIZE_DEFAULTS, zones: initialZones() })
+      reset: () => set({ ...SIZE_DEFAULTS, zones: initialZones(), showStripeTitles: true })
     }),
     {
       name: 'nide.layout', // localStorage，重启窗口后布局保持
