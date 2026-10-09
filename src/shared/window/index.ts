@@ -21,6 +21,16 @@ export type WindowType = (typeof WINDOW_TYPES)[number]
 /** 启动参数前缀：主进程建窗时把窗口种类喂进渲染进程的 `process.argv` */
 export const WINDOW_ARG_PREFIX = '--nide-window='
 
+/**
+ * 启动参数前缀：主进程把**日志级别**喂进渲染进程。
+ *
+ * 走启动参数而不是 IPC，理由和 locale 一样 —— 渲染进程要据此决定「是否接管
+ * console」以及每条日志发不发，这件事发生在首个模块求值之前，异步取来不及。
+ * 级别本身由主进程统一解析（见 main/logger），渲染进程只读结论，避免两端
+ * 各解析一遍环境变量后出现「文件里有 debug、控制台里没有」这类不一致。
+ */
+export const LOG_LEVEL_ARG_PREFIX = '--nide-log-level='
+
 export function isWindowType(value: string): value is WindowType {
   return (WINDOW_TYPES as readonly string[]).includes(value)
 }
@@ -60,5 +70,12 @@ export const WINDOW_CHANNELS = {
    * 和切语言走同一条实现，但**不是**同一个通道：那条通道会先弹一个本地化的
    * 确认框。设置界面的重启已经问过用户了，再问一遍是重复确认。
    */
-  restart: 'host:restart-app'
+  restart: 'host:restart-app',
+  /**
+   * 渲染进程 / 预加载 -> 主进程的日志转发。
+   *
+   * 单向 send 而不是 invoke：日志不该有回执，也不该让调用方 await —— 一条
+   * 发不出去的日志不值得让任何业务流程卡住。
+   */
+  log: 'host:log'
 } as const

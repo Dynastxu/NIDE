@@ -2,7 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 import { normalizeLocale } from '@shared/i18n'
+import { loggerFor } from '../logger'
 import type { LocaleId } from '@shared/i18n'
+
+const logger = loggerFor('i18n')
 
 /**
  * 语言偏好的持久化。
@@ -37,6 +40,6 @@ export function writePreferredLocale(locale: LocaleId): void {
     fs.writeFileSync(target, `${JSON.stringify({ locale }, null, 2)}\n`, 'utf-8')
   } catch (err) {
     // 写不进去只影响「下次启动还记得」，不该让切语言整体失败
-    console.error('[i18n] Write failed to write language preference:', err)
+    logger.error('Failed to write the language preference', { error: err })
   }
 }

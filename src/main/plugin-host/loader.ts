@@ -10,9 +10,24 @@ import {
   manifestNlsRegistry,
   parsePlaceholder
 } from '../i18n/manifest-nls'
+import { loggerFor } from '../logger'
 import type { LocaleId, LocaleSourceTier, MessageTable } from '@shared/i18n'
 import type { ManifestNlsTables } from '../i18n/manifest-nls'
 import type { PluginManifest, ViewLocation } from '@shared/plugin-api'
+import type { Logger } from '@shared/logger'
+
+/**
+ * 本模块的日志出口。
+ *
+ * 可替换（`setPluginHostLogger`）是**为了测试**：这个加载器是纯逻辑模块，
+ * 单元测试不该为了断言一条告警就去 import electron-log（那会把整个主进程的
+ * Electron 依赖拖进测试环境）。生产代码永远用默认值，注入只发生在测试里。
+ */
+let logger: Logger = loggerFor('plugin-host')
+
+export function setPluginHostLogger(next: Logger): void {
+  logger = next
+}
 
 /** 视图入口的默认约定：插件目录下的 src/ui/index.tsx */
 export const DEFAULT_VIEW_ENTRY = 'src/ui/index.tsx'
@@ -50,13 +65,15 @@ function normalizeLocation(raw: string | undefined, viewId: string): ViewLocatio
 
   const legacy = LEGACY_LOCATIONS[key]
   if (legacy) {
-    console.warn(`[plugin-host] view ${viewId} used legacy location "${key}" mapped to "${legacy}"`)
+    logger.warn('View uses a legacy location, mapping it', { viewId, from: key, to: legacy })
     return legacy
   }
 
-  console.warn(
-    `[plugin-host] view ${viewId} has invalid location "${key}" mapped to "${FALLBACK_LOCATION}"`
-  )
+  logger.warn('View has an invalid location, falling back', {
+    viewId,
+    location: key,
+    fallback: FALLBACK_LOCATION
+  })
   return FALLBACK_LOCATION
 }
 
@@ -75,7 +92,7 @@ function resolveInsidePlugin(pluginDir: string, relativePath: string, what: stri
   const relative = path.relative(pluginDir, absolute)
 
   if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
-    console.warn(`[plugin-host] ${what} path "${relativePath}" escaped plugin directory, ignored`)
+    logger.warn('Path escaped the plugin directory, ignored', { what, relativePath })
     return null
   }
 
@@ -93,19 +110,23 @@ function readMessageTable(absolutePath: string): MessageTable | null {
   try {
     parsed = JSON.parse(fs.readFileSync(absolutePath, 'utf-8'))
   } catch (err) {
-    console.error(`[plugin-host] Failed to read entry file: ${absolutePath}`, err)
+    logger.error('Failed to read the entry file', { file: absolutePath, error: err })
     return null
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    console.error(`[plugin-host] Entry file must be a JSON object: ${absolutePath}`)
+    logger.error('Entry file must be a JSON object', { file: absolutePath })
     return null
   }
 
   const table: MessageTable = {}
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
     if (typeof value !== 'string') {
-      console.warn(`[plugin-host] Entry file ${absolutePath} has key "${key}" not a string`)
+      logger.warn('Entry file has a non-string message, skipped', {
+        file: absolutePath,
+        key,
+        valueType: typeof value
+      })
       continue
     }
     table[key] = value
@@ -127,10 +148,10 @@ function readManifestNls(pluginDir: string): ManifestNlsTables | null {
   try {
     entries = fs.readdirSync(pluginDir)
   } catch (err) {
-    console.error(
-      `[plugin-host] Failed to read manifest files from plugin directory: ${pluginDir}`,
-      err
-    )
+    logger.error('Failed to read the plugin directory for manifest messages', {
+      dir: pluginDir,
+      error: err
+    })
     return null
   }
 
@@ -172,8 +193,10 @@ function warnUnresolvableTitle(
   if (key === null) return
 
   if (!tables) {
-    console.error(
-      `[plugin-host] ${pluginId} view ${viewId} used placeholder %${key}% but neither ${DEFAULT_NLS_FILE} and package.nls.<locale>.json exist in plugin directory, placeholder will be displayed`
+    logger.error(
+      `View title uses the placeholder "${titleSpec}" but the plugin ships no message file, ` +
+        'the raw placeholder will be displayed',
+      { pluginId, viewId, key, file: DEFAULT_NLS_FILE }
     )
     return
   }
@@ -182,8 +205,10 @@ function warnUnresolvableTitle(
   const inAnyLocale = Object.values(tables.byLocale).some((table) => table[key] !== undefined)
 
   if (!inDefault && !inAnyLocale) {
-    console.error(
-      `[plugin-host] ${pluginId} view ${viewId} used placeholder %${key}% but no entry file has this key, placeholder will be displayed`
+    logger.error(
+      `View title uses the placeholder "${titleSpec}" that no message file defines, ` +
+        'the raw placeholder will be displayed',
+      { pluginId, viewId, key }
     )
   }
 }
@@ -211,7 +236,7 @@ export class PluginLoader {
     try {
       manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as PluginManifest
     } catch (err) {
-      console.error(`[plugin-host] Failed to parse manifest file: ${manifestPath}`, err)
+      logger.error('Failed to parse the manifest file', { file: manifestPath, error: err })
       return null
     }
 
@@ -245,26 +270,28 @@ export class PluginLoader {
         entry
       })
 
-      console.log(`[plugin-host] view registered: ${view.id} -> plugins/builtin/${dir}/${entry}`)
+      logger.debug('View registered', { viewId: view.id, dir, entry })
     }
 
     for (const contribution of manifest.contributes?.locales ?? []) {
       if (!contribution.locale || !contribution.file) {
-        console.warn(`[plugin-host] ${manifest.id} has locales missing locale or file`)
+        logger.warn('Locale contribution is missing locale or file', { pluginId: manifest.id })
         continue
       }
 
       const absolute = resolveInsidePlugin(
         pluginDir,
         contribution.file,
-        `语言包 ${manifest.id}/${contribution.locale}`
+        `language pack ${manifest.id}/${contribution.locale}`
       )
       if (!absolute) continue
 
       if (!fs.existsSync(absolute)) {
-        console.error(
-          `[plugin-host] Language pack file not found: ${absolute} (${manifest.id} declares "${contribution.file}"")`
-        )
+        logger.error('Language pack file not found', {
+          file: absolute,
+          pluginId: manifest.id,
+          declared: contribution.file
+        })
         continue
       }
 
@@ -281,10 +308,12 @@ export class PluginLoader {
         messages
       })
 
-      console.log(
-        `[plugin-host] language pack registered: ${contribution.locale} <- ${manifest.id}` +
-          ` (${source}), ${Object.keys(messages).length} messages`
-      )
+      logger.debug('Language pack registered', {
+        locale: contribution.locale,
+        pluginId: manifest.id,
+        source,
+        messages: Object.keys(messages).length
+      })
     }
 
     return manifest

@@ -2,9 +2,10 @@ import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { LOCALE_ARG_PREFIX } from '@shared/i18n'
-import { WINDOW_ARG_PREFIX, type WindowType } from '@shared/window'
+import { LOG_LEVEL_ARG_PREFIX, WINDOW_ARG_PREFIX, type WindowType } from '@shared/window'
 import icon from '../../resources/icon.png?asset'
 import { createMainTranslator, getCurrentLocale } from './i18n'
+import { getLogLevel } from './logger'
 import { trackWindowState } from './ipc/window.ipc'
 
 /**
@@ -130,15 +131,18 @@ function buildWindow(type: WindowType, options: BuildOptions = {}): BrowserWindo
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       /**
-       * 两个启动参数，都是**建窗时**固定的，reload 不会重新执行主进程：
+       * 三个启动参数，都是**建窗时**固定的，reload 不会重新执行主进程：
        * - locale：Monaco 的 NLS 全局必须在 monaco 模块被求值之前设好，那条
        *   路径上没有 await 的机会，所以只能同步喂进来（见 preload 注释）。
        * - window type：渲染进程据此决定挂载哪个界面。
+       * - log level：渲染进程据此决定是否接管 console、以及每条日志发不发。
+       *   级别由主进程统一解析，两端只共用结论（见 shared/window 的说明）。
        * 这也是「切语言必须重建窗口」的根因。
        */
       additionalArguments: [
         `${LOCALE_ARG_PREFIX}${getCurrentLocale()}`,
-        `${WINDOW_ARG_PREFIX}${type}`
+        `${WINDOW_ARG_PREFIX}${type}`,
+        `${LOG_LEVEL_ARG_PREFIX}${getLogLevel()}`
       ]
     }
   })

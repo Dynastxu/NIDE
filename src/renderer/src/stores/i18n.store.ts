@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { BASE_MESSAGES, DEFAULT_LOCALE, createTranslator } from '@shared/i18n'
+import { loggerFor } from '../logger'
 import type {
   I18nPayload,
   LocaleDescriptor,
@@ -8,6 +9,8 @@ import type {
   MessageTable,
   Translator
 } from '@shared/i18n'
+
+const logger = loggerFor('i18n')
 
 interface I18nState {
   /** 词条表是否已就位。为 false 时 t() 只会给出中文基础表 */
@@ -50,15 +53,17 @@ function hydrate(payload: I18nPayload): Partial<I18nState> {
 
   if (payload.fallbackFrom) {
     state.fallbackFrom = payload.fallbackFrom
-    console.warn(
-      `[i18n] Language pack for "${payload.fallbackFrom}" not found, the interface has fallen back to "${payload.locale}"`
-    )
+    logger.warn('Language pack not found, the interface falls back', {
+      requested: payload.fallbackFrom,
+      fallback: payload.locale
+    })
   }
 
   if (payload.diagnostics.missing.length > 0) {
-    console.warn(
-      `[i18n] "${payload.locale}" has ${payload.diagnostics.missing.length} pieces of copy that have not been translated, and these parts will display in Chinese`
-    )
+    logger.warn('Some messages are not translated and will be displayed in the base language', {
+      locale: payload.locale,
+      count: payload.diagnostics.missing.length
+    })
   }
 
   return state
@@ -80,10 +85,7 @@ export const useI18nStore = create<I18nState>((set) => ({
       .then((payload) => set(hydrate(payload)))
       .catch((err: unknown) => {
         // 拿不到词条表不该白屏：中文基础表已经在 store 里了，界面照常可用
-        console.error(
-          '[i18n] Failed to load the entry table, reverted to the basic Chinese table',
-          err
-        )
+        logger.error('Failed to load the message table, keeping the base table', { error: err })
       })
       .finally(() => {
         inflight = null

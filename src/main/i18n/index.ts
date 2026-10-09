@@ -9,6 +9,9 @@ import type {
 } from '@shared/i18n'
 import { languagePackRegistry } from './language-packs'
 import { readPreferredLocale, writePreferredLocale } from './preference'
+import { loggerFor } from '../logger'
+
+const logger = loggerFor('i18n')
 
 export { languagePackRegistry } from './language-packs'
 export type { LanguagePackEntry } from './language-packs'
@@ -114,41 +117,41 @@ function reportDiagnostics(payload: I18nPayload): void {
   const { locale, diagnostics } = payload
 
   if (payload.fallbackFrom) {
-    console.warn(
-      `[i18n] Language pack for "${payload.fallbackFrom}" not found, fallback to "${locale}"`
-    )
+    logger.warn('Language pack not found, falling back', {
+      requested: payload.fallbackFrom,
+      fallback: locale
+    })
   }
 
   // 逐 key 瀑布下这个数字的含义要说清：链上所有语言包都没翻的 key，
   // 不是「某一个包漏翻的 key」—— 漏翻的包会被后面的包接住，不报在这里。
   if (diagnostics.missing.length > 0) {
-    console.warn(
-      `[i18n] "${locale}" has ${diagnostics.missing.length} missing messages: \n` +
-        diagnostics.missing.map((key) => `  - ${key}`).join('\n')
-    )
+    logger.warn('Missing messages', { locale, count: diagnostics.missing.length })
+    for (const key of diagnostics.missing) logger.debug('Missing message', { key })
   }
 
   if (diagnostics.extra.length > 0) {
-    console.warn(
-      `[i18n] "${locale}" has ${diagnostics.extra.length} extra messages: \n` +
-        diagnostics.extra.map((key) => `  - ${key}`).join('\n')
-    )
+    logger.warn('Extra messages not present in the host table', {
+      locale,
+      count: diagnostics.extra.length
+    })
+    for (const key of diagnostics.extra) logger.debug('Extra message', { key })
   }
 
   if (diagnostics.conflicts.length > 0) {
-    console.warn(
-      `[i18n] "${locale}" has ${diagnostics.conflicts.length} conflicts: \n` +
-        diagnostics.conflicts
-          .map(
-            (c) =>
-              `  - ${c.key}: winner is ${describeRef(c.winner)} loser is ${describeRef(c.loser)}`
-          )
-          .join('\n')
-    )
+    logger.warn('Message conflicts', { locale, count: diagnostics.conflicts.length })
+    for (const conflict of diagnostics.conflicts) {
+      logger.debug('Message conflict', {
+        key: conflict.key,
+        winner: describeRef(conflict.winner),
+        loser: describeRef(conflict.loser)
+      })
+    }
   }
 
   // 一个 locale 由多个包共同供给是常态（第三方翻一半、内置补另一半），
-  // 所以把「每个 key 实际是谁给的」也打出来 —— 漏翻排查全靠它。
+  // 所以把「每个 key 实际是谁给的」也报出来 —— 漏翻排查全靠它。
+  // 逐条供给关系是 debug，按包汇总的那一行是 info。
   const served = Object.entries(diagnostics.providers)
   if (served.length > 0) {
     const byPlugin = new Map<string, string[]>()
@@ -158,12 +161,17 @@ function reportDiagnostics(payload: I18nPayload): void {
       byPlugin.set(describeRef(ref), bucket)
     }
 
-    console.log(
-      `[i18n] ${served.length} pieces of copy for "${locale}" are provided by ${byPlugin.size} packages: \n` +
-        Array.from(byPlugin.entries())
-          .map(([plugin, keys]) => `  - ${plugin}: ${keys.length} pieces`)
-          .join('\n')
-    )
+    for (const [plugin, keys] of byPlugin) {
+      for (const key of keys) logger.debug('Message provider', { locale, key, provider: plugin })
+    }
+
+    logger.info('Message providers', {
+      locale,
+      total: served.length,
+      packs: Object.fromEntries(
+        Array.from(byPlugin.entries()).map(([plugin, keys]) => [plugin, keys.length])
+      )
+    })
   }
 }
 
@@ -184,11 +192,10 @@ export function initI18n(): void {
   currentPayload = buildPayload(locale, fallbackFrom)
 
   reportDiagnostics(currentPayload)
-  console.log(
-    `[i18n] locale=${currentLocale}, available languages ${currentPayload.available
-      .map((d) => d.locale)
-      .join(', ')}`
-  )
+  logger.info('Locale resolved', {
+    locale: currentLocale,
+    available: currentPayload.available.map((d) => d.locale)
+  })
 }
 
 export function getCurrentLocale(): LocaleId {
@@ -216,7 +223,7 @@ export function switchLocale(locale: LocaleId): boolean {
   const normalized = normalizeLocale(locale)
 
   if (normalized !== DEFAULT_LOCALE && !languagePackRegistry.matchLocale(normalized)) {
-    console.error(`[i18n] Refusing to switch to locale with no language pack: "${normalized}"`)
+    logger.error('Refusing to switch to a locale with no language pack', { locale: normalized })
     return false
   }
 

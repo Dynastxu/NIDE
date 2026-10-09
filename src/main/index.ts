@@ -1,10 +1,20 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { installLogger, loggerFor } from './logger'
 import { registerHostIPC } from './ipc/host.ipc'
 import { registerWindowIPC, registerWindowActions } from './ipc/window.ipc'
 import { initPluginHost } from './plugin-host'
 import { initI18n } from './i18n'
 import { createMainWindow, createSettingsWindow, recreateMainWindow } from './window'
+
+/**
+ * 日志必须最先安装，且早于 app.whenReady()。
+ *
+ * 两个理由：它在初始化时接管主进程的 console，越早接管越不容易漏掉启动期
+ * 日志；而它自己写的第一行「Logger initialized」要在文件路径可解析之后立刻
+ * 落地，这样任何后续启动失败都有一份「从哪开始坏」的记录。
+ */
+const logger = installLogger()
 
 app.whenReady().then(() => {
   // 必须和 electron-builder.yml 的 appId 保持一致：Windows 靠 AppUserModelID
@@ -37,6 +47,8 @@ app.whenReady().then(() => {
   // 4) 最后开窗：窗口一打开，渲染进程就能拿到完整的视图列表和词条表
   createMainWindow()
 
+  logger.info('Startup sequence completed')
+
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
   })
@@ -46,4 +58,14 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+/**
+ * 收尾日志。
+ *
+ * 刻意放在 will-quit 而不是 window-all-closed：后者在 macOS 上不退出进程，
+ * 拿它当「应用结束」的信号会漏记。这里只写日志，不干预退出流程。
+ */
+app.on('will-quit', () => {
+  loggerFor('app').info('Application is quitting')
 })

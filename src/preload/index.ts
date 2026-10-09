@@ -1,7 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import {
+  DEFAULT_LOG_LEVEL,
+  createLogger,
+  normalizeFields,
+  parseLogLevel,
+  type LogMessage,
+  type Logger
+} from '@shared/logger'
 import { DEFAULT_LOCALE, LOCALE_ARG_PREFIX } from '@shared/i18n'
 import {
+  LOG_LEVEL_ARG_PREFIX,
   WINDOW_ARG_PREFIX,
   WINDOW_CHANNELS,
   isWindowType,
@@ -43,6 +52,40 @@ function readBootWindowType(): WindowType {
   const value = arg ? arg.slice(WINDOW_ARG_PREFIX.length) : ''
   return isWindowType(value) ? value : 'main'
 }
+
+/**
+ * 启动日志级别：和 locale / window type 一样从启动参数里同步读。
+ *
+ * 级别由主进程解析（见 main/logger），这里只读结论 —— 两端各解析一遍环境变量
+ * 迟早会出现「文件里有 debug、控制台里没有」这种半边生效的结果。
+ */
+function readBootLogLevel(): string {
+  const arg = process.argv.find((item) => item.startsWith(LOG_LEVEL_ARG_PREFIX))
+  return arg ? arg.slice(LOG_LEVEL_ARG_PREFIX.length) : DEFAULT_LOG_LEVEL
+}
+
+const logLevel = parseLogLevel(readBootLogLevel())
+
+/**
+ * 日志出口：预加载与渲染进程的日志都由这里发往主进程。
+ *
+ * 为什么不让 electron-log 自己接管渲染进程：它的 renderer 实现要在
+ * `window.__electronLog` 上找到出口，而那个出口最终也是这一条 IPC ——
+ * 宿主显式写出来，就少一层「库在什么时机把全局挂上去」的不确定性。
+ * 归一化后发送的理由见 shared/logger 的 normalizeFields：结构化克隆拒绝
+ * Error 与循环引用，不归一化会让日志转发本身变成崩溃点。
+ */
+function sendLog(message: LogMessage): void {
+  ipcRenderer.send(WINDOW_CHANNELS.log, {
+    date: message.date.toISOString(),
+    level: message.level,
+    scope: message.scope,
+    text: message.text,
+    fields: normalizeFields(message.fields)
+  })
+}
+
+const preloadLogger: Logger = createLogger('preload', { write: sendLog }, logLevel)
 
 /**
  * 窗口按钮的后端。
@@ -186,6 +229,23 @@ const api = {
     ipcRenderer.invoke('host:show-stripe-menu', showTitles),
 
   /**
+   * 渲染进程的日志出口。
+   *
+   * 暴露的是**函数**而不是通道名，所以渲染进程只能按级别打印，不能拿它往
+   * 任意 channel 发任意载荷 —— 那等于给渲染进程开了一条伪造 IPC 的路。
+   */
+  log: {
+    error: (text: string, fields?: Record<string, unknown>): void =>
+      sendLog({ date: new Date(), level: 'error', scope: 'renderer', text, fields }),
+    warn: (text: string, fields?: Record<string, unknown>): void =>
+      sendLog({ date: new Date(), level: 'warn', scope: 'renderer', text, fields }),
+    info: (text: string, fields?: Record<string, unknown>): void =>
+      sendLog({ date: new Date(), level: 'info', scope: 'renderer', text, fields }),
+    debug: (text: string, fields?: Record<string, unknown>): void =>
+      sendLog({ date: new Date(), level: 'debug', scope: 'renderer', text, fields })
+  },
+
+  /**
    * 窗口本体：最小化 / 最大化 / 关闭 / 打开别的窗口。
    *
    * 单独收成一个命名空间，和「宿主业务能力」分开 —— 前者每个窗口都有，
@@ -197,16 +257,60 @@ const api = {
   reloadPlugin: (pluginId: string) => ipcRenderer.invoke('host:reload-plugin', pluginId)
 }
 
+/**
+ * 渲染进程侧的日志出口。
+ *
+ * 两件事：
+ *
+ * 1. 暴露 `window.hostAPI.log`，渲染进程唯一的日志出口。
+ * 2. 补上 `window.__electronLog` —— electron-log 的渲染进程实现会在这里找
+ *    出口。宿主不用它（`hostAPI.log` 已经够），但插件作者可能直接
+ *    `import log from 'electron-log/renderer'`，留一个能用的出口比让那条路径
+ *    静默失败好。主进程侧对应的 `log.initialize({ preload: false })` 只装了
+ *    IPC 回流这一半，所以两边不会重复接管。
+ */
+function exposeLogBridge(): void {
+  const bridge = {
+    sendToMain: (payload: unknown): void => ipcRenderer.send(WINDOW_CHANNELS.log, payload),
+    error: (...data: unknown[]): void => sendRaw('error', data),
+    warn: (...data: unknown[]): void => sendRaw('warn', data),
+    info: (...data: unknown[]): void => sendRaw('info', data),
+    verbose: (...data: unknown[]): void => sendRaw('debug', data),
+    debug: (...data: unknown[]): void => sendRaw('debug', data),
+    silly: (...data: unknown[]): void => sendRaw('debug', data),
+    log: (...data: unknown[]): void => sendRaw('info', data)
+  }
+
+  window.__electronLog = bridge as unknown as typeof window.__electronLog
+}
+
+/** electron-log 的数据是可变参数列表，这里折叠成单条文本 + 结构化字段 */
+function sendRaw(level: LogMessage['level'], data: unknown[]): void {
+  const [first, ...rest] = data
+  sendLog({
+    date: new Date(),
+    level,
+    scope: 'renderer',
+    text: typeof first === 'string' ? first : String(first),
+    ...(rest.length > 0 ? { fields: { data: rest } } : {})
+  })
+}
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('hostAPI', api)
     contextBridge.exposeInMainWorld('__NIDE_BOOT__', {
       locale: readBootLocale(),
-      windowType: readBootWindowType()
+      windowType: readBootWindowType(),
+      logLevel
     })
+    // 必须在隔离世界里挂：非隔离时下面那段自己赋值即可
+    exposeLogBridge()
   } catch (error) {
-    console.error(error)
+    // 走日志出口而不是裸 console：桥接失败恰恰是最需要留下痕迹的情形，
+    // 而这个出口本身不依赖 contextBridge（它就是一条 ipcRenderer.send 的封装）
+    preloadLogger.error('Failed to expose the preload bridge', { error })
   }
 } else {
   // @ts-ignore (define in dts)
@@ -214,5 +318,11 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.hostAPI = api
   // @ts-ignore (define in dts)
-  window.__NIDE_BOOT__ = { locale: readBootLocale(), windowType: readBootWindowType() }
+  window.__NIDE_BOOT__ = { locale: readBootLocale(), windowType: readBootWindowType(), logLevel }
+  exposeLogBridge()
 }
+
+preloadLogger.info('Preload bridge exposed', {
+  level: logLevel,
+  contextIsolated: process.contextIsolated
+})

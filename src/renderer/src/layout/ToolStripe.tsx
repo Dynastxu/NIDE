@@ -1,9 +1,12 @@
 import { Fragment, JSX, type MouseEvent } from 'react'
 import { ViewIcon } from '@renderer/layout/ViewIcon'
+import { loggerFor } from '@renderer/logger'
 import { useLayoutStore, type ZoneId } from '@renderer/stores/layout.store'
 import { usePluginStore } from '@renderer/stores/plugin.store'
 import { useT } from '@renderer/stores/i18n.store'
 import type { PluginViewDescriptor } from '@shared/plugin-api'
+
+const logger = loggerFor('layout')
 
 /**
  * 两条侧边按钮条的编排：
@@ -42,7 +45,7 @@ export function ToolStripe({ side }: { side: 'left' | 'right' }): JSX.Element {
     void window.hostAPI
       .showStripeMenu(showTitles)
       .then((next) => setShowTitles(next))
-      .catch((err: unknown) => console.error('[nide] Open stripe menu failed:', err))
+      .catch((err: unknown) => logger.error('Failed to open the stripe menu', { error: err }))
   }
 
   return (

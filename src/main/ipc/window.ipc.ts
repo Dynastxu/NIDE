@@ -1,5 +1,8 @@
 import { BrowserWindow, Menu, ipcMain } from 'electron'
 import { WINDOW_CHANNELS, isWindowType, type WindowAction, type WindowState } from '@shared/window'
+import { loggerFor } from '../logger'
+
+const logger = loggerFor('window')
 
 /**
  * 窗口控制通道。
@@ -113,13 +116,13 @@ export function registerWindowIPC(): void {
         Menu.getApplicationMenu()?.popup({ window })
         break
       default:
-        console.warn(`[nide] Received unknown window action: ${String(action)}`)
+        logger.warn('Received an unknown window action', { action: String(action) })
     }
   })
 
   ipcMain.handle(WINDOW_CHANNELS.open, (_event, type: unknown): void => {
     if (typeof type !== 'string' || !isWindowType(type)) {
-      console.warn(`[nide] Received unknown window type: ${String(type)}`)
+      logger.warn('Received an unknown window type', { type: String(type) })
       return
     }
     windowOpeners[type]?.()
@@ -137,9 +140,9 @@ export function registerWindowIPC(): void {
    */
   ipcMain.handle(WINDOW_CHANNELS.restart, (): void => {
     if (!restartApp) {
-      console.warn(
-        '[nide] Received restart request but no restart implementation injected (registerWindowActions)'
-      )
+      logger.warn('Received a restart request but no implementation was injected', {
+        hint: 'registerWindowActions'
+      })
       return
     }
     restartApp()

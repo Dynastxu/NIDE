@@ -1,11 +1,16 @@
 import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
+import { WINDOW_CHANNELS } from '@shared/window'
 import { uiRegistry } from '../plugin-host/ui-registry'
 import { pluginRegistry } from '../plugin-host/plugin-registry'
 import { createMainTranslator, getCurrentLocale, getI18nPayload, switchLocale } from '../i18n'
 import { manifestNlsRegistry } from '../i18n/manifest-nls'
+import { loggerFor, toLogRecord } from '../logger'
 import { getMainWindow, recreateMainWindow } from '../window'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type { PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
+
+const logger = loggerFor('host')
+const pluginLogger = loggerFor('plugin-host')
 
 /**
  * 被禁用的插件 id。
@@ -154,7 +159,7 @@ export function registerHostIPC(): void {
     if (enabled) disabledPlugins.delete(pluginId)
     else disabledPlugins.add(pluginId)
 
-    console.log(`[plugin-host] ${enabled ? 'Enabled' : 'Disabled'} plugin ${pluginId}`)
+    pluginLogger.info(`Plugin ${enabled ? 'enabled' : 'disabled'}`, { pluginId })
 
     /**
      * 广播给**所有**窗口。
@@ -176,19 +181,44 @@ export function registerHostIPC(): void {
 
   // 渲染进程 -> 宿主 的事件总线
   ipcMain.on('host:event-emit', (_e, channel: string, ...args: unknown[]) => {
-    console.log(`[host:event-emit] ${channel}`, args)
+    /**
+     * 只记频道名和参数个数，**不记参数内容**。
+     *
+     * 这条通道承载的是插件事件的任意载荷，里面可能是文档正文或用户的
+     * 项目路径 —— 原样进日志等于把用户内容抄进磁盘。排查事件是否送达，
+     * 频道名加条数就够了。
+     */
+    logger.debug('Renderer event emitted', { channel, argCount: args.length })
     // 目前还没有插件后端，先把事件回显给渲染进程，用来验证事件总线是通的
     pushEventToRenderer(`echo:${channel}`, ...args)
   })
 
   // 编辑器内容变化（先落日志，后续用于脏标记 / 持久化）
   ipcMain.on('host:editor-change', (_e, filePath: string, content: string) => {
-    console.log(`[host:editor-change] ${filePath} (${content.length} chars)`)
+    /**
+     * debug 级别：这条消息**每次按键**都会来，info 级别会让日志文件被逐键
+     * 记录冲掉。要排查它时把 NIDE_LOG_LEVEL 设成 debug。
+     */
+    logger.debug('Editor content changed', { filePath, chars: content.length })
   })
 
   // 插件重载（占位，等插件后端接上再实现）
   ipcMain.handle('host:reload-plugin', (_e, pluginId: string) => {
-    console.log(`[host:reload-plugin] ${pluginId} (not implemented yet)`)
+    pluginLogger.info('Plugin reload requested', { pluginId, implemented: false })
+  })
+
+  /**
+   * 接收渲染进程与预加载转发来的日志。
+   *
+   * 落点是主进程的 file transport，所以三个进程的日志最终在同一份文件里。
+   * 这里只做形状校验，不做级别判断 —— 级别在发送方已经判过一次，而主进程的
+   * file transport 本身就收全级别（它的作用是把完整记录写下来）。
+   */
+  ipcMain.on(WINDOW_CHANNELS.log, (_e, payload: unknown) => {
+    const record = toLogRecord(payload)
+    if (!record) return
+
+    loggerFor(record.scope).dispatch(record.level, record.text, record.fields)
   })
 
   /**

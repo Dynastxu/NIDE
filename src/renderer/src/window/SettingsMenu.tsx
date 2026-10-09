@@ -1,7 +1,10 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import { getBuiltinIcon } from '@renderer/layout/icons'
+import { loggerFor } from '@renderer/logger'
 import { useT } from '@renderer/stores/i18n.store'
 import type { HostMessageKey } from '@shared/i18n'
+
+const logger = loggerFor('window')
 
 /**
  * 标题栏最左边那颗按钮 + 它的下拉栏。
@@ -123,7 +126,7 @@ function BuiltinIcon({ name }: { name: string }): JSX.Element {
 
   if (!inner) {
     // 图标名拼错时留一个等宽的占位，避免整行文字跳一下
-    console.warn(`[nide] Unknown builtin icon "${name}"`)
+    logger.warn('Unknown builtin icon, using a placeholder', { name })
     return <span className="h-4 w-4 shrink-0" />
   }
 
@@ -174,5 +177,5 @@ function MenuRow({
 function openWindow(type: 'settings'): void {
   void window.hostAPI.window
     .open(type)
-    .catch((err: unknown) => console.error('[nide] Open window failed:', type, err))
+    .catch((err: unknown) => logger.error('Failed to open a window', { type, error: err }))
 }

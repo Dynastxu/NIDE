@@ -1,13 +1,16 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { initMonacoNls } from './monaco-env'
+import { installRendererLogger, loggerFor } from './logger'
 import './assets/index.css'
 import type { JSX } from 'react'
 import type { WindowType } from '@shared/window'
 
 /**
- * 启动序列。四步的顺序**都有理由，不能调换**：
+ * 启动序列。顺序**都有理由，不能调换**：
  *
+ * 0) 日志先接管 console：它要盖住的是后面每一步的输出，晚一步接管，最需要
+ *    日志的「启动失败」阶段反而是空白。
  * 1) Monaco 的 NLS 全局必须在 monaco 模块被求值之前设好。所以这里用动态
  *    import 把界面（monaco 在它的依赖链上）推迟到设完之后 —— 静态 import
  *    的求值顺序由模块图决定，插不进这个 await。
@@ -20,6 +23,9 @@ import type { WindowType } from '@shared/window'
  * 任何一步失败都不该白屏：initMonacoNls 内部吞掉异常（编辑器退化成英文），
  * i18n store 的 load 失败时会保留中文基础表。
  */
+installRendererLogger()
+
+const logger = loggerFor('renderer')
 
 /**
  * 每一种窗口挂载哪个根组件。
@@ -58,6 +64,8 @@ async function boot(): Promise<void> {
   document.title = getT()(windowType === 'settings' ? 'host.settings.title' : 'host.app.title')
 
   const { default: Root } = await ROOTS[windowType]()
+
+  logger.info('Renderer boot completed', { windowType, locale })
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>

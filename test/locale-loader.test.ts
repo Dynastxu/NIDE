@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PluginLoader } from '../src/main/plugin-host/loader'
-import { languagePackRegistry } from '../src/main/i18n/language-packs'
+import { PluginLoader, setPluginHostLogger } from '../src/main/plugin-host/loader'
+import { languagePackRegistry } from '../src/main/i18n'
 import { manifestNlsRegistry } from '../src/main/i18n/manifest-nls'
 import {
   createPluginFixture,
@@ -8,6 +8,26 @@ import {
   manifestShell,
   type PluginFixture
 } from './helpers/plugin-fixture'
+import type { Logger } from '@shared/logger'
+
+/** 造一个记录调用的 logger 假件。加载器只用到日志出口，不关心实现 */
+function spyLogger(): Logger & { calls: Array<[string, string, unknown]> } {
+  const calls: Array<[string, string, unknown]> = []
+  const record =
+    (level: string) =>
+    (text: string, fields?: Record<string, unknown>): void => {
+      calls.push([level, text, fields])
+    }
+
+  return {
+    calls,
+    error: record('error'),
+    warn: record('warn'),
+    info: record('info'),
+    debug: record('debug'),
+    dispatch: (level, text, fields) => calls.push([level, text, fields])
+  }
+}
 
 /** 造一个贡献单个视图的 manifest（用于覆盖 %key% 占位符那条路径） */
 function viewManifest(id: string, title: string): unknown {
@@ -22,6 +42,7 @@ function viewManifest(id: string, title: string): unknown {
 describe('插件加载器', () => {
   let fixture: PluginFixture
   let loader: PluginLoader
+  let logger: ReturnType<typeof spyLogger>
 
   beforeEach(() => {
     fixture = createPluginFixture()
@@ -29,11 +50,15 @@ describe('插件加载器', () => {
     languagePackRegistry.reset()
     manifestNlsRegistry.reset()
 
-    // 这些用例刻意制造坏输入，加载器会往控制台报警 —— 静音掉，
-    // 需要断言告警的用例自己检查 spy
-    vi.spyOn(console, 'log').mockImplementation(() => {})
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+    /**
+     * 日志出口换成假件。
+     *
+     * 这些用例刻意制造坏输入，加载器会报一堆告警 —— 换成假件既静音了输出，
+     * 又让「有没有报警」可断言，比 spy 在 console 上更贴近真实调用点。
+     * 顺带避免了让这个纯逻辑测试去加载 electron-log（它依赖 Electron）。
+     */
+    logger = spyLogger()
+    setPluginHostLogger(logger)
   })
 
   afterEach(() => {
@@ -207,7 +232,8 @@ describe('插件加载器', () => {
 
       loader.loadContributions(manifestPath, 'builtin')
 
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('%nope%'))
+      const [entry] = logger.calls.filter(([level]) => level === 'error')
+      expect(entry?.[1]).toContain('%nope%')
     })
 
     it('用了占位符却完全没有词条文件时也报错', () => {
@@ -215,7 +241,8 @@ describe('插件加载器', () => {
 
       loader.loadContributions(manifestPath, 'builtin')
 
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('%v.title%'))
+      const [entry] = logger.calls.filter(([level]) => level === 'error')
+      expect(entry?.[1]).toContain('%v.title%')
     })
 
     it('普通字符串标题不触发任何告警', () => {
@@ -223,7 +250,7 @@ describe('插件加载器', () => {
 
       loader.loadContributions(manifestPath, 'builtin')
 
-      expect(console.error).not.toHaveBeenCalled()
+      expect(logger.calls.filter(([level]) => level === 'error')).toEqual([])
     })
 
     it('unload 时 manifest 词条一并摘除', () => {

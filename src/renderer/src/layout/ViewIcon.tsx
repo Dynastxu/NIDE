@@ -1,8 +1,11 @@
 import { JSX, type ReactNode } from 'react'
 import { ZoneIcon } from '@renderer/layout/ZoneIcon'
 import { builtinIconNames, getBuiltinIcon } from '@renderer/layout/icons'
+import { loggerFor } from '@renderer/logger'
 import { isZoneId } from '@renderer/stores/layout.store'
 import type { PluginViewDescriptor } from '@shared/plugin-api'
+
+const logger = loggerFor('layout')
 
 /**
  * 工具区按钮的图标，取自视图自己声明的 `icon`。**只接受 SVG**，两种来源：
@@ -63,8 +66,9 @@ function warnUnknownIcon(viewId: string, spec: string): void {
   if (warned.has(key)) return
   warned.add(key)
 
-  console.warn(
-    `[nide] The icon "${spec}" for view ${viewId} is neither a built-in icon name nor an SVG (without '<').` +
-      `Has returned to the default icon. Available built-in names: ${builtinIconNames().join(', ')}`
-  )
+  logger.warn('View icon is neither a built-in name nor an SVG, using the default icon', {
+    viewId,
+    spec,
+    available: builtinIconNames()
+  })
 }

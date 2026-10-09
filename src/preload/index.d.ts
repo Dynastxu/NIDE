@@ -1,4 +1,5 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
+import type { LogLevel } from '@shared/logger'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type { Disposable, PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
 import type { WindowAction, WindowState, WindowType } from '@shared/window'
@@ -6,15 +7,31 @@ import type { WindowAction, WindowState, WindowType } from '@shared/window'
 /**
  * preload 在渲染进程里同步暴露的启动信息。
  *
- * 两项都必须**同步**可得，因为渲染进程要在第一帧、任何异步 IPC 之前就用到：
+ * 三项都必须**同步**可得，因为渲染进程要在第一帧、任何异步 IPC 之前就用到：
  * - locale 是 Monaco NLS 唯一需要的东西，而它必须在 monaco 模块求值前设好；
- * - windowType 决定挂载哪个根组件，晚一步拿到就会先渲染错的界面。
+ * - windowType 决定挂载哪个根组件，晚一步拿到就会先渲染错的界面；
+ * - logLevel 决定是否接管 console，同理要在首个模块求值前拿到。
  */
 export interface NideBootInfo {
   /** 主进程建窗时定下的语言（BCP-47），例如 "zh-CN" */
   locale: LocaleId
   /** 这个窗口是哪种窗口。渲染进程据此选根组件 */
   windowType: WindowType
+  /** 主进程解析出的日志级别阈值。渲染进程只读结论，不重新解析环境变量 */
+  logLevel: LogLevel
+}
+
+/**
+ * 渲染进程的日志出口。
+ *
+ * 只暴露四个级别方法，不暴露通道名 —— 渲染进程拿到通道名就能往任意 channel
+ * 发任意载荷，那是一条伪造 IPC 的路。
+ */
+export interface RendererLoggerAPI {
+  error: (text: string, fields?: Record<string, unknown>) => void
+  warn: (text: string, fields?: Record<string, unknown>) => void
+  info: (text: string, fields?: Record<string, unknown>) => void
+  debug: (text: string, fields?: Record<string, unknown>) => void
 }
 
 /**
@@ -45,6 +62,8 @@ export interface HostAPI {
   onShowDiff: (handler: (original: string, modified: string) => void) => Disposable
   onFileChanged: (handler: (filePath: string, content: string) => void) => Disposable
   showStripeMenu: (showTitles: boolean) => Promise<boolean>
+  /** 日志出口。渲染进程所有日志都经它汇总到主进程的同一份文件 */
+  log: RendererLoggerAPI
   window: WindowAPI
   reloadPlugin: (pluginId: string) => Promise<void>
 }

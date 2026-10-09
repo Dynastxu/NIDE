@@ -4,8 +4,17 @@ import { app } from 'electron'
 import { uiRegistry } from './ui-registry'
 import { pluginRegistry } from './plugin-registry'
 import { PluginLoader } from './loader'
-import { languagePackRegistry } from '../i18n/language-packs'
+import { languagePackRegistry } from '../i18n'
+import { loggerFor } from '../logger'
 import type { LocaleSourceTier } from '@shared/i18n'
+
+/**
+ * 本模块的日志出口。
+ *
+ * 加载器那份可以在测试里替换（见 loader.ts 的 setPluginHostLogger），
+ * 这里扫描目录时的告警不参与单元测试，用固定出口即可。
+ */
+const logger = loggerFor('plugin-host')
 
 const BUILTIN_REL = path.join('plugins', 'builtin')
 
@@ -44,7 +53,7 @@ function scanDir(loader: PluginLoader, dir: string, source: LocaleSourceTier): n
       if (manifest) pluginRegistry.register(manifest, source, name)
       loaded += 1
     } catch (err) {
-      console.error(`[plugin-host] Failed to load plugin: ${name}`, err)
+      logger.error('Failed to load plugin', { name, error: err })
     }
   }
   return loaded
@@ -65,19 +74,20 @@ export function initPluginHost(): void {
   const thirdPartyDir = resolveThirdPartyPluginsDir()
 
   if (!fs.existsSync(builtinDir)) {
-    console.warn(`[plugin-host] Built-in plugin directory not found: ${builtinDir}`)
+    logger.warn('Built-in plugin directory not found', { dir: builtinDir })
   } else {
     scanDir(loader, builtinDir, 'builtin')
   }
 
   const thirdPartyCount = scanDir(loader, thirdPartyDir, 'third-party')
   // 把路径打出来：第三方语言包要放哪儿，是用户最常问的问题
-  console.log(
-    `[plugin-host] Third-party plugin directory: ${thirdPartyDir} (Loaded ${thirdPartyCount} plugins)`
-  )
+  logger.info('Plugin directories scanned', {
+    thirdPartyDir,
+    thirdPartyCount
+  })
 
-  console.log(
-    `[plugin-host] View registration completed, registered ${uiRegistry.getAll().length} views, ` +
-      `${languagePackRegistry.getAll().length} language packs`
-  )
+  logger.info('Plugin host initialization completed', {
+    views: uiRegistry.getAll().length,
+    languagePacks: languagePackRegistry.getAll().length
+  })
 }

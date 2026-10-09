@@ -1,5 +1,8 @@
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
 import { toMonacoLocale } from '@shared/i18n'
+import { loggerFor } from './logger'
+
+const logger = loggerFor('i18n')
 
 const globalEnv = globalThis as unknown as {
   MonacoEnvironment?: { getWorker?: () => Worker }
@@ -72,6 +75,9 @@ export async function initMonacoNls(): Promise<void> {
     await load()
   } catch (err) {
     // Monaco 的文案没切过去不该让整个应用起不来：编辑器本身仍然可用，只是英文
-    console.error(`[i18n] Monaco language pack load (${target}) failed`, err)
+    logger.error('Failed to load the Monaco language pack, keeping the built-in default', {
+      target,
+      error: err
+    })
   }
 }
