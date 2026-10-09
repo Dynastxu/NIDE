@@ -30,11 +30,9 @@ interface I18nState {
   requestLocale: (locale: LocaleId) => Promise<void>
 }
 
-const EMPTY_DIAGNOSTICS: LocaleDiagnostics = {
-  locale: DEFAULT_LOCALE,
-  missing: [],
-  extra: [],
-  conflicts: []
+/** 空体检报告。providers 是新加的字段，这里给一个和主进程一致的空形状 */
+function emptyDiagnostics(): LocaleDiagnostics {
+  return { locale: DEFAULT_LOCALE, missing: [], extra: [], conflicts: [], providers: {} }
 }
 
 /** 模块级 in-flight promise：多个组件同时触发加载时只打一次 IPC */
@@ -72,7 +70,7 @@ export const useI18nStore = create<I18nState>((set) => ({
   locale: DEFAULT_LOCALE,
   messages: BASE_MESSAGES,
   available: [],
-  diagnostics: EMPTY_DIAGNOSTICS,
+  diagnostics: emptyDiagnostics(),
   t: createTranslator(BASE_MESSAGES),
 
   load: async () => {

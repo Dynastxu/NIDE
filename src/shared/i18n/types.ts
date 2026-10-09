@@ -10,8 +10,8 @@ export type LocaleId = string
 /**
  * 语言包来源层级。
  *
- * 冲突时**第三方优先**：用户装的语言包一定盖得住宿主内置的那份。
- * 顺序即优先级，后面合并的覆盖前面的。
+ * 层级是瀑布链的**外层排序键**：第三方永远排在（因此优先于）内置之前。
+ * 顺序即优先级，链上更靠前的包提供某个 key，这个 key 就归它。
  */
 export type LocaleSourceTier = 'builtin' | 'third-party'
 
@@ -66,6 +66,13 @@ export interface LocaleConflict {
 export interface LocaleProviderRef {
   pluginId: string
   source: LocaleSourceTier
+  /**
+   * 这个包提供的 locale，可能比请求的更宽泛。
+   *
+   * 逐 key 瀑布会跨 locale 取词（请求 en-GB，en 包也能接住），所以光有
+   * pluginId 说不清一条文案是从哪一层掉下来的 —— 排查漏翻时这一步很关键。
+   */
+  locale: LocaleId
 }
 
 /**
@@ -81,13 +88,21 @@ export interface LocaleDiagnostics {
   /** 语言包里多出来的 key：宿主已删除或作者拼错 */
   extra: string[]
   conflicts: LocaleConflict[]
+  /**
+   * 逐 key 的实际来源：key -> 链上第一个提供它的包。
+   *
+   * 这是「逐 key 瀑布」的可观测面 —— 一个 locale 由多个包共同供给是常态
+   * （第三方包翻一半、内置包补另一半），只有这份映射能回答「这条文案是谁给的」。
+   * 某个 key 不在这里，就说明它一路降到了中文基础表。
+   */
+  providers: Record<string, LocaleProviderRef>
 }
 
 /** 主进程 -> 渲染进程 的完整 i18n 载荷（纯数据，可结构化克隆） */
 export interface I18nPayload {
   /** 最终生效的语言 */
   locale: LocaleId
-  /** 合并后的词条表：中文基础表 <- 内置语言包 <- 第三方语言包 */
+  /** 合并后的词条表：逐 key 沿「第三方包 -> 内置包 -> 中文基础表」取第一个提供的译文 */
   messages: MessageTable
   /** 所有可切换的语言，已按 label 排序 */
   available: LocaleDescriptor[]

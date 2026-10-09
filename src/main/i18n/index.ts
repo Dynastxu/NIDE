@@ -1,6 +1,12 @@
 import { app } from 'electron'
 import { BASE_MESSAGES, DEFAULT_LOCALE, createTranslator, normalizeLocale } from '@shared/i18n'
-import type { I18nPayload, LocaleDescriptor, LocaleId, Translator } from '@shared/i18n'
+import type {
+  I18nPayload,
+  LocaleDescriptor,
+  LocaleId,
+  LocaleProviderRef,
+  Translator
+} from '@shared/i18n'
 import { languagePackRegistry } from './language-packs'
 import { readPreferredLocale, writePreferredLocale } from './preference'
 
@@ -21,7 +27,7 @@ let currentPayload: I18nPayload = {
   locale: DEFAULT_LOCALE,
   messages: BASE_MESSAGES,
   available: [],
-  diagnostics: { locale: DEFAULT_LOCALE, missing: [], extra: [], conflicts: [] }
+  diagnostics: { locale: DEFAULT_LOCALE, missing: [], extra: [], conflicts: [], providers: {} }
 }
 
 /** 系统可能给出多个候选（['zh-Hans-CN', 'zh', 'en-US']），按顺序试 */
@@ -92,6 +98,11 @@ function buildPayload(locale: LocaleId, fallbackFrom?: LocaleId): I18nPayload {
   }
 }
 
+/** 日志里怎么称呼一个包：带 locale，因为瀑布会跨 locale 取词 */
+function describeRef(ref: LocaleProviderRef): string {
+  return `${ref.pluginId}[${ref.locale}/${ref.source}]`
+}
+
 /**
  * 漏翻体检的出口。
  *
@@ -106,9 +117,12 @@ function reportDiagnostics(payload: I18nPayload): void {
     console.warn(`[i18n] 没有找到 "${payload.fallbackFrom}" 的语言包，已回落到 "${locale}"`)
   }
 
+  // 逐 key 瀑布下这个数字的含义要说清：链上所有语言包都没翻的 key，
+  // 不是「某一个包漏翻的 key」—— 漏翻的包会被后面的包接住，不报在这里。
   if (diagnostics.missing.length > 0) {
     console.warn(
-      `[i18n] "${locale}" 有 ${diagnostics.missing.length} 条文案未翻译，将显示中文：\n` +
+      `[i18n] "${locale}" 的包链（第三方 -> 内置）都没翻这 ${diagnostics.missing.length} 条文案，` +
+        `将显示中文：\n` +
         diagnostics.missing.map((key) => `  - ${key}`).join('\n')
     )
   }
@@ -124,13 +138,28 @@ function reportDiagnostics(payload: I18nPayload): void {
   if (diagnostics.conflicts.length > 0) {
     console.warn(
       `[i18n] "${locale}" 有 ${diagnostics.conflicts.length} 条文案被多个语言包同时提供，` +
-        `已按「第三方优先」取用：\n` +
+        `已按「链上靠前者胜出」取用：\n` +
         diagnostics.conflicts
-          .map(
-            (c) =>
-              `  - ${c.key}: 采用 ${c.winner.pluginId}(${c.winner.source})，` +
-              `覆盖 ${c.loser.pluginId}(${c.loser.source})`
-          )
+          .map((c) => `  - ${c.key}: 采用 ${describeRef(c.winner)}，舍弃 ${describeRef(c.loser)}`)
+          .join('\n')
+    )
+  }
+
+  // 一个 locale 由多个包共同供给是常态（第三方翻一半、内置补另一半），
+  // 所以把「每个 key 实际是谁给的」也打出来 —— 漏翻排查全靠它。
+  const served = Object.entries(diagnostics.providers)
+  if (served.length > 0) {
+    const byPlugin = new Map<string, string[]>()
+    for (const [key, ref] of served) {
+      const bucket = byPlugin.get(describeRef(ref)) ?? []
+      bucket.push(key)
+      byPlugin.set(describeRef(ref), bucket)
+    }
+
+    console.log(
+      `[i18n] "${locale}" 的 ${served.length} 条文案由 ${byPlugin.size} 个包供给：\n` +
+        Array.from(byPlugin.entries())
+          .map(([plugin, keys]) => `  - ${plugin}: ${keys.length} 条`)
           .join('\n')
     )
   }

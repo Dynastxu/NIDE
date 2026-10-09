@@ -34,7 +34,7 @@ export interface ResolvedMessages {
 const BASE_KEYS = Object.keys(BASE_MESSAGES)
 
 function refOf(entry: LanguagePackEntry): LocaleProviderRef {
-  return { pluginId: entry.pluginId, source: entry.source }
+  return { pluginId: entry.pluginId, source: entry.source, locale: entry.locale }
 }
 
 /**
@@ -77,6 +77,37 @@ export class LanguagePackRegistry {
     return null
   }
 
+  /**
+   * 逐 key 瀑布要走的包链，从最优先到最靠后。
+   *
+   * 只要有包能接住请求的 locale（精确或放宽），这条链就一定非空 ——
+   * 空链意味着「这个 locale 一个包都没有」，那时整张表都是中文基础表。
+   *
+   * 排序三层，从外到内，见 buildMessages 的说明。locale 具体度用的是候选链下标，
+   * 所以 "en-US" 请求下 en-US 包排在 en 包前面。
+   */
+  resolveChain(requested: LocaleId): LanguagePackEntry[] {
+    const candidates = localeCandidates(requested)
+    const specificity = new Map(candidates.map((tag, index) => [tag, index]))
+
+    return this.entries
+      .filter((entry) => specificity.has(entry.locale))
+      .sort((a, b) => {
+        // 1. 第三方优先：用户主动装的包必须盖得住宿主内置的那份，否则装了不生效
+        const tier = TIER_PRIORITY[b.source] - TIER_PRIORITY[a.source]
+        if (tier !== 0) return tier
+
+        // 2. locale 由具体到宽泛：请求 en-GB 时 en-US 打头、en 兜后
+        const exact =
+          (specificity.get(a.locale) ?? Number.MAX_SAFE_INTEGER) -
+          (specificity.get(b.locale) ?? Number.MAX_SAFE_INTEGER)
+        if (exact !== 0) return exact
+
+        // 3. pluginId 字典序：兜到最后一层也必须是确定的，不能看磁盘扫描顺序
+        return a.pluginId.localeCompare(b.pluginId, 'en')
+      })
+  }
+
   hasLocale(locale: LocaleId): boolean {
     const target = normalizeLocale(locale)
     return this.entries.some((e) => e.locale === target)
@@ -85,8 +116,11 @@ export class LanguagePackRegistry {
   /**
    * 可切换的语言列表。
    *
-   * 同一个 locale 有多个包时，展示**实际生效的那个包**的名字和来源，
-   * 否则用户会在菜单里看到两个 "English" 却不知道点哪个生效。
+   * 同一个 locale 有多个包时，展示**链首那个包**的名字和来源 ——
+   * 用户会在菜单里看到两个 "English"，不标出哪个优先就不知道该信谁。
+   *
+   * 列表本身是「一门语言一条」：取词是逐 key 瀑布、可以多个包共同供给，
+   * 但选语言这个动作的粒度是语言，不是包。
    */
   descriptors(): LocaleDescriptor[] {
     const byLocale = new Map<LocaleId, LanguagePackEntry>()
@@ -112,39 +146,50 @@ export class LanguagePackRegistry {
   /**
    * 合并出某个 locale 的最终词条表。
    *
-   * 合并顺序就是优先级：中文基础表 -> 内置语言包 -> 第三方语言包。
-   * **第三方最后合并，所以冲突时第三方胜出** —— 这是刻意的产品决策：
-   * 用户主动装的语言包一定要盖得住宿主内置的那份，否则装了不生效。
+   * 这是一条**逐 key 的瀑布**，不是「整份包互相覆盖」：
    *
-   * 顺序用稳定排序（ES2019+ 保证），所以同一层级内保持注册顺序（＝扫描顺序）。
+   *   第三方包 -> 内置包 -> 中文基础表
+   *
+   * 链上第一个提供某个 key 的包，这个 key 就归它；链上都没有，才落到中文基础表。
+   * 所以第三方包只翻了一半也没关系 —— 没翻的那几条会被内置包接住，而不是
+   * 让内置包整体失效。反过来，第三方包不会因为漏翻而丢掉自己翻过的那部分。
+   *
+   * 链的排序（见 resolveChain）三层，从外到内：
+   *   1. tier：第三方 -> 内置。
+   *   2. locale 具体度：请求 en-GB 时，en-US 包先于 en 包、更先于 zh-CN 兜底。
+   *   3. pluginId 字典序。
+   * 三层都是**确定**的，不依赖磁盘扫描顺序 —— 同一个环境下结果永远一样。
    */
   buildMessages(locale: LocaleId): ResolvedMessages {
     const target = normalizeLocale(locale)
-    const packs = this.entries
-      .filter((e) => e.locale === target)
-      .sort((a, b) => TIER_PRIORITY[a.source] - TIER_PRIORITY[b.source])
+    const chain = this.resolveChain(target)
 
+    // 中文基础表是地板：链上一个包都没有的 key 用它
     const messages: MessageTable = { ...BASE_MESSAGES }
     const provider = new Map<string, LocaleProviderRef>()
     const conflicts: LocaleConflict[] = []
 
-    for (const pack of packs) {
+    for (const pack of chain) {
+      const ref = refOf(pack)
+
       for (const [key, value] of Object.entries(pack.messages)) {
         const previous = provider.get(key)
 
-        // 只有「译文真的不一样」才算冲突。完全相同的重复提供是无害的
-        // （第三方包常常整份复制内置包再改几条），报出来只会淹没真正的问题。
-        if (previous && previous.pluginId !== pack.pluginId && messages[key] !== value) {
-          conflicts.push({
-            locale: target,
-            key,
-            winner: refOf(pack),
-            loser: previous
-          })
+        if (previous) {
+          /**
+           * 同一个 key 被链上靠后的包重复提供：靠前的那个才是最终译文。
+           *
+           * 只有「译文真的不一样」才算冲突 —— 第三方包常常整份复制内置包再改几条，
+           * 逐条报「重复」只会淹没真正的问题。
+           */
+          if (previous.pluginId !== ref.pluginId && messages[key] !== value) {
+            conflicts.push({ locale: target, key, winner: previous, loser: ref })
+          }
+          continue
         }
 
+        provider.set(key, ref)
         messages[key] = value
-        provider.set(key, refOf(pack))
       }
     }
 
@@ -156,7 +201,13 @@ export class LanguagePackRegistry {
     return {
       locale: target,
       messages,
-      diagnostics: { locale: target, missing, extra, conflicts }
+      diagnostics: {
+        locale: target,
+        missing,
+        extra,
+        conflicts,
+        providers: Object.fromEntries(provider)
+      }
     }
   }
 }

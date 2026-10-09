@@ -19,7 +19,10 @@ import type { HostMessageKey } from '@shared/i18n'
 interface MenuItem {
   id: string
   labelKey: HostMessageKey
-  /** 内置图标名，见 layout/icons.tsx */
+  /**
+   * 内置图标名
+   * @see BUILTIN_ICONS
+   */
   icon: string
   run: () => void
 }
