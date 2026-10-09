@@ -1,6 +1,6 @@
 import { JSX } from 'react'
+import { EditorTabs } from '@renderer/editor/EditorTabs'
 import { MonacoDiffView } from '@renderer/editor/MonacoDiffView'
-import { MonacoEditor } from '@renderer/editor/MonacoEditor'
 import { Resizer } from '@renderer/layout/Resizer'
 import { ToolStripe } from '@renderer/layout/ToolStripe'
 import { ToolZone } from '@renderer/layout/ToolZone'
@@ -13,7 +13,7 @@ import { useLayoutStore, type SizeKey, type ZoneId } from '@renderer/stores/layo
  * ┌────┬─────────────┬──────────────┬─────────────┬────┐
  * │    │   左上       │              │   右上       │    │
  * │按钮├─────────────┤  中间主页     ├─────────────┤按钮│
- * │条  │   左下       │  MonacoEditor│   右下       │条  │
+ * │条  │   左下       │  EditorTabs  │   右下       │条  │
  * │    ├─────────────┴──────────────┴─────────────┤    │
  * │    │     底部左侧      │      底部右侧          │    │
  * └────┴───────────────────┴───────────────────────┴────┘
@@ -81,9 +81,10 @@ export function WorkbenchLayout(): JSX.Element {
             </>
           )}
 
-          {/* 中间主页：不可隐藏，永远吃掉剩余的全部空间 */}
+          {/* 中间主页：不可隐藏，永远吃掉剩余的全部空间。
+              它是「打开的文件」那一组标签页（EditorTabs），而不是某一个文件 */}
           <div className="min-h-0 min-w-0 flex-1">
-            <MonacoEditor />
+            <EditorTabs />
           </div>
 
           {rightColumnOn && (

@@ -1,6 +1,8 @@
 import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
 import { WINDOW_CHANNELS } from '@shared/window'
+import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
 import { uiRegistry } from '../plugin-host/ui-registry'
+import { HOST_VIEWS } from '../plugin-host/host-views'
 import { pluginRegistry } from '../plugin-host/plugin-registry'
 import { getDisabledPlugins, setPluginEnabled } from '../plugin-host/preference'
 import { createMainTranslator, getCurrentLocale, getI18nPayload, switchLocale } from '../i18n'
@@ -93,13 +95,33 @@ export function registerHostIPC(): void {
    * 原因是时序：扫描 manifest 发生在 initI18n() 之前，那时还不知道用哪个语言。
    * 放到查询时解析还有个附带好处 —— 切语言重建窗口后渲染进程重新取一次
    * 视图列表，标题就跟着变了，不需要任何重载逻辑。
+   *
+   * 宿主内建视图（文件树）接在同一张表的**前面**：它们不走 manifest，
+   * 但必须和插件视图一起参与「一个区展示谁」的既有机制（见 host-views.ts）。
+   * 排在前面是为了让它们成为各自区的**第一个视图**，也就是该区 activeViewId
+   * 为 null 时默认展示的那一个 —— 打开工作台就该看见文件树，而不是演示面板。
    */
   ipcMain.handle('host:get-plugin-views', (): PluginViewDescriptor[] => {
     const locale = getCurrentLocale()
-    return uiRegistry.getAll().map(({ titleSpec, ...view }) => ({
+    const t = createMainTranslator()
+
+    const hostViews: PluginViewDescriptor[] = HOST_VIEWS.map((view) => ({
+      id: view.id,
+      title: t(view.titleKey),
+      location: view.location,
+      icon: view.icon,
+      pluginId: HOST_VIEW_PLUGIN_ID,
+      // 内建视图的组件编译在宿主里，没有插件目录，也没有入口文件
+      dir: '',
+      entry: ''
+    }))
+
+    const pluginViews = uiRegistry.getAll().map(({ titleSpec, ...view }) => ({
       ...view,
       title: manifestNlsRegistry.resolve(view.pluginId, titleSpec, locale) ?? view.id
     }))
+
+    return [...hostViews, ...pluginViews]
   })
 
   /**

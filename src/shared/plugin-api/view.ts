@@ -2,6 +2,24 @@ export type ViewLocation =
   'leftTop' | 'leftBottom' | 'rightTop' | 'rightBottom' | 'bottomLeft' | 'bottomRight' | 'main'
 
 /**
+ * 宿主**内建**视图的贡献者 id。
+ *
+ * 内建视图（文件树这种宿主自己的功能）和插件视图走**同一张**视图表、同一套按钮条
+ * 与工具区：一个区同一时刻只展示一个视图，如果内建视图另走一条路，就会出现
+ * 「插件视图和内建视图同时占着左上角」这种没有答案的布局问题。
+ *
+ * 用这个 id 才不会和真插件撞名：插件的 id 由 manifest 声明，格式是
+ * `<发布者>.<插件名>`，不会有人叫 `host`。
+ *
+ * 渲染进程据此把内建视图交给宿主的组件表（HostSlot），插件视图仍走
+ * import.meta.glob 那套。
+ */
+export const HOST_VIEW_PLUGIN_ID = 'host'
+
+/** 文件树视图的 id。渲染进程按它选组件，主进程按它注册 */
+export const HOST_EXPLORER_VIEW_ID = 'host.explorer'
+
+/**
  * 主进程 -> 渲染进程 传递的视图元信息。
  *
  * 里面只有数据：没有模块、没有函数、没有绝对路径、没有盘符。

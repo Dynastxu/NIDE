@@ -1,9 +1,29 @@
 import path from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
-import { PROJECT_CHANNELS, type ProjectOpenResult, type ProjectPickMode } from '@shared/project'
+import {
+  PROJECT_CHANNELS,
+  PROJECT_FILE_CHANNELS,
+  type CreateEntryRequest,
+  type CreateEntryResult,
+  type DirReadResult,
+  type FileReadResult,
+  type ProjectOpenResult,
+  type ProjectPickMode
+} from '@shared/project'
 import { createMainTranslator } from '../i18n'
 import { loggerFor } from '../logger'
-import { closeProject, forgetProject, getProjectList, openProject } from '../services/project-store'
+import {
+  closeProject,
+  forgetProject,
+  getCurrentProject,
+  getProjectList,
+  openProject
+} from '../services/project-store'
+import {
+  createProjectEntry,
+  readProjectDir,
+  readProjectFile
+} from '../services/project-files.service'
 import { activateMainWindow, returnToWelcomeWindow } from '../window'
 
 const logger = loggerFor('project')
@@ -126,4 +146,104 @@ export function registerProjectIPC(): void {
     closeProject()
     returnToWelcomeWindow()
   })
+
+  /**
+   * 项目文件树。
+   *
+   * 「项目根」在这里取**当前项目**，不由渲染进程传进来 —— 那等于让渲染进程自己
+   * 声明自己的活动范围，沙箱边界就只剩下一句口号。渲染进程只能请求路径，能不能
+   * 读由主进程对照这份根集合判断（见 project-files.service 的 isInsideProject）。
+   *
+   * 没有项目时直接拒绝：主窗口只在有项目时才会被创建，走到这里说明请求来自一个
+   * 已经被拆掉项目的窗口。
+   */
+  ipcMain.handle(PROJECT_FILE_CHANNELS.readDir, async (_event, dirPath): Promise<DirReadResult> => {
+    const roots = allowedRoots()
+    if (roots.length === 0) {
+      logger.warn('Rejected a directory read without an open project')
+      return { ok: false, reason: 'outside-project' }
+    }
+    return readProjectDir(String(dirPath ?? ''), {
+      roots,
+      caseInsensitive: caseInsensitivePaths()
+    })
+  })
+
+  ipcMain.handle(
+    PROJECT_FILE_CHANNELS.readFile,
+    async (_event, filePath): Promise<FileReadResult> => {
+      const roots = allowedRoots()
+      if (roots.length === 0) {
+        logger.warn('Rejected a file read without an open project')
+        return { ok: false, reason: 'outside-project' }
+      }
+      return readProjectFile(String(filePath ?? ''), {
+        roots,
+        caseInsensitive: caseInsensitivePaths()
+      })
+    }
+  )
+
+  /**
+   * 新建文件 / 文件夹 —— 宿主**唯一**的写入入口。
+   *
+   * 目标目录不从渲染进程收，只收「用户右键了谁」+「新名字」：写在哪儿由主进程
+   * 从那个被右键的条目推导（目录 -> 内部，文件 -> 同级）。渲染进程因此没有机会
+   * 指定一个任意的写入位置。
+   *
+   * 名字从这里就校验，而不是只靠界面拦：界面是过滤器，主进程才是边界。
+   */
+  ipcMain.handle(
+    PROJECT_FILE_CHANNELS.createEntry,
+    async (_event, request: unknown): Promise<CreateEntryResult> => {
+      const parsed = parseCreateRequest(request)
+      if (!parsed) {
+        logger.warn('Rejected a malformed create request')
+        return { ok: false, reason: 'invalid-name' }
+      }
+
+      const roots = allowedRoots()
+      if (roots.length === 0) {
+        logger.warn('Rejected a create request without an open project')
+        return { ok: false, reason: 'unreadable' }
+      }
+
+      return createProjectEntry(parsed, { roots, caseInsensitive: caseInsensitivePaths() })
+    }
+  )
+}
+
+/**
+ * 允许访问的根目录集合。
+ *
+ * 目前只有当前项目一个。**将来会有第二个**：临时文件夹要作为另一个根挂进同一棵树
+ * （见 renderer 的 explorer.store）。把它收成一个函数，是为了让「读取」和
+ * 「写入」共用同一份范围定义 —— 两处各写一遍的话，迟早出现「能读不能写」或者
+ * 更糟的「能写不能读」。
+ */
+function allowedRoots(): string[] {
+  const root = getCurrentProject()?.path
+  return root ? [root] : []
+}
+
+/** 路径比较是否忽略大小写。Windows 的路径不区分大小写 */
+function caseInsensitivePaths(): boolean {
+  return process.platform === 'win32'
+}
+
+/**
+ * 校验一个新建立请求的形状。
+ *
+ * IPC 的载荷是渲染进程给的，形状完全不可信 —— 这里逐字段确认类型，之后
+ * project-files.service 里就可以当它已经是对的。
+ */
+function parseCreateRequest(request: unknown): CreateEntryRequest | null {
+  if (!request || typeof request !== 'object') return null
+
+  const { kind, targetPath, name } = request as Partial<CreateEntryRequest>
+  if (kind !== 'file' && kind !== 'directory') return null
+  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
+  if (typeof name !== 'string') return null
+
+  return { kind, targetPath, name }
 }

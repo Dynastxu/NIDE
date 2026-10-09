@@ -1,7 +1,15 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
 import type { LogLevel } from '@shared/logger'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
-import type { ProjectListItem, ProjectOpenResult, ProjectPickMode } from '@shared/project'
+import type {
+  CreateEntryRequest,
+  CreateEntryResult,
+  DirReadResult,
+  FileReadResult,
+  ProjectListItem,
+  ProjectOpenResult,
+  ProjectPickMode
+} from '@shared/project'
 import type { Disposable, PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
 import type { WindowAction, WindowState, WindowType } from '@shared/window'
 
@@ -67,6 +75,22 @@ export interface ProjectAPI {
   remove: (dirPath: string) => Promise<ProjectListItem[]>
   /** 关闭当前项目、回退到欢迎窗口。不返回回执：这个窗口会立刻被拆掉 */
   close: () => void
+  /**
+   * 读项目里的一层目录（文件树的一层）。
+   *
+   * 范围由主进程对照**当前项目**判断：渲染进程只声明想读哪儿，声明不了允许读到
+   * 哪儿。失败返回带原因的结果，不抛异常。
+   */
+  readDir: (dirPath: string) => Promise<DirReadResult>
+  /** 读一个纯文本 / Markdown 文件。不支持的格式由主进程拒绝 */
+  readFile: (filePath: string) => Promise<FileReadResult>
+  /**
+   * 新建文件 / 文件夹 —— 宿主唯一的写入入口。
+   *
+   * 目标目录由主进程从 `request.targetPath`（被右键的条目）推导，渲染进程指定
+   * 不了任意写入位置。同名条目已存在时**不覆盖**，返回 `already-exists`。
+   */
+  createEntry: (request: CreateEntryRequest) => Promise<CreateEntryResult>
 }
 
 export interface HostAPI {

@@ -134,6 +134,53 @@ export const zhCN = {
   'host.diff.title': 'Diff 对比',
   'host.diff.close': '关闭',
 
+  // ---- 文件树（左上工具区，宿主内建视图）----
+  'host.explorer.title': '文件',
+  'host.explorer.empty': '这个项目里没有可显示的文件。',
+  'host.explorer.error.invalid-path': '这个路径不可用。',
+  'host.explorer.error.outside-project': '只能浏览当前项目里的文件。',
+  'host.explorer.error.not-a-directory': '这不是一个文件夹。',
+  'host.explorer.error.unreadable': '读不了这个文件夹：可能已被删除，或者没有访问权限。',
+  'host.explorer.file.unsupported': '这个格式暂不支持打开（只有纯文本与 Markdown 可以）',
+  'host.explorer.file.unreadable': '读不了这个文件：可能已被删除，或者没有访问权限。',
+  'host.explorer.file.too-large': '这个文件太大，不适合在编辑器里打开。',
+  'host.explorer.open.failed.invalid-path': '这个路径不可用。',
+  'host.explorer.open.failed.outside-project': '只能打开当前项目里的文件。',
+  'host.explorer.open.failed.not-a-file': '这不是一个文件。',
+  'host.explorer.open.failed.unreadable': '读不了这个文件：可能已被删除，或者没有访问权限。',
+
+  // 文件树右键菜单：一项「新建」，展开是两个名词。落点由被右键的条目决定
+  // （目录 -> 内部，文件 -> 同级），所以菜单上不必写位置
+  'host.explorer.menu.new': '新建',
+  'host.explorer.menu.newFolder': '文件夹',
+  'host.explorer.menu.newFile': '文件',
+
+  // 新建对话框
+  'host.explorer.newFile.inside': '在此文件夹中新建文件',
+  'host.explorer.newFile.sibling': '在此处新建文件',
+  'host.explorer.newFolder.inside': '在此文件夹中新建文件夹',
+  'host.explorer.newFolder.sibling': '在此处新建文件夹',
+  'host.explorer.name.placeholder': '名称',
+  'host.explorer.name.confirm': '新建',
+  'host.explorer.name.resolved': '将创建：{name}',
+  'host.explorer.name.error.empty': '名称不能为空。',
+  'host.explorer.name.error.path-separator': '名称里不能有「/」或「\\」。',
+  'host.explorer.name.error.illegal-character': '名称里不能有 : * ? " < > | 或控制字符。',
+  'host.explorer.name.error.leading-dot': '名称不能以点开头。',
+  'host.explorer.name.error.trailing-space-or-dot': '名称不能以空格或点结尾。',
+  'host.explorer.name.error.too-long': '名称过长。',
+  'host.explorer.create.failed.invalid-name': '名称不合法。',
+  'host.explorer.create.failed.already-exists': '这个名字已经有了。',
+  'host.explorer.create.failed.not-a-directory': '这个位置不能新建条目。',
+  'host.explorer.create.failed.unreadable': '新建失败：没有权限，或者磁盘不可写。',
+
+  // ---- 中间的主编辑区（标签页）----
+  'host.editor.empty.title': '没有打开的文件',
+  'host.editor.empty.hint': '在左侧的文件树里点一个文件，它会在这里以标签页打开。',
+  'host.editor.tab.close': '关闭',
+  'host.editor.unsaved': '尚未保存：保存功能还没实现',
+  'host.editor.unsaved.hint': '保存功能尚未实现，这里的改动不会写回磁盘。',
+
   'host.plugin.loading': '加载中…',
 
   'host.locale.switch.title': '切换语言',

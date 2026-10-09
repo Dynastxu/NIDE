@@ -9,7 +9,7 @@ import {
   type Logger
 } from '@shared/logger'
 import { DEFAULT_LOCALE, LOCALE_ARG_PREFIX } from '@shared/i18n'
-import { PROJECT_ARG_PREFIX, PROJECT_CHANNELS } from '@shared/project'
+import { PROJECT_ARG_PREFIX, PROJECT_CHANNELS, PROJECT_FILE_CHANNELS } from '@shared/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
   WINDOW_ARG_PREFIX,
@@ -20,7 +20,15 @@ import {
   type WindowType
 } from '@shared/window'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
-import type { ProjectListItem, ProjectOpenResult, ProjectPickMode } from '@shared/project'
+import type {
+  CreateEntryRequest,
+  CreateEntryResult,
+  DirReadResult,
+  FileReadResult,
+  ProjectListItem,
+  ProjectOpenResult,
+  ProjectPickMode
+} from '@shared/project'
 import type { Disposable, PluginDescriptor } from '@shared/plugin-api'
 
 // ========== 通用事件总线（渲染进程侧） ==========
@@ -184,7 +192,33 @@ const projectAPI = {
    */
   close: (): void => {
     ipcRenderer.send(PROJECT_CHANNELS.close)
-  }
+  },
+
+  /**
+   * 读项目里的一层目录（文件树）。
+   *
+   * 只传路径，不传「项目根在哪」：范围由主进程对照当前项目判断。渲染进程能声明的
+   * 只有「我想读哪儿」，不能声明「我允许读到哪儿」。
+   *
+   * 失败不抛异常，返回带原因的结果 —— 目录被删、没权限都是常见状态，
+   * 界面要按原因说话，而不是接到一个 rejected promise。
+   */
+  readDir: (dirPath: string): Promise<DirReadResult> =>
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readDir, dirPath),
+
+  /** 读项目里的一个纯文本 / Markdown 文件。失败同样返回带原因的结果 */
+  readFile: (filePath: string): Promise<FileReadResult> =>
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readFile, filePath),
+
+  /**
+   * 新建文件 / 文件夹。
+   *
+   * 只报「右键了谁」+「新名字」，不报目标目录 —— 目标目录由主进程从被右键的
+   * 条目推导，渲染进程因此无法指定任意写入位置。已存在时返回
+   * `{ ok: false, reason: 'already-exists' }`，**不会覆盖**。
+   */
+  createEntry: (request: CreateEntryRequest): Promise<CreateEntryResult> =>
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.createEntry, request)
 }
 
 const api = {
