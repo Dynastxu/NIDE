@@ -113,13 +113,13 @@ export function registerWindowIPC(): void {
         Menu.getApplicationMenu()?.popup({ window })
         break
       default:
-        console.warn(`[nide] 收到未知的窗口动作：${String(action)}`)
+        console.warn(`[nide] Received unknown window action: ${String(action)}`)
     }
   })
 
   ipcMain.handle(WINDOW_CHANNELS.open, (_event, type: unknown): void => {
     if (typeof type !== 'string' || !isWindowType(type)) {
-      console.warn(`[nide] 收到未知的窗口种类：${String(type)}`)
+      console.warn(`[nide] Received unknown window type: ${String(type)}`)
       return
     }
     windowOpeners[type]?.()
@@ -137,7 +137,9 @@ export function registerWindowIPC(): void {
    */
   ipcMain.handle(WINDOW_CHANNELS.restart, (): void => {
     if (!restartApp) {
-      console.warn('[nide] 收到重启请求，但没有人注入重启实现（registerWindowActions）')
+      console.warn(
+        '[nide] Received restart request but no restart implementation injected (registerWindowActions)'
+      )
       return
     }
     restartApp()

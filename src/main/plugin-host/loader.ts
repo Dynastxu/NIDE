@@ -50,12 +50,12 @@ function normalizeLocation(raw: string | undefined, viewId: string): ViewLocatio
 
   const legacy = LEGACY_LOCATIONS[key]
   if (legacy) {
-    console.warn(`[plugin-host] view ${viewId} 使用了旧 location "${key}"，已映射为 "${legacy}"`)
+    console.warn(`[plugin-host] view ${viewId} used legacy location "${key}" mapped to "${legacy}"`)
     return legacy
   }
 
   console.warn(
-    `[plugin-host] view ${viewId} 的 location "${key}" 不合法，已回落到 "${FALLBACK_LOCATION}"`
+    `[plugin-host] view ${viewId} has invalid location "${key}" mapped to "${FALLBACK_LOCATION}"`
   )
   return FALLBACK_LOCATION
 }
@@ -75,7 +75,7 @@ function resolveInsidePlugin(pluginDir: string, relativePath: string, what: stri
   const relative = path.relative(pluginDir, absolute)
 
   if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
-    console.warn(`[plugin-host] ${what} 的路径 "${relativePath}" 逃出了插件目录，已忽略`)
+    console.warn(`[plugin-host] ${what} path "${relativePath}" escaped plugin directory, ignored`)
     return null
   }
 
@@ -93,19 +93,19 @@ function readMessageTable(absolutePath: string): MessageTable | null {
   try {
     parsed = JSON.parse(fs.readFileSync(absolutePath, 'utf-8'))
   } catch (err) {
-    console.error(`[plugin-host] 词条文件读取失败: ${absolutePath}`, err)
+    console.error(`[plugin-host] Failed to read entry file: ${absolutePath}`, err)
     return null
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    console.error(`[plugin-host] 词条文件必须是一个 JSON 对象: ${absolutePath}`)
+    console.error(`[plugin-host] Entry file must be a JSON object: ${absolutePath}`)
     return null
   }
 
   const table: MessageTable = {}
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
     if (typeof value !== 'string') {
-      console.warn(`[plugin-host] 词条文件 ${absolutePath} 的 "${key}" 不是字符串，已跳过`)
+      console.warn(`[plugin-host] Entry file ${absolutePath} has key "${key}" not a string`)
       continue
     }
     table[key] = value
@@ -127,7 +127,10 @@ function readManifestNls(pluginDir: string): ManifestNlsTables | null {
   try {
     entries = fs.readdirSync(pluginDir)
   } catch (err) {
-    console.error(`[plugin-host] 无法读取插件目录以查找 manifest 词条: ${pluginDir}`, err)
+    console.error(
+      `[plugin-host] Failed to read manifest files from plugin directory: ${pluginDir}`,
+      err
+    )
     return null
   }
 
@@ -170,8 +173,7 @@ function warnUnresolvableTitle(
 
   if (!tables) {
     console.error(
-      `[plugin-host] ${pluginId} 的视图 ${viewId} 用了占位符 %${key}%，但插件目录下既没有 ` +
-        `${DEFAULT_NLS_FILE} 也没有 package.nls.<locale>.json，界面会显示原样占位符`
+      `[plugin-host] ${pluginId} view ${viewId} used placeholder %${key}% but neither ${DEFAULT_NLS_FILE} and package.nls.<locale>.json exist in plugin directory, placeholder will be displayed`
     )
     return
   }
@@ -181,8 +183,7 @@ function warnUnresolvableTitle(
 
   if (!inDefault && !inAnyLocale) {
     console.error(
-      `[plugin-host] ${pluginId} 的视图 ${viewId} 用了占位符 %${key}%，` +
-        `但任何词条文件里都没有这个 key，界面会显示原样占位符`
+      `[plugin-host] ${pluginId} view ${viewId} used placeholder %${key}% but no entry file has this key, placeholder will be displayed`
     )
   }
 }
@@ -210,7 +211,7 @@ export class PluginLoader {
     try {
       manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as PluginManifest
     } catch (err) {
-      console.error(`[plugin-host] manifest 解析失败: ${manifestPath}`, err)
+      console.error(`[plugin-host] Failed to parse manifest file: ${manifestPath}`, err)
       return null
     }
 
@@ -249,7 +250,7 @@ export class PluginLoader {
 
     for (const contribution of manifest.contributes?.locales ?? []) {
       if (!contribution.locale || !contribution.file) {
-        console.warn(`[plugin-host] ${manifest.id} 有一条 locales 缺少 locale 或 file，已跳过`)
+        console.warn(`[plugin-host] ${manifest.id} has locales missing locale or file`)
         continue
       }
 
@@ -262,7 +263,7 @@ export class PluginLoader {
 
       if (!fs.existsSync(absolute)) {
         console.error(
-          `[plugin-host] 语言包文件不存在: ${absolute}（${manifest.id} 声明的是 "${contribution.file}"）`
+          `[plugin-host] Language pack file not found: ${absolute} (${manifest.id} declares "${contribution.file}"")`
         )
         continue
       }
@@ -282,7 +283,7 @@ export class PluginLoader {
 
       console.log(
         `[plugin-host] language pack registered: ${contribution.locale} <- ${manifest.id}` +
-          ` (${source}), ${Object.keys(messages).length} 条`
+          ` (${source}), ${Object.keys(messages).length} messages`
       )
     }
 

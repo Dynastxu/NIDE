@@ -72,6 +72,6 @@ export async function initMonacoNls(): Promise<void> {
     await load()
   } catch (err) {
     // Monaco 的文案没切过去不该让整个应用起不来：编辑器本身仍然可用，只是英文
-    console.error(`[i18n] Monaco 语言包 (${target}) 加载失败，编辑器界面将保持英文`, err)
+    console.error(`[i18n] Monaco language pack load (${target}) failed`, err)
   }
 }

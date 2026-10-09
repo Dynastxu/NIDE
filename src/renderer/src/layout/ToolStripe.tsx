@@ -42,7 +42,7 @@ export function ToolStripe({ side }: { side: 'left' | 'right' }): JSX.Element {
     void window.hostAPI
       .showStripeMenu(showTitles)
       .then((next) => setShowTitles(next))
-      .catch((err: unknown) => console.error('[nide] 打开按钮条菜单失败', err))
+      .catch((err: unknown) => console.error('[nide] Open stripe menu failed:', err))
   }
 
   return (

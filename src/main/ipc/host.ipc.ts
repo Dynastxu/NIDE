@@ -154,7 +154,7 @@ export function registerHostIPC(): void {
     if (enabled) disabledPlugins.delete(pluginId)
     else disabledPlugins.add(pluginId)
 
-    console.log(`[plugin-host] ${enabled ? '启用' : '禁用'}插件: ${pluginId}`)
+    console.log(`[plugin-host] ${enabled ? 'Enabled' : 'Disabled'} plugin ${pluginId}`)
 
     /**
      * 广播给**所有**窗口。

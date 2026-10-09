@@ -114,33 +114,35 @@ function reportDiagnostics(payload: I18nPayload): void {
   const { locale, diagnostics } = payload
 
   if (payload.fallbackFrom) {
-    console.warn(`[i18n] 没有找到 "${payload.fallbackFrom}" 的语言包，已回落到 "${locale}"`)
+    console.warn(
+      `[i18n] Language pack for "${payload.fallbackFrom}" not found, fallback to "${locale}"`
+    )
   }
 
   // 逐 key 瀑布下这个数字的含义要说清：链上所有语言包都没翻的 key，
   // 不是「某一个包漏翻的 key」—— 漏翻的包会被后面的包接住，不报在这里。
   if (diagnostics.missing.length > 0) {
     console.warn(
-      `[i18n] "${locale}" 的包链（第三方 -> 内置）都没翻这 ${diagnostics.missing.length} 条文案，` +
-        `将显示中文：\n` +
+      `[i18n] "${locale}" has ${diagnostics.missing.length} missing messages: \n` +
         diagnostics.missing.map((key) => `  - ${key}`).join('\n')
     )
   }
 
   if (diagnostics.extra.length > 0) {
     console.warn(
-      `[i18n] "${locale}" 的语言包里有 ${diagnostics.extra.length} 条宿主不认识的 key` +
-        `（拼错或宿主已删除）：\n` +
+      `[i18n] "${locale}" has ${diagnostics.extra.length} extra messages: \n` +
         diagnostics.extra.map((key) => `  - ${key}`).join('\n')
     )
   }
 
   if (diagnostics.conflicts.length > 0) {
     console.warn(
-      `[i18n] "${locale}" 有 ${diagnostics.conflicts.length} 条文案被多个语言包同时提供，` +
-        `已按「链上靠前者胜出」取用：\n` +
+      `[i18n] "${locale}" has ${diagnostics.conflicts.length} conflicts: \n` +
         diagnostics.conflicts
-          .map((c) => `  - ${c.key}: 采用 ${describeRef(c.winner)}，舍弃 ${describeRef(c.loser)}`)
+          .map(
+            (c) =>
+              `  - ${c.key}: winner is ${describeRef(c.winner)} loser is ${describeRef(c.loser)}`
+          )
           .join('\n')
     )
   }
@@ -157,9 +159,9 @@ function reportDiagnostics(payload: I18nPayload): void {
     }
 
     console.log(
-      `[i18n] "${locale}" 的 ${served.length} 条文案由 ${byPlugin.size} 个包供给：\n` +
+      `[i18n] ${served.length} pieces of copy for "${locale}" are provided by ${byPlugin.size} packages: \n` +
         Array.from(byPlugin.entries())
-          .map(([plugin, keys]) => `  - ${plugin}: ${keys.length} 条`)
+          .map(([plugin, keys]) => `  - ${plugin}: ${keys.length} pieces`)
           .join('\n')
     )
   }
@@ -183,7 +185,7 @@ export function initI18n(): void {
 
   reportDiagnostics(currentPayload)
   console.log(
-    `[i18n] locale=${currentLocale}, 可用语言 ${currentPayload.available
+    `[i18n] locale=${currentLocale}, available languages ${currentPayload.available
       .map((d) => d.locale)
       .join(', ')}`
   )
@@ -214,7 +216,7 @@ export function switchLocale(locale: LocaleId): boolean {
   const normalized = normalizeLocale(locale)
 
   if (normalized !== DEFAULT_LOCALE && !languagePackRegistry.matchLocale(normalized)) {
-    console.error(`[i18n] 拒绝切换到 "${normalized}"：没有对应的语言包`)
+    console.error(`[i18n] Refusing to switch to locale with no language pack: "${normalized}"`)
     return false
   }
 

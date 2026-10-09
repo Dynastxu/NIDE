@@ -51,14 +51,13 @@ function hydrate(payload: I18nPayload): Partial<I18nState> {
   if (payload.fallbackFrom) {
     state.fallbackFrom = payload.fallbackFrom
     console.warn(
-      `[i18n] 没有找到 "${payload.fallbackFrom}" 的语言包，界面已回落成 "${payload.locale}"`
+      `[i18n] Language pack for "${payload.fallbackFrom}" not found, the interface has fallen back to "${payload.locale}"`
     )
   }
 
   if (payload.diagnostics.missing.length > 0) {
     console.warn(
-      `[i18n] "${payload.locale}" 有 ${payload.diagnostics.missing.length} 条文案未翻译，` +
-        `这些位置会显示中文`
+      `[i18n] "${payload.locale}" has ${payload.diagnostics.missing.length} pieces of copy that have not been translated, and these parts will display in Chinese`
     )
   }
 
@@ -81,7 +80,10 @@ export const useI18nStore = create<I18nState>((set) => ({
       .then((payload) => set(hydrate(payload)))
       .catch((err: unknown) => {
         // 拿不到词条表不该白屏：中文基础表已经在 store 里了，界面照常可用
-        console.error('[i18n] 加载词条表失败，已回落成中文基础表', err)
+        console.error(
+          '[i18n] Failed to load the entry table, reverted to the basic Chinese table',
+          err
+        )
       })
       .finally(() => {
         inflight = null

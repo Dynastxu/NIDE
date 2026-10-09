@@ -64,7 +64,7 @@ function warnUnknownIcon(viewId: string, spec: string): void {
   warned.add(key)
 
   console.warn(
-    `[nide] 视图 ${viewId} 的 icon "${spec}" 既不是内置图标名，也不是一段 SVG（不含 '<'）。` +
-      `已回落到默认图标。可用内置名：${builtinIconNames().join(', ')}`
+    `[nide] The icon "${spec}" for view ${viewId} is neither a built-in icon name nor an SVG (without '<').` +
+      `Has returned to the default icon. Available built-in names: ${builtinIconNames().join(', ')}`
   )
 }

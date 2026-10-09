@@ -123,7 +123,7 @@ function BuiltinIcon({ name }: { name: string }): JSX.Element {
 
   if (!inner) {
     // 图标名拼错时留一个等宽的占位，避免整行文字跳一下
-    console.warn(`[nide] 未知的内置图标 "${name}"`)
+    console.warn(`[nide] Unknown builtin icon "${name}"`)
     return <span className="h-4 w-4 shrink-0" />
   }
 
@@ -174,5 +174,5 @@ function MenuRow({
 function openWindow(type: 'settings'): void {
   void window.hostAPI.window
     .open(type)
-    .catch((err: unknown) => console.error('[nide] 打开窗口失败', type, err))
+    .catch((err: unknown) => console.error('[nide] Open window failed:', type, err))
 }

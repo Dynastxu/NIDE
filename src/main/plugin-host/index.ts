@@ -72,7 +72,9 @@ export function initPluginHost(): void {
 
   const thirdPartyCount = scanDir(loader, thirdPartyDir, 'third-party')
   // 把路径打出来：第三方语言包要放哪儿，是用户最常问的问题
-  console.log(`[plugin-host] 第三方插件目录: ${thirdPartyDir}（已加载 ${thirdPartyCount} 个）`)
+  console.log(
+    `[plugin-host] Third-party plugin directory: ${thirdPartyDir} (Loaded ${thirdPartyCount} plugins)`
+  )
 
   console.log(
     `[plugin-host] View registration completed, registered ${uiRegistry.getAll().length} views, ` +
