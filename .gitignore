@@ -6,3 +6,6 @@ out
 *.log*
 /.idea/
 /.vscode/
+
+# Github Wiki
+/docs/wiki/
