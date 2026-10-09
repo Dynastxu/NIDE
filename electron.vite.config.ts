@@ -1,19 +1,18 @@
 import { resolve } from 'path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // 注意：Vite 不读 tsconfig 的 paths，@shared 必须在每个环境里显式声明别名
+// main 与 preload 的依赖外置由 v5 的 build.externalizeDeps 默认启用，无需注册 externalizeDepsPlugin
 const shared = resolve('src/shared')
 const projectRoot = resolve('.')
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
     resolve: { alias: { '@shared': shared } }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     resolve: { alias: { '@shared': shared } }
   },
   renderer: {
