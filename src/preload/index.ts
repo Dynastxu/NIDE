@@ -9,6 +9,7 @@ import {
   type Logger
 } from '@shared/logger'
 import { DEFAULT_LOCALE, LOCALE_ARG_PREFIX } from '@shared/i18n'
+import { PROJECT_ARG_PREFIX, PROJECT_CHANNELS } from '@shared/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
   WINDOW_ARG_PREFIX,
@@ -19,6 +20,7 @@ import {
   type WindowType
 } from '@shared/window'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
+import type { ProjectListItem, ProjectOpenResult, ProjectPickMode } from '@shared/project'
 import type { Disposable, PluginDescriptor } from '@shared/plugin-api'
 
 // ========== 通用事件总线（渲染进程侧） ==========
@@ -62,6 +64,18 @@ function readBootWindowType(): WindowType {
 function readBootLogLevel(): string {
   const arg = process.argv.find((item) => item.startsWith(LOG_LEVEL_ARG_PREFIX))
   return arg ? arg.slice(LOG_LEVEL_ARG_PREFIX.length) : DEFAULT_LOG_LEVEL
+}
+
+/**
+ * 启动项目路径：和 locale / window type 一样从启动参数里同步读。
+ *
+ * 主窗口的标题栏第一帧就要显示项目名，异步 IPC 会先渲染一版没有项目名的标题
+ * 再跳一下。没有项目时是 null —— 欢迎窗口那条路径上就没有项目。
+ */
+function readBootProjectPath(): string | null {
+  const arg = process.argv.find((item) => item.startsWith(PROJECT_ARG_PREFIX))
+  const value = arg ? arg.slice(PROJECT_ARG_PREFIX.length) : ''
+  return value.length > 0 ? value : null
 }
 
 const logLevel = parseLogLevel(readBootLogLevel())
@@ -126,6 +140,50 @@ const windowAPI = {
    */
   restart: (): void => {
     ipcRenderer.send(WINDOW_CHANNELS.restart)
+  },
+
+  /**
+   * 退出应用（标题栏「文件 -> 退出」）。
+   *
+   * 与 `action('close')` 不同：那个只关掉当前这个窗口，这个结束整个应用。同样用
+   * 单向 send —— 应用马上就没了，回执没有任何接收方。
+   */
+  quit: (): void => {
+    ipcRenderer.send(WINDOW_CHANNELS.quit)
+  }
+}
+
+/**
+ * 「打开过的项目」的后端。
+ *
+ * 单独收成一个命名空间：它既不是窗口能力，也不属于插件，而是宿主的一等业务
+ * 能力（欢迎窗口与「欢迎 -> 主窗口」的切换都靠它）。所有判断都在主进程 ——
+ * 目录存不存在这类事实只有主进程看得到。
+ */
+const projectAPI = {
+  /** 「打开过的项目」列表，最近打开的在前 */
+  list: (): Promise<ProjectListItem[]> => ipcRenderer.invoke(PROJECT_CHANNELS.list),
+
+  /** 打开列表里的某一条。目录已经不在时返回带原因的结果，不抛异常 */
+  open: (dirPath: string): Promise<ProjectOpenResult> =>
+    ipcRenderer.invoke(PROJECT_CHANNELS.open, dirPath),
+
+  /** 弹系统目录对话框并打开所选目录。用户取消时返回 { ok: false, reason: 'cancelled' } */
+  pick: (mode: ProjectPickMode): Promise<ProjectOpenResult> =>
+    ipcRenderer.invoke(PROJECT_CHANNELS.pick, mode),
+
+  /** 从列表里移除一条记录（磁盘上的目录不动），返回移除后的列表 */
+  remove: (dirPath: string): Promise<ProjectListItem[]> =>
+    ipcRenderer.invoke(PROJECT_CHANNELS.remove, dirPath),
+
+  /**
+   * 关闭当前项目，回退到欢迎窗口。记录留在列表里，下次启动仍然默认打开它。
+   *
+   * 单向 send：调用之后这个窗口就会被拆掉，等一个永远到不了的应答没有意义
+   * （与 window.restart 同理）。
+   */
+  close: (): void => {
+    ipcRenderer.send(PROJECT_CHANNELS.close)
   }
 }
 
@@ -253,6 +311,9 @@ const api = {
    */
   window: windowAPI,
 
+  /** 项目：打开过的文件夹、当前项目、目录对话框（见 projectAPI 的说明） */
+  projects: projectAPI,
+
   /** 插件管理（占位） */
   reloadPlugin: (pluginId: string) => ipcRenderer.invoke('host:reload-plugin', pluginId)
 }
@@ -303,7 +364,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('__NIDE_BOOT__', {
       locale: readBootLocale(),
       windowType: readBootWindowType(),
-      logLevel
+      logLevel,
+      projectPath: readBootProjectPath()
     })
     // 必须在隔离世界里挂：非隔离时下面那段自己赋值即可
     exposeLogBridge()
@@ -318,7 +380,12 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.hostAPI = api
   // @ts-ignore (define in dts)
-  window.__NIDE_BOOT__ = { locale: readBootLocale(), windowType: readBootWindowType(), logLevel }
+  window.__NIDE_BOOT__ = {
+    locale: readBootLocale(),
+    windowType: readBootWindowType(),
+    logLevel,
+    projectPath: readBootProjectPath()
+  }
   exposeLogBridge()
 }
 

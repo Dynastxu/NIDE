@@ -2,10 +2,11 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { installLogger, loggerFor } from './logger'
 import { registerHostIPC } from './ipc/host.ipc'
+import { registerProjectIPC } from './ipc/project.ipc'
 import { registerWindowIPC, registerWindowActions } from './ipc/window.ipc'
 import { initPluginHost } from './plugin-host'
 import { initI18n } from './i18n'
-import { createMainWindow, createSettingsWindow, recreateMainWindow } from './window'
+import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './window'
 
 /**
  * 日志必须最先安装，且早于 app.whenReady()。
@@ -32,11 +33,13 @@ app.whenReady().then(() => {
   // 1) IPC 通道要先注册好，渲染进程一打开就可能调用。
   //    registerWindowOpeners 必须在建窗之前 —— 渲染进程随时可能点「全局设置」，
   //    那时映射表要是空的，这次点击会静默丢掉（见 window.ipc.ts 的注入说明）。
+  //    项目通道同理：欢迎窗口一挂载就会取项目列表。
   registerHostIPC()
+  registerProjectIPC()
   registerWindowIPC()
   registerWindowActions({
     openers: { settings: createSettingsWindow },
-    restart: recreateMainWindow
+    restart: recreateRootWindow
   })
   // 2) 插件宿主只扫描 manifest、同步执行；语言包是随 manifest 一起注册进
   //    languagePackRegistry 的，所以 i18n 必须排在它后面，否则注册表还是空的，
@@ -44,13 +47,15 @@ app.whenReady().then(() => {
   initPluginHost()
   // 3) 定下语言：窗口标题、原生菜单、以及要传给渲染进程的启动参数都依赖它
   initI18n()
-  // 4) 最后开窗：窗口一打开，渲染进程就能拿到完整的视图列表和词条表
-  createMainWindow()
+  // 4) 最后开窗：窗口一打开，渲染进程就能拿到完整的视图列表和词条表。
+  //    开哪个窗口由「打开过的项目」决定：有可用的上次项目就进主窗口，
+  //    否则进欢迎窗口（见 window.ts 的 openStartupWindow）
+  openStartupWindow()
 
   logger.info('Startup sequence completed')
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+    if (BrowserWindow.getAllWindows().length === 0) openStartupWindow()
   })
 })
 

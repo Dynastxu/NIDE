@@ -1,16 +1,18 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
 import type { LogLevel } from '@shared/logger'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
+import type { ProjectListItem, ProjectOpenResult, ProjectPickMode } from '@shared/project'
 import type { Disposable, PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
 import type { WindowAction, WindowState, WindowType } from '@shared/window'
 
 /**
  * preload 在渲染进程里同步暴露的启动信息。
  *
- * 三项都必须**同步**可得，因为渲染进程要在第一帧、任何异步 IPC 之前就用到：
+ * 四项都必须**同步**可得，因为渲染进程要在第一帧、任何异步 IPC 之前就用到：
  * - locale 是 Monaco NLS 唯一需要的东西，而它必须在 monaco 模块求值前设好；
  * - windowType 决定挂载哪个根组件，晚一步拿到就会先渲染错的界面；
- * - logLevel 决定是否接管 console，同理要在首个模块求值前拿到。
+ * - logLevel 决定是否接管 console，同理要在首个模块求值前拿到；
+ * - projectPath 进窗口标题（标题栏第一帧就显示项目名，异步取会跳一下）。
  */
 export interface NideBootInfo {
   /** 主进程建窗时定下的语言（BCP-47），例如 "zh-CN" */
@@ -19,6 +21,8 @@ export interface NideBootInfo {
   windowType: WindowType
   /** 主进程解析出的日志级别阈值。渲染进程只读结论，不重新解析环境变量 */
   logLevel: LogLevel
+  /** 当前项目目录；没有项目（欢迎窗口）时为 null */
+  projectPath: string | null
 }
 
 /**
@@ -44,8 +48,25 @@ export interface WindowAPI {
   onStateChange: (handler: (state: WindowState) => void) => Disposable
   action: (action: WindowAction) => void
   open: (type: WindowType) => Promise<void>
-  /** 重建主窗口。发出去就结束，不等回执（这个窗口自己会被销毁） */
+  /** 重建根窗口。发出去就结束，不等回执（这个窗口自己会被销毁） */
   restart: () => void
+  /** 退出整个应用（不是只关掉这个窗口）。同样不等回执 */
+  quit: () => void
+}
+
+/**
+ * 项目能力。判断全在主进程：目录存不存在这类事实渲染进程看不到。
+ *
+ * 打开 `pick('new')` 与 `pick('open')` 用的是同一个系统目录对话框，只有标题与
+ * 起始目录不同 —— 「新建文件夹」由系统对话框自己提供。
+ */
+export interface ProjectAPI {
+  list: () => Promise<ProjectListItem[]>
+  open: (dirPath: string) => Promise<ProjectOpenResult>
+  pick: (mode: ProjectPickMode) => Promise<ProjectOpenResult>
+  remove: (dirPath: string) => Promise<ProjectListItem[]>
+  /** 关闭当前项目、回退到欢迎窗口。不返回回执：这个窗口会立刻被拆掉 */
+  close: () => void
 }
 
 export interface HostAPI {
@@ -65,6 +86,8 @@ export interface HostAPI {
   /** 日志出口。渲染进程所有日志都经它汇总到主进程的同一份文件 */
   log: RendererLoggerAPI
   window: WindowAPI
+  /** 打开过的项目 / 当前项目 */
+  projects: ProjectAPI
   reloadPlugin: (pluginId: string) => Promise<void>
 }
 

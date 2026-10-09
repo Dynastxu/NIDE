@@ -11,6 +11,7 @@ import {
 } from '@renderer/settings/pages'
 import { useT } from '@renderer/stores/i18n.store'
 import { WindowFrame } from '@renderer/window/WindowFrame'
+import { useWindowTitle } from '@renderer/window/useWindowTitle'
 
 /**
  * 「全局设置」窗口。
@@ -27,10 +28,10 @@ import { WindowFrame } from '@renderer/window/WindowFrame'
  * 这个划分是刻意的：这一层只有窗口装配，界面在 SettingsWindowContent 里。
  */
 export function SettingsApp(): JSX.Element {
-  const t = useT()
+  const title = useWindowTitle()
 
   return (
-    <WindowFrame title={t('host.settings.title')}>
+    <WindowFrame title={title}>
       <SettingsWindowContent />
     </WindowFrame>
   )

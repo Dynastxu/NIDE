@@ -6,7 +6,7 @@ import type { SettingsPageProps } from '@renderer/settings/pages'
  * 设置 -> 语言。
  *
  * 这一页**没有草稿**：换语言会重建整个窗口（宿主既有机制，见 main/window.ts 的
- * recreateMainWindow），而设置窗口本身就在被重建之列。所以这里点下去就是立刻
+ * recreateRootWindow），而设置窗口本身就在被重建之列。所以这里点下去就是立刻
  * 生效并重启，底部的「取消」对它无效 —— 页面上明确写出来，别让用户以为
  * 取消能把语言退回去。
  *

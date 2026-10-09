@@ -26,6 +26,52 @@ export const zhCN = {
   'host.window.restore': '向下还原',
   'host.window.close': '关闭',
 
+  // ---- 主窗口标题栏的菜单（文件 / 编辑）----
+  'host.menu.button': '菜单',
+  'host.menu.file': '文件',
+  'host.menu.file.closeProject': '关闭项目',
+  'host.menu.file.closeProject.confirm.title': '关闭项目',
+  'host.menu.file.closeProject.confirm.message':
+    '关闭当前项目并回到欢迎窗口？项目会留在「打开过的项目」列表里，下次启动仍然默认打开它。',
+  'host.menu.file.quit': '退出',
+  'host.menu.file.quit.confirm.title': '退出应用',
+  'host.menu.file.quit.confirm.message': '退出会关闭所有窗口。是否继续？',
+  'host.menu.edit': '编辑',
+  'host.menu.edit.undo': '撤销',
+  'host.menu.edit.redo': '重做',
+  'host.menu.edit.notImplemented': '尚未实现',
+
+  // ---- 通用确认框 ----
+  'host.dialog.cancel': '取消',
+
+  // ---- 主窗口标题栏的项目下拉 ----
+  'host.project.selector.label': '项目',
+  'host.project.selector.none': '未打开项目',
+  'host.project.selector.empty': '没有打开过的项目',
+
+  // ---- 欢迎窗口（没有可用的项目时）----
+  'host.welcome.title': '欢迎',
+  'host.welcome.nav.title': '欢迎选项',
+  'host.welcome.nav.projects': '项目',
+  'host.welcome.nav.plugins': '插件',
+  'host.welcome.settings': '设置',
+  'host.welcome.projects.title': '项目',
+  'host.welcome.projects.hint':
+    '选择一个文件夹作为项目。宿主会记住打开过的文件夹，下次启动直接进入上次那个项目。',
+  'host.welcome.projects.create': '新建项目',
+  'host.welcome.projects.open': '打开',
+  'host.welcome.projects.empty': '还没有打开过任何文件夹。',
+  'host.welcome.projects.empty.hint':
+    '用右上角的「新建项目」或「打开」选一个文件夹，它会出现在这个列表里。',
+  'host.welcome.projects.missing': '目录不存在',
+  'host.welcome.projects.menu.open': '打开',
+  'host.welcome.projects.menu.remove': '从列表移除',
+  'host.welcome.projects.dialog.open.title': '打开项目文件夹',
+  'host.welcome.projects.dialog.create.title': '新建项目文件夹',
+  'host.welcome.projects.dialog.button': '选择此文件夹',
+  'host.welcome.projects.error.missing': '目录不存在：{path}',
+  'host.welcome.projects.error.not-a-directory': '这不是一个文件夹：{path}',
+
   // ---- 设置 ----
   'host.settings.button': '设置',
   'host.settings.menu.global': '全局设置',

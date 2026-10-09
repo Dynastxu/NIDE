@@ -9,6 +9,45 @@
   "host.window.restore": "Restore Down",
   "host.window.close": "Close",
 
+  "host.menu.button": "Menu",
+  "host.menu.file": "File",
+  "host.menu.file.closeProject": "Close Project",
+  "host.menu.file.closeProject.confirm.title": "Close project",
+  "host.menu.file.closeProject.confirm.message": "Close the current project and return to the welcome window? It stays in the list of opened projects and is still reopened on the next start.",
+  "host.menu.file.quit": "Quit",
+  "host.menu.file.quit.confirm.title": "Quit NIDE",
+  "host.menu.file.quit.confirm.message": "Quitting closes all windows. Continue?",
+  "host.menu.edit": "Edit",
+  "host.menu.edit.undo": "Undo",
+  "host.menu.edit.redo": "Redo",
+  "host.menu.edit.notImplemented": "Not implemented yet",
+
+  "host.dialog.cancel": "Cancel",
+
+  "host.project.selector.label": "Project",
+  "host.project.selector.none": "No project open",
+  "host.project.selector.empty": "No project has been opened yet",
+
+  "host.welcome.title": "Welcome",
+  "host.welcome.nav.title": "Welcome options",
+  "host.welcome.nav.projects": "Projects",
+  "host.welcome.nav.plugins": "Plugins",
+  "host.welcome.settings": "Settings",
+  "host.welcome.projects.title": "Projects",
+  "host.welcome.projects.hint": "Pick a folder to use as a project. The IDE remembers the folders you have opened and reopens the last one on the next start.",
+  "host.welcome.projects.create": "New Project",
+  "host.welcome.projects.open": "Open",
+  "host.welcome.projects.empty": "No folder has been opened yet.",
+  "host.welcome.projects.empty.hint": "Use \"New Project\" or \"Open\" in the top right corner; the folder will show up in this list.",
+  "host.welcome.projects.missing": "Folder missing",
+  "host.welcome.projects.menu.open": "Open",
+  "host.welcome.projects.menu.remove": "Remove from list",
+  "host.welcome.projects.dialog.open.title": "Open project folder",
+  "host.welcome.projects.dialog.create.title": "New project folder",
+  "host.welcome.projects.dialog.button": "Select this folder",
+  "host.welcome.projects.error.missing": "The folder does not exist: {path}",
+  "host.welcome.projects.error.not-a-directory": "This is not a folder: {path}",
+
   "host.settings.button": "Settings",
   "host.settings.menu.global": "Global Settings",
   "host.settings.menu.project": "Project Settings",
@@ -25,13 +64,11 @@
   "host.settings.apply.apply": "Apply",
 
   "host.settings.restart.title": "Restart required",
-  "host.settings.restart.message":
-    "The change needs an IDE restart to take full effect. Restarting discards unsaved editor content. Restart now?",
+  "host.settings.restart.message": "The change needs an IDE restart to take full effect. Restarting discards unsaved editor content. Restart now?",
   "host.settings.restart.now": "Restart now",
   "host.settings.restart.later": "Later",
 
-  "host.settings.language.description":
-    "Choose the interface language. Switching requires rebuilding the window to take full effect, and unsaved editor content will be lost.",
+  "host.settings.language.description": "Choose the interface language. Switching requires rebuilding the window to take full effect, and unsaved editor content will be lost.",
   "host.settings.language.current": "Current language",
   "host.settings.language.restartHint": "The window is rebuilt automatically after switching; it takes a moment.",
 
@@ -61,10 +98,8 @@
   "host.settings.plugins.menu.uninstall": "Uninstall",
   "host.settings.plugins.notImplemented": "Not implemented yet",
   "host.settings.plugins.builtinUndeletable": "Built-in plugins cannot be uninstalled",
-  "host.settings.plugins.disabledWarning":
-    "This plugin is disabled: its views will not appear in the workbench.",
-  "host.settings.plugins.note":
-    "The enabled state currently lasts only for this session (a restart re-enables everything), and it does not remove the plugin from disk.",
+  "host.settings.plugins.disabledWarning": "This plugin is disabled: its views will not appear in the workbench.",
+  "host.settings.plugins.note": "The enabled state currently lasts only for this session (a restart re-enables everything), and it does not remove the plugin from disk.",
 
   "host.diff.title": "Diff comparison",
   "host.diff.close": "Close",

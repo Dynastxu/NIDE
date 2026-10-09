@@ -4,7 +4,7 @@ import { initMonacoNls } from './monaco-env'
 import { installRendererLogger, loggerFor } from './logger'
 import './assets/index.css'
 import type { JSX } from 'react'
-import type { WindowType } from '@shared/window'
+import { systemWindowTitle, type WindowType } from '@shared/window'
 
 /**
  * 启动序列。顺序**都有理由，不能调换**：
@@ -38,6 +38,7 @@ const logger = loggerFor('renderer')
  */
 const ROOTS: Record<WindowType, () => Promise<{ default: () => JSX.Element }>> = {
   main: () => import('./App'),
+  welcome: () => import('./welcome/WelcomeApp'),
   settings: () => import('./settings/SettingsApp').then((m) => ({ default: m.SettingsApp }))
 }
 
@@ -57,11 +58,13 @@ async function boot(): Promise<void> {
    * Alt-Tab 和辅助功能 —— 对无边框窗口尤其不能省，否则它们在系统里全叫
    * "Electron"。
    *
-   * 窗口种类在**启动参数**里，所以这一步在首帧之前就能确定，不需要先渲染
-   * 一个默认界面再异步换成另一个。
+   * 窗口种类与项目路径都在**启动参数**里，所以这一步在首帧之前就能确定，
+   * 不需要先渲染一个默认界面再异步换成另一个。这里用**带项目名**的那一版：它设的
+   * 是操作系统那一层的标题（任务栏 / Alt-Tab），而主窗口自绘的标题栏只显示应用名 ——
+   * 项目名在标题栏里由项目下拉承担（见 shared/window 的两个标题函数）。
    */
-  const { windowType } = window.__NIDE_BOOT__
-  document.title = getT()(windowType === 'settings' ? 'host.settings.title' : 'host.app.title')
+  const { windowType, projectPath } = window.__NIDE_BOOT__
+  document.title = systemWindowTitle(getT(), windowType, projectPath)
 
   const { default: Root } = await ROOTS[windowType]()
 

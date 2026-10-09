@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu, ipcMain } from 'electron'
+import { BrowserWindow, Menu, app, ipcMain } from 'electron'
 import { WINDOW_CHANNELS, isWindowType, type WindowAction, type WindowState } from '@shared/window'
 import { loggerFor } from '../logger'
 
@@ -23,7 +23,7 @@ let windowOpeners: Partial<Record<string, () => void>> = {}
 
 /**
  * 「重启应用」的实现也由启动方注入，理由和上面一样：它是 window.ts 的
- * recreateMainWindow，而本文件已经被 window.ts 依赖了，反向再 import 就是循环。
+ * recreateRootWindow，而本文件已经被 window.ts 依赖了，反向再 import 就是循环。
  */
 let restartApp: (() => void) | null = null
 
@@ -131,7 +131,7 @@ export function registerWindowIPC(): void {
   /**
    * 重建主窗口 —— 界面上那个「立即重启」走这条路。
    *
-   * 复用切语言的 recreateMainWindow，而不是新写一套：它已经处理好了「先建新窗
+   * 复用切语言的 recreateRootWindow，而不是新写一套：它已经处理好了「先建新窗
    * 再拆旧窗」这个顺序（反过来的话拆窗那一瞬间可能一个窗口都不剩，触发
    * window-all-closed 让应用直接退出），也已经处理了 bounds 与最大化状态的恢复。
    *
@@ -146,5 +146,17 @@ export function registerWindowIPC(): void {
       return
     }
     restartApp()
+  })
+
+  /**
+   * 退出应用 —— 标题栏「文件 -> 退出」。
+   *
+   * 直接 app.quit()，不需要注入实现：退出是 Electron 自己的语义，没有「宿主怎么做
+   * 这件事」的余地。它会走完整的退出流程（关闭所有窗口、触发 will-quit），所以
+   * 未保存内容的兜底该挂在那些钩子上，而不是在这里加一段判断。
+   */
+  ipcMain.on(WINDOW_CHANNELS.quit, (): void => {
+    logger.info('Quit requested from the renderer')
+    app.quit()
   })
 }

@@ -5,7 +5,8 @@ import iconUrl from '../../../../resources/icon.png?url'
 /**
  * 自定义标题栏 —— 宿主**所有**窗口共用的一条。
  *
- * 左边：应用图标 + 标题；右边：标题栏动作（如「设置」）+ 最小化 / 最大化-还原 / 关闭。
+ * 左边：应用图标 + 标题 + （主窗口才有的）菜单栏与项目下拉；
+ * 右边：标题栏动作（如「设置」）+ 最小化 / 最大化-还原 / 关闭。
  *
  * 「复用」的边界在**窗口**这一层，不是把主窗口那一条标题栏整根塞给所有窗口：
  * 每个窗口的内容区、标题、标题栏动作都不一样。所以这里只固定三样东西 ——
@@ -26,10 +27,19 @@ import iconUrl from '../../../../resources/icon.png?url'
  */
 export function WindowFrame({
   title,
+  leading,
   actions,
   children
 }: {
   title: string
+  /**
+   * 紧贴应用名右侧的区域（主窗口的菜单按钮 + 项目下拉）。
+   *
+   * 刻意与 `actions` 分开：`actions` 在标题栏**最右边**（设置按钮、三个窗口按钮
+   * 那一侧），而菜单栏在左侧挨着应用名 —— 两者在标题栏上是对角，放同一个槽位就
+   * 只能用绝对定位硬掰。
+   */
+  leading?: ReactNode
   /** 标题栏动作，排在三个窗口按钮**左边**。不传就没有 —— 子窗口通常不需要 */
   actions?: ReactNode
   children: ReactNode
@@ -53,10 +63,15 @@ export function WindowFrame({
         {/* 让开 macOS 的系统交通灯（它们固定在最左边） */}
         {isMac && <div aria-hidden="true" className="w-[78px] shrink-0" />}
 
-        {/* 应用身份：图标 + 标题。所有窗口都有这一段 */}
+        {/* 应用身份：图标 + 标题。所有窗口都有这一段。
+            它是唯一的 flex-1：标题长了会截断，并把这之后的一切推到右边 */}
         <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-2.5">
           <img src={iconUrl} alt="" aria-hidden="true" className="h-4 w-4 shrink-0" />
           <span className="truncate text-xs text-zinc-400">{title}</span>
+
+          {/* 菜单按钮 / 菜单栏、项目下拉都挂在这里：它们在视觉上属于「靠左的那一组」，
+              跟着应用名，而不是跟着右边的窗口按钮 */}
+          {leading}
         </div>
 
         {actions}

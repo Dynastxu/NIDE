@@ -5,7 +5,7 @@ import { pluginRegistry } from '../plugin-host/plugin-registry'
 import { createMainTranslator, getCurrentLocale, getI18nPayload, switchLocale } from '../i18n'
 import { manifestNlsRegistry } from '../i18n/manifest-nls'
 import { loggerFor, toLogRecord } from '../logger'
-import { getMainWindow, recreateMainWindow } from '../window'
+import { getMainWindow, recreateRootWindow } from '../window'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type { PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
 
@@ -90,7 +90,7 @@ async function applyLocaleSwitch(locale: LocaleId): Promise<void> {
     return
   }
 
-  recreateMainWindow()
+  recreateRootWindow()
 }
 
 export function registerHostIPC(): void {

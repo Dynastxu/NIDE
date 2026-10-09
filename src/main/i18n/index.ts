@@ -215,7 +215,7 @@ export function createMainTranslator(): Translator {
  * 切换语言：落盘 + 重建载荷。
  *
  * **刻意不在这里重建窗口** —— 那样 i18n 就得反向依赖窗口模块，形成循环。
- * 调用方（IPC / 菜单）负责在自己合适的时机调 recreateMainWindow()。
+ * 调用方（IPC / 菜单）负责在自己合适的时机调 recreateRootWindow()。
  *
  * 返回 false 表示这个 locale 没有语言包，什么都没改。
  */

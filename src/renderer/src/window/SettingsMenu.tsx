@@ -1,35 +1,25 @@
 import { JSX, useEffect, useRef, useState } from 'react'
-import { getBuiltinIcon } from '@renderer/layout/icons'
 import { loggerFor } from '@renderer/logger'
 import { useT } from '@renderer/stores/i18n.store'
-import type { HostMessageKey } from '@shared/i18n'
+import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
+import { DropdownMenu } from '@renderer/ui/DropdownMenu'
+import type { MenuItem } from '@renderer/ui/MenuItem'
 
 const logger = loggerFor('window')
 
 /**
- * 标题栏最左边那颗按钮 + 它的下拉栏。
+ * 标题栏最右边那颗按钮 + 它的下拉栏。
  *
  * 为什么入口放在最小化左边：自绘标题栏上唯一「属于应用而不是窗口」的位置就是
- * 左侧；右侧三个按钮的语义已经被系统固定了，往里插一颗会让人误以为「设置」
- * 也是个窗口操作。
+ * 左侧（三点按钮的语义已经被系统固定了，往那一侧插一颗会让人误以为「设置」也是个
+ * 窗口操作）；而「设置」属于当前窗口，放在右侧、贴着窗口按钮更合适。
  *
- * 下拉栏**不是**原生菜单，而是渲染进程自己画的浮层。原生菜单在这里有三个问题：
- * 放不了图标、三个平台的样式完全不同、而且窗口一失焦就消失（和「点开一个独立
- * 设置窗口」这个用途天然冲突）。代价是「点外面关闭」「Esc 关闭」得自己实现 ——
+ * 下拉栏**不是**原生菜单，而是渲染进程自己画的浮层（`@renderer/ui/DropdownMenu`，
+ * 与菜单栏的子菜单、右键菜单共用同一套行）。原生菜单在这里有三个问题：三个平台的
+ * 样式完全不同、窗口一失焦就消失（和「点开一个独立设置窗口」这个用途天然冲突）、
+ * 而且它在标题栏上的位置由系统决定。代价是「点外面关闭」「Esc 关闭」得自己实现 ——
  * 就是下面那段 effect。
  */
-
-interface MenuItem {
-  id: string
-  labelKey: HostMessageKey
-  /**
-   * 内置图标名
-   * @see BUILTIN_ICONS
-   */
-  icon: string
-  run: () => void
-}
-
 export function SettingsMenu(): JSX.Element {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -60,14 +50,20 @@ export function SettingsMenu(): JSX.Element {
   const items: MenuItem[] = [
     {
       id: 'global',
-      labelKey: 'host.settings.menu.global',
+      label: t('host.settings.menu.global'),
       icon: 'sliders',
-      run: () => openWindow('settings')
+      onSelect: () => {
+        // 先关掉浮层再开窗口：新窗口抢到焦点时这个浮层本来也会消失，
+        // 主动收掉就不会出现「菜单还挂在父窗口上」的一帧
+        setOpen(false)
+        openWindow('settings')
+      }
     }
     /**
-     * 「项目设置」在这里缺席是**刻意**的，不是漏写：宿主目前还没有「打开项目」
-     * 这个概念（见 README 的「尚未实现」），没有项目时它不该出现。
-     * 等打开项目落地后，在这里补一项并挂上 `visible: hasProject` 即可。
+     * 「项目设置」在这里缺席仍然是**刻意**的：宿主现在有了「打开项目」，但还没有
+     * 属于**项目**的设置项（项目 = 一个文件夹，宿主不往里面写任何东西）。
+     * 等真有项目级配置（比如项目说明文件的位置）时，在这里补一项并挂上
+     * `visible: hasProject` 即可 —— 那颗按钮不该在欢迎窗口那种没有项目的状态里出现。
      */
   ]
 
@@ -91,80 +87,8 @@ export function SettingsMenu(): JSX.Element {
         <BuiltinIcon name="sliders" />
       </button>
 
-      {open && (
-        <div
-          role="menu"
-          className="absolute top-full left-0 z-50 mt-1 min-w-[200px] rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-xl shadow-black/40"
-        >
-          {items.map((item) => (
-            <MenuRow
-              key={item.id}
-              icon={item.icon}
-              label={t(item.labelKey)}
-              onSelect={() => {
-                setOpen(false)
-                item.run()
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {open && <DropdownMenu className="absolute top-full right-0 z-50 mt-1" items={items} />}
     </div>
-  )
-}
-
-/**
- * 内置图标的外壳：16×16、描边继承文字颜色。
- *
- * 和 layout/ViewIcon.tsx 里那层外壳是同一个形状，但**没有**抽成公共组件：
- * 那边接受的是插件声明的任意 SVG 字符串（要走 dangerouslySetInnerHTML），
- * 这边只吃内置图标名，两者共用的只有 6 行 SVG 属性。为了这 6 行去建立一条
- * 跨模块依赖不划算。
- */
-function BuiltinIcon({ name }: { name: string }): JSX.Element {
-  const inner = getBuiltinIcon(name)
-
-  if (!inner) {
-    // 图标名拼错时留一个等宽的占位，避免整行文字跳一下
-    logger.warn('Unknown builtin icon, using a placeholder', { name })
-    return <span className="h-4 w-4 shrink-0" />
-  }
-
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4 shrink-0"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {inner}
-    </svg>
-  )
-}
-
-function MenuRow({
-  icon,
-  label,
-  onSelect
-}: {
-  icon: string
-  label: string
-  onSelect: () => void
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onSelect}
-      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-zinc-200 transition-colors hover:bg-blue-600 hover:text-white"
-    >
-      <BuiltinIcon name={icon} />
-      <span className="truncate">{label}</span>
-    </button>
   )
 }
 
