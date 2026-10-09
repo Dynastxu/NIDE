@@ -130,7 +130,7 @@ export const zhCN = {
   'host.settings.plugins.builtinUndeletable': '内置插件不可卸载',
   'host.settings.plugins.disabledWarning': '该插件已禁用：它的视图不会出现在工作台里。',
   'host.settings.plugins.note':
-    '启用状态目前只在本次运行内有效（重启后恢复全部启用），也不会卸载磁盘上的插件。',
+    '启用状态会保存到用户配置目录，重启后仍然有效；卸载功能尚未实现，磁盘上的插件文件不会被删除。',
   'host.diff.title': 'Diff 对比',
   'host.diff.close': '关闭',
 

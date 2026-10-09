@@ -2,6 +2,7 @@ import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
 import { WINDOW_CHANNELS } from '@shared/window'
 import { uiRegistry } from '../plugin-host/ui-registry'
 import { pluginRegistry } from '../plugin-host/plugin-registry'
+import { getDisabledPlugins, setPluginEnabled } from '../plugin-host/preference'
 import { createMainTranslator, getCurrentLocale, getI18nPayload, switchLocale } from '../i18n'
 import { manifestNlsRegistry } from '../i18n/manifest-nls'
 import { loggerFor, toLogRecord } from '../logger'
@@ -11,16 +12,6 @@ import type { PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
 
 const logger = loggerFor('host')
 const pluginLogger = loggerFor('plugin-host')
-
-/**
- * 被禁用的插件 id。
- *
- * 进程内的内存状态，**不落盘** —— 见 host:set-plugin-enabled 的说明。
- * 放模块作用域而不是塞进某个注册表：它既不属于清单（磁盘事实），
- * 也不属于视图注册表（贡献点），而是第三种东西：用户偏好。
- * 等偏好持久化落地时，这里换成一个读写 store 的调用即可，调用点不用动。
- */
-const disabledPlugins = new Set<string>()
 
 /**
  * 插件启用状态变化的事件名。
@@ -147,17 +138,15 @@ export function registerHostIPC(): void {
    * 启用 / 禁用插件。
    *
    * 「禁用」的效果**立刻可见**，因为它落在渲染进程侧：被禁用的插件，它的视图
-   * 会从工具区消失（见 renderer 的 plugin.store）。宿主这边只记状态。
+   * 会从工具区消失（见 renderer 的 plugin.store）。宿主这边记状态并**落盘**
+   * （见 plugin-host/preference.ts），重启后仍然有效。
    *
-   * 刻意**不做**的两件事：
-   * - 不落盘。重启后回到全部启用。偏好持久化要等一个统一的宿主偏好存储，
-   *   现在各写各的（布局走 localStorage、语言走 userData 的一个文件）已经够乱了。
-   * - 不重建窗口。禁用是高频的试错操作，每次都重建窗口会丢掉编辑器里未保存的内容 ——
-   *   而语言切换之所以能那样做，是因为它低频且真的无法热更新。
+   * 刻意**不做**的一件事：不重建窗口。禁用是高频的试错操作，每次都重建窗口会
+   * 丢掉编辑器里未保存的内容 —— 而语言切换之所以能那样做，是因为它低频且真的
+   * 无法热更新。
    */
   ipcMain.handle('host:set-plugin-enabled', (_event, pluginId: string, enabled: boolean): void => {
-    if (enabled) disabledPlugins.delete(pluginId)
-    else disabledPlugins.add(pluginId)
+    setPluginEnabled(pluginId, enabled)
 
     pluginLogger.info(`Plugin ${enabled ? 'enabled' : 'disabled'}`, { pluginId })
 
@@ -172,7 +161,7 @@ export function registerHostIPC(): void {
   })
 
   /** 当前被禁用的插件。渲染进程启动时取一次，用来过滤视图列表 */
-  ipcMain.handle('host:get-disabled-plugins', (): string[] => [...disabledPlugins])
+  ipcMain.handle('host:get-disabled-plugins', (): string[] => getDisabledPlugins())
 
   /** 渲染进程/插件请求切换语言；真正生效靠重建窗口，所以走和菜单同一条路径 */
   ipcMain.handle('host:set-locale', async (_e, locale: LocaleId): Promise<void> => {

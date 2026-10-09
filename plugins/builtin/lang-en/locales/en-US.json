@@ -99,7 +99,7 @@
   "host.settings.plugins.notImplemented": "Not implemented yet",
   "host.settings.plugins.builtinUndeletable": "Built-in plugins cannot be uninstalled",
   "host.settings.plugins.disabledWarning": "This plugin is disabled: its views will not appear in the workbench.",
-  "host.settings.plugins.note": "The enabled state currently lasts only for this session (a restart re-enables everything), and it does not remove the plugin from disk.",
+  "host.settings.plugins.note": "The enabled state is saved to the user configuration directory and survives a restart; uninstalling is not implemented yet, so the plugin files stay on disk.",
 
   "host.diff.title": "Diff comparison",
   "host.diff.close": "Close",

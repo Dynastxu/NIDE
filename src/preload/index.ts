@@ -203,11 +203,11 @@ const api = {
   /** 「设置 -> 插件」用的插件清单。和 getPluginViews 是两件事：那个是视图，这个是插件本体 */
   getPlugins: (): Promise<PluginDescriptor[]> => ipcRenderer.invoke('host:get-plugins'),
 
-  /** 启用 / 禁用插件。禁用后它的视图会从工具区消失；宿主侧的状态不落盘 */
+  /** 启用 / 禁用插件。禁用后它的视图会从工具区消失；状态由宿主落盘，重启后仍然有效 */
   setPluginEnabled: (pluginId: string, enabled: boolean): Promise<void> =>
     ipcRenderer.invoke('host:set-plugin-enabled', pluginId, enabled),
 
-  /** 当前被禁用的插件 id。渲染进程启动时取一次，用来过滤视图列表 */
+  /** 当前被禁用的插件 id（宿主持久化过的那份）。渲染进程启动时取一次，用来过滤视图列表 */
   getDisabledPlugins: (): Promise<string[]> => ipcRenderer.invoke('host:get-disabled-plugins'),
 
   /**
