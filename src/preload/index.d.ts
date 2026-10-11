@@ -6,6 +6,8 @@ import type {
   CreateEntryResult,
   DirReadResult,
   FileReadResult,
+  ProjectConfig,
+  ProjectConfigUpdateResult,
   ProjectListItem,
   ProjectOpenResult,
   ProjectPickMode
@@ -91,6 +93,18 @@ export interface ProjectAPI {
    * 不了任意写入位置。同名条目已存在时**不覆盖**，返回 `already-exists`。
    */
   createEntry: (request: CreateEntryRequest) => Promise<CreateEntryResult>
+  /**
+   * 读当前项目的配置（`.nide/config.yml`）。没有项目时为 null。
+   *
+   * `.nide` 或配置文件缺失、坏掉时主进程会静默重建默认配置，所以调用方拿到的
+   * 永远是一份可用的配置，不必为「配置不存在」写分支。
+   */
+  readConfig: () => Promise<ProjectConfig | null>
+  /**
+   * 更新当前项目的配置。**一项不合格就一项都不写**，返回的 config 是磁盘上那份
+   * 没被改动的配置，界面据此说明哪一项被拒了。
+   */
+  updateConfig: (patch: Partial<ProjectConfig>) => Promise<ProjectConfigUpdateResult | null>
 }
 
 export interface HostAPI {

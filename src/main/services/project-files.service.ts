@@ -106,7 +106,6 @@ export async function readProjectDir(
         supported: unsupported === null,
         ...(unsupported ? { reason: unsupported } : {})
       })
-      continue
     }
 
     /*

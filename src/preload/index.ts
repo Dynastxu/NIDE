@@ -9,7 +9,12 @@ import {
   type Logger
 } from '@shared/logger'
 import { DEFAULT_LOCALE, LOCALE_ARG_PREFIX } from '@shared/i18n'
-import { PROJECT_ARG_PREFIX, PROJECT_CHANNELS, PROJECT_FILE_CHANNELS } from '@shared/project'
+import {
+  PROJECT_ARG_PREFIX,
+  PROJECT_CHANNELS,
+  PROJECT_CONFIG_CHANNELS,
+  PROJECT_FILE_CHANNELS
+} from '@shared/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
   WINDOW_ARG_PREFIX,
@@ -25,13 +30,15 @@ import type {
   CreateEntryResult,
   DirReadResult,
   FileReadResult,
+  ProjectConfig,
+  ProjectConfigUpdateResult,
   ProjectListItem,
   ProjectOpenResult,
   ProjectPickMode
 } from '@shared/project'
 import type { Disposable, PluginDescriptor } from '@shared/plugin-api'
 
-// ========== 通用事件总线（渲染进程侧） ==========
+// 通用事件总线（渲染进程侧）
 const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
 
 ipcRenderer.on('host:event', (_event, channel: string, ...args: unknown[]) => {
@@ -39,11 +46,13 @@ ipcRenderer.on('host:event', (_event, channel: string, ...args: unknown[]) => {
 })
 
 /**
- * 启动语言：从主进程建窗时喂进来的启动参数里**同步**读出来。
+ * 启动语言：从主进程创建窗口时传入的启动参数中**同步**读取。
  *
- * 只给 Monaco 用（见 renderer 的 monaco-env.ts）—— 它必须在 monaco 模块被求值
- * 之前拿到语言，而那条路径上没有 await 的机会。完整的词条表仍然走异步的
- * host:get-i18n，两者不冲突：这份只有一个字符串。
+ * 仅供 Monaco 使用 —— Monaco 模块必须在
+ * 求值之前获取语言设置，而该初始化路径上不存在执行 await 的时机。
+ * 完整的词条表仍通过 host:get-i18n 异步获取，两者互不冲突：此处仅返回
+ * 一个语言标识字符串。
+ * @see src/renderer/src/monaco-env.ts
  */
 function readBootLocale(): LocaleId {
   const arg = process.argv.find((item) => item.startsWith(LOCALE_ARG_PREFIX))
@@ -218,7 +227,23 @@ const projectAPI = {
    * `{ ok: false, reason: 'already-exists' }`，**不会覆盖**。
    */
   createEntry: (request: CreateEntryRequest): Promise<CreateEntryResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.createEntry, request)
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.createEntry, request),
+
+  /**
+   * 读当前项目的配置（`.nide/config.yml`）。
+   *
+   * 不传路径：读的就是当前项目，写到哪儿也由主进程决定。`.nide` 被删或配置文件
+   * 坏掉时主进程会静默重建默认配置，所以这里不会返回「没有配置」这种状态 ——
+   * 只有「当前没有项目」时给 null。
+   */
+  readConfig: (): Promise<ProjectConfig | null> => ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.read),
+
+  /**
+   * 更新当前项目的配置。补丁里只放要改的键；校验不合格时主进程**一项都不写**，
+   * 返回的 config 是磁盘上那份没被改动的配置。
+   */
+  updateConfig: (patch: Partial<ProjectConfig>): Promise<ProjectConfigUpdateResult | null> =>
+    ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.update, patch)
 }
 
 const api = {

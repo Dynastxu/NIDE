@@ -2,11 +2,14 @@ import path from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import {
   PROJECT_CHANNELS,
+  PROJECT_CONFIG_CHANNELS,
   PROJECT_FILE_CHANNELS,
   type CreateEntryRequest,
   type CreateEntryResult,
   type DirReadResult,
   type FileReadResult,
+  type ProjectConfig,
+  type ProjectConfigUpdateResult,
   type ProjectOpenResult,
   type ProjectPickMode
 } from '@shared/project'
@@ -24,6 +27,11 @@ import {
   readProjectDir,
   readProjectFile
 } from '../services/project-files.service'
+import {
+  initializeProjectDirectory,
+  loadProjectConfig,
+  updateProjectConfig
+} from '../services/project-config.service'
 import { activateMainWindow, returnToWelcomeWindow } from '../window'
 
 const logger = loggerFor('project')
@@ -90,14 +98,27 @@ async function pickDirectory(
  * **先建新窗、再拆旧窗**这个顺序由 window.ts 保证，不能在这里自己拆 —— 反过来的话
  * 拆的那一瞬间可能一个窗口都不剩，触发 window-all-closed，Windows / Linux 上应用
  * 会直接退出。
+ *
+ * `create` 是「这个目录是刚新建的项目吗」，只有它为真时才**初始化** `.nide`
+ * （建配置目录与内容目录）。这条区别是刻意的：初始化会往项目里写东西，而在一个
+ * 已有项目上替用户建目录是替他做决定 —— 打开别人的项目、打开一个只用来看稿的
+ * 文件夹，都不该长出宿主自己的目录来（`.nide` 被删后的静默重建是另一回事，
+ * 见 project-config.service 的 loadProjectConfig）。
  */
-function activate(dirPath: string): ProjectOpenResult {
+async function activate(dirPath: string, create: boolean): Promise<ProjectOpenResult> {
   const result = openProject(dirPath)
 
   if (!result.ok) {
     logger.warn('Failed to open a project', { reason: result.reason })
     return result
   }
+
+  /**
+   * 初始化在**开窗之前**完成：主窗口一打开，文件树与项目配置的第一次读取就可能
+   * 落在一个还没有 `.nide` 的项目上。它自己不抛（失败在服务里降级成告警），
+   * 所以这里的 await 只是等两次磁盘操作，不会把这次打开项目变成一次失败。
+   */
+  if (create) await initializeProjectDirectory(result.project.path)
 
   activateMainWindow()
   return result
@@ -106,12 +127,13 @@ function activate(dirPath: string): ProjectOpenResult {
 export function registerProjectIPC(): void {
   ipcMain.handle(PROJECT_CHANNELS.list, () => getProjectList())
 
-  ipcMain.handle(PROJECT_CHANNELS.open, (_event, dirPath: unknown): ProjectOpenResult => {
+  ipcMain.handle(PROJECT_CHANNELS.open, (_event, dirPath: unknown): Promise<ProjectOpenResult> => {
     if (typeof dirPath !== 'string' || dirPath.length === 0) {
       logger.warn('Received an invalid project path')
-      return { ok: false, reason: 'missing' }
+      return Promise.resolve({ ok: false, reason: 'missing' })
     }
-    return activate(dirPath)
+    // 打开列表里的一条 = 打开一个已有项目，**不初始化**（见 activate）
+    return activate(dirPath, false)
   })
 
   ipcMain.handle(
@@ -124,7 +146,8 @@ export function registerProjectIPC(): void {
       // 取消不是错误：界面不该因此弹任何提示，只是什么都没发生
       if (!dirPath) return { ok: false, reason: 'cancelled' }
 
-      return activate(dirPath)
+      // 「新建项目」= 初始化项目结构；「打开」= 读它本来的样子
+      return activate(dirPath, kind === 'new')
     }
   )
 
@@ -185,7 +208,42 @@ export function registerProjectIPC(): void {
   )
 
   /**
-   * 新建文件 / 文件夹 —— 宿主**唯一**的写入入口。
+   * 项目配置（`.nide/config.yml`）。
+   *
+   * 和文件树一样，项目根由**主进程**取当前项目，渲染进程只声明「我要配置」——
+   * 它指定不了读谁、更指定不了写到哪儿。没有项目时直接拒绝。
+   *
+   * 读通道会在 `.nide` 缺失或坏掉时静默重建默认配置（见 project-config.service），
+   * 所以渲染进程永远拿得到一份可用的配置，不需要为「没有配置文件」写分支。
+   */
+  ipcMain.handle(PROJECT_CONFIG_CHANNELS.read, async (): Promise<ProjectConfig | null> => {
+    const root = getCurrentProject()?.path
+    if (!root) {
+      logger.warn('Rejected a configuration read without an open project')
+      return null
+    }
+    return loadProjectConfig(root)
+  })
+
+  /**
+   * 更新配置。补丁在这里**不做形状信任**：服务端的 sanitizeProjectConfigPatch
+   * 只认已知的四个键与非空字符串，校验不过时一项都不写。
+   */
+  ipcMain.handle(
+    PROJECT_CONFIG_CHANNELS.update,
+    async (_event, patch: unknown): Promise<ProjectConfigUpdateResult | null> => {
+      const root = getCurrentProject()?.path
+      if (!root) {
+        logger.warn('Rejected a configuration update without an open project')
+        return null
+      }
+      return updateProjectConfig(root, patch)
+    }
+  )
+
+  /**
+   * 新建文件 / 文件夹 —— 用户内容**唯一**的写入入口（宿主自己的 `.nide` 不算，
+   * 那个由 project-config.service 管）。
    *
    * 目标目录不从渲染进程收，只收「用户右键了谁」+「新名字」：写在哪儿由主进程
    * 从那个被右键的条目推导（目录 -> 内部，文件 -> 同级）。渲染进程因此没有机会

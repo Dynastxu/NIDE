@@ -71,15 +71,22 @@ const TEXT_LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
   '.markdown': 'markdown',
   '.mdown': 'markdown',
   '.mkd': 'markdown'
-}
+} // TODO 实际上理应能使用记事本进行编辑的文件都应支持，后缀只做语法高亮的判断标准
 
 /** 支持打开的扩展名集合（只读，供界面做快速判断） */
 export const TEXT_FILE_EXTENSIONS: ReadonlySet<string> = new Set(
   Object.keys(TEXT_LANGUAGE_BY_EXTENSION)
 )
 
-/** 目录不递归进去的目录名。比对按原样做（不折叠大小写之外的写法） */
+/**
+ * 目录不递归进去的目录名。比对按原样做（不折叠大小写之外的写法）。
+ *
+ * `.nide` 是宿主自己的元数据目录（项目配置、将来的缓存与索引），不是用户的稿子：
+ * 它出现在树里只会让人以为那是一份需要自己维护的内容。它仍然在磁盘上、也仍然能被
+ * 读写，只是不进这棵树 —— 与 `.git` 不同，用户没有理由展开它。
+ */
 const IGNORED_DIRECTORY_NAMES: ReadonlySet<string> = new Set([
+  '.nide',
   '.git',
   '.hg',
   '.svn',
