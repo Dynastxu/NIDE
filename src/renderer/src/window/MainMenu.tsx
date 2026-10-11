@@ -1,11 +1,13 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import { useT } from '@renderer/stores/i18n.store'
+import { useLayoutStore } from '@renderer/stores/layout.store'
 import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
 import { ConfirmDialog } from '@renderer/ui/ConfirmDialog'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import type { MenuItem } from '@renderer/ui/MenuItem'
 import { ProjectSelector } from '@renderer/window/ProjectSelector'
 import type { HostMessageKey } from '@shared/i18n'
+import { HOST_COMMIT_VIEW_ID } from '@shared/plugin-api'
 
 /**
  * 主窗口标题栏上「应用名右边那一条」。
@@ -16,6 +18,7 @@ import type { HostMessageKey } from '@shared/i18n'
  * 默认：  NIDE  [☰]  [项目 ▾]
  * 点菜单： NIDE  文件  编辑
  *                ├ 关闭项目
+ *                ├ 提交
  *                └ 退出
  * ```
  *
@@ -52,6 +55,7 @@ type PendingConfirm = 'closeProject' | 'quit'
 
 export function MainMenu(): JSX.Element {
   const t = useT()
+  const showView = useLayoutStore((s) => s.showView)
   /** false = 显示菜单按钮 + 项目下拉；true = 显示「文件 / 编辑」 */
   const [menuOpen, setMenuOpen] = useState(false)
   /** 当前展开的子菜单 id。null 表示菜单栏开着但没有任何一项展开 */
@@ -118,6 +122,25 @@ export function MainMenu(): JSX.Element {
           label: t('host.menu.file.closeProject'),
           icon: 'close',
           onSelect: pick(() => setConfirm('closeProject'))
+        },
+        /**
+         * 提交：**不是**可执行动作，而是「打开提交页面」。
+         *
+         * 页面本体是登记在视图表里的 `host.commit`（见 main/plugin-host/host-views.ts，
+         * 组件在 renderer 的 git/CommitView），所以这里只声明「把哪个区切到谁」，
+         * 菜单不自己画浮层 —— 那会多出一套与工具区并行的页面装配。
+         *
+         * 切的是**左上工具区**：提交页与文件树同属这一区，菜单选中之后该区展示提交页，
+         * 左侧按钮条上与文件树相邻的那颗按钮同时变成选中态 —— 菜单与按钮条指的是
+         * 同一个视图，不会出现两套「提交页」。
+         *
+         * 目前只有一行占位文案：选它不会提交任何东西。
+         */
+        {
+          id: 'commit',
+          label: t('host.menu.file.commit'),
+          icon: 'check',
+          onSelect: pick(() => showView('leftTop', HOST_COMMIT_VIEW_ID))
         },
         {
           id: 'quit',

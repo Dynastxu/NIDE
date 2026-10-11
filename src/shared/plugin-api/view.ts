@@ -20,6 +20,22 @@ export const HOST_VIEW_PLUGIN_ID = 'host'
 export const HOST_EXPLORER_VIEW_ID = 'host.explorer'
 
 /**
+ * 版本控制视图的 id：侧边按钮条左下角那颗按钮对应的占位视图。
+ *
+ * 和文件树一样是宿主内建视图，走同一张视图表 —— 侧边按钮条与工具区不需要为它
+ * 开第二条路。目前只有一行占位文案，没有接任何版本控制实现。
+ */
+export const HOST_GIT_VIEW_ID = 'host.git'
+
+/**
+ * 提交视图的 id：标题栏「文件 -> 提交」打开的占位视图。
+ *
+ * 动作在菜单里，但页面仍然是**视图**：菜单只负责把某个区切到它（见 MainMenu），
+ * 页面本体由 HostSlot 按 id 渲染，与按钮条上的视图共用同一套装配。
+ */
+export const HOST_COMMIT_VIEW_ID = 'host.commit'
+
+/**
  * 主进程 -> 渲染进程 传递的视图元信息。
  *
  * 里面只有数据：没有模块、没有函数、没有绝对路径、没有盘符。

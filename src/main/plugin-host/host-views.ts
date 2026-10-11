@@ -1,12 +1,13 @@
-import { HOST_EXPLORER_VIEW_ID } from '@shared/plugin-api'
+import { HOST_COMMIT_VIEW_ID, HOST_EXPLORER_VIEW_ID, HOST_GIT_VIEW_ID } from '@shared/plugin-api'
 import type { HostMessageKey } from '@shared/i18n'
 import type { ViewLocation } from '@shared/plugin-api'
 
 /**
  * 宿主**内建**视图的登记表。
  *
- * 内建视图（目前只有文件树）和插件视图放在**同一张**视图表里，这样按钮条、工具区、
- * 「哪个区当前展示谁」这套已有机制原样复用 —— 内建视图不需要在布局层开第二条路。
+ * 内建视图（文件树、版本控制、提交）和插件视图放在**同一张**视图表里，这样按钮条、
+ * 工具区、「哪个区当前展示谁」这套已有机制原样复用 —— 内建视图不需要在布局层开
+ * 第二条路。
  *
  * 和插件视图的差别只有两处：
  *
@@ -38,5 +39,37 @@ export const HOST_VIEWS: readonly HostViewSpec[] = [
     titleKey: 'host.explorer.title',
     location: 'leftTop',
     icon: 'folder'
+  },
+  /**
+   * 版本控制：页面在**底栏左半**（bottomLeft），按钮落在左侧按钮条**左下角**。
+   *
+   * 区的归属决定两个位置（见 ToolStripe 的 STRIPE_LAYOUT）：页面在底栏，而这一区的
+   * 按钮被归入左侧按钮条的 `bottom` 分组，于是它出现在那条按钮条的最底部 ——
+   * 不需要为「左下角那颗按钮」发明新的布局位。
+   *
+   * 底栏左半是**默认可见**的区（见 layout.store 的 initialZones），所以打开工作台就能
+   * 看到这一页；左列上半部分仍然是文件树，两者不在同一块地方，互不遮挡。
+   * 目前只有一行占位文案，没有接任何版本控制实现。
+   */
+  {
+    id: HOST_GIT_VIEW_ID,
+    titleKey: 'host.git.title',
+    location: 'bottomLeft',
+    icon: 'gitBranch'
+  },
+  /**
+   * 提交：入口是标题栏的「文件 -> 提交」（见 renderer 的 MainMenu），不是按钮条上的按钮
+   * —— 但它同时**也在**左上工具区的按钮条上，因为那个区的按钮条是按区里的视图列表画的
+   * （文件树是第一个，所以这个区默认展示的仍然是文件树；见 HostSlot 的说明）。
+   *
+   * 之所以仍然登记成**视图**而不是菜单自己画一个浮层：切到某个区、由已有的工具区 + 插槽
+   * 装配来渲染，这套机制已经在了，菜单只需要声明「切到谁」，页面本体不必再实现一遍。
+   * 目前只有一行占位文案，点它不会提交任何东西。
+   */
+  {
+    id: HOST_COMMIT_VIEW_ID,
+    titleKey: 'host.commit.title',
+    location: 'leftTop',
+    icon: 'check'
   }
 ]

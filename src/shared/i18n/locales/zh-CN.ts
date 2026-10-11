@@ -36,6 +36,8 @@ export const zhCN = {
   'host.menu.file.quit': '退出',
   'host.menu.file.quit.confirm.title': '退出应用',
   'host.menu.file.quit.confirm.message': '退出会关闭所有窗口。是否继续？',
+  // 提交是宿主级的入口：目前只把右下那一栏切到提交视图，不做任何提交动作
+  'host.menu.file.commit': '提交',
   'host.menu.edit': '编辑',
   'host.menu.edit.undo': '撤销',
   'host.menu.edit.redo': '重做',
@@ -133,6 +135,13 @@ export const zhCN = {
     '启用状态会保存到用户配置目录，重启后仍然有效；卸载功能尚未实现，磁盘上的插件文件不会被删除。',
   'host.diff.title': 'Diff 对比',
   'host.diff.close': '关闭',
+
+  // ---- 宿主内建视图的占位页（版本控制 / 提交）----
+  // 两者都还没有接版本控制实现，这里只有按钮名与那行占位文案
+  'host.git.title': '版本控制',
+  'host.git.placeholder': '版本控制面板尚未实现。',
+  'host.commit.title': '提交',
+  'host.commit.placeholder': '提交页面尚未实现。',
 
   // ---- 文件树（左上工具区，宿主内建视图）----
   'host.explorer.title': '文件',

@@ -17,6 +17,7 @@
   "host.menu.file.quit": "Quit",
   "host.menu.file.quit.confirm.title": "Quit NIDE",
   "host.menu.file.quit.confirm.message": "Quitting closes all windows. Continue?",
+  "host.menu.file.commit": "Commit",
   "host.menu.edit": "Edit",
   "host.menu.edit.undo": "Undo",
   "host.menu.edit.redo": "Redo",
@@ -103,6 +104,11 @@
 
   "host.diff.title": "Diff comparison",
   "host.diff.close": "Close",
+
+  "host.git.title": "Source Control",
+  "host.git.placeholder": "The source control panel is not implemented yet.",
+  "host.commit.title": "Commit",
+  "host.commit.placeholder": "The commit page is not implemented yet.",
 
   "host.explorer.title": "Files",
   "host.explorer.empty": "There is nothing to show in this project.",

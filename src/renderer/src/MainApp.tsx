@@ -19,7 +19,8 @@ import { useWindowTitle } from '@renderer/window/useWindowTitle'
  *   项目下拉），而它是一个能换项目的选择器，比一段只读文字有用。任务栏 / Alt-Tab 上
  *   的标题仍然带项目名（见 shared/window 的 systemWindowTitle）—— 那里没有下拉可看。
  * - 「菜单按钮 + 项目下拉 / 菜单栏」是**一格两栏**、一次只显示一栏，所以它们由同一个
- *   组件（`MainMenu`）拥有；「设置」在最右边，走 `actions`。
+ *   组件（`MainMenu`）拥有；「设置」在最右边，走 `actions`。菜单里的「提交」打开的
+ *   提交页是登记在视图表里的视图（`host.commit`），不是这一层画的浮层。
  *
  * 内容区仍然是工作台，和工作台怎么排、有哪些工具区无关。
  *
