@@ -12,7 +12,7 @@ import ts from 'typescript'
  * （界面上表现为中英混排），多一条则是拼错或宿主已删 —— 两种都只有构建期
  * 才拦得住，人眼是发现不了的。
  */
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const BASE_TABLE = path.join(ROOT, 'src', 'shared', 'i18n', 'locales', 'zh-CN.ts')
 const PLUGIN_DIRS = [
   path.join(ROOT, 'plugins', 'builtin'),

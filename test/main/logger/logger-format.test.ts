@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import createDefaultLogger from 'electron-log/src/node/createDefaultLogger.js'
-import { buildLogMessage, FILE_FORMAT, toData } from '../src/main/logger/format'
+import { buildLogMessage, FILE_FORMAT, toData } from '../../../src/main/logger/format'
 import type { LogLevel, LogMessage } from '@shared/logger'
 
 /**

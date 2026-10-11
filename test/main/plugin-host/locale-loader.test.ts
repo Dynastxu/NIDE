@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PluginLoader, setPluginHostLogger } from '../src/main/plugin-host/loader'
-import { languagePackRegistry } from '../src/main/i18n'
-import { manifestNlsRegistry } from '../src/main/i18n/manifest-nls'
+import { PluginLoader, setPluginHostLogger } from '../../../src/main/plugin-host/loader'
+import { languagePackRegistry } from '../../../src/main/i18n'
+import { manifestNlsRegistry } from '../../../src/main/i18n/manifest-nls'
 import {
   createPluginFixture,
   localeManifest,
   manifestShell,
   type PluginFixture
-} from './helpers/plugin-fixture'
+} from '../../fixtures/plugin-fixture'
 import type { Logger } from '@shared/logger'
 
 /** 造一个记录调用的 logger 假件。加载器只用到日志出口，不关心实现 */

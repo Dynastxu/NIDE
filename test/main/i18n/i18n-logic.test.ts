@@ -7,9 +7,9 @@ import {
   normalizeLocale,
   toMonacoLocale
 } from '@shared/i18n'
-import { LanguagePackRegistry } from '../src/main/i18n/language-packs'
-import { ManifestNlsRegistry, parsePlaceholder } from '../src/main/i18n/manifest-nls'
-import type { LanguagePackEntry } from '../src/main/i18n'
+import { LanguagePackRegistry } from '../../../src/main/i18n/language-packs'
+import { ManifestNlsRegistry, parsePlaceholder } from '../../../src/main/i18n/manifest-nls'
+import type { LanguagePackEntry } from '../../../src/main/i18n'
 
 /** 造一条语言包记录，只写关心的字段 */
 function pack(
