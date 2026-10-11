@@ -211,7 +211,11 @@ export const PROJECT_FILE_CHANNELS = {
   /** 读一个文本文件，参数是文件绝对路径（invoke） */
   readFile: 'host:project-read-file',
   /** 在一个目录里新建文件 / 文件夹（invoke），参数见 CreateEntryRequest */
-  createEntry: 'host:project-create-entry'
+  createEntry: 'host:project-create-entry',
+  /** 给一个已存在的文件 / 文件夹改名（invoke），参数见 RenameEntryRequest */
+  renameEntry: 'host:project-rename-entry',
+  /** 删除一个文件 / 文件夹（invoke），参数见 DeleteEntryRequest */
+  deleteEntry: 'host:project-delete-entry'
 } as const
 
 // ============ 新建文件 / 文件夹 ============
@@ -333,21 +337,87 @@ export function validateEntryName(raw: string): NameValidation {
   return { ok: true, name }
 }
 
-/**
- * 新建文件时用哪个扩展名，决定「这个文件能不能立刻在编辑器里打开」。
+/*
+ * 这里**没有**「补默认扩展名」这一步，而且是刻意的。
  *
- * 默认给 `.md`：这是宿主的核心用途（小说工程），而一个没有扩展名的文件在树里
- * 是「不可打开」的 —— 让用户敲完名字就得到一个点不动的文件说不过去。
- * 用户自己写了扩展名就以他写的为准（`第一章.txt`、`notes.markdown` 都算数）。
+ * 用户敲什么名字，磁盘上就是什么名字 —— 新建与重命名因此是同一条规则，不必解释
+ * 「为什么新建会多出 .md 而改名不会」。代价说清楚：一个没有扩展名的文件在树里是
+ * `not-text`，点不进编辑器（见上面的 TEXT_LANGUAGE_BY_EXTENSION）。这是**用户自己
+ * 起的名字**带来的结果，而不是宿主背着他改的 —— 前者他改个名字就好了，后者他连
+ * 文件叫什么都猜不到。
  */
-export const DEFAULT_NEW_FILE_EXTENSION = '.md'
+
+// ============ 重命名 ============
 
 /**
- * 把用户输入的名字补全成一个可用的文件名。
- *
- * 有扩展名就原样用；没有就补上 `.md`。只在 `validateEntryName` 通过之后调用 ——
- * 它不负责校验，只负责补全。
+ * 重命名失败的原因。界面按它换文案，与新建失败的那一类分开：
+ * 「这个名字已经有了」在两种动作里说法不同（一个是「建不了」，一个是「改不了」）。
  */
-export function completeFileName(name: string): string {
-  return extensionOf(name) === '' ? `${name}${DEFAULT_NEW_FILE_EXTENSION}` : name
+export type RenameEntryFailureReason =
+  /** 名字非法（空、含路径分隔符或非法字符、`.` / `..`） */
+  | 'invalid-name'
+  /** 同级已经有一个同名条目。**绝不覆盖** */
+  | 'already-exists'
+  /** 目标不是文件也不是目录（已被删掉、是个链接、或者类型不对） */
+  | 'not-a-file'
+  /** 路径不可用、跑出项目、没有权限等等 */
+  | 'unreadable'
+
+export type RenameEntryResult =
+  | { ok: true; path: string; previousPath: string; kind: FileTreeEntry['kind'] }
+  | { ok: false; reason: RenameEntryFailureReason }
+
+/**
+ * 「给一个条目改名」的请求。
+ *
+ * `targetPath` 是**被右键的那个条目**的绝对路径，`name` 是他输入的新名字。
+ * 目录由主进程从 `targetPath` 推导（就是它自己所在的那一层）—— 渲染进程
+ * 因此指定不了「移到哪儿」，重命名也就不会变成一次搬移。
+ */
+export interface RenameEntryRequest {
+  /** 要改名的文件或目录的绝对路径 */
+  targetPath: string
+  /** 用户输入的新名字（单段） */
+  name: string
+}
+
+// ============ 删除 ============
+
+/**
+ * 删除失败的原因。
+ */
+export type DeleteEntryFailureReason =
+  /** 目录不是空的（宿主目前一律递归删，所以这码只在将来收紧时才会出现） */
+  | 'not-empty'
+  /** 目标不是文件也不是目录（已被删掉、是个链接、或者类型不对） */
+  | 'not-a-file'
+  /** 要删的是项目根自己 —— 那等于把整个项目从磁盘上抹掉 */
+  | 'is-project-root'
+  /** 路径不可用、跑出项目、没有权限等等 */
+  | 'unreadable'
+
+export type DeleteEntryResult =
+  | { ok: true; path: string; kind: FileTreeEntry['kind'] }
+  /**
+   * 目标本来就不在了。
+   *
+   * **不是失败**：用户要的那个状态（它不在了）已经成立。`kind` 是 null，因为已经
+   * 没有任何东西可以问了 —— 界面不需要据此分支，它只关心「树该不该刷」。
+   */
+  | { ok: true; path: string; kind: null }
+  | { ok: false; reason: DeleteEntryFailureReason }
+
+/**
+ * 「删除一个条目」的请求。
+ *
+ * 只有路径，没有「删多深」这类参数：**目录一律连同里面的东西一起删**。删一个
+ * 非空目录还得先让人手清空，那是把一件本来一步就能做完的事拆成几步。
+ *
+ * 这是宿主唯一**不可撤销**的写盘动作（新建与重命名都只是改名 / 加东西），所以
+ * 界面必须二次确认（见 ExplorerView 的 ConfirmDialog），而主进程这边只认路径 ——
+ * 它没法替用户回答「你确定吗」，能做的是把边界与错误说清楚。
+ */
+export interface DeleteEntryRequest {
+  /** 要删掉的文件或目录的绝对路径 */
+  targetPath: string
 }

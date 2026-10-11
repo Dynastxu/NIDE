@@ -159,6 +159,24 @@ export const BUILTIN_ICONS: Record<string, ReactElement> = {
     </>
   ),
 
+  /** 重命名 / 编辑（铅笔） */
+  rename: (
+    <>
+      <path d="M4 20h4l10.5-10.5a2.12 2.12 0 0 0-3-3L5 17v3" />
+      <path d="M14.5 6.5 17.5 9.5" />
+    </>
+  ),
+
+  /** 删除（垃圾桶） */
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9.5 7V4.5h5V7" />
+      <path d="M6.5 7 7.5 20a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1L18 7" />
+      <path d="M10 11v6M14 11v6" />
+    </>
+  ),
+
   /** 面板 / 布局 */
   panel: (
     <>

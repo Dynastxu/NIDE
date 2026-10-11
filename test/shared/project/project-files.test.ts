@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_NEW_FILE_EXTENSION,
   MAX_FILE_NAME_LENGTH,
   MAX_TEXT_FILE_BYTES,
   baseNameOf,
-  completeFileName,
   createNameCollator,
   extensionOf,
   filePathKey,
@@ -183,7 +181,7 @@ describe('sortTreeEntries', () => {
 })
 
 /**
- * 新建条目的名字校验。
+ * 名字校验：新建与重命名**共用同一个函数**。
  *
  * 这一层是「用户敲字时就给出的结论」，所以覆盖重点是**别把非法名字放过去** ——
  * 放过去之后要么建出一个打不开的文件，要么在 Windows 上被系统静默改名，
@@ -258,21 +256,20 @@ describe('validateEntryName', () => {
   })
 })
 
-describe('completeFileName', () => {
-  it('没有扩展名时补默认扩展名', () => {
-    expect(completeFileName('第一章')).toBe(`第一章${DEFAULT_NEW_FILE_EXTENSION}`)
-    expect(completeFileName('notes')).toBe('notes.md')
-  })
-
-  it('用户自己写了扩展名就用他的', () => {
-    expect(completeFileName('第一章.txt')).toBe('第一章.txt')
-    expect(completeFileName('outline.markdown')).toBe('outline.markdown')
-    // 任何扩展名都尊重，包括宿主打不开的那些
-    expect(completeFileName('cover.png')).toBe('cover.png')
-  })
-
-  it('默认补出来的文件是「能打开」的 —— 敲完名字就得到点不动的文件说不过去', () => {
-    expect(isSupportedTextPath(completeFileName('第一章'))).toBe(true)
-    expect(isMarkdownPath(completeFileName('第一章'))).toBe(true)
+/**
+ * 新建与重命名共用同一套名字规则：**用户敲什么，磁盘上就是什么**。
+ *
+ * 这里没有「补默认扩展名」的用例，因为那一步已经被去掉（见 files.ts 里那段说明）。
+ * 取而代之的是下面这一条：一个没有扩展名的名字**确实打不开**，这是这条规则的代价，
+ * 写成用例是为了让它在有人想「顺手补个 .md」时立刻拦下来 —— 那会让输入框里显示的名字
+ * 与磁盘上的名字不是同一个。
+ */
+describe('名字按原样落盘', () => {
+  it('没有扩展名的文件确实打不开（不是缺陷，是这条规则的代价）', () => {
+    expect(isSupportedTextPath('第一章')).toBe(false)
+    expect(isMarkdownPath('第一章')).toBe(false)
+    // 用户自己写了扩展名就是可打开的
+    expect(isSupportedTextPath('第一章.md')).toBe(true)
+    expect(isMarkdownPath('第一章.md')).toBe(true)
   })
 })

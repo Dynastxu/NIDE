@@ -15,7 +15,6 @@ import type { BuildRowsInput, FileTreeEntry, TreeRow } from '@shared/project'
 
 const LABELS = {
   loading: 'loading',
-  empty: 'empty',
   error: (reason: string) => `error:${reason}`
 }
 
@@ -35,15 +34,29 @@ const file = (path: string): FileTreeEntry => ({
 /** 默认：所有目录的子项都可见（等于「没有只看某一支」） */
 const allVisible = (): boolean => true
 
+/**
+ * 默认：「读过且为空」的判定就照 children 来 —— 有这一项、长度为零就是空目录。
+ *
+ * 与 ExplorerView 传给 buildTreeRows 的那个函数规则一致（那边也只是查同一张表）。
+ */
+function emptyFromChildren(
+  children: Record<string, FileTreeEntry[]>
+): (dirPath: string) => boolean {
+  return (dirPath) => (children[dirPath]?.length ?? -1) === 0
+}
+
 function input(overrides: Partial<BuildRowsInput> = {}): BuildRowsInput {
   const root = '/p'
+  const children = overrides.children ?? { [root]: [] }
+
   return {
     roots: [root],
-    children: { [root]: [] },
+    children,
     errors: {},
     loading: {},
     expanded: { [root]: true },
     isChildVisible: allVisible,
+    knownEmpty: emptyFromChildren(children),
     labels: LABELS,
     ...overrides
   }
@@ -214,12 +227,70 @@ describe('buildTreeRows', () => {
     ])
   })
 
-  it('空目录给一行说明，而不是什么都不显示', () => {
-    expect(buildTreeRows(input({ children: { '/p': [] } }))[1]).toMatchObject({
-      kind: 'note',
-      tone: 'empty',
-      depth: 1
-    })
+  it('空目录不单列一行说明，而是把那一行标成「空」', () => {
+    const rows = buildTreeRows(input({ children: { '/p': [] } }))
+
+    // 根那一行永远不算空：连根都不给展开，整棵树就没有入口了
+    expect(rows[0]).toMatchObject({ kind: 'entry', empty: false })
+    // 根是空的，所以它下面不再有「这个文件夹是空的」那一行
+    expect(rows).toHaveLength(1)
+  })
+
+  it('读过、里面是空的子目录标成 empty，界面上据此不画展开箭头', () => {
+    const rows = buildTreeRows(
+      input({
+        children: {
+          '/p': [dir('/p/空'), dir('/p/满')],
+          '/p/空': [],
+          '/p/满': [file('/p/满/a.md')]
+        },
+        // 满那一支要展开，它的子项才会进行表 —— 那样才检查得到「文件永远不算空」
+        expanded: { '/p': true, '/p/满': true }
+      })
+    )
+
+    const byName = new Map(
+      rows
+        .filter((row): row is Extract<TreeRow, { kind: 'entry' }> => row.kind === 'entry')
+        .map((row) => [row.entry.name, row.empty])
+    )
+
+    expect(byName.get('空')).toBe(true)
+    expect(byName.get('满')).toBe(false)
+    // 文件永远不算「空」：这个标记只对目录有意义
+    expect(byName.get('a.md')).toBe(false)
+  })
+
+  it('还没读过的目录不算空 —— 否则它的展开箭头会在读到之前先消失', () => {
+    const rows = buildTreeRows(
+      input({ children: { '/p': [dir('/p/未读')] }, expanded: { '/p': true } })
+    )
+
+    const unread = rows.find((row) => row.kind === 'entry' && row.entry.name === '未读') as Extract<
+      TreeRow,
+      { kind: 'entry' }
+    >
+
+    expect(unread.empty).toBe(false)
+  })
+
+  it('读失败的目录不算空：它下面是自己那一行错误', () => {
+    const rows = buildTreeRows(
+      input({
+        // 读不出来时 store 不会写 children 项，只记一条 errors —— 照这个真实形状造数据
+        children: { '/p': [dir('/p/broken')] },
+        errors: { '/p/broken': 'unreadable' },
+        expanded: { '/p': true, '/p/broken': true }
+      })
+    )
+
+    const broken = rows.find(
+      (row) => row.kind === 'entry' && row.entry.name === 'broken'
+    ) as Extract<TreeRow, { kind: 'entry' }>
+
+    expect(broken.empty).toBe(false)
+    // 展开箭头还得在：用户要能收起那条错误行
+    expect(rows.some((row) => row.kind === 'note' && row.tone === 'error')).toBe(true)
   })
 
   it('读失败的目录给一行错误，并且不再往下走', () => {

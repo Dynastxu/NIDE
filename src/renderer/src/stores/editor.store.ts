@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { baseNameOf, isInsideProject, languageForPath } from '@shared/project'
 
 /**
  * 主编辑区的状态：**打开了哪些文件、当前看的是哪一个**。
@@ -79,6 +80,27 @@ interface EditorState {
    * 另一章。返回 false 表示这个文件没开着，调用方据此决定要不要新开标签页。
    */
   syncFromDisk: (path: string, content: string) => boolean
+
+  /**
+   * 某个条目在磁盘上换了名字（文件树里的重命名）。
+   *
+   * 标签页的身份是路径，路径一变这个标签页就再也对不上任何东西了 —— 不跟着走的
+   * 后果是它变成一个指向不存在文件的孤儿，关掉它还会顺手释放 model。返回 false
+   * 表示那个路径没有开着的标签页，调用方什么都不用做。
+   *
+   * `name` 与 `language` 一并跟上：`.txt` 改成 `.md` 时高亮要换成 Markdown。
+   */
+  migratePath: (previousPath: string, nextPath: string) => boolean
+
+  /**
+   * 某个条目在磁盘上被删了（文件树里的删除）。
+   *
+   * 关掉这个文件自己的标签页，以及它作为目录时**里面那个文件**的标签页 —— 那些文件
+   * 已经不在磁盘上了，留着就是几个点不开的空标签。焦点按 closeTab 的规则重新落地。
+   *
+   * `path` 精确相等也算（删的是一个文件）。返回被关掉的条数。
+   */
+  closeSubtree: (path: string) => number
 
   showDiff: (original: string, modified: string) => void
   clearDiff: () => void
@@ -185,6 +207,88 @@ export const useEditorStore = create<EditorState>((set) => ({
     })
 
     return found
+  },
+
+  migratePath: (previousPath, nextPath) => {
+    let found = false
+
+    set((s) => {
+      const index = s.tabs.findIndex((tab) => tab.path === previousPath)
+      if (index < 0) return {}
+
+      /*
+       * 目标路径已经开着标签页了：合并成一条，而不是留下两条指向同一个文件的
+       * 标签页（重命名成一个「已经打开在别处的」名字时会发生）。
+       *
+       * 留下的是**老的那一条**（离它原来的位置更近），新名字接上。
+       */
+      const duplicate = s.tabs.findIndex((tab) => tab.path === nextPath)
+      if (duplicate >= 0 && duplicate !== index) {
+        found = true
+
+        const tabs = s.tabs.filter((_, position) => position !== index)
+        const keptIndex = duplicate > index ? duplicate - 1 : duplicate
+        tabs[keptIndex] = {
+          ...tabs[keptIndex],
+          name: baseNameOf(nextPath),
+          language: languageForPath(nextPath)
+        }
+
+        return {
+          tabs,
+          activePath: s.activePath === previousPath ? nextPath : s.activePath
+        }
+      }
+
+      found = true
+
+      const tabs = [...s.tabs]
+      tabs[index] = {
+        ...tabs[index],
+        path: nextPath,
+        name: baseNameOf(nextPath),
+        language: languageForPath(nextPath)
+      }
+
+      return {
+        tabs,
+        // 改名的可能正是当前看着的那一个：路径一变，活跃标签页也要跟着换
+        activePath: s.activePath === previousPath ? nextPath : s.activePath
+      }
+    })
+
+    return found
+  },
+
+  closeSubtree: (path) => {
+    let closed = 0
+
+    set((s) => {
+      /*
+       * 判据就是「路径相等，或落在它之内」。大小写**不折叠**（第三个参数传 false）：
+       * 标签页的路径全部来自主进程、写法一致，而折叠会把 `卷一` 与 `卷一2` 之外
+       * 那些本来不该动的东西也拖进来。
+       */
+      const gone = new Set(
+        s.tabs.map((tab) => tab.path).filter((candidate) => isInsideProject(path, candidate, false))
+      )
+      if (gone.size === 0) return {}
+
+      closed = gone.size
+      const tabs = s.tabs.filter((tab) => !gone.has(tab.path))
+
+      // 焦点按 closeTab 的规则重新落地：删掉的若是当前这一个，交给它的右邻（没有就左邻）
+      if (s.activePath && gone.has(s.activePath)) {
+        // 位置在**原来那个数组**里算，再去掉之后的那一份里取邻居（与 closeTab 同一套算法）
+        const index = s.tabs.findIndex((tab) => tab.path === s.activePath)
+        const next = tabs[index] ?? tabs[index - 1] ?? null
+        return { tabs, activePath: next?.path ?? null }
+      }
+
+      return { tabs }
+    })
+
+    return closed
   },
 
   showDiff: (original, modified) => set({ pendingDiff: { original, modified } }),

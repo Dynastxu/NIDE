@@ -6,12 +6,16 @@ import {
   PROJECT_FILE_CHANNELS,
   type CreateEntryRequest,
   type CreateEntryResult,
+  type DeleteEntryRequest,
+  type DeleteEntryResult,
   type DirReadResult,
   type FileReadResult,
   type ProjectConfig,
   type ProjectConfigUpdateResult,
   type ProjectOpenResult,
-  type ProjectPickMode
+  type ProjectPickMode,
+  type RenameEntryRequest,
+  type RenameEntryResult
 } from '@shared/project'
 import { createMainTranslator } from '../i18n'
 import { loggerFor } from '../logger'
@@ -24,8 +28,10 @@ import {
 } from '../services/project-store'
 import {
   createProjectEntry,
+  deleteProjectEntry,
   readProjectDir,
-  readProjectFile
+  readProjectFile,
+  renameProjectEntry
 } from '../services/project-files.service'
 import {
   initializeProjectDirectory,
@@ -269,6 +275,59 @@ export function registerProjectIPC(): void {
       return createProjectEntry(parsed, { roots, caseInsensitive: caseInsensitivePaths() })
     }
   )
+
+  /**
+   * 给一个条目改名。
+   *
+   * 和新建共用一条边界：目标目录不从渲染进程收，只收「被右键了谁」+「新名字」，
+   * 目录由主进程从那个条目自己推出来（见 renameProjectEntry）。名字同样在这里
+   * 校验 —— 界面是过滤器，主进程才是边界。
+   */
+  ipcMain.handle(
+    PROJECT_FILE_CHANNELS.renameEntry,
+    async (_event, request: unknown): Promise<RenameEntryResult> => {
+      const parsed = parseRenameRequest(request)
+      if (!parsed) {
+        logger.warn('Rejected a malformed rename request')
+        return { ok: false, reason: 'invalid-name' }
+      }
+
+      const roots = allowedRoots()
+      if (roots.length === 0) {
+        logger.warn('Rejected a rename request without an open project')
+        return { ok: false, reason: 'unreadable' }
+      }
+
+      return renameProjectEntry(parsed, { roots, caseInsensitive: caseInsensitivePaths() })
+    }
+  )
+
+  /**
+   * 删除一个条目。目录连同里面的东西一起删。
+   *
+   * 只收一个路径：删多深没有参数可调，**根自己不能删**这条也在服务里兜着 ——
+   * 树上的根那一行同样可以右键，而界面上的入口不该是唯一一道防线。
+   *
+   * 这是唯一不可撤销的动作，界面那一侧必须二次确认（见 ExplorerView）。
+   */
+  ipcMain.handle(
+    PROJECT_FILE_CHANNELS.deleteEntry,
+    async (_event, request: unknown): Promise<DeleteEntryResult> => {
+      const parsed = parseDeleteRequest(request)
+      if (!parsed) {
+        logger.warn('Rejected a malformed delete request')
+        return { ok: false, reason: 'unreadable' }
+      }
+
+      const roots = allowedRoots()
+      if (roots.length === 0) {
+        logger.warn('Rejected a delete request without an open project')
+        return { ok: false, reason: 'unreadable' }
+      }
+
+      return deleteProjectEntry(parsed, { roots, caseInsensitive: caseInsensitivePaths() })
+    }
+  )
 }
 
 /**
@@ -304,4 +363,30 @@ function parseCreateRequest(request: unknown): CreateEntryRequest | null {
   if (typeof name !== 'string') return null
 
   return { kind, targetPath, name }
+}
+
+/**
+ * 校验一个改名请求的形状。
+ *
+ * 少一个 `kind` 字段（改名的类型由主进程从磁盘上问，不由渲染进程声明），其余
+ * 与 parseCreateRequest 同理：IPC 载荷完全不可信，逐字段确认类型。
+ */
+function parseRenameRequest(request: unknown): RenameEntryRequest | null {
+  if (!request || typeof request !== 'object') return null
+
+  const { targetPath, name } = request as Partial<RenameEntryRequest>
+  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
+  if (typeof name !== 'string') return null
+
+  return { targetPath, name }
+}
+
+/** 校验一个删除请求的形状。只该有一个非空字符串路径 */
+function parseDeleteRequest(request: unknown): DeleteEntryRequest | null {
+  if (!request || typeof request !== 'object') return null
+
+  const { targetPath } = request as Partial<DeleteEntryRequest>
+  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
+
+  return { targetPath }
 }

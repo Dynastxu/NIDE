@@ -4,13 +4,17 @@ import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type {
   CreateEntryRequest,
   CreateEntryResult,
+  DeleteEntryRequest,
+  DeleteEntryResult,
   DirReadResult,
   FileReadResult,
   ProjectConfig,
   ProjectConfigUpdateResult,
   ProjectListItem,
   ProjectOpenResult,
-  ProjectPickMode
+  ProjectPickMode,
+  RenameEntryRequest,
+  RenameEntryResult
 } from '@shared/project'
 import type { Disposable, PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
 import type { WindowAction, WindowState, WindowType } from '@shared/window'
@@ -93,6 +97,21 @@ export interface ProjectAPI {
    * 不了任意写入位置。同名条目已存在时**不覆盖**，返回 `already-exists`。
    */
   createEntry: (request: CreateEntryRequest) => Promise<CreateEntryResult>
+  /**
+   * 给一个文件 / 文件夹改名 —— 与 createEntry 走同一条沙箱边界。
+   *
+   * 目录由主进程从 `request.targetPath`（被右键的条目）推导，渲染进程指定不了
+   * 「改到哪个目录」，所以重命名变不成一次搬移。同名条目已存在时**不覆盖**，
+   * 返回 `already-exists`。
+   */
+  renameEntry: (request: RenameEntryRequest) => Promise<RenameEntryResult>
+  /**
+   * 删除一个文件 / 文件夹。目录连同里面的东西一起删。
+   *
+   * 这是唯一**不可撤销**的写盘动作，所以二次确认由界面自己负责；主进程只保证
+   * 范围与「根自己不能删」这两条边界。
+   */
+  deleteEntry: (request: DeleteEntryRequest) => Promise<DeleteEntryResult>
   /**
    * 读当前项目的配置（`.nide/config.yml`）。没有项目时为 null。
    *

@@ -154,6 +154,8 @@ export const zhCN = {
   'host.explorer.menu.new': '新建',
   'host.explorer.menu.newFolder': '文件夹',
   'host.explorer.menu.newFile': '文件',
+  'host.explorer.menu.rename': '重命名',
+  'host.explorer.menu.delete': '删除',
 
   // 新建对话框
   'host.explorer.newFile.inside': '在此文件夹中新建文件',
@@ -162,7 +164,6 @@ export const zhCN = {
   'host.explorer.newFolder.sibling': '在此处新建文件夹',
   'host.explorer.name.placeholder': '名称',
   'host.explorer.name.confirm': '新建',
-  'host.explorer.name.resolved': '将创建：{name}',
   'host.explorer.name.error.empty': '名称不能为空。',
   'host.explorer.name.error.path-separator': '名称里不能有「/」或「\\」。',
   'host.explorer.name.error.illegal-character': '名称里不能有 : * ? " < > | 或控制字符。',
@@ -173,6 +174,28 @@ export const zhCN = {
   'host.explorer.create.failed.already-exists': '这个名字已经有了。',
   'host.explorer.create.failed.not-a-directory': '这个位置不能新建条目。',
   'host.explorer.create.failed.unreadable': '新建失败：没有权限，或者磁盘不可写。',
+
+  // 重命名对话框。与新建共用输入框，只有标题、按钮和失败文案不同
+  'host.explorer.rename.title': '重命名',
+  'host.explorer.rename.confirm': '重命名',
+  'host.explorer.rename.extensionChanged':
+    '扩展名变了：它会存成「{name}」，宿主按新扩展名决定能不能打开它。',
+  'host.explorer.rename.failed.invalid-name': '名称不合法。',
+  'host.explorer.rename.failed.already-exists': '这个名字已经有了（重命名不会覆盖它）。',
+  'host.explorer.rename.failed.not-a-file': '这个条目已经不在了，或者不是一个文件或文件夹。',
+  'host.explorer.rename.failed.unreadable': '改名失败：没有权限，或者磁盘不可写。',
+
+  // 删除的确认与失败。删除是唯一不可撤销的动作，所以它走确认框而不是输入框
+  'host.explorer.delete.title.file': '删除文件',
+  'host.explorer.delete.title.folder': '删除文件夹',
+  'host.explorer.delete.message.file': '确定删除「{name}」吗？删掉之后就找不回来了。',
+  'host.explorer.delete.message.folder':
+    '确定删除「{name}」吗？文件夹里的东西会一起删掉，删完之后找不回来。',
+  'host.explorer.delete.confirm': '删除',
+  'host.explorer.delete.failed.not-empty': '这个文件夹不是空的，没有删除。',
+  'host.explorer.delete.failed.not-a-file': '这个条目已经不在了，或者不是一个文件或文件夹。',
+  'host.explorer.delete.failed.is-project-root': '不能删除项目根目录。',
+  'host.explorer.delete.failed.unreadable': '删除失败：没有权限，或者磁盘不可写。',
 
   // ---- 中间的主编辑区（标签页）----
   'host.editor.empty.title': '没有打开的文件',

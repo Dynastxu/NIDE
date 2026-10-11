@@ -28,13 +28,17 @@ import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type {
   CreateEntryRequest,
   CreateEntryResult,
+  DeleteEntryRequest,
+  DeleteEntryResult,
   DirReadResult,
   FileReadResult,
   ProjectConfig,
   ProjectConfigUpdateResult,
   ProjectListItem,
   ProjectOpenResult,
-  ProjectPickMode
+  ProjectPickMode,
+  RenameEntryRequest,
+  RenameEntryResult
 } from '@shared/project'
 import type { Disposable, PluginDescriptor } from '@shared/plugin-api'
 
@@ -228,6 +232,23 @@ const projectAPI = {
    */
   createEntry: (request: CreateEntryRequest): Promise<CreateEntryResult> =>
     ipcRenderer.invoke(PROJECT_FILE_CHANNELS.createEntry, request),
+
+  /**
+   * 给一个文件 / 文件夹改名。
+   *
+   * 只报「被右键了谁」+「新名字」，不报「改到哪儿」—— 目录就是那个条目自己
+   * 所在的那一层，由主进程推导。同名条目已存在时返回
+   * `{ ok: false, reason: 'already-exists' }`，**不会覆盖**。
+   */
+  renameEntry: (request: RenameEntryRequest): Promise<RenameEntryResult> =>
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.renameEntry, request),
+
+  /**
+   * 删除一个文件 / 文件夹。目录连同里面的东西一起删，**不可撤销** ——
+   * 界面必须自己先二次确认，这条通道只负责执行。
+   */
+  deleteEntry: (request: DeleteEntryRequest): Promise<DeleteEntryResult> =>
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request),
 
   /**
    * 读当前项目的配置（`.nide/config.yml`）。

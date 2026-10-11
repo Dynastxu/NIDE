@@ -31,18 +31,25 @@ export type TreeRow =
        * 而树里最容易看错的就是「这条线到底属于谁」。
        */
       guides: boolean[]
+      /**
+       * 这个目录**已经读过了、里面是空的**。
+       *
+       * 界面上它的展开箭头不画：没有子项可展开，画一个箭头就是在承诺一个不存在的
+       * 东西（点下去只会得到一句「这个文件夹是空的」）。根那一行永远为 false ——
+       * 连根都不给展开，整棵树就真的没入口了。
+       */
+      empty: boolean
     }
   | {
       kind: 'note'
       key: string
       depth: number
-      tone: 'muted' | 'error' | 'empty'
+      tone: 'muted' | 'error'
       text: string
     }
 
 export interface TreeRowLabels {
   loading: string
-  empty: string
   error: (reason: DirReadFailureReason) => string
 }
 
@@ -120,6 +127,11 @@ export interface BuildRowsInput {
    * 「这个节点在不在名单里」。
    */
   isChildVisible: (dirPath: string) => boolean
+  /**
+   * 「这个目录已经读过了、里面是空的」。为真时那一行不画展开箭头、点击也不展开，
+   * 也不再往它下面放一行「这个文件夹是空的」（见 TreeRow 的 empty）。
+   */
+  knownEmpty: (dirPath: string) => boolean
   labels: TreeRowLabels
 }
 
@@ -174,13 +186,14 @@ export function buildTreeRows(input: BuildRowsInput): TreeRow[] {
     }
 
     if (entries.length === 0) {
-      rows.push({
-        kind: 'note',
-        key: `${dirPath}#empty`,
-        depth,
-        tone: 'empty',
-        text: input.labels.empty
-      })
+      /*
+       * 空目录**不再单列一行说明**。
+       *
+       * 那一行的位置在渲染时才拿得到「它是不是空的」这个结论（要读过才知道），
+       * 而来回搬动它只会让行表与界面对「这一行在哪儿」有两套说法。表达方式改成
+       * 那一行**没有展开箭头**（见 TreeRow 的 empty）—— 空目录长不出东西来，
+       * 这是它在树上的样子，不需要一句解释。
+       */
       return
     }
 
@@ -203,7 +216,15 @@ export function buildTreeRows(input: BuildRowsInput): TreeRow[] {
     shown.forEach((entry, index) => {
       const hasNext = index < shown.length - 1
 
-      rows.push({ kind: 'entry', key: entry.path, depth, entry, guides: [...guides] })
+      rows.push({
+        kind: 'entry',
+        key: entry.path,
+        depth,
+        entry,
+        guides: [...guides],
+        // 文件永远不为「空」：这个标记只对目录有意义
+        empty: entry.kind === 'directory' && input.knownEmpty(entry.path)
+      })
 
       if (entry.kind !== 'directory') return
       if (!input.expanded[entry.path]) return
@@ -220,7 +241,9 @@ export function buildTreeRows(input: BuildRowsInput): TreeRow[] {
       depth: 0,
       guides: [],
       // 根一定是个目录（它是项目目录或临时文件夹），名字从路径最后一段取
-      entry: { kind: 'directory', path: root, name: treeBaseName(root) }
+      entry: { kind: 'directory', path: root, name: treeBaseName(root) },
+      // 根不给「空」这个结论：它再空也得留着展开箭头，否则整棵树没有入口
+      empty: false
     })
 
     // 展开状态**缺失即展开**：根是树的门面，默认收起会让整棵树看起来是空的

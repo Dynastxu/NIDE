@@ -5,8 +5,10 @@ import {
   languageForPath,
   type CreateEntryKind,
   type CreateEntryResult,
+  type DeleteEntryResult,
   type DirReadFailureReason,
-  type FileTreeEntry
+  type FileTreeEntry,
+  type RenameEntryResult
 } from '@shared/project'
 import { loggerFor } from '@renderer/logger'
 
@@ -66,6 +68,21 @@ interface ExplorerState {
   toggle: (dirPath: string) => Promise<void>
   /** 重新读一个目录（新建条目之后用它把新节点显示出来） */
   refreshDir: (dirPath: string) => Promise<void>
+  /**
+   * 丢掉一个路径的缓存：目录内容、展开状态、错误与加载标记一起清。
+   *
+   * 用在**重命名**之后：旧路径在新的一轮里已经不存在了，留着它的 `children`
+   * 会让它下面的子项继续挂在树上（那些 key 永远不会再被问到，但也不会消失）。
+   */
+  forgetPath: (targetPath: string) => void
+  /**
+   * 丢掉**一整棵子树**的缓存（含 target 自己）。
+   *
+   * 与 forgetPath 分开是因为删除要处理的是「已经展开过的子孙」：删掉 `卷一` 之后，
+   * `卷一/第一节` 这些路径在磁盘上都不存在了，而它们的 `children` 还躺在缓存里。
+   * 判据用与主进程同一套逐段比对（`isInsideProject`），前缀相同的兄弟目录不会被误伤。
+   */
+  forgetSubtree: (targetPath: string) => void
   /** 展开到某个条目（打开文件后把它的父目录链展开） */
   reveal: (targetPath: string) => Promise<void>
   /** 顶部提示 */
@@ -236,6 +253,47 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
       await readDir(dirPath, true)
     },
 
+    forgetPath: (targetPath) => {
+      inflight.delete(targetPath)
+
+      set((s) => ({
+        children: withoutKey(s.children, targetPath),
+        expanded: withoutKey(s.expanded, targetPath),
+        loading: withoutKey(s.loading, targetPath),
+        errors: withoutKey(s.errors, targetPath)
+      }))
+    },
+
+    forgetSubtree: (targetPath) => {
+      /**
+       * 被删掉的那些路径。
+       *
+       * 大小写**不折叠**（第三个参数传 false）：这一层判的是「这些 key 是不是同一个
+       * 字符串」，而所有 key 都是主进程用同一套写法生成的 —— 折叠反而会把
+       * `卷一` 与 `卷一2` 这种前缀关系之外的路径并进来。
+       */
+      const gone = new Set<string>([targetPath])
+      for (const key of Object.keys(get().children)) {
+        if (isInsideProject(targetPath, key, false)) gone.add(key)
+      }
+
+      // 正在读的那个目录也要作废，否则它读完之后会把结果写回缓存
+      for (const key of gone) inflight.delete(key)
+
+      const withoutGone = <T>(source: Record<string, T>): Record<string, T> => {
+        let next = source
+        for (const key of gone) next = withoutKey(next, key)
+        return next
+      }
+
+      set((s) => ({
+        children: withoutGone(s.children),
+        expanded: withoutGone(s.expanded),
+        loading: withoutGone(s.loading),
+        errors: withoutGone(s.errors)
+      }))
+    },
+
     reveal: async (targetPath) => {
       if (get().roots.length === 0) return
       await expandTo(targetPath)
@@ -315,6 +373,75 @@ export async function createProjectEntry(
   await store.refreshDir(parentDir)
 
   if (kind === 'directory') await store.refreshDir(result.path)
+
+  return result
+}
+
+/**
+ * 给一个条目改名。
+ *
+ * 与新建同一套约定：返回失败原因、**不自己弹提示**（对话框要留在原地让用户改名字），
+ * 成功后把树刷成新的样子。
+ *
+ * 三件事按顺序做：
+ * 1. 目标目录**重新读一次**（改名不改目录，但同名的那个条目换了名字）；
+ * 2. 旧路径的缓存**丢掉**，否则树里会同时留着旧名字和新名字两条；
+ * 3. 打开着的标签页跟着换路径 —— 否则它会指向一个不存在的文件。
+ *
+ * 不做「先本地改缓存、失败再改回来」那种乐观更新：重命名是一次很快的盘上操作，
+ * 而猜错的代价是树和磁盘说的不一样。
+ */
+export async function renameProjectEntry(
+  targetPath: string,
+  name: string
+): Promise<RenameEntryResult> {
+  const store = useExplorerStore.getState()
+
+  const result = await window.hostAPI.projects.renameEntry({ targetPath, name })
+  if (!result.ok) {
+    logger.warn('Failed to rename an entry', { target: targetPath, reason: result.reason })
+    return result
+  }
+
+  store.setNotice(null)
+
+  // 标签页按路径认文件，改名之后必须跟着走（文件 → 目录：那一支的标签页都跟着）
+  const { useEditorStore } = await import('./editor.store')
+  useEditorStore.getState().migratePath(result.previousPath, result.path)
+
+  const parentDir = parentOf(result.path)
+  await store.refreshDir(parentDir)
+  store.forgetPath(result.previousPath)
+
+  return result
+}
+
+/**
+ * 删掉一个条目（文件或目录；目录连同里面的东西一起删）。
+ *
+ * **不可撤销**，所以这个动作不该由它自己发起 —— 调用方（ExplorerView）必须先弹
+ * 一次确认框，用户点了确认才走到这里。
+ *
+ * 顺序上有讲究：先把树里那些「已经不存在的路径」的缓存整棵丢掉，**再**读父目录。
+ * 反过来的话，父目录读回来时旧路径还在缓存里，树里会短暂地同时留下它和它的子项。
+ */
+export async function deleteProjectEntry(targetPath: string): Promise<DeleteEntryResult> {
+  const store = useExplorerStore.getState()
+
+  const result = await window.hostAPI.projects.deleteEntry({ targetPath })
+  if (!result.ok) {
+    logger.warn('Failed to delete an entry', { target: targetPath, reason: result.reason })
+    return result
+  }
+
+  store.setNotice(null)
+
+  // 打开着的标签页要一并关掉：它的文件已经不在了，留着就是一个点不开的空标签
+  const { useEditorStore } = await import('./editor.store')
+  useEditorStore.getState().closeSubtree(targetPath)
+
+  store.forgetSubtree(targetPath)
+  await store.refreshDir(parentOf(targetPath))
 
   return result
 }
