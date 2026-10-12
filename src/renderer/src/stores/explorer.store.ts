@@ -11,6 +11,7 @@ import {
   type RenameEntryResult
 } from '@shared/project'
 import { loggerFor } from '@renderer/logger'
+import { useEditorStore } from './editor.store'
 
 const logger = loggerFor('explorer')
 
@@ -327,7 +328,6 @@ export async function openProjectFile(entry: { path: string; name: string }): Pr
     }
 
     // 内容已经在手上，标签页不必再去读一次盘（editor store 只收内容）
-    const { useEditorStore } = await import('./editor.store')
     useEditorStore.getState().openFile({
       path: result.path,
       name: entry.name,
@@ -406,7 +406,6 @@ export async function renameProjectEntry(
   store.setNotice(null)
 
   // 标签页按路径认文件，改名之后必须跟着走（文件 → 目录：那一支的标签页都跟着）
-  const { useEditorStore } = await import('./editor.store')
   useEditorStore.getState().migratePath(result.previousPath, result.path)
 
   const parentDir = parentOf(result.path)
@@ -443,7 +442,6 @@ export async function deleteProjectEntry(targetPath: string): Promise<DeleteEntr
   store.setNotice(null)
 
   // 打开着的标签页要一并关掉：它的文件已经不在了，留着就是一个点不开的空标签
-  const { useEditorStore } = await import('./editor.store')
   useEditorStore.getState().closeSubtree(targetPath)
 
   store.forgetSubtree(targetPath)
