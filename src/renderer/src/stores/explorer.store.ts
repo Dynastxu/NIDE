@@ -419,8 +419,9 @@ export async function renameProjectEntry(
 /**
  * 删掉一个条目（文件或目录；目录连同里面的东西一起删）。
  *
- * **不可撤销**，所以这个动作不该由它自己发起 —— 调用方（ExplorerView）必须先弹
- * 一次确认框，用户点了确认才走到这里。
+ * **不可撤销**，所以这一问由主进程在动作出口处问（见 main/confirm.ts）：无论谁
+ * 发起删除都会经过那一问，界面不自己弹框。调用方拿到 `cancelled` 时什么都不该做 ——
+ * 用户自己按了「取消」，那不是失败（见 ExplorerView 的 requestDelete）。
  *
  * 顺序上有讲究：先把树里那些「已经不存在的路径」的缓存整棵丢掉，**再**读父目录。
  * 反过来的话，父目录读回来时旧路径还在缓存里，树里会短暂地同时留下它和它的子项。
@@ -430,7 +431,12 @@ export async function deleteProjectEntry(targetPath: string): Promise<DeleteEntr
 
   const result = await window.hostAPI.projects.deleteEntry({ targetPath })
   if (!result.ok) {
-    logger.warn('Failed to delete an entry', { target: targetPath, reason: result.reason })
+    // 「取消」是用户的决定，不是故障：两个级别分开记，排查时才不会被它带偏
+    if (result.reason === 'cancelled') {
+      logger.info('Delete cancelled by the user', { target: targetPath })
+    } else {
+      logger.warn('Failed to delete an entry', { target: targetPath, reason: result.reason })
+    }
     return result
   }
 

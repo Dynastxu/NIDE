@@ -3,7 +3,7 @@
 Rules for working in this repository.
 
 ## Project Description
-- `docs/wiki/` contains the GitHub Wiki repository. Read it to understand the project structure. If there is no content, tell the user to clone the Wiki repository to the target location; do not clone it yourself.
+- `docs/wiki/` contains the GitHub Wiki repository. Read it to understand the project structure. Documentation may be outdated; the code logic shall prevail. If there is no content, tell the user to clone the Wiki repository to the target location; do not clone it yourself.
 
 ## Code Standards
 - Log output and throwable messages must be in English to be compatible with terminals using all encodings.

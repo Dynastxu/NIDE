@@ -1,6 +1,7 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
 import type { LogLevel } from '@shared/logger'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
+import type { ConfirmOptions, ConfirmRequest } from '@shared/confirm'
 import type {
   CreateEntryRequest,
   CreateEntryResult,
@@ -62,10 +63,33 @@ export interface WindowAPI {
   onStateChange: (handler: (state: WindowState) => void) => Disposable
   action: (action: WindowAction) => void
   open: (type: WindowType) => Promise<void>
-  /** 重建根窗口。发出去就结束，不等回执（这个窗口自己会被销毁） */
-  restart: () => void
-  /** 退出整个应用（不是只关掉这个窗口）。同样不等回执 */
-  quit: () => void
+  /**
+   * 重建根窗口。发出去就结束，不等回执（这个窗口自己会被销毁）。
+   *
+   * 会丢掉未保存的编辑内容，所以主进程会先问一次；调用方已经问过用户时传
+   * `{ confirm: false }`（设置窗口与欢迎窗口的 RestartDialog 就是这种情形）。
+   */
+  restart: (options?: ConfirmOptions) => void
+  /**
+   * 退出整个应用（不是只关掉这个窗口）。同样不等回执。
+   *
+   * 确认框问在主进程的 `before-quit` 上，所以 macOS 的 ⌘Q 与关掉最后一个窗口之后
+   * 的自动退出共用同一问；`{ confirm: false }` 表示调用方刚刚已经问过了。
+   */
+  quit: (options?: ConfirmOptions) => void
+}
+
+/**
+ * 行为级二次确认的渲染侧端口。
+ *
+ * 只有 `ui/ConfirmHost` 用它：它把主进程送来的问题画成浮层，再把回答送回去。
+ * 「要不要问」不在这一层 —— 那是动作的性质，判断在主进程（见 main/confirm.ts）。
+ */
+export interface ConfirmAPI {
+  /** 订阅主进程发来的确认请求。返回的 Disposable 用来退订 */
+  onRequest: (handler: (request: ConfirmRequest) => void) => Disposable
+  /** 回答一次询问。只有被问的那个窗口的回答会被采纳 */
+  respond: (id: string, confirmed: boolean) => void
 }
 
 /**
@@ -76,11 +100,12 @@ export interface WindowAPI {
  */
 export interface ProjectAPI {
   list: () => Promise<ProjectListItem[]>
-  open: (dirPath: string) => Promise<ProjectOpenResult>
-  pick: (mode: ProjectPickMode) => Promise<ProjectOpenResult>
+  /** 打开某个项目。当前有别的项目时会先问一次（换项目要重建窗口） */
+  open: (dirPath: string, options?: ConfirmOptions) => Promise<ProjectOpenResult>
+  pick: (mode: ProjectPickMode, options?: ConfirmOptions) => Promise<ProjectOpenResult>
   remove: (dirPath: string) => Promise<ProjectListItem[]>
   /** 关闭当前项目、回退到欢迎窗口。不返回回执：这个窗口会立刻被拆掉 */
-  close: () => void
+  close: (options?: ConfirmOptions) => void
   /**
    * 读项目里的一层目录（文件树的一层）。
    *
@@ -108,10 +133,11 @@ export interface ProjectAPI {
   /**
    * 删除一个文件 / 文件夹。目录连同里面的东西一起删。
    *
-   * 这是唯一**不可撤销**的写盘动作，所以二次确认由界面自己负责；主进程只保证
-   * 范围与「根自己不能删」这两条边界。
+   * 这是唯一**不可撤销**的写盘动作，所以二次确认挂在主进程的动作出口上
+   * （见 main/confirm.ts）：谁发起都要过那一问，界面不自己弹框。用户拒了时返回
+   * `{ ok: false, reason: 'cancelled' }`，那不是失败，界面不该提示什么。
    */
-  deleteEntry: (request: DeleteEntryRequest) => Promise<DeleteEntryResult>
+  deleteEntry: (request: DeleteEntryRequest, options?: ConfirmOptions) => Promise<DeleteEntryResult>
   /**
    * 读当前项目的配置（`.nide/config.yml`）。没有项目时为 null。
    *
@@ -145,6 +171,8 @@ export interface HostAPI {
   window: WindowAPI
   /** 打开过的项目 / 当前项目 */
   projects: ProjectAPI
+  /** 行为级二次确认的渲染侧端口（只有 ConfirmHost 用） */
+  confirm: ConfirmAPI
   reloadPlugin: (pluginId: string) => Promise<void>
 }
 

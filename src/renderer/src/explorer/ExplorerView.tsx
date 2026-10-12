@@ -9,7 +9,6 @@ import {
 } from '@renderer/stores/explorer.store'
 import { useEditorStore } from '@renderer/stores/editor.store'
 import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { ConfirmDialog } from '@renderer/ui/ConfirmDialog'
 import { ContextMenu } from '@renderer/ui/ContextMenu'
 import { NamePromptDialog, type CreateScope } from '@renderer/explorer/NamePromptDialog'
 import {
@@ -51,6 +50,9 @@ import type {
  *    出现，而这一列窄到几乎每个文件名都被截断 —— 一个总要等的提示等于没有。
  * 5. **右键新建 / 重命名**：目录 -> 新建在它内部；文件 -> 新建在它的同级；重命名
  *    只换最后一段。写入位置由主进程从被右键的条目推出来，渲染进程指定不了。
+ * 6. **删除的二次确认不在这里**：它问在主进程的动作出口上（见 main/confirm.ts），
+ *    界面只发起、只反映结果。理由与写入位置同源 —— 一条规则要么在主进程里，
+ *    要么就只是「界面上看得见的那一条路」。
  *
  * 排序在**主进程**做（见 project-files.service 与 shared/project 的 sortTreeEntries）。
  */
@@ -77,8 +79,15 @@ const FILE_REASON_KEYS: Record<FileUnsupportedReason, HostMessageKey> = {
  * 删除失败原因 -> 词条 key。
  *
  * 删除没有对话框可以「留在原地」，所以这些文案进的是树顶那条提示（见 ExplorerNotice）。
+ *
+ * `cancelled` 刻意**不在表里**：那是用户在确认框里按了「取消」，什么都没发生，
+ * 不该冒出一句提示。类型上用 Exclude 把这条排除掉，查表之前必须先把它挡掉 ——
+ * 「取消不算失败」这条规则因此是编译期可见的，而不是靠注释约定。
  */
-const DELETE_FAILURE_KEYS: Record<DeleteEntryFailureReason, HostMessageKey> = {
+const DELETE_FAILURE_KEYS: Record<
+  Exclude<DeleteEntryFailureReason, 'cancelled'>,
+  HostMessageKey
+> = {
   'not-empty': 'host.explorer.delete.failed.not-empty',
   'not-a-file': 'host.explorer.delete.failed.not-a-file',
   'is-project-root': 'host.explorer.delete.failed.is-project-root',
@@ -111,18 +120,6 @@ type PromptRequest =
       scope: CreateScope
     }
   | { key: number; mode: 'rename'; target: FileTreeEntry }
-
-/**
- * 正在等待二次确认的删除。
- *
- * 与名字对话框共用一套「开 / 关」的约定：`key` 换来重新挂载，动作由视图执行。
- * 删除是**唯一不可撤销**的动作，所以它不走输入框，走确认框 —— 能把名字改回来的
- * 事情不需要确认，删掉的东西没法改回来。
- */
-interface DeleteRequest {
-  key: number
-  target: FileTreeEntry
-}
 
 /**
  * 新建落点：右键目录 -> 建在它内部；右键文件 -> 建在它的同级。菜单上因此不必
@@ -174,7 +171,6 @@ export function ExplorerView(): JSX.Element {
   const [target, setTarget] = useState<ContextTarget | null>(null)
   const [hovered, setHovered] = useState<HoveredRow | null>(null)
   const [prompt, setPrompt] = useState<PromptRequest | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<DeleteRequest | null>(null)
 
   /**
    * 对话框的序号。每次开对话框换一个 key，React 才会**重新挂载**它 ——
@@ -192,49 +188,24 @@ export function ExplorerView(): JSX.Element {
     setPrompt(renamePrompt({ key: promptSeq.current, target: entry }))
   }
 
-  const openDeleteConfirm = (entry: FileTreeEntry): void => {
-    promptSeq.current += 1
-    setConfirmDelete({ key: promptSeq.current, target: entry })
-  }
-
   const closePrompt = (): void => setPrompt(null)
 
   /**
-   * 用户确认了删除。**先关掉确认框再动手**：删除会在树与标签页上都引起变化，
-   * 让一个「正在等回执」的对话框浮在上面只会挡住变化本身。
+   * 右键「删除」。
+   *
+   * **二次确认不在这里**：它问在主进程的动作出口上（见 main/confirm.ts），无论谁
+   * 发起删除都会经过那一问 —— 界面自己弹一个框只能管住界面上这一条路。这里只负责
+   * 把结果反映出来。
    *
    * 失败时不留弹框、只写顶部提示条（`notice`）—— 与打开文件失败同一条路：
    * 这类失败是就地的，弹框要把注意力从树上拽走，还得自己处理「关了之后回到哪儿」。
+   * 用户在确认框里选了「取消」则**什么都不提示**：那不是失败。
    */
-  const confirmDeleteEntry = async (entry: FileTreeEntry): Promise<void> => {
-    setConfirmDelete(null)
-
+  const requestDelete = async (entry: FileTreeEntry): Promise<void> => {
     const result = await deleteProjectEntry(entry.path)
-    if (!result.ok) {
-      useExplorerStore.getState().setNotice(getT()(DELETE_FAILURE_KEYS[result.reason]))
-    }
-  }
+    if (result.ok || result.reason === 'cancelled') return
 
-  /** 删除确认框的文案。名字可能很长，所以把它单独放在消息里而不是挤进标题 */
-  const deleteDialog = (request: DeleteRequest): JSX.Element => {
-    const isDir = request.target.kind === 'directory'
-
-    return (
-      <ConfirmDialog
-        key={request.key}
-        danger
-        title={t(isDir ? 'host.explorer.delete.title.folder' : 'host.explorer.delete.title.file')}
-        message={
-          isDir
-            ? t('host.explorer.delete.message.folder', { name: request.target.name })
-            : t('host.explorer.delete.message.file', { name: request.target.name })
-        }
-        confirmLabel={t('host.explorer.delete.confirm')}
-        cancelLabel={t('host.dialog.cancel')}
-        onConfirm={() => void confirmDeleteEntry(request.target)}
-        onCancel={() => setConfirmDelete(null)}
-      />
-    )
+    useExplorerStore.getState().setNotice(getT()(DELETE_FAILURE_KEYS[result.reason]))
   }
 
   /**
@@ -423,13 +394,11 @@ export function ExplorerView(): JSX.Element {
           onClose={() => setTarget(null)}
           onCreate={openCreatePrompt}
           onRename={openRenamePrompt}
-          onDelete={openDeleteConfirm}
+          onDelete={(entry) => void requestDelete(entry)}
         />
       )}
 
       {prompt && promptDialog(prompt)}
-
-      {confirmDelete && deleteDialog(confirmDelete)}
 
       {hovered && (
         <NameOverlay
@@ -765,7 +734,8 @@ function IndentGuides({ guides }: { guides: boolean[] }): JSX.Element | null {
  * （见 project-files.service），所以菜单不必（也没打算）让用户再选一次位置。
  *
  * 这个组件**只管菜单**：菜单里选中的动作通过 `onCreate` / `onRename` / `onDelete`
- * 交回视图，对话框由视图持有（理由见 PromptRequest 的说明）。
+ * 交回视图，名字对话框由视图持有（理由见 PromptRequest 的说明）。删除没有对话框
+ * 要持有 —— 那一问由主进程问（见文件头的第 6 条）。
  *
  * 「删除」放在最后并且是 danger 配色：它是这一列里唯一不可撤销的一项，位置与颜色
  * 都要和另外两项拉开距离。

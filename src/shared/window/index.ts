@@ -83,7 +83,13 @@ export function isWindowType(value: string): value is WindowType {
   return (WINDOW_TYPES as readonly string[]).includes(value)
 }
 
-/** 渲染进程里的窗口控制动作 */
+/**
+ * 渲染进程里的窗口控制动作。
+ *
+ * `close` 只是**发起**关闭：根窗口会先过一道关窗确认，设置窗口直接关 ——
+ * 关口在窗口的 `close` 事件上，所以自绘的 ✕、Alt+F4、任务栏的「关闭窗口」
+ * 问的是同一句话（见 main/lifecycle.ts）。
+ */
 export type WindowAction = 'minimize' | 'toggleMaximize' | 'close' | 'showSystemMenu'
 
 /**
@@ -116,7 +122,8 @@ export const WINDOW_CHANNELS = {
    * 重建根窗口（界面上的「立即重启」）。
    *
    * 和切语言走同一条实现，但**不是**同一个通道：那条通道会先弹一个本地化的
-   * 确认框。设置界面的重启已经问过用户了，再问一遍是重复确认。
+   * 确认框。这条是行为级二次确认（见 main/confirm.ts）—— 调用方已经问过用户的
+   * 传 `{ confirm: false }`，那就只剩它自己那一问。
    */
   restart: 'host:restart-app',
   /**
@@ -124,6 +131,10 @@ export const WINDOW_CHANNELS = {
    *
    * 独立于窗口的「关闭」：关闭只关掉这个窗口（主窗口关掉之后应用可能还在，
    * 比如设置窗口还开着，或者 macOS 上进程不退出），而退出是结束整个应用。
+   *
+   * 确认**不问在这条通道上**，而是问在 `app.before-quit` 上（见 main/lifecycle.ts）：
+   * 那一个口子同时管住菜单退出、macOS 的 ⌘Q，以及关掉最后一个窗口之后的自动退出。
+   * 这条通道只是把「调用方是否已经问过」转达给那道门。
    */
   quit: 'host:quit-app',
   /**

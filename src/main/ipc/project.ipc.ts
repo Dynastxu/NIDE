@@ -1,9 +1,11 @@
 import path from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, type WebContents } from 'electron'
 import {
   PROJECT_CHANNELS,
   PROJECT_CONFIG_CHANNELS,
   PROJECT_FILE_CHANNELS,
+  isProjectSwitch,
+  projectNameFromPath,
   type CreateEntryRequest,
   type CreateEntryResult,
   type DeleteEntryRequest,
@@ -17,6 +19,7 @@ import {
   type RenameEntryRequest,
   type RenameEntryResult
 } from '@shared/project'
+import { CONFIRM_SPECS, isActionConfirmed, type ConfirmSpec } from '../confirm'
 import { createMainTranslator } from '../i18n'
 import { loggerFor } from '../logger'
 import {
@@ -29,6 +32,7 @@ import {
 import {
   createProjectEntry,
   deleteProjectEntry,
+  entryKindAt,
   readProjectDir,
   readProjectFile,
   renameProjectEntry
@@ -110,8 +114,40 @@ async function pickDirectory(
  * 已有项目上替用户建目录是替他做决定 —— 打开别人的项目、打开一个只用来看稿的
  * 文件夹，都不该长出宿主自己的目录来（`.nide` 被删后的静默重建是另一回事，
  * 见 project-config.service 的 loadProjectConfig）。
+ *
+ * ## 换项目要先问一句
+ *
+ * 换项目会把主窗口**原地重建**（见 window.ts 的 activateMainWindow），当前窗口的
+ * 一切跟着归零：打开的文件标签页、编辑器里未保存的改动、文件树的展开状态。所以
+ * 离开一个**已经打开的项目**之前先过行为级二次确认。
+ *
+ * 这一问在主进程而不是在项目下拉里：无论谁发起打开（下拉、欢迎窗口、插件、以后的
+ * 快捷键）都走这条通道。两个前置条件让「没什么可丢」的打开不会被拦：
+ * 从欢迎窗口打开时当前项目是 null，重复打开同一个项目时目标就是当前项目
+ * （判据见 shared/project 的 isProjectSwitch）。
+ *
+ * @param initiator 发起这次打开的渲染进程。确认框问到它那个窗口上
  */
-async function activate(dirPath: string, create: boolean): Promise<ProjectOpenResult> {
+async function activate(
+  dirPath: string,
+  create: boolean,
+  initiator: WebContents,
+  options: unknown
+): Promise<ProjectOpenResult> {
+  const current = getCurrentProject()?.path ?? null
+  if (isProjectSwitch(current, dirPath, caseInsensitivePaths())) {
+    const spec: ConfirmSpec = {
+      ...CONFIRM_SPECS.switchProject,
+      // 目标项目的显示名由路径推导，与标题栏、项目下拉用的是同一个函数
+      params: { name: projectNameFromPath(dirPath) }
+    }
+
+    if (!(await isActionConfirmed(initiator, options, spec))) {
+      logger.info('Project switch cancelled by the user')
+      return { ok: false, reason: 'cancelled' }
+    }
+  }
+
   const result = openProject(dirPath)
 
   if (!result.ok) {
@@ -133,18 +169,21 @@ async function activate(dirPath: string, create: boolean): Promise<ProjectOpenRe
 export function registerProjectIPC(): void {
   ipcMain.handle(PROJECT_CHANNELS.list, () => getProjectList())
 
-  ipcMain.handle(PROJECT_CHANNELS.open, (_event, dirPath: unknown): Promise<ProjectOpenResult> => {
-    if (typeof dirPath !== 'string' || dirPath.length === 0) {
-      logger.warn('Received an invalid project path')
-      return Promise.resolve({ ok: false, reason: 'missing' })
+  ipcMain.handle(
+    PROJECT_CHANNELS.open,
+    (event, dirPath: unknown, options: unknown): Promise<ProjectOpenResult> => {
+      if (typeof dirPath !== 'string' || dirPath.length === 0) {
+        logger.warn('Received an invalid project path')
+        return Promise.resolve({ ok: false, reason: 'missing' })
+      }
+      // 打开列表里的一条 = 打开一个已有项目，**不初始化**（见 activate）
+      return activate(dirPath, false, event.sender, options)
     }
-    // 打开列表里的一条 = 打开一个已有项目，**不初始化**（见 activate）
-    return activate(dirPath, false)
-  })
+  )
 
   ipcMain.handle(
     PROJECT_CHANNELS.pick,
-    async (event, mode: unknown): Promise<ProjectOpenResult> => {
+    async (event, mode: unknown, options: unknown): Promise<ProjectOpenResult> => {
       const kind: ProjectPickMode = mode === 'new' ? 'new' : 'open'
       const parent = BrowserWindow.fromWebContents(event.sender)
 
@@ -153,7 +192,7 @@ export function registerProjectIPC(): void {
       if (!dirPath) return { ok: false, reason: 'cancelled' }
 
       // 「新建项目」= 初始化项目结构；「打开」= 读它本来的样子
-      return activate(dirPath, kind === 'new')
+      return activate(dirPath, kind === 'new', event.sender, options)
     }
   )
 
@@ -169,11 +208,16 @@ export function registerProjectIPC(): void {
    * 记录留在列表里，`lastOpened` 也不动：下一次启动仍然打开它。这里只是让这一次
    * 会话回到「没有项目」的状态。
    *
-   * 单向 on 而不是 handle：这个窗口马上就会被拆掉，回执没有接收方。
+   * 会丢掉当前窗口的一切，所以先过行为级二次确认；确认之后这个窗口马上就会被拆掉，
+   * 所以回执没有接收方，用单向 on 而不是 handle。
    */
-  ipcMain.on(PROJECT_CHANNELS.close, (): void => {
-    closeProject()
-    returnToWelcomeWindow()
+  ipcMain.on(PROJECT_CHANNELS.close, (event, options: unknown): void => {
+    void (async () => {
+      if (!(await isActionConfirmed(event.sender, options, CONFIRM_SPECS.closeProject))) return
+
+      closeProject()
+      returnToWelcomeWindow()
+    })()
   })
 
   /**
@@ -308,11 +352,13 @@ export function registerProjectIPC(): void {
    * 只收一个路径：删多深没有参数可调，**根自己不能删**这条也在服务里兜着 ——
    * 树上的根那一行同样可以右键，而界面上的入口不该是唯一一道防线。
    *
-   * 这是唯一不可撤销的动作，界面那一侧必须二次确认（见 ExplorerView）。
+   * 这是唯一不可撤销的写盘动作，所以二次确认**问在这里**（行为级）：无论谁发起
+   * 删除都经过这条通道，界面那一侧因此不再自己弹框（见 ExplorerView）。用户拒了
+   * 就回一条 `cancelled` —— 它不是失败，界面不该因此提示什么。
    */
   ipcMain.handle(
     PROJECT_FILE_CHANNELS.deleteEntry,
-    async (_event, request: unknown): Promise<DeleteEntryResult> => {
+    async (event, request: unknown, options: unknown): Promise<DeleteEntryResult> => {
       const parsed = parseDeleteRequest(request)
       if (!parsed) {
         logger.warn('Rejected a malformed delete request')
@@ -323,6 +369,23 @@ export function registerProjectIPC(): void {
       if (roots.length === 0) {
         logger.warn('Rejected a delete request without an open project')
         return { ok: false, reason: 'unreadable' }
+      }
+
+      /**
+       * 目录与文件问的话不一样（目录会连同里面的东西一起删，文案要说得更重），
+       * 所以先问一次磁盘上这个路径是什么。读到的结论**只影响文案**：删除自己
+       * 在执行前会再判一次类型与边界，中间变了也不会因此少一道校验。
+       */
+      const kind = await entryKindAt(parsed.targetPath)
+      const spec = kind === 'directory' ? CONFIRM_SPECS.deleteFolder : CONFIRM_SPECS.deleteFile
+
+      if (
+        !(await isActionConfirmed(event.sender, options, {
+          ...spec,
+          params: { name: path.basename(parsed.targetPath) }
+        }))
+      ) {
+        return { ok: false, reason: 'cancelled' }
       }
 
       return deleteProjectEntry(parsed, { roots, caseInsensitive: caseInsensitivePaths() })

@@ -116,6 +116,26 @@ export function projectPathKey(raw: string, caseInsensitive: boolean): string {
   return caseInsensitive ? normalized.toLowerCase() : normalized
 }
 
+/**
+ * 这次「打开」会不会丢掉一个已经打开的项目。
+ *
+ * 换项目会把主窗口原地重建（项目路径是建窗时经 `additionalArguments` 固定的），
+ * 当前窗口的一切跟着归零 —— 所以要拿它来决定**要不要先问一句**。判据只有两条：
+ *
+ * - 现在没有打开的项目（从欢迎窗口打开）：没有东西可丢，不问；
+ * - 要打开的就是当前这个项目（重复打开 / 只是点了一下自己）：什么都没发生，不问。
+ *
+ * 是否忽略大小写与 `projectPathKey` 同一条约定：由调用方按平台语义给。
+ */
+export function isProjectSwitch(
+  currentPath: string | null | undefined,
+  nextPath: string,
+  caseInsensitive: boolean
+): boolean {
+  if (!currentPath) return false
+  return projectPathKey(currentPath, caseInsensitive) !== projectPathKey(nextPath, caseInsensitive)
+}
+
 function validRecord(value: unknown): ProjectRecord | null {
   if (!value || typeof value !== 'object') return null
 
@@ -255,17 +275,19 @@ export type ProjectPickMode = 'new' | 'open'
 export const PROJECT_CHANNELS = {
   /** 取「打开过的项目」列表（invoke） */
   list: 'host:project-list',
-  /** 按路径打开一个已有记录（invoke） */
+  /** 按路径打开一个已有记录（invoke）。参数：路径 + ConfirmOptions */
   open: 'host:project-open',
-  /** 弹系统目录对话框并打开所选目录（invoke），参数是 ProjectPickMode */
+  /** 弹系统目录对话框并打开所选目录（invoke）。参数：ProjectPickMode + ConfirmOptions */
   pick: 'host:project-pick',
   /** 从列表里移除一条记录（invoke），返回移除后的列表 */
   remove: 'host:project-remove',
   /**
-   * 关闭当前项目并回退到欢迎窗口（invoke）。
+   * 关闭当前项目并回退到欢迎窗口（单向 send，参数 ConfirmOptions）。
    *
    * **不删记录**：这一次会话不再用这个项目，但它仍然是「打开过的项目」，也仍然是
    * 下次启动时要打开的那一个。
+   *
+   * 单向而不是 invoke：确认之后这个窗口马上就会被拆掉，回执没有接收方。
    */
   close: 'host:project-close'
 } as const

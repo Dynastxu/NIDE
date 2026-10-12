@@ -502,6 +502,29 @@ function renameErrorCode(err: unknown): unknown {
 // ============ 删除 ============
 
 /**
+ * 这个路径上是什么（文件 / 目录），问不出来时给 null。
+ *
+ * 唯一的用途是给**二次确认框挑一句话**：删目录带走的是一整棵子树，那句话必须比
+ * 删一个文件说得更重（见 main/confirm.ts 的两条 delete 规格）。
+ *
+ * 它**不参与任何校验**，读到的结论也只影响文案：删除自己在执行前会重新判一次
+ * 类型与边界，这中间目标被换掉也不会因此少一道防线。判据与删除保持一致 ——
+ * 符号链接不算数（删除同样拒绝它）。
+ */
+export async function entryKindAt(targetPath: string): Promise<FileTreeEntry['kind'] | null> {
+  try {
+    const stats = await fs.lstat(targetPath)
+    if (stats.isSymbolicLink()) return null
+    if (stats.isDirectory()) return 'directory'
+    if (stats.isFile()) return 'file'
+    return null
+  } catch {
+    // 读不到（不存在、没权限）：按「不知道」处理，确认框用较弱的那一套说法
+    return null
+  }
+}
+
+/**
  * 删掉一个文件或目录。目录**连同里面的东西一起删**。
  *
  * 这是宿主唯一**不可撤销**的写盘动作，所以这里把能拒的都拒掉：

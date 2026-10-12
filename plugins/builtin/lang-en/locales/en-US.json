@@ -25,6 +25,16 @@
 
   "host.dialog.cancel": "Cancel",
 
+  "host.window.close.confirm.title": "Close window",
+  "host.window.close.confirm.message": "Close this window? Unsaved editor content will be lost. On Windows and Linux the app exits once the last window is closed.",
+  "host.window.close.confirm.action": "Close window",
+  "host.project.switch.confirm.title": "Switch project",
+  "host.project.switch.confirm.message": "Opening \"{name}\" rebuilds this window, and unsaved editor content will be lost. Continue?",
+  "host.project.switch.confirm.action": "Open",
+  "host.restart.confirm.title": "Restart NIDE",
+  "host.restart.confirm.message": "Restarting rebuilds the window, and unsaved editor content will be lost. Continue?",
+  "host.restart.confirm.action": "Restart",
+
   "host.project.selector.label": "Project",
   "host.project.selector.none": "No project open",
   "host.project.selector.empty": "No project has been opened yet",

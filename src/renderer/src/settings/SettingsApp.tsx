@@ -159,7 +159,12 @@ function SettingsWindowContent(): JSX.Element {
 
       {askRestart && (
         <RestartDialog
-          onRestart={() => window.hostAPI.window.restart()}
+          /*
+           * `confirm: false` = 「这一问刚才已经问过了」：RestartDialog 问的就是
+           * 「要不要现在重启」。不带这个参数的话，主进程还会再问一遍
+           * （见 main/confirm.ts 的 restart 规格），用户会怀疑自己刚才点的是什么。
+           */
+          onRestart={() => window.hostAPI.window.restart({ confirm: false })}
           onLater={() => setAskRestart(false)}
         />
       )}

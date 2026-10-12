@@ -25,7 +25,7 @@ export function DropdownMenu({
       role="menu"
       aria-label={ariaLabel}
       className={[
-        'min-w-[180px] rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-xl shadow-black/40',
+        'min-w-45 rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-xl shadow-black/40',
         className
       ]
         .join(' ')

@@ -5,6 +5,7 @@ import { installRendererLogger, loggerFor } from './logger'
 import './assets/index.css'
 import type { JSX } from 'react'
 import { systemWindowTitle, type WindowType } from '@shared/window'
+import { ConfirmHost } from './ui/ConfirmHost'
 
 /**
  * 启动序列。顺序**都有理由，不能调换**：
@@ -72,7 +73,16 @@ async function boot(): Promise<void> {
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <Root />
+      {/*
+        行为级二次确认的落点包在**每一种**窗口外面（见 ui/ConfirmHost）：确认问在
+        哪一个窗口上取决于谁发起了那个动作，所以每一扇窗都要有地方接住它。
+
+        它是**静态** import，与上面 ROOTS「一律动态」那条约定不冲突：它的依赖图里
+        只有 React 与那个浮层组件（没有 Monaco），不值得为它再绕一层动态 import。
+      */}
+      <ConfirmHost>
+        <Root />
+      </ConfirmHost>
     </React.StrictMode>
   )
 }

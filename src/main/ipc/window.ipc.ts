@@ -1,5 +1,7 @@
-import { BrowserWindow, Menu, app, ipcMain } from 'electron'
+import { BrowserWindow, Menu, ipcMain } from 'electron'
 import { WINDOW_CHANNELS, isWindowType, type WindowAction, type WindowState } from '@shared/window'
+import { CONFIRM_SPECS, isActionConfirmed } from '../confirm'
+import { requestQuit } from '../lifecycle'
 import { loggerFor } from '../logger'
 
 const logger = loggerFor('window')
@@ -108,6 +110,7 @@ export function registerWindowIPC(): void {
         else window.maximize()
         break
       case 'close':
+        // 根窗口这一下会先过 lifecycle.ts 的关窗确认；设置窗口直接关
         window.close()
         break
       case 'showSystemMenu':
@@ -135,28 +138,43 @@ export function registerWindowIPC(): void {
    * 再拆旧窗」这个顺序（反过来的话拆窗那一瞬间可能一个窗口都不剩，触发
    * window-all-closed 让应用直接退出），也已经处理了 bounds 与最大化状态的恢复。
    *
-   * 不在这里弹确认框：调用方（设置窗口的「是否现在就重启？」）已经把用户的意图
-   * 问清楚了。再问一遍是重复确认，只会让人怀疑自己刚才点的是什么。
+   * 重建会丢掉渲染进程的未保存状态，所以这是一次**行为级二次确认**：谁调这个
+   * 通道都要先过这一问。调用方已经问过用户的（设置窗口与欢迎窗口的「需要重启」
+   * 提示）显式传 `{ confirm: false }`，那就只剩它自己那一问，不会问成两遍。
+   *
+   * 用 `on` 而不是 `handle`：调用方是**单向 send**（见 preload 的 windowAPI.restart），
+   * 因为确认之后这个窗口自己就在被拆之列，等一个永远到不了的应答没有意义。
+   * 这条通道曾经写成 `handle`，而 send 打不到 handle 上 —— 那个按钮因此一直是
+   * 空点。改回来时别只看类型：两个方向对不上不会有任何编译错误。
    */
-  ipcMain.handle(WINDOW_CHANNELS.restart, (): void => {
-    if (!restartApp) {
-      logger.warn('Received a restart request but no implementation was injected', {
-        hint: 'registerWindowActions'
-      })
-      return
-    }
-    restartApp()
+  ipcMain.on(WINDOW_CHANNELS.restart, (event, options: unknown): void => {
+    void (async () => {
+      if (!restartApp) {
+        logger.warn('Received a restart request but no implementation was injected', {
+          hint: 'registerWindowActions'
+        })
+        return
+      }
+
+      if (!(await isActionConfirmed(event.sender, options, CONFIRM_SPECS.restart))) return
+
+      restartApp()
+    })()
   })
 
   /**
    * 退出应用 —— 标题栏「文件 -> 退出」。
    *
-   * 直接 app.quit()，不需要注入实现：退出是 Electron 自己的语义，没有「宿主怎么做
-   * 这件事」的余地。它会走完整的退出流程（关闭所有窗口、触发 will-quit），所以
-   * 未保存内容的兜底该挂在那些钩子上，而不是在这里加一段判断。
+   * 这里**不问**确认：真正的关口是 `before-quit`（见 lifecycle.ts），它同时管住
+   * 菜单退出、macOS 的 ⌘Q 与「关掉最后一个窗口之后自动退出」这几条路。问在通道
+   * 这一侧的话，换一个入口（快捷键、系统菜单、插件）就绕过去了 —— 那正是这一轮
+   * 改动要消掉的东西。这里只转达「调用方是否已经问过」。
+   *
+   * 走完整的退出流程（关闭所有窗口、触发 will-quit），所以未保存内容的兜底该挂在
+   * 那些钩子上，而不是在这里加一段判断。
    */
-  ipcMain.on(WINDOW_CHANNELS.quit, (): void => {
+  ipcMain.on(WINDOW_CHANNELS.quit, (_event, options: unknown): void => {
     logger.info('Quit requested from the renderer')
-    app.quit()
+    requestQuit(options)
   })
 }

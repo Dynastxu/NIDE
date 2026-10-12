@@ -9,6 +9,7 @@ import {
   type Logger
 } from '@shared/logger'
 import { DEFAULT_LOCALE, LOCALE_ARG_PREFIX } from '@shared/i18n'
+import { CONFIRM_CHANNELS } from '@shared/confirm'
 import {
   PROJECT_ARG_PREFIX,
   PROJECT_CHANNELS,
@@ -25,6 +26,7 @@ import {
   type WindowType
 } from '@shared/window'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
+import type { ConfirmOptions, ConfirmRequest } from '@shared/confirm'
 import type {
   CreateEntryRequest,
   CreateEntryResult,
@@ -158,9 +160,13 @@ const windowAPI = {
    *
    * 单向 send，不返回 Promise：这个窗口会在重建过程中被销毁，等一个永远到不了的
    * 应答没有意义。发出去就不管了。
+   *
+   * 调用方**已经问过**用户时传 `{ confirm: false }`（设置窗口与欢迎窗口的
+   * RestartDialog 就是这种情形：它问的是「要不要现在重启」，主进程再问一遍
+   * 只会让人怀疑自己刚才点的是什么）。
    */
-  restart: (): void => {
-    ipcRenderer.send(WINDOW_CHANNELS.restart)
+  restart: (options?: ConfirmOptions): void => {
+    ipcRenderer.send(WINDOW_CHANNELS.restart, options)
   },
 
   /**
@@ -168,9 +174,13 @@ const windowAPI = {
    *
    * 与 `action('close')` 不同：那个只关掉当前这个窗口，这个结束整个应用。同样用
    * 单向 send —— 应用马上就没了，回执没有任何接收方。
+   *
+   * 确认框由主进程在 `before-quit` 上问（见 main/lifecycle.ts），所以 macOS 的 ⌘Q
+   * 与关掉最后一个窗口之后的自动退出走的是同一问；这里传 `{ confirm: false }`
+   * 表示调用方刚刚已经问过用户了。
    */
-  quit: (): void => {
-    ipcRenderer.send(WINDOW_CHANNELS.quit)
+  quit: (options?: ConfirmOptions): void => {
+    ipcRenderer.send(WINDOW_CHANNELS.quit, options)
   }
 }
 
@@ -185,13 +195,18 @@ const projectAPI = {
   /** 「打开过的项目」列表，最近打开的在前 */
   list: (): Promise<ProjectListItem[]> => ipcRenderer.invoke(PROJECT_CHANNELS.list),
 
-  /** 打开列表里的某一条。目录已经不在时返回带原因的结果，不抛异常 */
-  open: (dirPath: string): Promise<ProjectOpenResult> =>
-    ipcRenderer.invoke(PROJECT_CHANNELS.open, dirPath),
+  /**
+   * 打开列表里的某一条。目录已经不在时返回带原因的结果，不抛异常。
+   *
+   * 当前有项目、且打开的是另一个项目时，主进程会先弹一次二次确认（换项目要重建
+   * 窗口、丢掉未保存的内容）；用户拒了就回 `{ ok: false, reason: 'cancelled' }`。
+   */
+  open: (dirPath: string, options?: ConfirmOptions): Promise<ProjectOpenResult> =>
+    ipcRenderer.invoke(PROJECT_CHANNELS.open, dirPath, options),
 
   /** 弹系统目录对话框并打开所选目录。用户取消时返回 { ok: false, reason: 'cancelled' } */
-  pick: (mode: ProjectPickMode): Promise<ProjectOpenResult> =>
-    ipcRenderer.invoke(PROJECT_CHANNELS.pick, mode),
+  pick: (mode: ProjectPickMode, options?: ConfirmOptions): Promise<ProjectOpenResult> =>
+    ipcRenderer.invoke(PROJECT_CHANNELS.pick, mode, options),
 
   /** 从列表里移除一条记录（磁盘上的目录不动），返回移除后的列表 */
   remove: (dirPath: string): Promise<ProjectListItem[]> =>
@@ -201,10 +216,11 @@ const projectAPI = {
    * 关闭当前项目，回退到欢迎窗口。记录留在列表里，下次启动仍然默认打开它。
    *
    * 单向 send：调用之后这个窗口就会被拆掉，等一个永远到不了的应答没有意义
-   * （与 window.restart 同理）。
+   * （与 window.restart 同理）。确认框由主进程问，这里传 `{ confirm: false }`
+   * 表示调用方刚刚已经问过用户了。
    */
-  close: (): void => {
-    ipcRenderer.send(PROJECT_CHANNELS.close)
+  close: (options?: ConfirmOptions): void => {
+    ipcRenderer.send(PROJECT_CHANNELS.close, options)
   },
 
   /**
@@ -245,10 +261,14 @@ const projectAPI = {
 
   /**
    * 删除一个文件 / 文件夹。目录连同里面的东西一起删，**不可撤销** ——
-   * 界面必须自己先二次确认，这条通道只负责执行。
+   * 二次确认由**主进程**在动作出口处问（见 main/confirm.ts），无论谁发起都会问，
+   * 界面不必自己弹框。用户拒了时返回 `{ ok: false, reason: 'cancelled' }`。
    */
-  deleteEntry: (request: DeleteEntryRequest): Promise<DeleteEntryResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request),
+  deleteEntry: (
+    request: DeleteEntryRequest,
+    options?: ConfirmOptions
+  ): Promise<DeleteEntryResult> =>
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, options),
 
   /**
    * 读当前项目的配置（`.nide/config.yml`）。
@@ -267,13 +287,45 @@ const projectAPI = {
     ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.update, patch)
 }
 
+/**
+ * 行为级二次确认的渲染侧端口。
+ *
+ * 单独收成一个命名空间，因为它的两端都不是「业务」：主进程只发「有人要你确认一件
+ * 事」，渲染进程只回「确认 / 取消」。它属于宿主本身，既不是窗口能力也不是项目能力，
+ * 所以和 window / projects 平级。
+ */
+const confirmAPI = {
+  /**
+   * 订阅主进程发来的确认请求。
+   *
+   * 朴素的一问一答：收到请求 -> 画浮层 -> 用 `respond` 把同一个 id 送回去。主进程
+   * 可能同时问着不止一件事，所以消费方要能应付排队（见 renderer 的 ConfirmHost）。
+   */
+  onRequest: (handler: (request: ConfirmRequest) => void): Disposable => {
+    const wrapped = (_e: unknown, request: ConfirmRequest): void => handler(request)
+    ipcRenderer.on(CONFIRM_CHANNELS.request, wrapped)
+    return {
+      dispose: () => ipcRenderer.off(CONFIRM_CHANNELS.request, wrapped)
+    }
+  },
+
+  /**
+   * 回答一次询问。
+   *
+   * 只有**被问的那个窗口**的回答会被采纳（主进程按发起方核对），所以渲染进程拿它
+   * 伪造不了别的窗口的答案。id 对不上、或者这一问已经结束的回答，主进程按过期丢掉。
+   */
+  respond: (id: string, confirmed: boolean): void => {
+    ipcRenderer.send(CONFIRM_CHANNELS.respond, { id, confirmed })
+  }
+}
+
 const api = {
   /**
    * 获取所有插件注册的 UI 视图元信息。
    * 返回 [{ id, title, location, pluginId, dir, entry }] —— 纯数据。
    */
   getPluginViews: () => ipcRenderer.invoke('host:get-plugin-views'),
-
   /** 获取当前语言的词条表、可用语言列表和漏翻体检结果。
    *
    * 渲染进程没有 fs，也不该知道语言包文件在哪 —— 它只消费主进程算好的结果。
@@ -393,6 +445,15 @@ const api = {
 
   /** 项目：打开过的文件夹、当前项目、目录对话框（见 projectAPI 的说明） */
   projects: projectAPI,
+
+  /**
+   * 行为级二次确认在渲染进程这一侧的端口。
+   *
+   * 只有**一个**消费者：`renderer/ui/ConfirmHost`（每一种窗口都挂着它）。它把主进程
+   * 送来的问题画成浮层，再把用户的回答送回去。别的组件不需要碰这两个函数 ——
+   * 要确认的是**动作**（主进程那边管），不是某个按钮。
+   */
+  confirm: confirmAPI,
 
   /** 插件管理（占位） */
   reloadPlugin: (pluginId: string) => ipcRenderer.invoke('host:reload-plugin', pluginId)

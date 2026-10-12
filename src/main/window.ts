@@ -14,6 +14,7 @@ import { createMainTranslator, getCurrentLocale } from './i18n'
 import { getLogLevel } from './logger'
 import { getCurrentProject, resolveStartupProject } from './services/project-store'
 import { trackWindowState } from './ipc/window.ipc'
+import { gateWindowClose } from './lifecycle'
 
 /**
  * 建窗。
@@ -217,6 +218,15 @@ function buildWindow(type: WindowType, options: BuildOptions = {}): BrowserWindo
   }
 
   trackWindowState(window)
+
+  /**
+   * 关窗的二次确认。挂在**建窗**这一处，而不是挂在自绘的那颗 ✕ 上：✕、Alt+F4、
+   * 任务栏的「关闭窗口」最后都走窗口的 `close` 事件，挂在入口那一侧就总有一条路
+   * 漏在外面（见 lifecycle.ts）。
+   *
+   * 子窗口不问：设置窗口关掉不损失任何东西。
+   */
+  gateWindowClose(window, type !== 'settings')
 
   return window
 }

@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { installLogger, loggerFor } from './logger'
+import { registerConfirmIPC } from './confirm'
+import { installQuitGate } from './lifecycle'
 import { registerHostIPC } from './ipc/host.ipc'
 import { registerProjectIPC } from './ipc/project.ipc'
 import { registerWindowIPC, registerWindowActions } from './ipc/window.ipc'
@@ -37,6 +39,13 @@ app.whenReady().then(() => {
   registerHostIPC()
   registerProjectIPC()
   registerWindowIPC()
+  /**
+   * 行为级二次确认：回答通道要尽早注册（渲染进程一挂载就可能回答），退出确认的
+   * 关口也在这里装上 —— 它管的是后面每一次 `app.quit()`，包括最后一个窗口关掉
+   * 之后自动触发的那一次（见 lifecycle.ts 的说明）。
+   */
+  registerConfirmIPC()
+  installQuitGate()
   registerWindowActions({
     openers: { settings: createSettingsWindow },
     restart: recreateRootWindow
@@ -61,6 +70,11 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    /**
+     * 这一次 `app.quit()` 会经过 lifecycle.ts 的退出确认，但**不会再问一遍**：
+     * 走到这里说明窗口已经全没了，没有地方画浮层，而那时候用户刚刚亲手关掉了
+     * 最后一个窗口 —— 那道门对「问不出去」的情形是放行的（理由见 lifecycle.ts）。
+     */
     app.quit()
   }
 })

@@ -46,6 +46,25 @@ export const zhCN = {
   // ---- 通用确认框 ----
   'host.dialog.cancel': '取消',
 
+  /**
+   * ---- 行为级二次确认 ----
+   *
+   * 这几条由**主进程**用（见 main/confirm.ts 的 CONFIRM_SPECS）：关闭项目、退出、
+   * 删除、换项目、重启、关窗那几问的文案都在那里挑。放同一张表里是因为
+   * 「谁翻」不影响「词条归宿主」—— 渲染进程那一侧只有一个不认识业务的浮层。
+   */
+  'host.window.close.confirm.title': '关闭窗口',
+  'host.window.close.confirm.message':
+    '关闭这个窗口？未保存的编辑内容会丢失。在 Windows / Linux 上，最后一个窗口关闭后应用会退出。',
+  'host.window.close.confirm.action': '关闭窗口',
+  'host.project.switch.confirm.title': '切换项目',
+  'host.project.switch.confirm.message':
+    '打开「{name}」会重建当前窗口，未保存的编辑内容会丢失。是否继续？',
+  'host.project.switch.confirm.action': '打开',
+  'host.restart.confirm.title': '重启应用',
+  'host.restart.confirm.message': '重启会重建窗口，未保存的编辑内容会丢失。是否继续？',
+  'host.restart.confirm.action': '重启',
+
   // ---- 主窗口标题栏的项目下拉 ----
   'host.project.selector.label': '项目',
   'host.project.selector.none': '未打开项目',

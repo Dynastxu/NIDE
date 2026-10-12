@@ -2,7 +2,6 @@ import { JSX, useEffect, useRef, useState } from 'react'
 import { useT } from '@renderer/stores/i18n.store'
 import { useLayoutStore } from '@renderer/stores/layout.store'
 import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { ConfirmDialog } from '@renderer/ui/ConfirmDialog'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import type { MenuItem } from '@renderer/ui/MenuItem'
 import { ProjectSelector } from '@renderer/window/ProjectSelector'
@@ -38,10 +37,16 @@ import { HOST_COMMIT_VIEW_ID } from '@shared/plugin-api'
  * 控制 —— 而这个窗口是刻意做成无边框 + 全自绘的（见 main/window.ts 的
  * frameOptions）。代价是上面那套开合、悬停、Esc 的逻辑得自己写。
  *
- * ## 破坏性操作要二次确认
+ * ## 破坏性操作要二次确认，但确认不在这里
  *
- * 「关闭项目」与「退出」都会让当前这个窗口消失，所以在真正执行之前先问一句
- * （`@renderer/ui/ConfirmDialog`，portal 到 body，因此不会被这条 32px 高的标题栏裁掉）。
+ * 「关闭项目」与「退出」都会让当前这个窗口消失，所以两者都要先问一句。那一问
+ * **不在这个组件里**，而在主进程的动作出口上（见 `main/confirm.ts` 与
+ * `main/lifecycle.ts`）：确认是动作的性质，不是某个按钮的性质 —— 菜单、项目下拉、
+ * 插件、以后加进来的快捷键问的必须是同一句话。这里只负责把动作发出去，
+ * 并且把菜单栏收起来。
+ *
+ * 浮层本身仍然是 `@renderer/ui/ConfirmDialog`（portal 到 body，因此不会被这条
+ * 32px 高的标题栏裁掉），只是现在由 `ui/ConfirmHost` 按主进程的请求摆出来。
  */
 
 interface MenuGroup {
@@ -50,9 +55,6 @@ interface MenuGroup {
   items: MenuItem[]
 }
 
-/** 正在等用户回答的那个二次确认。null 表示没有 */
-type PendingConfirm = 'closeProject' | 'quit'
-
 export function MainMenu(): JSX.Element {
   const t = useT()
   const showView = useLayoutStore((s) => s.showView)
@@ -60,7 +62,6 @@ export function MainMenu(): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   /** 当前展开的子菜单 id。null 表示菜单栏开着但没有任何一项展开 */
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [confirm, setConfirm] = useState<PendingConfirm | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
   const closeMenu = (): void => {
@@ -69,10 +70,9 @@ export function MainMenu(): JSX.Element {
   }
 
   // 关闭逻辑只在展开时挂监听：常驻的 document 级监听器是这类浮层最常见的泄漏来源。
-  // 二次确认浮层开着时**不挂** —— 那时候该由确认框接管键盘，点外面也不该顺手把
-  // 菜单栏一起收掉（收起本身没坏处，但会让「确认框还开着」这个状态看起来很怪）
+  // 确认框不归这里管（它在 ConfirmHost 那一层），所以这一条不需要为它留例外。
   useEffect(() => {
-    if (!menuOpen || confirm) return
+    if (!menuOpen) return
 
     const onPointerDown = (event: MouseEvent): void => {
       if (rootRef.current?.contains(event.target as Node)) return
@@ -99,7 +99,7 @@ export function MainMenu(): JSX.Element {
       document.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('blur', closeMenu)
     }
-  }, [menuOpen, confirm])
+  }, [menuOpen])
 
   /**
    * 包一层「先收起菜单栏再执行」。
@@ -121,7 +121,11 @@ export function MainMenu(): JSX.Element {
           id: 'closeProject',
           label: t('host.menu.file.closeProject'),
           icon: 'close',
-          onSelect: pick(() => setConfirm('closeProject'))
+          /**
+           * 只发动作，不在这里弹确认框：主进程收到之后会先问一句，用户拒了就什么都
+           * 不发生。这样从项目下拉、插件或以后的快捷键关项目，问的是同一句话。
+           */
+          onSelect: pick(() => window.hostAPI.projects.close())
         },
         /**
          * 提交：**不是**可执行动作，而是「打开提交页面」。
@@ -146,7 +150,12 @@ export function MainMenu(): JSX.Element {
           id: 'quit',
           label: t('host.menu.file.quit'),
           icon: 'power',
-          onSelect: pick(() => setConfirm('quit'))
+          /**
+           * 同样只发动作：退出确认问在主进程的 `before-quit` 上（见
+           * main/lifecycle.ts），所以菜单退出、macOS 的 ⌘Q 与关掉最后一个窗口
+           * 之后的自动退出共用同一问。
+           */
+          onSelect: pick(() => window.hostAPI.window.quit())
         }
       ]
     },
@@ -216,35 +225,6 @@ export function MainMenu(): JSX.Element {
 
           <ProjectSelector />
         </>
-      )}
-
-      {confirm === 'closeProject' && (
-        <ConfirmDialog
-          title={t('host.menu.file.closeProject.confirm.title')}
-          message={t('host.menu.file.closeProject.confirm.message')}
-          confirmLabel={t('host.menu.file.closeProject')}
-          cancelLabel={t('host.dialog.cancel')}
-          onConfirm={() => {
-            setConfirm(null)
-            window.hostAPI.projects.close()
-          }}
-          onCancel={() => setConfirm(null)}
-        />
-      )}
-
-      {confirm === 'quit' && (
-        <ConfirmDialog
-          danger
-          title={t('host.menu.file.quit.confirm.title')}
-          message={t('host.menu.file.quit.confirm.message')}
-          confirmLabel={t('host.menu.file.quit')}
-          cancelLabel={t('host.dialog.cancel')}
-          onConfirm={() => {
-            setConfirm(null)
-            window.hostAPI.window.quit()
-          }}
-          onCancel={() => setConfirm(null)}
-        />
       )}
     </div>
   )
