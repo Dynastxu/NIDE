@@ -1,13 +1,15 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { APPEARANCE_CHANNEL } from '@shared/appearance'
 import { installLogger, loggerFor } from './logger'
 import { registerConfirmIPC } from './confirm'
 import { installQuitGate } from './lifecycle'
-import { registerHostIPC } from './ipc/host.ipc'
+import { registerHostIPC, pushEventToRenderer } from './ipc/host.ipc'
 import { registerProjectIPC } from './ipc/project.ipc'
 import { registerWindowIPC, registerWindowActions } from './ipc/window.ipc'
 import { initPluginHost } from './plugin-host'
 import { initI18n } from './i18n'
+import { initAppearance, registerAppearanceBroadcast } from './appearance'
 import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './window'
 
 /**
@@ -56,6 +58,16 @@ app.whenReady().then(() => {
   initPluginHost()
   // 3) 定下语言：窗口标题、原生菜单、以及要传给渲染进程的启动参数都依赖它
   initI18n()
+  /**
+   * 3.5) 定下主题：必须在开窗**之前**（窗口底色与启动参数都用得到），
+   * 且广播出口在这里注入 —— appearance 模块不直接依赖 IPC 模块，
+   * 否则会绕成 appearance -> ipc -> appearance 的循环。
+   *
+   * 放在 initI18n 之后只是为了让日志顺序与"语言 -> 主题"的阅读顺序一致，
+   * 两者之间没有依赖。
+   */
+  initAppearance()
+  registerAppearanceBroadcast((payload) => pushEventToRenderer(APPEARANCE_CHANNEL, payload))
   // 4) 最后开窗：窗口一打开，渲染进程就能拿到完整的视图列表和词条表。
   //    开哪个窗口由「打开过的项目」决定：有可用的上次项目就进主窗口，
   //    否则进欢迎窗口（见 window.ts 的 openStartupWindow）

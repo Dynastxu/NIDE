@@ -1,15 +1,18 @@
 import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
 import { WINDOW_CHANNELS } from '@shared/window'
+import { normalizeAppearancePreference } from '@shared/appearance'
 import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
 import { uiRegistry } from '../plugin-host/ui-registry'
 import { HOST_VIEWS } from '../plugin-host/host-views'
 import { pluginRegistry } from '../plugin-host/plugin-registry'
 import { getDisabledPlugins, setPluginEnabled } from '../plugin-host/preference'
+import { getAppearancePreference, getThemePayload, setThemePreference } from '../appearance'
 import { createMainTranslator, getCurrentLocale, getI18nPayload, switchLocale } from '../i18n'
 import { manifestNlsRegistry } from '../i18n/manifest-nls'
 import { loggerFor, toLogRecord } from '../logger'
 import { getMainWindow, recreateRootWindow } from '../window'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
+import type { ThemePayload } from '@shared/theme'
 import type { PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
 
 const logger = loggerFor('host')
@@ -185,11 +188,33 @@ export function registerHostIPC(): void {
   /** 当前被禁用的插件。渲染进程启动时取一次，用来过滤视图列表 */
   ipcMain.handle('host:get-disabled-plugins', (): string[] => getDisabledPlugins())
 
+  /** 当前主题的完整载荷。渲染进程启动后拉一次，用来填设置页的主题列表 */
+  ipcMain.handle('host:get-theme', (): ThemePayload => getThemePayload())
+
+  /**
+   * 「设置 -> 外观与行为 -> 外观」提交新的主题。
+   *
+   * 载荷只是一个**主题 id**，当作不可信输入收：主题存不存在由注册表回答
+   * （见 setThemePreference），拿不到就拒绝并保持原样 —— 而不是把脏值写进偏好，
+   * 让下次启动还要再回落一次。
+   *
+   * 与 set-locale 的关键差别：这里不重建窗口、不确认。换主题不需要重建（词条表在
+   * 首帧前就固定了），也就不会丢掉未保存的内容。
+   */
+  ipcMain.handle('host:set-theme', (_e, payload: unknown): boolean => {
+    const preference = normalizeAppearancePreference(payload)
+    /**
+     * `followSystem` 刻意**不**从载荷里取：它当前恒为 false（设置页把这一项摆成
+     * 了灰的），渲染进程没有能力打开它。真打开时，那条路应该像切语言一样走
+     * 主进程自己的判断，而不是让渲染进程随手指定。
+     */
+    return setThemePreference(preference.theme, getAppearancePreference().followSystem)
+  })
+
   /** 渲染进程/插件请求切换语言；真正生效靠重建窗口，所以走和菜单同一条路径 */
   ipcMain.handle('host:set-locale', async (_e, locale: LocaleId): Promise<void> => {
     await applyLocaleSwitch(locale)
   })
-
   // 渲染进程 -> 宿主 的事件总线
   ipcMain.on('host:event-emit', (_e, channel: string, ...args: unknown[]) => {
     /**

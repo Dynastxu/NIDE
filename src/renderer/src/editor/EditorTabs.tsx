@@ -181,7 +181,6 @@ function MonacoPane(): JSX.Element {
       if (disposed || !containerRef.current) return
 
       const editor = monacoInstance.editor.create(containerRef.current, {
-        theme: 'vs-dark',
         minimap: { enabled: false },
         fontSize: 14,
         automaticLayout: true,

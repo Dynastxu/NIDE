@@ -101,6 +101,8 @@ export const zhCN = {
   'host.settings.nav.title': '设置选项',
   'host.settings.page.general': '通用',
   'host.settings.page.language': '语言',
+  'host.settings.page.appearanceBehavior': '外观与行为',
+  'host.settings.page.appearance': '外观',
   'host.settings.page.plugins': '插件',
   'host.settings.tree.expand': '展开',
   'host.settings.tree.collapse': '收起',
@@ -121,6 +123,14 @@ export const zhCN = {
     '选择界面语言。切换语言需要重建窗口才能完全生效，编辑器里未保存的内容会丢失。',
   'host.settings.language.current': '当前语言',
   'host.settings.language.restartHint': '切换后窗口会自动重建，需要一点时间。',
+
+  // 设置 -> 外观与行为 -> 外观
+  'host.settings.appearance.description':
+    '选择界面的配色。宿主内置深色与浅色两套。改完点「应用」或「确定」生效，不需要重启。',
+  'host.settings.appearance.theme': '主题',
+  'host.settings.appearance.followSystem.label': '与操作系统同步',
+  'host.settings.appearance.followSystem.hint': '跟随系统的深色 / 浅色外观自动切换',
+  'host.settings.appearance.followSystem.unavailable': '跟随系统暂未实现，这一项还不能选。',
 
   // 设置 -> 插件
   'host.settings.plugins.tab.marketplace': '插件市场',

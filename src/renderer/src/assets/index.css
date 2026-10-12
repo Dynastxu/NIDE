@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+/* 浅色主题：对下面这套深色配色做逐条翻译的纯 CSS 表（见该文件头部的说明）。
+   必须排在 Tailwind 之后：它的选择器带 `.theme-light` 前缀、优先级已经更高，
+   顺序只影响同优先级时的可读性。 */
+@import './light.css';
 
 /* 插件 UI 在项目根的 plugins/ 下（renderer root 之外），显式声明扫描范围 */
 @source '../../../../src';

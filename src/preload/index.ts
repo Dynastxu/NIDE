@@ -9,6 +9,12 @@ import {
   type Logger
 } from '@shared/logger'
 import { DEFAULT_LOCALE, LOCALE_ARG_PREFIX } from '@shared/i18n'
+import {
+  APPEARANCE_ARG_PREFIX,
+  APPEARANCE_CHANNEL,
+  THEME_PALETTE_ARG_PREFIX,
+  normalizeAppearancePreference
+} from '@shared/appearance'
 import { CONFIRM_CHANNELS } from '@shared/confirm'
 import {
   PROJECT_ARG_PREFIX,
@@ -26,6 +32,8 @@ import {
   type WindowType
 } from '@shared/window'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
+import type { AppearancePreference } from '@shared/appearance'
+import type { ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
 import type { ConfirmOptions, ConfirmRequest } from '@shared/confirm'
 import type {
   CreateEntryRequest,
@@ -63,6 +71,40 @@ ipcRenderer.on('host:event', (_event, channel: string, ...args: unknown[]) => {
 function readBootLocale(): LocaleId {
   const arg = process.argv.find((item) => item.startsWith(LOCALE_ARG_PREFIX))
   return arg ? arg.slice(LOCALE_ARG_PREFIX.length) : DEFAULT_LOCALE
+}
+
+/**
+ * 启动偏好：选了哪套主题、要不要跟随系统。和 locale / window type 一样从启动参数里
+ * 同步读。
+ *
+ * 为什么不靠主进程的广播：广播只到得了"此刻已经存在"的窗口（见 shared/appearance
+ * 的 APPEARANCE_ARG_PREFIX 说明）。启动阶段窗口是一个一个建的，先建好的发不出广播、
+ * 后建的也收不到，于是设置页会显示成"默认主题 + 跟随系统没勾"。
+ */
+function readBootAppearance(): AppearancePreference {
+  const arg = process.argv.find((item) => item.startsWith(APPEARANCE_ARG_PREFIX))
+  const value = arg ? arg.slice(APPEARANCE_ARG_PREFIX.length) : ''
+  const [theme, followSystem] = value.split(':')
+
+  // 主题 id 只在「空」时回落：它存不存在由主进程回答（找不到会走 fallbackFrom），
+  // 这里多判一次只会让两端的判断分叉
+  return normalizeAppearancePreference({ theme, followSystem: followSystem === '1' })
+}
+
+/**
+ * 启动配色深浅：当前这套主题是深还是浅，同样从启动参数里同步读。
+ *
+ * 这是**首帧配色**的唯一依据：渲染进程要在画出任何东西之前决定根元素挂不挂
+ * `.theme-light`（浅色那套样式表靠这个类名生效），晚一步就会先按深色画一帧、
+ * 选浅色时表现为整屏闪一下。
+ *
+ * 缺失或写坏时按**深色**算：深色就是组件里写死的那套色阶，也就是"什么都不挂"的
+ * 默认状态 —— 这个回落永远不会画出错误颜色。
+ */
+function readBootPalette(): ThemePalette {
+  const arg = process.argv.find((item) => item.startsWith(THEME_PALETTE_ARG_PREFIX))
+  const value = arg ? arg.slice(THEME_PALETTE_ARG_PREFIX.length) : ''
+  return value === 'light' ? 'light' : 'dark'
 }
 
 /**
@@ -288,6 +330,57 @@ const projectAPI = {
 }
 
 /**
+ * 主题的渲染侧端口。
+ *
+ * 单独收成一个命名空间：它既不是窗口能力也不是项目能力，而是宿主的界面偏好 ——
+ * 和「行为级二次确认」平级。
+ *
+ * 载荷是**主进程算好的结论**（可选哪些主题、现在用哪个、那个主题的每个令牌是什么
+ * 值），不是让渲染进程自己解析主题文件：读盘、瀑布补齐、令牌合法性都在主进程做完，
+ * 渲染进程只负责把令牌写成 CSS 变量。
+ */
+const appearanceAPI = {
+  /**
+   * 订阅主题变化。返回的 Disposable 用来退订。
+   *
+   * 三种来源共用这一条通道：用户在设置里提交了、系统外观变了（跟随系统时）、
+   * 别的窗口改了。渲染进程不需要区分来源。
+   *
+   * **注意载荷形状**：主进程是经 `host:event` 那条既有总线广播的（同
+   * `pushEventToRenderer`），而那条总线的第一个参数是**频道名**，真正的载荷跟在
+   * 它后面。所以这里要按 `(event, channel, payload)` 收，并且自己过滤频道名 ——
+   * 不能按 `(event, payload)` 直接收，也不能 `ipcRenderer.on(APPEARANCE_CHANNEL)`：
+   * 那条通道名只是总线里的一个字符串，从来不是独立的事件名。
+   * 频道名要和 main/appearance 的 APPEARANCE_CHANNEL 一致。
+   */
+  onChanged: (handler: (payload: ThemePayload) => void): Disposable => {
+    const wrapped = (_e: unknown, channel: string, ...args: unknown[]): void => {
+      if (channel !== APPEARANCE_CHANNEL) return
+      const payload = args[0] as ThemePayload | undefined
+      if (payload) handler(payload)
+    }
+    ipcRenderer.on('host:event', wrapped)
+    return {
+      dispose: () => ipcRenderer.off('host:event', wrapped)
+    }
+  },
+
+  /**
+   * 拉一次当前主题的完整载荷（可选哪些、现在用哪个、那个是深是浅）。
+   *
+   * 首帧的配色走启动参数，不依赖这里；这一步补的是**可选主题列表**。
+   */
+  get: (): Promise<ThemePayload> => ipcRenderer.invoke('host:get-theme'),
+
+  /**
+   * 提交一套主题。主进程负责校验、落盘与广播；不重建窗口、不确认、不丢未保存内容。
+   *
+   * 返回 false 表示这个主题不存在（id 拼错），什么都没改。
+   */
+  setTheme: (theme: ThemeId): Promise<boolean> => ipcRenderer.invoke('host:set-theme', { theme })
+}
+
+/**
  * 行为级二次确认的渲染侧端口。
  *
  * 单独收成一个命名空间，因为它的两端都不是「业务」：主进程只发「有人要你确认一件
@@ -446,6 +539,9 @@ const api = {
   /** 项目：打开过的文件夹、当前项目、目录对话框（见 projectAPI 的说明） */
   projects: projectAPI,
 
+  /** 主题偏好（见 appearanceAPI 的说明） */
+  appearance: appearanceAPI,
+
   /**
    * 行为级二次确认在渲染进程这一侧的端口。
    *
@@ -504,6 +600,8 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('hostAPI', api)
     contextBridge.exposeInMainWorld('__NIDE_BOOT__', {
       locale: readBootLocale(),
+      appearance: readBootAppearance(),
+      themePalette: readBootPalette(),
       windowType: readBootWindowType(),
       logLevel,
       projectPath: readBootProjectPath()
@@ -523,6 +621,8 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.__NIDE_BOOT__ = {
     locale: readBootLocale(),
+    appearance: readBootAppearance(),
+    themePalette: readBootPalette(),
     windowType: readBootWindowType(),
     logLevel,
     projectPath: readBootProjectPath()

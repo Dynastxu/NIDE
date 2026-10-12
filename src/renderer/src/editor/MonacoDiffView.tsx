@@ -20,7 +20,6 @@ export function MonacoDiffView(): JSX.Element | null {
       if (disposed || !containerRef.current) return
 
       const diff = monacoInstance.editor.createDiffEditor(containerRef.current, {
-        theme: 'vs-dark',
         renderSideBySide: true,
         ignoreTrimWhitespace: true,
         readOnly: true

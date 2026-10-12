@@ -19,7 +19,9 @@ import { ConfirmHost } from './ui/ConfirmHost'
  *    t() 因此从第一次渲染起就是对的，组件里不需要任何 loading 分支。
  * 3) lang 属性影响断行、字体回退和屏幕阅读器，title 是任务栏 / Alt-Tab 上的
  *    文字 —— 两者都跟着语言走，而 index.html 里写死的是中文。
- * 4) 最后才把界面拉进来，monaco 从这一刻开始求值。
+ * 4) 主题要在**首帧之前**挂到根元素上：晚一步就会先画一帧错误颜色（浅色主题下
+ *    表现为整屏闪一下深色）。启动参数里带着主进程已解析的主题，所以这里同步可得。
+ * 5) 最后才把界面拉进来，monaco 从这一刻开始求值。
  *
  * 任何一步失败都不该白屏：initMonacoNls 内部吞掉异常（编辑器退化成英文），
  * i18n store 的 load 失败时会保留中文基础表。
@@ -66,6 +68,29 @@ async function boot(): Promise<void> {
    */
   const { windowType, projectPath } = window.__NIDE_BOOT__
   document.title = systemWindowTitle(getT(), windowType, projectPath)
+
+  /**
+   * 主题接线。放在这里而不是某个组件里：它要挂根元素的类、要订阅主进程广播，
+   * 两件事都与"哪个界面"无关（主窗口、欢迎窗口、设置窗口一模一样）。
+   *
+   * 界面拉进来之前完成，保证首帧颜色就是对的。
+   */
+  const { initAppearance } = await import('./stores/appearance.store')
+  initAppearance()
+
+  /**
+   * Monaco 的配色也要跟着主题走。
+   *
+   * 只在**主窗口**做：只有它会挂编辑器（设置窗口、欢迎窗口没有），而这一步会
+   * import monaco —— 一个很大的模块，不该为"用不到它"的窗口付这份代价。
+   *
+   * 放在界面拉进来之前：Monaco 的主题是实例级全局，先同步一次，编辑器创建时就不会
+   * 先按默认浅色画一帧再跳。
+   */
+  if (windowType === 'main') {
+    const { initMonacoTheme } = await import('./editor/monaco-theme')
+    initMonacoTheme()
+  }
 
   const { default: Root } = await ROOTS[windowType]()
 

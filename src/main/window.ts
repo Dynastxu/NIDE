@@ -2,6 +2,11 @@ import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { LOCALE_ARG_PREFIX } from '@shared/i18n'
+import {
+  APPEARANCE_ARG_PREFIX,
+  THEME_PALETTE_ARG_PREFIX,
+  encodeAppearancePreference
+} from '@shared/appearance'
 import { PROJECT_ARG_PREFIX } from '@shared/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
@@ -11,6 +16,7 @@ import {
 } from '@shared/window'
 import icon from '../../resources/icon.png?asset'
 import { createMainTranslator, getCurrentLocale } from './i18n'
+import { getAppearancePreference, getCurrentPalette, getCurrentWindowColor } from './appearance'
 import { getLogLevel } from './logger'
 import { getCurrentProject, resolveStartupProject } from './services/project-store'
 import { trackWindowState } from './ipc/window.ipc'
@@ -169,6 +175,15 @@ function buildWindow(type: WindowType, options: BuildOptions = {}): BrowserWindo
     minWidth: spec.minWidth,
     minHeight: spec.minHeight,
     show: false,
+    /**
+     * 窗口底色。
+     *
+     * 取自当前配色（见 shared/theme 的 THEME_WINDOW_COLORS），值与样式表里那种配色的
+     * 页面底色一致。首帧本身由 `ready-to-show` 兜住了（页面画完才 show），它管的是
+     * **页面之外与页面重绘之前**露出来的地方：拖动改大窗口时新露出的那块、合成器还没
+     * 跟上时的窗口背景。
+     */
+    backgroundColor: getCurrentWindowColor(),
     // 原生标题栏已经换成自绘的（见 frameOptions），留着菜单栏会在自绘标题栏
     // 上方再压一条，等于白做了。Alt 仍然能唤出菜单。
     autoHideMenuBar: true,
@@ -182,18 +197,26 @@ function buildWindow(type: WindowType, options: BuildOptions = {}): BrowserWindo
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       /**
-       * 四个启动参数，都是**建窗时**固定的，reload 不会重新执行主进程：
+       * 七个启动参数，都是**建窗时**固定的，reload 不会重新执行主进程：
        * - locale：Monaco 的 NLS 全局必须在 monaco 模块被求值之前设好，那条
        *   路径上没有 await 的机会，所以只能同步喂进来（见 preload 注释）。
+       * - appearance：完整偏好（选了哪套主题、要不要跟随系统）。**必须同步**：
+       *   主进程的广播只到得了建窗时已经存在的窗口。
+       * - theme palette：当前配色是深是浅。渲染进程要在首帧之前据此决定根元素挂不挂
+       *   `.theme-light`，晚一步就会先按深色画一帧。
        * - window type：渲染进程据此决定挂载哪个界面。
        * - log level：渲染进程据此决定是否接管 console、以及每条日志发不发。
        *   级别由主进程统一解析，两端只共用结论（见 shared/window 的说明）。
        * - project：当前项目路径（没有项目时是空串）。标题栏第一帧就要显示项目名，
        *   异步 IPC 会先渲染一版没有项目名的标题再跳一下。
-       * 这也是「切语言必须重建窗口」的根因。
+       *
+       * 这也是「切语言必须重建窗口」的根因。主题**不受**这条约束：它不重建窗口，
+       * 各窗口收到 host:appearance-changed 广播后自己换掉即可（见 main/appearance）。
        */
       additionalArguments: [
         `${LOCALE_ARG_PREFIX}${getCurrentLocale()}`,
+        `${APPEARANCE_ARG_PREFIX}${encodeAppearancePreference(getAppearancePreference())}`,
+        `${THEME_PALETTE_ARG_PREFIX}${getCurrentPalette()}`,
         `${WINDOW_ARG_PREFIX}${type}`,
         `${LOG_LEVEL_ARG_PREFIX}${getLogLevel()}`,
         `${PROJECT_ARG_PREFIX}${projectPath ?? ''}`

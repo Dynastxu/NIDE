@@ -16,7 +16,7 @@ import type { HostMessageKey } from '@shared/i18n'
  *    下面会再跟一组子设置链接（见 SettingsPageHost），否则那些子节点就再也
  *    进不去了 —— 它们只在树上可见，而树可以收起。
  */
-export type SettingsPageId = 'language' | 'plugins'
+export type SettingsPageId = 'language' | 'appearance' | 'plugins'
 
 export interface SettingsNode {
   id: string
@@ -33,8 +33,11 @@ export interface SettingsNode {
  * 设置树。
  *
  * 根节点不出现在界面上（它只是个容器），所以这里直接列出顶层设置项。
- * 三个顶层项是**平级**的，嵌套只用在该分层的地方：语言属于通用，插件不属于
- * 任何东西 —— 插件是宿主的一等公民，不是"通用设置里的某一项"。
+ * 顶层项是**平级**的，嵌套只用在该分层的地方：语言属于通用，外观属于外观与行为，
+ * 插件不属于任何东西 —— 插件是宿主的一等公民，不是"通用设置里的某一项"。
+ *
+ * 「外观与行为」自己**刻意没有页面**（和「通用」一样）：点它显示子设置入口。
+ * 「外观」这一层则相反 —— 它就是一个页面，直接落在树上、不再多套一级。
  */
 export const SETTINGS_TREE: SettingsNode[] = [
   {
@@ -45,12 +48,25 @@ export const SETTINGS_TREE: SettingsNode[] = [
       { id: 'general.language', labelKey: 'host.settings.page.language', page: 'language' }
     ]
   },
+  {
+    id: 'appearance-behavior',
+    labelKey: 'host.settings.page.appearanceBehavior',
+    // 同样刻意没有 page：这一项是分组，点它显示「外观」这一个子设置
+    children: [
+      {
+        id: 'appearance-behavior.appearance',
+        labelKey: 'host.settings.page.appearance',
+        page: 'appearance'
+      }
+    ]
+  },
   { id: 'plugins', labelKey: 'host.settings.page.plugins', page: 'plugins' }
 ]
 
 /** 每页的标题词条，供页面体和默认页里的链接共用一份文案 */
 export const PAGE_LABEL_KEYS: Record<SettingsPageId, HostMessageKey> = {
   language: 'host.settings.page.language',
+  appearance: 'host.settings.page.appearance',
   plugins: 'host.settings.page.plugins'
 }
 
@@ -65,6 +81,7 @@ export const SETTINGS_PAGES: Record<
   () => Promise<{ default: (props: SettingsPageProps) => JSX.Element }>
 > = {
   language: () => import('@renderer/settings/pages/LanguagePage'),
+  appearance: () => import('@renderer/settings/pages/AppearancePage'),
   plugins: () => import('@renderer/settings/pages/PluginsPage')
 }
 

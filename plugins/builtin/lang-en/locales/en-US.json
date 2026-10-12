@@ -66,6 +66,8 @@
   "host.settings.nav.title": "Settings",
   "host.settings.page.general": "General",
   "host.settings.page.language": "Language",
+  "host.settings.page.appearanceBehavior": "Appearance & Behavior",
+  "host.settings.page.appearance": "Appearance",
   "host.settings.page.plugins": "Plugins",
   "host.settings.tree.expand": "Expand",
   "host.settings.tree.collapse": "Collapse",
@@ -82,6 +84,12 @@
   "host.settings.language.description": "Choose the interface language. Switching requires rebuilding the window to take full effect, and unsaved editor content will be lost.",
   "host.settings.language.current": "Current language",
   "host.settings.language.restartHint": "The window is rebuilt automatically after switching; it takes a moment.",
+
+  "host.settings.appearance.description": "Choose the interface colors. The host ships a dark and a light theme. Click Apply or OK to take effect; no restart is needed.",
+  "host.settings.appearance.theme": "Theme",
+  "host.settings.appearance.followSystem.label": "Sync with operating system",
+  "host.settings.appearance.followSystem.hint": "Switch automatically with the system's dark / light appearance",
+  "host.settings.appearance.followSystem.unavailable": "Following the system is not implemented yet, so this item cannot be selected.",
 
   "host.settings.plugins.tab.marketplace": "Marketplace",
   "host.settings.plugins.tab.installed": "Installed",

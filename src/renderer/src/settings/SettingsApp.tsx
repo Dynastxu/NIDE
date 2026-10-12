@@ -185,6 +185,7 @@ const PAGE_COMPONENTS: Record<
   LazyExoticComponent<(p: SettingsPageProps) => JSX.Element>
 > = {
   language: lazy(SETTINGS_PAGES.language),
+  appearance: lazy(SETTINGS_PAGES.appearance),
   plugins: lazy(SETTINGS_PAGES.plugins)
 }
 

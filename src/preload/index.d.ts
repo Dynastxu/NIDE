@@ -1,6 +1,8 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
 import type { LogLevel } from '@shared/logger'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
+import type { AppearancePreference } from '@shared/appearance'
+import type { ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
 import type { ConfirmOptions, ConfirmRequest } from '@shared/confirm'
 import type {
   CreateEntryRequest,
@@ -23,8 +25,12 @@ import type { WindowAction, WindowState, WindowType } from '@shared/window'
 /**
  * preload 在渲染进程里同步暴露的启动信息。
  *
- * 四项都必须**同步**可得，因为渲染进程要在第一帧、任何异步 IPC 之前就用到：
+ * 六项都必须**同步**可得，因为渲染进程要在第一帧、任何异步 IPC 之前就用到：
  * - locale 是 Monaco NLS 唯一需要的东西，而它必须在 monaco 模块求值前设好；
+ * - appearance 决定设置页选中哪套主题。**必须同步**：主进程的广播只到得了建窗时
+ *   已经存在的窗口，启动阶段先建好的窗口发不出广播、后建的也收不到；
+ * - themePalette 说明当前配色是深是浅，要在首帧之前决定根元素挂不挂 `.theme-light`，
+ *   晚一步就会先按内置深色画一帧；
  * - windowType 决定挂载哪个根组件，晚一步拿到就会先渲染错的界面；
  * - logLevel 决定是否接管 console，同理要在首个模块求值前拿到；
  * - projectPath 进窗口标题（标题栏第一帧就显示项目名，异步取会跳一下）。
@@ -32,6 +38,14 @@ import type { WindowAction, WindowState, WindowType } from '@shared/window'
 export interface NideBootInfo {
   /** 主进程建窗时定下的语言（BCP-47），例如 "zh-CN" */
   locale: LocaleId
+  /** 用户选的主题（id + 是否跟随系统）。首帧就要喂进来，理由见上面的说明 */
+  appearance: AppearancePreference
+  /**
+   * 当前这套配色是深还是浅。
+   *
+   * 渲染进程按它决定根元素挂不挂 `.theme-light`（浅色那套样式表靠这个类名生效）。
+   */
+  themePalette: ThemePalette
   /** 这个窗口是哪种窗口。渲染进程据此选根组件 */
   windowType: WindowType
   /** 主进程解析出的日志级别阈值。渲染进程只读结论，不重新解析环境变量 */
@@ -77,6 +91,22 @@ export interface WindowAPI {
    * 的自动退出共用同一问；`{ confirm: false }` 表示调用方刚刚已经问过了。
    */
   quit: (options?: ConfirmOptions) => void
+}
+
+/**
+ * 主题的渲染侧端口。
+ *
+ * 载荷是**主进程算好的结论**（可选哪些主题、现在用哪个、每个令牌是什么值），
+ * 不是让渲染进程自己解析主题：读盘、瀑布补齐、令牌合法性都在主进程做完，
+ * 渲染进程只负责把令牌写成 CSS 变量。
+ */
+export interface AppearanceAPI {
+  /** 订阅主题变化：用户提交了、系统外观变了、别的窗口改了，都走这一条 */
+  onChanged: (handler: (payload: ThemePayload) => void) => Disposable
+  /** 拉一次当前载荷：可选主题列表 + 当前主题的令牌值 */
+  get: () => Promise<ThemePayload>
+  /** 提交一套主题。主进程校验并广播；不重建窗口，也不丢未保存的内容 */
+  setTheme: (theme: ThemeId) => Promise<boolean>
 }
 
 /**
@@ -171,6 +201,8 @@ export interface HostAPI {
   window: WindowAPI
   /** 打开过的项目 / 当前项目 */
   projects: ProjectAPI
+  /** 主题偏好（见 AppearanceAPI） */
+  appearance: AppearanceAPI
   /** 行为级二次确认的渲染侧端口（只有 ConfirmHost 用） */
   confirm: ConfirmAPI
   reloadPlugin: (pluginId: string) => Promise<void>
