@@ -1,0 +1,32 @@
+name: Code Review On Mention
+
+on:
+  issue_comment:
+    types: [created]          # 只有新评论被创建时才触发
+
+permissions:
+  pull-requests: write        # 官方示例只需要这个权限
+
+jobs:
+  setup-deepseek-review:
+    timeout-minutes: 30
+    # 只在评论属于 PR 时运行，避免普通 Issue 评论也启动 job
+    if: github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    name: DeepSeek Code Review
+    steps:
+      - name: DeepSeek Code Review
+        uses: hustcer/deepseek-review@v1
+        with:
+          chat-token: ${{ secrets.CHAT_TOKEN }}
+          model: "deepseek-flash"
+          watch-mention: "@github-actions"   # 关键：由 Action 内部判断是否提及
+          allowed-associations: "OWNER,MEMBER,COLLABORATOR"  # 可选，默认值就是这三个
+          sys-prompt: |
+            You are a professional code review assistant responsible for analyzing code changes in GitHub Pull Requests. Identify potential issues such as code style violations, logical errors, security vulnerabilities, and provide improvement suggestions. Clearly list the problems and recommendations in a concise manner.
+
+            Use Chinese to answer the user.
+          user-prompt: |
+            Please review the following code changes
+
+            Use Chinese to answer me.
