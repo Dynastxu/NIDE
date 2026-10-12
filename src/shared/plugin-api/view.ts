@@ -8,13 +8,42 @@ export type ViewLocation =
  * 与工具区：一个区同一时刻只展示一个视图，如果内建视图另走一条路，就会出现
  * 「插件视图和内建视图同时占着左上角」这种没有答案的布局问题。
  *
- * 用这个 id 才不会和真插件撞名：插件的 id 由 manifest 声明，格式是
- * `<发布者>.<插件名>`，不会有人叫 `host`。
+ * 用这个 id 才不会和真插件撞名：插件 id 由 manifest 自己声明，约定是
+ * `<来源>.<插件目录名>`（内置插件 `builtin.`，第三方插件在 userData 下，
+ * 例如 `builtin.demo` / `user.lang-en`）。
+ *
+ * 整个 `host` / `host.*` 命名空间由宿主保留。这不是靠约定维持的：加载器
+ * 用 isReservedHostId 在注册之前拒绝占用它的 manifest id 或视图 id
+ * （见 plugin-host/loader.ts），否则一个第三方 manifest 就能把内建视图
+ * 挤出同一张视图表。
  *
  * 渲染进程据此把内建视图交给宿主的组件表（HostSlot），插件视图仍走
  * import.meta.glob 那套。
  */
 export const HOST_VIEW_PLUGIN_ID = 'host'
+
+/**
+ * `host` 命名空间的保留前缀。
+ *
+ * `host` 本身已经由 HOST_VIEW_PLUGIN_ID 占用，`host.` 前缀则是内建视图 id 的
+ * 专属空间。两者合起来构成宿主的保留 id 空间：插件既不能叫这些名字，也不能
+ * 注册这些视图 id —— 否则一个第三方 manifest 就能把内建视图挤出视图表。
+ */
+const HOST_NAMESPACE_PREFIX = `${HOST_VIEW_PLUGIN_ID}.`
+
+/**
+ * 这个 id 是否落在宿主保留的 `host` 命名空间里。
+ *
+ * 纯函数，不读任何注册表：加载器要用它**在注册之前**拦下越界的 manifest，
+ * 因此它不能依赖「已经注册了什么」。
+ *
+ * 判据是整个命名空间而不是 HOST_VIEW_PLUGIN_ID 一个值：撞上 `host.explorer`
+ * 这类 id 会把内建视图挤出视图表（UIRegistry 是同名覆盖），同属越界。
+ * `hostile` 这种只是前缀相同的普通名字不算越界。
+ */
+export function isReservedHostId(id: string): boolean {
+  return id === HOST_VIEW_PLUGIN_ID || id.startsWith(HOST_NAMESPACE_PREFIX)
+}
 
 /** 文件树视图的 id。渲染进程按它选组件，主进程按它注册 */
 export const HOST_EXPLORER_VIEW_ID = 'host.explorer'

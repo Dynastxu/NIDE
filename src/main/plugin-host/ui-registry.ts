@@ -39,6 +39,17 @@ export class UIRegistry {
       if (view.pluginId === pluginId) this.views.delete(viewId)
     }
   }
+
+  /**
+   * 清空注册表。
+   *
+   * 只给测试用：这是模块级单例，同一进程里跑多个用例时上一条的视图会留在表里，
+   * 让「注册了几个视图」这类断言互相污染。生产代码永远不需要它 ——
+   * 卸载插件走 unregisterByPlugin。
+   */
+  reset(): void {
+    this.views.clear()
+  }
 }
 
 export const uiRegistry = new UIRegistry()

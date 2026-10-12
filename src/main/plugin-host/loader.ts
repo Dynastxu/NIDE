@@ -13,6 +13,7 @@ import {
 import { loggerFor } from '../logger'
 import type { LocaleId, LocaleSourceTier, MessageTable } from '@shared/i18n'
 import type { ManifestNlsTables } from '../i18n/manifest-nls'
+import { isReservedHostId } from '@shared/plugin-api'
 import type { PluginManifest, ViewLocation } from '@shared/plugin-api'
 import type { Logger } from '@shared/logger'
 
@@ -243,6 +244,25 @@ export class PluginLoader {
     const pluginDir = path.dirname(manifestPath)
     const dir = path.basename(pluginDir)
 
+    /**
+     * 保留 id 空间在**任何注册发生之前**拒绝，整个 manifest 都不作数。
+     *
+     * 越界的后果不是报错而是串台：这个插件的视图会被当成内建视图送进 HostSlot，
+     * 在设置里禁用 `host` 还会把内建视图一起关掉。而 UIRegistry 与插件清单都是
+     * 同名覆盖，放过它就等于让插件悄悄顶掉宿主自己的登记项。
+     *
+     * 这里连同它的语言包一起拒绝：一个连身份都不合法的插件，不该有机会往
+     * 词条表里写东西 —— 词条表是全局共享的，污染面比视图表更大。
+     */
+    if (isReservedHostId(manifest.id)) {
+      logger.error('Plugin id claims the host namespace, the plugin is rejected', {
+        file: manifestPath,
+        pluginId: manifest.id,
+        dir
+      })
+      return null
+    }
+
     permissionManager.register(manifest.id, manifest.permissions ?? [])
 
     // manifest 文案的词条先读进来：下面注册视图时要拿它校验占位符能不能落地
@@ -250,6 +270,17 @@ export class PluginLoader {
     if (nlsTables) manifestNlsRegistry.register(manifest.id, nlsTables)
 
     for (const view of manifest.contributes?.views ?? []) {
+      // 视图 id 同样不得占用保留空间：内建视图与插件视图共用同一张表，
+      // 同名注册是覆盖而不是报错，必须在这里拦下（见 isReservedHostId）
+      if (isReservedHostId(view.id)) {
+        logger.error('View id claims the host namespace, the view is skipped', {
+          pluginId: manifest.id,
+          viewId: view.id,
+          dir
+        })
+        continue
+      }
+
       const entryAbs = path.resolve(pluginDir, view.entry ?? DEFAULT_VIEW_ENTRY)
       // 关键：只传「插件目录内的相对路径」——不含盘符、不依赖 cwd，
       // dev 与打包后的取值完全一致。
