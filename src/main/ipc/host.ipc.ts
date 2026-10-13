@@ -1,5 +1,6 @@
 import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
 import { WINDOW_CHANNELS } from '@shared/window'
+import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
 import { normalizeAppearancePreference } from '@shared/appearance'
 import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
 import { uiRegistry } from '../plugin-host/ui-registry'
@@ -17,14 +18,6 @@ import type { PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
 
 const logger = loggerFor('host')
 const pluginLogger = loggerFor('plugin-host')
-
-/**
- * 插件启用状态变化的事件名。
- *
- * 走既有的 `host:event-emit` 那套事件总线（host:event 通道 + 频道名），
- * 而不是新开一条 IPC：这就是一条「宿主通知所有窗口」的广播，形状完全一样。
- */
-export const PLUGIN_STATE_CHANGED_EVENT = 'plugin:enabled-changed'
 
 /**
  * 切语言：先用**当前**语言征求同意，再落盘、重建窗口。
@@ -104,7 +97,7 @@ export function registerHostIPC(): void {
    * 排在前面是为了让它们成为各自区的**第一个视图**，也就是该区 activeViewId
    * 为 null 时默认展示的那一个 —— 打开工作台就该看见文件树，而不是演示面板。
    */
-  ipcMain.handle('host:get-plugin-views', (): PluginViewDescriptor[] => {
+  ipcMain.handle(HOST_CHANNELS.getPluginViews, (): PluginViewDescriptor[] => {
     const locale = getCurrentLocale()
     const t = createMainTranslator()
 
@@ -133,7 +126,7 @@ export function registerHostIPC(): void {
    * 走 IPC 而不是让渲染进程自己读盘：渲染进程在 Chromium 沙箱里没有 fs，
    * 而且打包后插件可能躺在 asar 里 —— 只有主进程能读。
    */
-  ipcMain.handle('host:get-i18n', (): I18nPayload => getI18nPayload())
+  ipcMain.handle(HOST_CHANNELS.getI18n, (): I18nPayload => getI18nPayload())
 
   /**
    * 「设置 -> 插件」要的清单：装了哪些插件。
@@ -142,7 +135,7 @@ export function registerHostIPC(): void {
    * 「磁盘上有哪些插件」。纯数据插件（语言包）只有后者认得，而设置界面必须
    * 把它们列出来 —— 用户装了个语言包却在插件列表里找不到，那是最容易踩的坑。
    */
-  ipcMain.handle('host:get-plugins', (): PluginDescriptor[] => {
+  ipcMain.handle(HOST_CHANNELS.getPlugins, (): PluginDescriptor[] => {
     return pluginRegistry
       .getAll()
       .map((plugin) => ({
@@ -170,26 +163,29 @@ export function registerHostIPC(): void {
    * 丢掉编辑器里未保存的内容 —— 而语言切换之所以能那样做，是因为它低频且真的
    * 无法热更新。
    */
-  ipcMain.handle('host:set-plugin-enabled', (_event, pluginId: string, enabled: boolean): void => {
-    setPluginEnabled(pluginId, enabled)
+  ipcMain.handle(
+    HOST_CHANNELS.setPluginEnabled,
+    (_event, pluginId: string, enabled: boolean): void => {
+      setPluginEnabled(pluginId, enabled)
 
-    pluginLogger.info(`Plugin ${enabled ? 'enabled' : 'disabled'}`, { pluginId })
+      pluginLogger.info(`Plugin ${enabled ? 'enabled' : 'disabled'}`, { pluginId })
 
-    /**
-     * 广播给**所有**窗口。
-     *
-     * 必要性来自窗口模型：设置窗口和主窗口是两个渲染进程，各自持有一份 zustand
-     * store。在设置窗口里取消勾选、主窗口那边不会有任何变化 —— 除非有人告诉它。
-     * pushEventToRenderer 是既有的宿主 -> 全窗口广播通道，这里正好是它的用途。
-     */
-    pushEventToRenderer(PLUGIN_STATE_CHANGED_EVENT, pluginId, enabled)
-  })
+      /**
+       * 广播给**所有**窗口。
+       *
+       * 必要性来自窗口模型：设置窗口和主窗口是两个渲染进程，各自持有一份 zustand
+       * store。在设置窗口里取消勾选、主窗口那边不会有任何变化 —— 除非有人告诉它。
+       * pushEventToRenderer 是既有的宿主 -> 全窗口广播通道，这里正好是它的用途。
+       */
+      pushEventToRenderer(HOST_EVENT_CHANNELS.pluginEnabledChanged, pluginId, enabled)
+    }
+  )
 
   /** 当前被禁用的插件。渲染进程启动时取一次，用来过滤视图列表 */
-  ipcMain.handle('host:get-disabled-plugins', (): string[] => getDisabledPlugins())
+  ipcMain.handle(HOST_CHANNELS.getDisabledPlugins, (): string[] => getDisabledPlugins())
 
   /** 当前主题的完整载荷。渲染进程启动后拉一次，用来填设置页的主题列表 */
-  ipcMain.handle('host:get-theme', (): ThemePayload => getThemePayload())
+  ipcMain.handle(HOST_CHANNELS.getTheme, (): ThemePayload => getThemePayload())
 
   /**
    * 「设置 -> 外观与行为 -> 外观」提交新的主题。
@@ -201,7 +197,7 @@ export function registerHostIPC(): void {
    * 与 set-locale 的关键差别：这里不重建窗口、不确认。换主题不需要重建（词条表在
    * 首帧前就固定了），也就不会丢掉未保存的内容。
    */
-  ipcMain.handle('host:set-theme', (_e, payload: unknown): boolean => {
+  ipcMain.handle(HOST_CHANNELS.setTheme, (_e, payload: unknown): boolean => {
     const preference = normalizeAppearancePreference(payload)
     /**
      * `followSystem` 刻意**不**从载荷里取：它当前恒为 false（设置页把这一项摆成
@@ -212,11 +208,11 @@ export function registerHostIPC(): void {
   })
 
   /** 渲染进程/插件请求切换语言；真正生效靠重建窗口，所以走和菜单同一条路径 */
-  ipcMain.handle('host:set-locale', async (_e, locale: LocaleId): Promise<void> => {
+  ipcMain.handle(HOST_CHANNELS.setLocale, async (_e, locale: LocaleId): Promise<void> => {
     await applyLocaleSwitch(locale)
   })
   // 渲染进程 -> 宿主 的事件总线
-  ipcMain.on('host:event-emit', (_e, channel: string, ...args: unknown[]) => {
+  ipcMain.on(HOST_CHANNELS.eventEmit, (_e, channel: string, ...args: unknown[]) => {
     /**
      * 只记频道名和参数个数，**不记参数内容**。
      *
@@ -230,7 +226,7 @@ export function registerHostIPC(): void {
   })
 
   // 编辑器内容变化（先落日志，后续用于脏标记 / 持久化）
-  ipcMain.on('host:editor-change', (_e, filePath: string, content: string) => {
+  ipcMain.on(HOST_CHANNELS.editorChange, (_e, filePath: string, content: string) => {
     /**
      * debug 级别：这条消息**每次按键**都会来，info 级别会让日志文件被逐键
      * 记录冲掉。要排查它时把 NIDE_LOG_LEVEL 设成 debug。
@@ -239,7 +235,7 @@ export function registerHostIPC(): void {
   })
 
   // 插件重载（占位，等插件后端接上再实现）
-  ipcMain.handle('host:reload-plugin', (_e, pluginId: string) => {
+  ipcMain.handle(HOST_CHANNELS.reloadPlugin, (_e, pluginId: string) => {
     pluginLogger.info('Plugin reload requested', { pluginId, implemented: false })
   })
 
@@ -268,7 +264,7 @@ export function registerHostIPC(): void {
    * 切语言要重建窗口（会丢未保存内容、要确认），而右键菜单是个轻量、无确认的
    * 交互面 —— 把一个破坏性操作塞进右键菜单，用户点中的代价和收益不成比例。
    */
-  ipcMain.handle('host:show-stripe-menu', (event, showTitles: boolean): Promise<boolean> => {
+  ipcMain.handle(HOST_CHANNELS.showStripeMenu, (event, showTitles: boolean): Promise<boolean> => {
     return new Promise<boolean>((resolve) => {
       const t = createMainTranslator()
       let next = showTitles
@@ -297,7 +293,7 @@ export function registerHostIPC(): void {
 export function pushEventToRenderer(channel: string, ...args: unknown[]): void {
   for (const wc of webContents.getAllWebContents()) {
     if (wc.isDestroyed()) continue
-    wc.send('host:event', channel, ...args)
+    wc.send(HOST_CHANNELS.event, channel, ...args)
   }
 }
 
@@ -305,7 +301,7 @@ export function pushEventToRenderer(channel: string, ...args: unknown[]): void {
 export function notifyFileChanged(filePath: string, content: string): void {
   for (const wc of webContents.getAllWebContents()) {
     if (wc.isDestroyed()) continue
-    wc.send('host:file-changed', filePath, content)
+    wc.send(HOST_CHANNELS.fileChanged, filePath, content)
   }
 }
 
@@ -313,6 +309,6 @@ export function notifyFileChanged(filePath: string, content: string): void {
 export function requestShowDiff(original: string, modified: string): void {
   for (const wc of webContents.getAllWebContents()) {
     if (wc.isDestroyed()) continue
-    wc.send('host:show-diff', original, modified)
+    wc.send(HOST_CHANNELS.showDiff, original, modified)
   }
 }

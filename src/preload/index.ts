@@ -16,6 +16,7 @@ import {
   normalizeAppearancePreference
 } from '@shared/appearance'
 import { CONFIRM_CHANNELS } from '@shared/confirm'
+import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
 import {
   PROJECT_ARG_PREFIX,
   PROJECT_CHANNELS,
@@ -55,7 +56,7 @@ import type { Disposable, PluginDescriptor } from '@shared/plugin-api'
 // 通用事件总线（渲染进程侧）
 const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
 
-ipcRenderer.on('host:event', (_event, channel: string, ...args: unknown[]) => {
+ipcRenderer.on(HOST_CHANNELS.event, (_event, channel: string, ...args: unknown[]) => {
   listeners.get(channel)?.forEach((handler) => handler(...args))
 })
 
@@ -359,9 +360,9 @@ const appearanceAPI = {
       const payload = args[0] as ThemePayload | undefined
       if (payload) handler(payload)
     }
-    ipcRenderer.on('host:event', wrapped)
+    ipcRenderer.on(HOST_CHANNELS.event, wrapped)
     return {
-      dispose: () => ipcRenderer.off('host:event', wrapped)
+      dispose: () => ipcRenderer.off(HOST_CHANNELS.event, wrapped)
     }
   },
 
@@ -370,14 +371,15 @@ const appearanceAPI = {
    *
    * 首帧的配色走启动参数，不依赖这里；这一步补的是**可选主题列表**。
    */
-  get: (): Promise<ThemePayload> => ipcRenderer.invoke('host:get-theme'),
+  get: (): Promise<ThemePayload> => ipcRenderer.invoke(HOST_CHANNELS.getTheme),
 
   /**
    * 提交一套主题。主进程负责校验、落盘与广播；不重建窗口、不确认、不丢未保存内容。
    *
    * 返回 false 表示这个主题不存在（id 拼错），什么都没改。
    */
-  setTheme: (theme: ThemeId): Promise<boolean> => ipcRenderer.invoke('host:set-theme', { theme })
+  setTheme: (theme: ThemeId): Promise<boolean> =>
+    ipcRenderer.invoke(HOST_CHANNELS.setTheme, { theme })
 }
 
 /**
@@ -418,22 +420,22 @@ const api = {
    * 获取所有插件注册的 UI 视图元信息。
    * 返回 [{ id, title, location, pluginId, dir, entry }] —— 纯数据。
    */
-  getPluginViews: () => ipcRenderer.invoke('host:get-plugin-views'),
+  getPluginViews: () => ipcRenderer.invoke(HOST_CHANNELS.getPluginViews),
   /** 获取当前语言的词条表、可用语言列表和漏翻体检结果。
    *
    * 渲染进程没有 fs，也不该知道语言包文件在哪 —— 它只消费主进程算好的结果。
    */
-  getI18n: (): Promise<I18nPayload> => ipcRenderer.invoke('host:get-i18n'),
+  getI18n: (): Promise<I18nPayload> => ipcRenderer.invoke(HOST_CHANNELS.getI18n),
 
   /** 「设置 -> 插件」用的插件清单。和 getPluginViews 是两件事：那个是视图，这个是插件本体 */
-  getPlugins: (): Promise<PluginDescriptor[]> => ipcRenderer.invoke('host:get-plugins'),
+  getPlugins: (): Promise<PluginDescriptor[]> => ipcRenderer.invoke(HOST_CHANNELS.getPlugins),
 
   /** 启用 / 禁用插件。禁用后它的视图会从工具区消失；状态由宿主落盘，重启后仍然有效 */
   setPluginEnabled: (pluginId: string, enabled: boolean): Promise<void> =>
-    ipcRenderer.invoke('host:set-plugin-enabled', pluginId, enabled),
+    ipcRenderer.invoke(HOST_CHANNELS.setPluginEnabled, pluginId, enabled),
 
   /** 当前被禁用的插件 id（宿主持久化过的那份）。渲染进程启动时取一次，用来过滤视图列表 */
-  getDisabledPlugins: (): Promise<string[]> => ipcRenderer.invoke('host:get-disabled-plugins'),
+  getDisabledPlugins: (): Promise<string[]> => ipcRenderer.invoke(HOST_CHANNELS.getDisabledPlugins),
 
   /**
    * 订阅「插件启用状态变了」。
@@ -441,30 +443,31 @@ const api = {
    * 需要它的原因是窗口模型：设置窗口和主窗口是两个渲染进程、两份 store。
    * 在设置窗口里禁用插件，主窗口那边的视图列表不会自己更新 —— 必须有人推它一把。
    *
-   * 注意载荷形状：主进程是经 `host:event` 这条既有总线广播的，而那条总线的
-   * 第一个参数是**频道名**，真正的参数跟在它后面。所以这里的 wrapped 要按
+   * 注意载荷形状：主进程是经 `HOST_CHANNELS.event` 这条既有总线广播的，而那条
+   * 总线的第一个参数是**频道名**，真正的参数跟在它后面。所以这里的 wrapped 要按
    * `(event, channel, ...args)` 收，不能直接按 `(event, pluginId, enabled)` 收。
-   * 频道名要和主进程 host.ipc.ts 的 PLUGIN_STATE_CHANGED_EVENT 一致。
+   * 频道名取自 HOST_EVENT_CHANNELS，与主进程发送方共用同一个常量。
    */
   onPluginEnabledChanged: (handler: (pluginId: string, enabled: boolean) => void): Disposable => {
     const wrapped = (_e: unknown, channel: string, ...args: unknown[]): void => {
-      if (channel !== 'plugin:enabled-changed') return
+      if (channel !== HOST_EVENT_CHANNELS.pluginEnabledChanged) return
       handler(String(args[0]), Boolean(args[1]))
     }
-    ipcRenderer.on('host:event', wrapped)
+    ipcRenderer.on(HOST_CHANNELS.event, wrapped)
     return {
-      dispose: () => ipcRenderer.off('host:event', wrapped)
+      dispose: () => ipcRenderer.off(HOST_CHANNELS.event, wrapped)
     }
   },
 
   /** 请求切换语言。真正生效需要重建窗口，由主进程自己处理 */
-  setLocale: (locale: LocaleId): Promise<void> => ipcRenderer.invoke('host:set-locale', locale),
+  setLocale: (locale: LocaleId): Promise<void> =>
+    ipcRenderer.invoke(HOST_CHANNELS.setLocale, locale),
 
   /**
    * 事件总线：渲染进程向宿主（或插件后端）发送事件
    */
   emitEvent: (channel: string, ...args: unknown[]) => {
-    ipcRenderer.send('host:event-emit', channel, ...args)
+    ipcRenderer.send(HOST_CHANNELS.eventEmit, channel, ...args)
   },
 
   /**
@@ -484,16 +487,16 @@ const api = {
 
   /** 编辑器内容变化通知主进程 */
   notifyEditorChange: (filePath: string, content: string) => {
-    ipcRenderer.send('host:editor-change', filePath, content)
+    ipcRenderer.send(HOST_CHANNELS.editorChange, filePath, content)
   },
 
   /** 宿主请求展示 Diff（Monaco Diff 组件消费） */
   onShowDiff: (handler: (original: string, modified: string) => void): Disposable => {
     const wrapped = (_e: unknown, original: string, modified: string): void =>
       handler(original, modified)
-    ipcRenderer.on('host:show-diff', wrapped)
+    ipcRenderer.on(HOST_CHANNELS.showDiff, wrapped)
     return {
-      dispose: () => ipcRenderer.off('host:show-diff', wrapped)
+      dispose: () => ipcRenderer.off(HOST_CHANNELS.showDiff, wrapped)
     }
   },
 
@@ -501,15 +504,15 @@ const api = {
   onFileChanged: (handler: (filePath: string, content: string) => void): Disposable => {
     const wrapped = (_e: unknown, filePath: string, content: string): void =>
       handler(filePath, content)
-    ipcRenderer.on('host:file-changed', wrapped)
+    ipcRenderer.on(HOST_CHANNELS.fileChanged, wrapped)
     return {
-      dispose: () => ipcRenderer.off('host:file-changed', wrapped)
+      dispose: () => ipcRenderer.off(HOST_CHANNELS.fileChanged, wrapped)
     }
   },
 
   /** 弹出按钮条的右键菜单，返回「显示标题」的最新勾选状态 */
   showStripeMenu: (showTitles: boolean): Promise<boolean> =>
-    ipcRenderer.invoke('host:show-stripe-menu', showTitles),
+    ipcRenderer.invoke(HOST_CHANNELS.showStripeMenu, showTitles),
 
   /**
    * 渲染进程的日志出口。
@@ -552,7 +555,7 @@ const api = {
   confirm: confirmAPI,
 
   /** 插件管理（占位） */
-  reloadPlugin: (pluginId: string) => ipcRenderer.invoke('host:reload-plugin', pluginId)
+  reloadPlugin: (pluginId: string) => ipcRenderer.invoke(HOST_CHANNELS.reloadPlugin, pluginId)
 }
 
 /**
