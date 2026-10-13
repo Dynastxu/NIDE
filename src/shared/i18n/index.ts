@@ -47,7 +47,7 @@ export type LooseTranslator = (key: string, params?: MessageParams) => string
 /** 把 `{name}` 替换掉。未提供的占位符原样保留，方便一眼看出是漏传了参数。 */
 export function interpolate(template: string, params?: MessageParams): string {
   if (!params) return template
-  return template.replace(/\{(\w+)\}/g, (match, name: string) => {
+  return template.replace(/\{(\w+)}/g, (match, name: string) => {
     const value = params[name]
     return value === undefined ? match : String(value)
   })
