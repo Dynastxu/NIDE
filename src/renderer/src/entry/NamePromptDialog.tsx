@@ -5,9 +5,9 @@ import {
   extensionOf,
   validateEntryName,
   type CreateEntryKind,
-  type FileTreeEntry,
   type InvalidNameReason
 } from '@shared/project'
+import type { CreateScope, EntryActionTarget } from '@renderer/entry/entry-menu'
 import type { HostMessageKey } from '@shared/i18n'
 
 /**
@@ -17,9 +17,13 @@ import type { HostMessageKey } from '@shared/i18n'
  * 窗口都是无边框 + 自绘标题栏的，一个原生对话框会带着系统外观插进来；而且这个浮层
  * 的调用点在工具区里，`absolute` 会被那个区的 `overflow-hidden` 裁掉。
  *
- * **挂载点必须在右键菜单之外**（见 ExplorerView 的 PromptRequest）：`ContextMenu`
- * 在任何一个落在自己 DOM 之外的 `mousedown` 上关闭，而 portal 出去的内容按定义
- * 就在它之外 —— 挂在菜单下面时，点一下输入框就等于点了「菜单外面」。
+ * **它属于条目动作层，不属于某一个视图**：任何视图（文件树、章节列表、将来的搜索
+ * 结果）右键条目都走同一个框，所以它由 `EntryActionHost` 在窗口顶层挂一次，而不是
+ * 由哪个视图自己持有。
+ *
+ * 挂载点也**必须在右键菜单之外**：`ContextMenu` 在任何一个落在自己 DOM 之外的
+ * `mousedown` 上关闭，而 portal 出去的内容按定义就在它之外 —— 挂在菜单下面时，
+ * 点一下输入框就等于点了「菜单外面」。
  *
  * ## 校验在输入时做，不在提交时做
  *
@@ -28,7 +32,7 @@ import type { HostMessageKey } from '@shared/i18n'
  * 就知道哪儿不对，而不是点了按钮才被告知。
  *
  * 「这个名字已经有了」判不了（要读盘），那一条只能等主进程回答，由 onSubmit 的
- * 返回值带回来（见 ExplorerView）。
+ * 返回值带回来（见 stores/entry-action.store.ts 的 submitPromptName）。
  *
  * ## 回车提交
  *
@@ -45,9 +49,6 @@ const INVALID_NAME_KEYS: Record<InvalidNameReason, HostMessageKey> = {
   'trailing-space-or-dot': 'host.explorer.name.error.trailing-space-or-dot',
   'too-long': 'host.explorer.name.error.too-long'
 }
-
-/** 新建的落点，只影响标题里那句「建在哪儿」 */
-export type CreateScope = 'inside' | 'sibling'
 
 export type NamePromptDialogProps = {
   /** 提交。返回 null 表示成功（浮层由调用方关掉），返回一句话表示失败 —— 那句话会
@@ -67,11 +68,11 @@ export type NamePromptDialogProps = {
       mode: 'create'
       kind: CreateEntryKind
       scope: CreateScope
-      target: FileTreeEntry
+      target: EntryActionTarget
     }
   | {
       mode: 'rename'
-      target: FileTreeEntry
+      target: EntryActionTarget
     }
 )
 

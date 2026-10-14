@@ -1,7 +1,8 @@
-import { JSX, useEffect } from 'react'
+import { JSX, useEffect, useState } from 'react'
 import { useT } from '@renderer/stores/i18n.store'
 import { useExplorerStore } from '@renderer/stores/explorer.store'
 import { openChapterFile } from '@renderer/explorer/chapter-actions'
+import { EntryMenu } from '@renderer/entry/EntryMenu'
 import { Disclosure } from '@renderer/ui/Disclosure'
 import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
 import type { ChapterFile, DirReadFailureReason, ProjectConfigKey } from '@shared/project'
@@ -17,8 +18,11 @@ import type { HostMessageKey } from '@shared/i18n'
  * 置灰而不是隐藏，是因为这三项已经在计划里、位置也定了 —— 一个看得见但点不动的
  * 入口，比一个要等到功能上线才出现的入口更容易看懂现在处在哪一步。
  *
- * 列表刻意只显示**编号与标题**：那是文件里真正写着的东西。重命名、排序、拖拽
- * 都还没有，先不摆出一个做不到的样子。
+ * 列表刻意只显示**编号与标题**：那是文件里真正写着的东西。排序与拖拽都还没有，
+ * 先不摆出一个做不到的样子。右键菜单倒是有了：它走的是**条目动作层**那一条
+ * （新建 / 重命名 / 删除，与文件树里的是同一份），再往前加一项这个面自己的
+ * 「新建章节」—— 列表里的一个文件与树里的一个文件是同一个东西，能对它做的事
+ * 不该因为它在哪个面板里而被重新实现一遍。
  */
 export function ProjectsPanel({
   onCreateChapter
@@ -58,6 +62,13 @@ const CHAPTER_ERROR_KEYS: Record<DirReadFailureReason, HostMessageKey> = {
   unreadable: 'host.explorer.error.unreadable'
 }
 
+/** 章节列表里被右键的那一行 */
+interface ChapterMenu {
+  file: ChapterFile
+  x: number
+  y: number
+}
+
 /** 章节：真正实现了的那一个分类 —— 有列表、有新建 */
 function ChapterSection({ onCreate }: { onCreate: () => void }): JSX.Element {
   const t = useT()
@@ -68,6 +79,7 @@ function ChapterSection({ onCreate }: { onCreate: () => void }): JSX.Element {
   const loading = useExplorerStore((s) => s.chaptersLoading)
   const loadConfig = useExplorerStore((s) => s.loadConfig)
   const loadChapters = useExplorerStore((s) => s.loadChapters)
+  const [menu, setMenu] = useState<ChapterMenu | null>(null)
 
   // 首次挂载拉一次配置；配置到手之后再拉章节列表（目录要从配置里算出来）
   useEffect(() => {
@@ -94,7 +106,43 @@ function ChapterSection({ onCreate }: { onCreate: () => void }): JSX.Element {
       ) : items.length === 0 ? (
         <p className="px-3 py-1 text-xs text-zinc-500">{t('host.project.panel.chapter.empty')}</p>
       ) : (
-        items.map((file) => <ChapterRow key={file.path} file={file} />)
+        items.map((file) => (
+          <ChapterRow
+            key={file.path}
+            file={file}
+            onContextMenu={(x, y) => setMenu({ file, x, y })}
+          />
+        ))
+      )}
+
+      {menu && (
+        <EntryMenu
+          x={menu.x}
+          y={menu.y}
+          // 列表里的每一行都是一个文件：章节就是 Markdown 文件，读的是同一份磁盘内容
+          target={{ path: menu.file.path, name: menu.file.name, kind: 'file' }}
+          onClose={() => setMenu(null)}
+          /*
+           * 这个面自己的那一项，排在共用项**前面**（见 EntryMenu 的说明）：共用块的
+           * 「删除」必须留在最后。
+           *
+           * 「新建章节」与共用块里的「新建 -> 文件」是**两个动作**，差的正是文件建出来
+           * 那一刻是不是完整的：那一项建的是空文件（先占个位置），这一项建的开头带着
+           * 章节属性、建完还会打开它（见 chapter-actions.ts）。
+           */
+          viewItems={[
+            {
+              id: 'newChapter',
+              label: t('host.explorer.menu.newChapter'),
+              icon: 'plus',
+              onSelect: onCreate,
+              // 与上面那颗按钮同一条判断：目录不知道在哪儿时不给入口
+              ...(canCreate
+                ? {}
+                : { disabled: true, disabledReason: t('host.project.panel.chapter.no-dir') })
+            }
+          ]}
+        />
       )}
     </>
   )
@@ -167,7 +215,14 @@ function CreateRow({
  * 编号读不出来时（还没写章节属性）左侧只留一个占位符，宽度与数字一致 ——
  * 否则同一列表里各行的标题会左右错开。
  */
-function ChapterRow({ file }: { file: ChapterFile }): JSX.Element {
+function ChapterRow({
+  file,
+  onContextMenu
+}: {
+  file: ChapterFile
+  /** 右键这一行。坐标由行自己报，菜单由上层那一个 EntryMenu 画 */
+  onContextMenu: (x: number, y: number) => void
+}): JSX.Element {
   const t = useT()
   const label = file.heading ?? file.name
 
@@ -177,6 +232,10 @@ function ChapterRow({ file }: { file: ChapterFile }): JSX.Element {
       // 文件名可能被截断，完整路径放 title —— 与文件树同一条约定
       title={file.path}
       onClick={() => void openChapterFile(file)}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        onContextMenu(event.clientX, event.clientY)
+      }}
       className="flex w-full items-center gap-2 px-1 py-1 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
     >
       <span className="w-7 shrink-0 text-right font-mono text-[11px] text-zinc-500">

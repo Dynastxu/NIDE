@@ -1,35 +1,24 @@
 import { JSX, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { getT, useT } from '@renderer/stores/i18n.store'
+import { useT } from '@renderer/stores/i18n.store'
 import { useViewChrome } from '@renderer/view/chrome-context'
 import { ViewFrame } from '@renderer/view/ViewFrame'
 import { ProjectsPanel } from '@renderer/explorer/ProjectsPanel'
 import { createChapter, suggestNextChapter } from '@renderer/explorer/chapter-actions'
-import {
-  createProjectEntry,
-  deleteProjectEntry,
-  openProjectFile,
-  renameProjectEntry,
-  useExplorerStore
-} from '@renderer/stores/explorer.store'
+import { openProjectFile, useExplorerStore } from '@renderer/stores/explorer.store'
 import { useEditorStore } from '@renderer/stores/editor.store'
 import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { ContextMenu } from '@renderer/ui/ContextMenu'
-import { NamePromptDialog, type CreateScope } from '@renderer/explorer/NamePromptDialog'
+import { EntryMenu } from '@renderer/entry/EntryMenu'
+import { NamePromptDialog } from '@renderer/entry/NamePromptDialog'
 import {
   buildTreeRows,
   createChildVisibility,
   isMarkdownPath,
-  type CreateEntryKind,
   type FileTreeEntry,
   type TreeRow
 } from '@shared/project'
 import type { HostMessageKey } from '@shared/i18n'
 import type { ViewTab } from '@shared/plugin-api'
-import type {
-  DeleteEntryFailureReason,
-  DirReadFailureReason,
-  FileUnsupportedReason
-} from '@shared/project'
+import type { DirReadFailureReason, FileUnsupportedReason } from '@shared/project'
 
 /**
  * 文件树（宿主内建视图，挂在左上工具区）。
@@ -53,8 +42,10 @@ import type {
  *    谁在谁里面。
  * 4. **名字过长时用自绘浮层显示全名**：原生 `title` 在 Windows 上要悬停约一秒才
  *    出现，而这一列窄到几乎每个文件名都被截断 —— 一个总要等的提示等于没有。
- * 5. **右键新建 / 重命名**：目录 -> 新建在它内部；文件 -> 新建在它的同级；重命名
- *    只换最后一段。写入位置由主进程从被右键的条目推出来，渲染进程指定不了。
+ * 5. **右键菜单来自条目动作层**：有哪些动作、对什么目标可用由
+ *    `@renderer/entry/entry-menu` 定，名字对话框与失败提示由 `EntryActionHost` 在
+ *    窗口顶层持有。这一层只报告「右键的是谁、指针在哪里」—— 新建落点（目录 -> 内部，
+ *    文件 -> 同级）与重命名只换最后一段这两条规则，仍然由主进程从被右键的条目推导。
  * 6. **删除的二次确认不在这里**：它问在主进程的动作出口上（见 main/confirm.ts），
  *    界面只发起、只反映结果。理由与写入位置同源 —— 一条规则要么在主进程里，
  *    要么就只是「界面上看得见的那一条路」。
@@ -81,77 +72,12 @@ const FILE_REASON_KEYS: Record<FileUnsupportedReason, HostMessageKey> = {
 }
 
 /**
- * 删除失败原因 -> 词条 key。
- *
- * 删除没有对话框可以「留在原地」，所以这些文案进的是树顶那条提示（见 ExplorerNotice）。
- *
- * `cancelled` 刻意**不在表里**：那是用户在确认框里按了「取消」，什么都没发生，
- * 不该冒出一句提示。类型上用 Exclude 把这条排除掉，查表之前必须先把它挡掉 ——
- * 「取消不算失败」这条规则因此是编译期可见的，而不是靠注释约定。
- */
-const DELETE_FAILURE_KEYS: Record<
-  Exclude<DeleteEntryFailureReason, 'cancelled'>,
-  HostMessageKey
-> = {
-  'not-empty': 'host.explorer.delete.failed.not-empty',
-  'not-a-file': 'host.explorer.delete.failed.not-a-file',
-  'is-project-root': 'host.explorer.delete.failed.is-project-root',
-  unreadable: 'host.explorer.delete.failed.unreadable'
-}
-
-/**
  * 右键菜单当前指向谁
  */
 interface ContextTarget {
   entry: FileTreeEntry
   x: number
   y: number
-}
-
-/**
- * 名字对话框当前为什么而开：新建一个条目，还是给一个已有条目改名。
- *
- * 这个状态**由视图持有**，不在右键菜单里 —— 菜单在「选中一项」时就关掉了
- * （见 ContextMenu 的说明），而对话框必须活得比菜单久。挂在菜单下面的那次
- * 实现里，`ContextMenu` 的「点别处就关」监听把「点对话框」也算成了外面：
- * 一碰输入框，整个对话框就被连根卸掉，看起来就是「点了新建没反应」。
- */
-type PromptRequest =
-  | {
-      key: number
-      mode: 'create'
-      kind: CreateEntryKind
-      target: FileTreeEntry
-      scope: CreateScope
-    }
-  | { key: number; mode: 'rename'; target: FileTreeEntry }
-
-/**
- * 新建落点：右键目录 -> 建在它内部；右键文件 -> 建在它的同级。菜单上因此不必
- * 再问一次位置（与主进程推导的那条规则是同一个判断）。
- */
-function createScopeOf(target: FileTreeEntry): CreateScope {
-  return target.kind === 'directory' ? 'inside' : 'sibling'
-}
-
-/** 新建时的初始名字：空。文件名要让用户自己起 */
-function createPrompt(request: {
-  key: number
-  kind: CreateEntryKind
-  target: FileTreeEntry
-}): PromptRequest {
-  return {
-    key: request.key,
-    mode: 'create',
-    kind: request.kind,
-    target: request.target,
-    scope: createScopeOf(request.target)
-  }
-}
-
-/** 重命名时的初始名字：它现在的名字。扩展名原样带着，免得一改就换成另一种文件 */
-function renamePrompt(request: { key: number; target: FileTreeEntry }): PromptRequest {
-  return { key: request.key, mode: 'rename', target: request.target }
 }
 
 /** 正在显示名称浮层的那一行。只有名字被横向截断时才会有值 */
@@ -263,87 +189,12 @@ function FileTreePane(): JSX.Element {
 
   const [target, setTarget] = useState<ContextTarget | null>(null)
   const [hovered, setHovered] = useState<HoveredRow | null>(null)
-  const [prompt, setPrompt] = useState<PromptRequest | null>(null)
 
-  /**
-   * 对话框的序号。每次开对话框换一个 key，React 才会**重新挂载**它 ——
-   * 否则「取消新建」之后紧接着「重命名」，输入框里会留着上一个人的文字。
+  /*
+   * 名字对话框与删除失败的提示都**不在这里**：菜单在选中一项的那一刻就关了，而对话框
+   * 必须活得比菜单久，提示也必须无论从哪个视图发起都看得见（见 EntryActionHost 与
+   * stores/entry-action.store.ts）。这一层只负责「右键的是谁、指针在哪里」。
    */
-  const promptSeq = useRef(0)
-
-  const openCreatePrompt = (kind: CreateEntryKind, entry: FileTreeEntry): void => {
-    promptSeq.current += 1
-    setPrompt(createPrompt({ key: promptSeq.current, kind, target: entry }))
-  }
-
-  const openRenamePrompt = (entry: FileTreeEntry): void => {
-    promptSeq.current += 1
-    setPrompt(renamePrompt({ key: promptSeq.current, target: entry }))
-  }
-
-  const closePrompt = (): void => setPrompt(null)
-
-  /**
-   * 右键「删除」。
-   *
-   * **二次确认不在这里**：它问在主进程的动作出口上（见 main/confirm.ts），无论谁
-   * 发起删除都会经过那一问 —— 界面自己弹一个框只能管住界面上这一条路。这里只负责
-   * 把结果反映出来。
-   *
-   * 失败时不留弹框、只写顶部提示条（`notice`）—— 与打开文件失败同一条路：
-   * 这类失败是就地的，弹框要把注意力从树上拽走，还得自己处理「关了之后回到哪儿」。
-   * 用户在确认框里选了「取消」则**什么都不提示**：那不是失败。
-   */
-  const requestDelete = async (entry: FileTreeEntry): Promise<void> => {
-    const result = await deleteProjectEntry(entry.path)
-    if (result.ok || result.reason === 'cancelled') return
-
-    useExplorerStore.getState().setNotice(getT()(DELETE_FAILURE_KEYS[result.reason]))
-  }
-
-  /**
-   * 提交对话框里的名字。
-   *
-   * 返回 null 表示成功（对话框由本组件关掉），返回一句话表示失败 —— 那句话会显示
-   * 在输入框下面，对话框**留在原地**让用户改名字：「这个名字已经有了」是可以就地
-   * 修好的，关掉再让他右键一次是白费一次操作。
-   */
-  const submitPromptName = async (request: PromptRequest, name: string): Promise<string | null> => {
-    const result =
-      request.mode === 'create'
-        ? await createProjectEntry(request.kind, request.target.path, name)
-        : await renameProjectEntry(request.target.path, name)
-
-    if (!result.ok) {
-      const action = request.mode === 'create' ? 'create' : 'rename'
-      return getT()(`host.explorer.${action}.failed.${result.reason}` as HostMessageKey)
-    }
-
-    closePrompt()
-    return null
-  }
-
-  /** 名字对话框。两种用途共用同一个输入框，只有标题、按钮与失败文案不同 */
-  const promptDialog = (request: PromptRequest): JSX.Element =>
-    request.mode === 'create' ? (
-      <NamePromptDialog
-        key={request.key}
-        mode="create"
-        kind={request.kind}
-        scope={request.scope}
-        target={request.target}
-        onCancel={closePrompt}
-        onSubmit={(name) => submitPromptName(request, name)}
-      />
-    ) : (
-      <NamePromptDialog
-        key={request.key}
-        mode="rename"
-        target={request.target}
-        onCancel={closePrompt}
-        onSubmit={(name) => submitPromptName(request, name)}
-      />
-    )
 
   /**
    * 收起浮层的延时。
@@ -448,8 +299,6 @@ function FileTreePane(): JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ExplorerNotice />
-
       {/*
         树两个方向都能滚：纵向是文件多，横向是名字长（行按内容铺开、不截断，
         见 EntryRow 的 min-w-max 注释）。浮层是按行的实时位置 fixed 住的，
@@ -485,17 +334,14 @@ function FileTreePane(): JSX.Element {
       </div>
 
       {target && (
-        <EntryContextMenu
-          target={target}
+        <EntryMenu
+          x={target.x}
+          y={target.y}
+          target={target.entry}
           /* 菜单项都是「先关再执行」，所以这里只需要关 */
           onClose={() => setTarget(null)}
-          onCreate={openCreatePrompt}
-          onRename={openRenamePrompt}
-          onDelete={(entry) => void requestDelete(entry)}
         />
       )}
-
-      {prompt && promptDialog(prompt)}
 
       {hovered && (
         <NameOverlay
@@ -593,38 +439,6 @@ function NameOverlay({
     >
       {/* 不换行、不截断：外面靠窗口右边缘收住，宽度够就整条显示 */}
       <span className="block whitespace-nowrap">{entry.name}</span>
-    </div>
-  )
-}
-
-/**
- * 打开 / 新建失败的提示条。
- *
- * 做成树顶端的一条而不是弹框：这类失败（文件被删了、没权限）是**就地**发生的，
- * 弹框要把注意力从树上拽走，还得自己处理「关了之后回到哪儿」。下一次成功操作
- * 会自动清掉它（见 openProjectFile）。
- */
-function ExplorerNotice(): JSX.Element | null {
-  const t = useT()
-  const notice = useExplorerStore((s) => s.notice)
-  const setNotice = useExplorerStore((s) => s.setNotice)
-
-  if (!notice) return null
-
-  return (
-    <div
-      role="alert"
-      className="flex shrink-0 items-start gap-2 border-b border-amber-900/50 bg-amber-950/40 px-2.5 py-1.5"
-    >
-      <p className="min-w-0 flex-1 text-[11px] leading-4 text-amber-200">{notice}</p>
-      <button
-        type="button"
-        aria-label={t('host.editor.tab.close')}
-        onClick={() => setNotice(null)}
-        className="shrink-0 rounded p-0.5 text-amber-300 hover:bg-amber-900/50"
-      >
-        <BuiltinIcon name="close" className="h-3 w-3" />
-      </button>
     </div>
   )
 }
@@ -817,81 +631,5 @@ function IndentGuides({ guides }: { guides: boolean[] }): JSX.Element | null {
         />
       ))}
     </>
-  )
-}
-
-// ============ 右键菜单与新建 / 重命名 ============
-
-/**
- * 条目的右键菜单。
- *
- * 四项：「新建」（展开是「文件夹 / 文件」）、「重命名」、「删除」。落点由**被右键的
- * 条目**决定：目录 -> 新建在它内部，文件 -> 新建在它的同级；重命名只换最后一段；
- * 删除就是删它自己（目录连里面的东西）。这些都由主进程从 `entry` 推导
- * （见 project-files.service），所以菜单不必（也没打算）让用户再选一次位置。
- *
- * 这个组件**只管菜单**：菜单里选中的动作通过 `onCreate` / `onRename` / `onDelete`
- * 交回视图，名字对话框由视图持有（理由见 PromptRequest 的说明）。删除没有对话框
- * 要持有 —— 那一问由主进程问（见文件头的第 6 条）。
- *
- * 「删除」放在最后并且是 danger 配色：它是这一列里唯一不可撤销的一项，位置与颜色
- * 都要和另外两项拉开距离。
- */
-function EntryContextMenu({
-  target,
-  onClose,
-  onCreate,
-  onRename,
-  onDelete
-}: {
-  target: ContextTarget
-  onClose: () => void
-  onCreate: (kind: CreateEntryKind, entry: FileTreeEntry) => void
-  onRename: (entry: FileTreeEntry) => void
-  onDelete: (entry: FileTreeEntry) => void
-}): JSX.Element {
-  const t = useT()
-  const entry = target.entry
-
-  return (
-    <ContextMenu
-      x={target.x}
-      y={target.y}
-      onClose={onClose}
-      items={[
-        {
-          id: 'new',
-          label: t('host.explorer.menu.new'),
-          icon: 'plus',
-          items: [
-            {
-              id: 'newFolder',
-              label: t('host.explorer.menu.newFolder'),
-              icon: 'folder',
-              onSelect: () => onCreate('directory', entry)
-            },
-            {
-              id: 'newFile',
-              label: t('host.explorer.menu.newFile'),
-              icon: 'file',
-              onSelect: () => onCreate('file', entry)
-            }
-          ]
-        },
-        {
-          id: 'rename',
-          label: t('host.explorer.menu.rename'),
-          icon: 'rename',
-          onSelect: () => onRename(entry)
-        },
-        {
-          id: 'delete',
-          label: t('host.explorer.menu.delete'),
-          icon: 'trash',
-          danger: true,
-          onSelect: () => onDelete(entry)
-        }
-      ]}
-    />
   )
 }

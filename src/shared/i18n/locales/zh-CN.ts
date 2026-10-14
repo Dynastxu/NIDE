@@ -203,13 +203,17 @@ export const zhCN = {
   'host.explorer.open.failed.not-a-file': '这不是一个文件。',
   'host.explorer.open.failed.unreadable': '读不了这个文件：可能已被删除，或者没有访问权限。',
 
-  // 文件树右键菜单：一项「新建」，展开是两个名词。落点由被右键的条目决定
-  // （目录 -> 内部，文件 -> 同级），所以菜单上不必写位置
+  // 条目右键菜单：一项「新建」，展开是两个名词。落点由被右键的条目决定
+  // （目录 -> 内部，文件 -> 同级），所以菜单上不必写位置。
+  // 这一块由条目动作层装配，文件树与章节列表共用（见 renderer/src/entry/entry-menu.ts）
   'host.explorer.menu.new': '新建',
   'host.explorer.menu.newFolder': '文件夹',
   'host.explorer.menu.newFile': '文件',
   'host.explorer.menu.rename': '重命名',
   'host.explorer.menu.delete': '删除',
+  // 章节列表自己加的那一项。它与上面「新建 -> 文件」是两个动作：那个建出来的是空文件
+  // （先占个位置），这个建出来开头就带着章节属性（见 explorer/chapter-actions.ts）
+  'host.explorer.menu.newChapter': '新建章节',
 
   // 新建对话框
   'host.explorer.newFile.inside': '在此文件夹中新建文件',

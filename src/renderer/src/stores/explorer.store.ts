@@ -63,7 +63,13 @@ interface ExplorerState {
   loading: Record<string, boolean>
   /** 每个目录各自的读取失败原因 */
   errors: Record<string, DirReadFailureReason>
-  /** 打开 / 新建失败的提示（渲染在树的顶部），null 表示没有 */
+  /**
+   * 最近一次文件操作失败的提示，null 表示没有。
+   *
+   * **画在窗口底部的全局浮层里**（见 entry/EntryActionHost），不是树顶上的一条：
+   * 发起这些动作的入口不止文件树一个（章节列表里也有一份条目菜单），提示留在某一个
+   * 面板里就会出现「用户没在看那个面板」。下一次成功的操作会把它清掉。
+   */
   notice: string | null
 
   /**
@@ -117,7 +123,7 @@ interface ExplorerState {
   forgetSubtree: (targetPath: string) => void
   /** 展开到某个条目（打开文件后把它的父目录链展开） */
   reveal: (targetPath: string) => Promise<void>
-  /** 顶部提示 */
+  /** 底部那条提示。写进它的文案由调用方翻好（见 notice 的说明） */
   setNotice: (notice: string | null) => void
 }
 
@@ -426,6 +432,29 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
 })
 
 /**
+ * 一个条目改动之后，章节列表那一份缓存该不该跟着刷新。
+ *
+ * 同一个文件在**两处**各有一份缓存：文件树的 `children`，以及「项目」标签页的
+ * `chapters`（读的是同一个章节目录）。一次新建 / 改名 / 删除只发生在其中一个入口，
+ * 不在这里一起刷的话，章节目录里的文件改完名之后，章节列表会一直显示旧名字
+ * —— 直到那个面板被重新挂载。以前只有文件树能发起这些动作，这一点不明显；
+ * 现在条目菜单在章节列表里也有一份（见 renderer/src/entry），不刷就是当场看得见的错。
+ *
+ * 范围判断用 `isInsideProject`（逐段比对、大小写折叠），与文件树自己算祖先链时同一套：
+ * 判断的是「这个路径是不是在那个目录里」，不是「两次拿到的字符串是否一模一样」。
+ */
+async function refreshChaptersIfTouched(paths: string[]): Promise<void> {
+  const store = useExplorerStore.getState()
+  const dir = store.chaptersDir
+
+  // 配置还没读出来时没有章节列表可刷，也就不必它去读一次配置
+  if (!dir) return
+  if (!paths.some((path) => isInsideProject(dir, path, true))) return
+
+  await store.loadChapters()
+}
+
+/**
  * 打开一个文件：读盘成功后把它作为一个标签页打开。
  *
  * 放在这里而不是编辑器组件里：树知道「哪个条目被点了」。
@@ -495,6 +524,9 @@ export async function createProjectEntry(
 
   if (kind === 'directory') await store.refreshDir(result.path)
 
+  // 建在章节目录里的条目也要在章节列表里出现（见 refreshChaptersIfTouched）
+  await refreshChaptersIfTouched([result.path])
+
   return result
 }
 
@@ -533,6 +565,9 @@ export async function renameProjectEntry(
   await store.refreshDir(parentDir)
   store.forgetPath(result.previousPath)
 
+  // 章节列表按旧名字排着的那一条要跟着换（见 refreshChaptersIfTouched）
+  await refreshChaptersIfTouched([result.previousPath, result.path])
+
   return result
 }
 
@@ -567,6 +602,9 @@ export async function deleteProjectEntry(targetPath: string): Promise<DeleteEntr
 
   store.forgetSubtree(targetPath)
   await store.refreshDir(parentOf(targetPath))
+
+  // 章节列表里那一行也要消失（见 refreshChaptersIfTouched）
+  await refreshChaptersIfTouched([targetPath])
 
   return result
 }

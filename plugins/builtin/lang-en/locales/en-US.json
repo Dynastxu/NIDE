@@ -158,6 +158,7 @@
   "host.explorer.menu.newFile": "File",
   "host.explorer.menu.rename": "Rename",
   "host.explorer.menu.delete": "Delete",
+  "host.explorer.menu.newChapter": "New chapter",
 
   "host.explorer.newFile.inside": "New file in this folder",
   "host.explorer.newFile.sibling": "New file here",

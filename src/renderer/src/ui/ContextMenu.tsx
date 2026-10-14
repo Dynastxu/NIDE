@@ -1,12 +1,13 @@
 import { JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { MenuItemRow, SubmenuRow, type MenuItem } from '@renderer/ui/MenuItem'
+import { MenuItemRow, SubmenuRow } from '@renderer/ui/MenuItem'
+import type { ContextMenuEntry, ContextSubmenuItem } from '@renderer/ui/menu-items'
 
 /**
  * 通用右键菜单。
  *
  * 放在 `ui/` 而不是某个具体功能的目录下：菜单的定位、点外关闭、Esc 关闭、
- * 边缘翻转这一套逻辑和「菜单里有什么」完全无关 —— 目前的使用方是插件列表与欢迎
- * 窗口的项目列表。
+ * 边缘翻转这一套逻辑和「菜单里有什么」完全无关 —— 目前的使用方是文件树、章节列表、
+ * 欢迎窗口的项目列表与插件列表。
  *
  * **菜单行与下拉菜单共用同一个组件**（`@renderer/ui/MenuItem`），所以图标位、置灰、
  * danger 配色、内边距这些只有一份定义。
@@ -14,24 +15,11 @@ import { MenuItemRow, SubmenuRow, type MenuItem } from '@renderer/ui/MenuItem'
  * 定位用**测量后翻转**而不是猜一个高度：菜单项数量是可变的，猜错就会顶出窗口
  * （正是之前设置窗口跑到屏幕外那类问题的同一个根源 —— 拿一个假定的尺寸去算位置）。
  * 先渲染在请求的位置、量到真实尺寸、超出边界再翻到反方向。
- */
-export type ContextMenuItem = MenuItem
-
-/**
- * 会展开子菜单的菜单项。
  *
- * 子菜单**只有一层**：再深一层就要开始处理「斜着移过去的路上经过别的行」这类问题，
- * 而右键菜单里的动作本来就不该多到需要两级以上。带子菜单的项没有 `onSelect` ——
- * 点它是展开，不是执行（见 SubmenuRow）。
+ * 菜单项的**内容**（有哪些字段）定义在 `@renderer/ui/menu-items`，这里只 re-export
+ * 给使用方，好让 `ContextMenu` 的调用点不必再多认一个模块。
  */
-export interface ContextSubmenuItem {
-  id: string
-  label: string
-  icon?: string
-  items: ContextMenuItem[]
-}
-
-export type ContextMenuEntry = ContextMenuItem | ContextSubmenuItem
+export type { ContextMenuEntry, ContextMenuItem, ContextSubmenuItem } from '@renderer/ui/menu-items'
 
 function isSubmenu(entry: ContextMenuEntry): entry is ContextSubmenuItem {
   return 'items' in entry

@@ -4,6 +4,7 @@ import { MainMenu } from '@renderer/window/MainMenu'
 import { SettingsMenu } from '@renderer/window/SettingsMenu'
 import { WindowFrame } from '@renderer/window/WindowFrame'
 import { useWindowTitle } from '@renderer/window/useWindowTitle'
+import { EntryActionHost } from '@renderer/entry/EntryActionHost'
 
 /**
  * 主窗口。
@@ -31,8 +32,20 @@ export function MainApp(): JSX.Element {
   const title = useWindowTitle()
 
   return (
-    <WindowFrame title={title} leading={<MainMenu />} actions={<SettingsMenu />}>
-      <WorkbenchLayout />
-    </WindowFrame>
+    <>
+      <WindowFrame title={title} leading={<MainMenu />} actions={<SettingsMenu />}>
+        <WorkbenchLayout />
+      </WindowFrame>
+
+      {/*
+        条目动作的浮层（名字输入框、失败提示）挂在**窗口骨架之外**：它是浮层，不该
+        跟着内容区一起被 `overflow-hidden` 裁掉，而且与任何一块面板都无关 ——
+        文件树与章节列表用的是同一份（见 entry/EntryActionHost）。
+
+        只挂主窗口：条目动作只在这里存在。这与 ConfirmHost「每种窗口都挂一次」的理由
+        不同 —— 那个接的是主进程在**任何**窗口上都可能发起的二次确认。
+      */}
+      <EntryActionHost />
+    </>
   )
 }
