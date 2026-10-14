@@ -89,7 +89,9 @@ function FlatTabStrip({
               onClick={() => controller.selectTab(tab.id)}
               className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left"
             >
-              {tab.status === 'dot' && <TabStatusDot />}
+              {tab.status === 'dot' && !closeShowsDot(tab, closeIcon, tabsClosable) && (
+                <TabStatusDot />
+              )}
               <span className="truncate">{tab.label}</span>
             </button>
 
@@ -180,7 +182,9 @@ function DropdownTabStrip({
                   <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                     {isActive && <BuiltinIcon name="check" className="h-3.5 w-3.5" />}
                   </span>
-                  {tab.status === 'dot' && <TabStatusDot />}
+                  {tab.status === 'dot' && !closeShowsDot(tab, closeIcon, tabsClosable) && (
+                    <TabStatusDot />
+                  )}
                   <span className="truncate">{tab.label}</span>
                 </button>
 
@@ -207,6 +211,24 @@ function TabStatusDot(): JSX.Element {
   return <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
 }
 
+/**
+ * 这个标签的关闭按钮会不会画成圆点。
+ *
+ * 两个调用点要用它做同一件事：**关闭按钮已经画了圆点时，标签文字左边那个状态圆点
+ * 就不再画**。两者是同一个意思（「这个标签有没落盘的状态」），同一个标签上并排两个
+ * 圆点只是把它说了两遍，而标签条本来就窄。留着关闭按钮那一格 —— 它离手更近，悬停
+ * 时还会变成叉号，正好把「点它会丢掉这些改动」一起说出来。
+ */
+function closeShowsDot(
+  tab: ViewTab,
+  defaultIcon: ViewTabCloseIcon,
+  tabsClosable: boolean
+): boolean {
+  if (!(tab.closable ?? tabsClosable)) return false
+
+  return (tab.closeIcon ?? defaultIcon) === 'dot' && tab.status !== 'none'
+}
+
 /** 自定义标签按钮：给元素就固定画一个，给函数就按这个标签现算 */
 function TabButtonSlot({
   slot,
@@ -228,6 +250,8 @@ function TabButtonSlot({
  *   文字被迫缩短，而关标签本来就是低频操作）；
  * - **可关闭 + `dot`**：一个圆点。它承载的是视图自己的状态（文件没保存、有未读
  *   结果……），所以**常显**；鼠标悬停时才变成叉号 —— 状态与操作共用同一格宽度。
+ *   常显由 `showDot` 那一格负责，也就是说**未选中的标签上它照样看得见**：圆点是状态，
+ *   而状态不该等鼠标移上去才存在（叉号仍然是选中或悬停才画，理由同上一条）。
  */
 export function ViewTabCloseButton({
   tab,
@@ -262,7 +286,9 @@ export function ViewTabCloseButton({
       }}
       className={[
         'flex h-4 w-4 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-zinc-700 hover:text-zinc-100',
-        active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+        active || showDot
+          ? 'opacity-100'
+          : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
       ].join(' ')}
     >
       {showDot ? (

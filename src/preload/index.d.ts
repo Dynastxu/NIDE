@@ -12,13 +12,15 @@ import type {
   DeleteEntryResult,
   DirReadResult,
   FileReadResult,
+  FileWriteResult,
   ProjectConfig,
   ProjectConfigUpdateResult,
   ProjectListItem,
   ProjectOpenResult,
   ProjectPickMode,
   RenameEntryRequest,
-  RenameEntryResult
+  RenameEntryResult,
+  WriteFileRequest
 } from '@shared/project'
 import type { Disposable, PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
 import type { WindowAction, WindowState, WindowType } from '@shared/window'
@@ -162,6 +164,14 @@ export interface ProjectAPI {
    * 文件可以带一段初始内容（`request.content`），建出来就是完整的。
    */
   createEntry: (request: CreateEntryRequest) => Promise<CreateEntryResult>
+  /**
+   * 把正文写回一个文件（保存）。
+   *
+   * 只声明「写哪个文件」+「写什么」：保存不是另存为，覆盖的正是这个路径当初读出来的
+   * 那个文件。路径跑出当前项目、目标已经不在了、是个链接、格式宿主不解码时，主进程
+   * 拒绝并给出原因 —— 失败不抛异常。
+   */
+  writeFile: (request: WriteFileRequest) => Promise<FileWriteResult>
   /**
    * 给一个文件 / 文件夹改名 —— 与 createEntry 走同一条沙箱边界。
    *

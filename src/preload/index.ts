@@ -44,13 +44,15 @@ import type {
   DeleteEntryResult,
   DirReadResult,
   FileReadResult,
+  FileWriteResult,
   ProjectConfig,
   ProjectConfigUpdateResult,
   ProjectListItem,
   ProjectOpenResult,
   ProjectPickMode,
   RenameEntryRequest,
-  RenameEntryResult
+  RenameEntryResult,
+  WriteFileRequest
 } from '@shared/project'
 import type { Disposable, PluginDescriptor } from '@shared/plugin-api'
 
@@ -301,6 +303,19 @@ const projectAPI = {
    */
   createEntry: (request: CreateEntryRequest): Promise<CreateEntryResult> =>
     ipcRenderer.invoke(PROJECT_FILE_CHANNELS.createEntry, request),
+
+  /**
+   * 把正文写回一个文件（保存）。
+   *
+   * 只报「写哪个文件」+「写什么」，不报「写到哪儿」—— 保存不是另存为，它覆盖的
+   * 正是这个路径当初读出来的那个文件。范围与格式由主进程判断：路径跑出当前项目、
+   * 目标已经不在了、是个符号链接、或者格式宿主不解码时都会拒绝并给出原因。
+   *
+   * 失败不抛异常，返回带原因的结果：磁盘满、文件被别的程序独占都是常见状态，
+   * 界面要按原因说话（保存对话框据此留在原地）。
+   */
+  writeFile: (request: WriteFileRequest): Promise<FileWriteResult> =>
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.writeFile, request),
 
   /**
    * 给一个文件 / 文件夹改名。

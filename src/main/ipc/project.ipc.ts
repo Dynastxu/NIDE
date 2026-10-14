@@ -18,7 +18,9 @@ import {
   type ProjectOpenResult,
   type ProjectPickMode,
   type RenameEntryRequest,
-  type RenameEntryResult
+  type RenameEntryResult,
+  type WriteFileRequest,
+  type FileWriteResult
 } from '@shared/project'
 import { CONFIRM_SPECS, isActionConfirmed, type ConfirmSpec } from '../confirm'
 import { createMainTranslator } from '../i18n'
@@ -37,7 +39,8 @@ import {
   readProjectChapters,
   readProjectDir,
   readProjectFile,
-  renameProjectEntry
+  renameProjectEntry,
+  writeProjectFile
 } from '../services/project-files.service'
 import {
   initializeProjectDirectory,
@@ -348,6 +351,34 @@ export function registerProjectIPC(): void {
   )
 
   /**
+   * 把编辑器里的正文写回一个文件（保存）。
+   *
+   * 与读取共用同一条范围校验，另外**只写宿主编解码得出来的格式**：这条通道是覆盖式
+   * 的（不像新建那样只增不改），所以它至少要和「打开」一样窄。
+   *
+   * 没有二次确认：保存是用户的显式动作，问「确定要保存吗」等于把「我按下的就是保存」
+   * 再问一遍。该拒的那些（目标没了、跑出项目、是个链接）由服务拒绝并回报原因。
+   */
+  ipcMain.handle(
+    PROJECT_FILE_CHANNELS.writeFile,
+    async (_event, request: unknown): Promise<FileWriteResult> => {
+      const parsed = parseWriteRequest(request)
+      if (!parsed) {
+        logger.warn('Rejected a malformed write request')
+        return { ok: false, reason: 'invalid-path' }
+      }
+
+      const roots = allowedRoots()
+      if (roots.length === 0) {
+        logger.warn('Rejected a write request without an open project')
+        return { ok: false, reason: 'unreadable' }
+      }
+
+      return writeProjectFile(parsed, { roots, caseInsensitive: caseInsensitivePaths() })
+    }
+  )
+
+  /**
    * 给一个条目改名。
    *
    * 和新建共用一条边界：目标目录不从渲染进程收，只收「被右键了谁」+「新名字」，
@@ -459,6 +490,23 @@ function parseCreateRequest(request: unknown): CreateEntryRequest | null {
   if (content !== undefined && typeof content !== 'string') return null
 
   return { kind, targetPath, name, ...(content === undefined ? {} : { content }) }
+}
+
+/**
+ * 校验一个保存请求的形状。
+ *
+ * 正文**必须**是字符串：IPC 载荷完全不可信，而把一个 null 或数字当空内容写进
+ * 用户的稿子，是那种事后完全查不出来的损坏。路径同样只认非空字符串，范围校验
+ * 留给服务（它才拿得到「当前项目」）。
+ */
+function parseWriteRequest(request: unknown): WriteFileRequest | null {
+  if (!request || typeof request !== 'object') return null
+
+  const { filePath, content } = request as Partial<WriteFileRequest>
+  if (typeof filePath !== 'string' || filePath.length === 0) return null
+  if (typeof content !== 'string') return null
+
+  return { filePath, content }
 }
 
 /**

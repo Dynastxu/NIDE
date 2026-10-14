@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { saveActiveTab } from '@renderer/editor/editor-save'
 import { useT } from '@renderer/stores/i18n.store'
 import { useEditorStore } from '@renderer/stores/editor.store'
 import { useViewChrome, type ViewChromeConfig } from '@renderer/view/chrome-context'
@@ -59,13 +60,26 @@ export function useEditorChrome(activePath: string | null): ViewChromeConfig {
   const moreItems = useMemo<ViewMoreItem[]>(() => {
     if (tabs.length === 0) return []
 
+    const activeDirty = tabs.find((tab) => tab.path === activePath)?.dirty ?? false
+
     return [
+      {
+        id: 'save',
+        label: t('host.editor.save'),
+        /**
+         * 没有改动时置灰：那时写下去的就是磁盘上已有的那一份，一个注定什么都不改的
+         * 入口不如直接说明为什么按不动（与「关闭未改动的」那一条同一条理由）。
+         */
+        disabled: !activeDirty,
+        disabledReason: t('host.menu.file.save.disabled'),
+        onSelect: () => void saveActiveTab()
+      },
       {
         id: 'close-others',
         label: t('host.editor.menu.closeOthers'),
         disabled: tabs.length < 2,
         disabledReason: t('host.editor.menu.closeOthers.disabled'),
-        onSelect: () => useEditorStore.getState().closeOthers()
+        onSelect: () => useEditorStore.getState().requestCloseOthers()
       },
       {
         id: 'close-saved',
@@ -73,15 +87,15 @@ export function useEditorChrome(activePath: string | null): ViewChromeConfig {
         // 一个文件都没落盘时它什么都关不掉 —— 不给一个注定空转的入口
         disabled: !tabs.some((tab) => !tab.dirty),
         disabledReason: t('host.editor.menu.closeSaved.disabled'),
-        onSelect: () => useEditorStore.getState().closeSaved()
+        onSelect: () => useEditorStore.getState().requestCloseSaved()
       },
       {
         id: 'close-all',
         label: t('host.editor.menu.closeAll'),
-        onSelect: () => useEditorStore.getState().closeAll()
+        onSelect: () => useEditorStore.getState().requestCloseAll()
       }
     ]
-  }, [tabs, t])
+  }, [tabs, t, activePath])
 
   return useViewChrome({
     tabs: viewTabs,

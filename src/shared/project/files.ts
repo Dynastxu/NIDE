@@ -107,6 +107,23 @@ const IGNORED_DIRECTORY_NAMES: ReadonlySet<string> = new Set([
  */
 export const MAX_TEXT_FILE_BYTES = 20 * 1024 * 1024
 
+/**
+ * 宿主临时文件名的前缀。
+ *
+ * 宿主在项目目录里做**原子替换**时需要先写一个临时文件（临时文件必须与目标在同一个
+ * 卷上，所以它落在目标所在的那一层，而不是用户数据目录）。前缀以点开头：
+ * `validateEntryName` 拒绝以点开头的名字，所以用户在界面上永远建不出这种名字，
+ * 也就撞不上宿主自己的临时件。
+ *
+ * 重命名（只改大小写那一步）与保存都用它。
+ */
+export const HOST_TEMP_FILE_PREFIX = '.nide-'
+
+/** 这个文件名是不是宿主的临时件。为真时它不进文件树 —— 它不是一个内容条目 */
+export function isHostTempFileName(name: string): boolean {
+  return String(name ?? '').startsWith(HOST_TEMP_FILE_PREFIX)
+}
+
 /** 取小写扩展名（含点）。没有扩展名时返回空串 */
 export function extensionOf(filePath: string): string {
   const name = baseNameOf(filePath)
@@ -220,6 +237,8 @@ export const PROJECT_FILE_CHANNELS = {
   readChapters: 'host:project-read-chapters',
   /** 在一个目录里新建文件 / 文件夹（invoke），参数见 CreateEntryRequest */
   createEntry: 'host:project-create-entry',
+  /** 把编辑器里的正文写回一个已存在的文件（invoke），参数见 WriteFileRequest */
+  writeFile: 'host:project-write-file',
   /** 给一个已存在的文件 / 文件夹改名（invoke），参数见 RenameEntryRequest */
   renameEntry: 'host:project-rename-entry',
   /** 删除一个文件 / 文件夹（invoke），参数见 DeleteEntryRequest */
@@ -446,4 +465,49 @@ export type DeleteEntryResult =
 export interface DeleteEntryRequest {
   /** 要删掉的文件或目录的绝对路径 */
   targetPath: string
+}
+
+// ============ 保存（把正文写回磁盘） ============
+
+/**
+ * 写回失败的归类。界面按它换文案。
+ *
+ * 与读取失败的原因**故意不同名**：同一条路径读不出来与写不进去是两件事，界面要说的
+ * 话也不一样（「读不到，重试可能就好了」对不上「写不进去，磁盘满了」）。
+ */
+export type FileWriteFailureReason =
+  /** 路径形状不对（空、不是字符串），或者正文不是字符串 */
+  | 'invalid-path'
+  /** 跑出当前项目之外 —— 与读取共用同一条范围校验 */
+  | 'outside-project'
+  /** 这个格式宿主不解码，也就不该由它写回（写回去等于毁掉一份它读不懂的内容） */
+  | 'not-text'
+  /** 目标已经不在了、是个符号链接、或者不是普通文件 */
+  | 'not-a-file'
+  /** 正文超出单个文本文件的上限（见 MAX_TEXT_FILE_BYTES） */
+  | 'too-large'
+  /** 没有权限、磁盘满、文件被别的程序独占等等 */
+  | 'unreadable'
+
+export type FileWriteResult =
+  { ok: true; path: string } | { ok: false; reason: FileWriteFailureReason }
+
+/**
+ * 「把正文写回一个文件」的请求。
+ *
+ * 只有路径与正文：写到哪儿由**路径自己**决定，没有第二个位置参数 —— 保存不是另存为，
+ * 它覆盖的必须正是这个标签页当初读的那个文件。路径落在哪个根之内由主进程对照当前
+ * 项目判断，渲染进程声明不了自己的活动范围。
+ *
+ * ## 冲突由用户的那一下点击裁决
+ *
+ * 磁盘上的版本与编辑器里这一份哪个新，宿主**不猜**：保存是用户显式按下的动作，
+ * 意思就是「以我手里这份为准」。宿主能做的是把该拒的拒掉（目标没了、路径跑出项目、
+ * 目标是链接），而不是替他决定要不要覆盖。
+ */
+export interface WriteFileRequest {
+  /** 要写回的文件绝对路径 */
+  filePath: string
+  /** 编辑器里的正文 */
+  content: string
 }

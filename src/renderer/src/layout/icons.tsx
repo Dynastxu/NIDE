@@ -195,6 +195,15 @@ export const BUILTIN_ICONS: Record<string, ReactElement> = {
     </>
   ),
 
+  /** 保存（软盘） */
+  save: (
+    <>
+      <path d="M5 4h11l3 3v13H5Z" />
+      <path d="M9 4v5.5h6V4" />
+      <path d="M8 20v-5.5h8V20" />
+    </>
+  ),
+
   /** 面板 / 布局 */
   panel: (
     <>

@@ -4,9 +4,11 @@ import type { Dirent, Stats } from 'node:fs'
 import type { FileHandle } from 'node:fs/promises'
 import {
   FRONTMATTER_SCAN_LIMIT,
+  HOST_TEMP_FILE_PREFIX,
   MAX_TEXT_FILE_BYTES,
   createNameCollator,
   filePathKey,
+  isHostTempFileName,
   isIgnoredDirectoryName,
   isInsideProject,
   isMarkdownPath,
@@ -31,9 +33,12 @@ import type {
   FileReadResult,
   FileTreeEntry,
   FileUnsupportedReason,
+  FileWriteFailureReason,
+  FileWriteResult,
   RenameEntryFailureReason,
   RenameEntryRequest,
-  RenameEntryResult
+  RenameEntryResult,
+  WriteFileRequest
 } from '@shared/project'
 
 const logger = loggerFor('project-files')
@@ -132,6 +137,17 @@ export async function readProjectDir(
     }
 
     if (dirent.isFile()) {
+      /**
+       * 宿主自己的临时件不进树。
+       *
+       * 保存做的是「先写临时件、再原子替换」（见 writeProjectFile），而重命名只改
+       * 大小写那一步也要走一个中间名 —— 两者都只有几毫秒的寿命，但只要那一刻正好
+       * 有人读这一层目录，树里就会多出一个用户没建过、也打不开（`not-text`）的条目。
+       * 崩溃时留下的那个还会一直挂在那儿。判据是名字前缀，与生成临时名的两侧共用
+       * 同一个常量（见 HOST_TEMP_FILE_PREFIX）。
+       */
+      if (isHostTempFileName(dirent.name)) continue
+
       const unsupported = await fileUnsupportedReason(entryPath)
       entries.push({
         kind: 'file',
@@ -215,12 +231,163 @@ export async function readProjectFile(
   }
 }
 
+// ============ 保存（把正文写回已有文件） ============
+
+/**
+ * 把编辑器里的正文写回一个**已经存在**的文件。
+ *
+ * 这是宿主第二处写用户内容，也是唯一一处**覆盖已有内容**的动作。与新建 / 改名 /
+ * 删除同一个立场：范围校验、符号链接、绝对路径三条一条不少（见下面的实现），
+ * 只是它多了一件新建没有的事 —— 目标的内容会被整份换掉。
+ *
+ * ## 谁赢：用户的那一下点击
+ *
+ * 磁盘上的版本与编辑器里那一份哪个新，宿主**不猜**。「保存」是用户显式发起的动作，
+ * 意思就是「以我手里这份为准」；宿主不去比较时间戳，也不留副本 —— 那两件事都需要
+ * 一个明确的取舍（谁是权威、副本放哪儿、留几份），在定下来之前宁可不做。
+ * 它该做的是把该拒的拒掉：目标已经不在了、路径跑出项目、目标是链接、格式它读不懂。
+ *
+ * ## 落盘方式：临时件 + 原子替换
+ *
+ * 不能直接 `fs.writeFile(target)`：那会**先把文件截断**，再往里写。这中间崩一次
+ * （断电、磁盘满）留下的就是一份被截短的稿子 —— 而稿子是用户唯一不能丢的东西。
+ * 所以先写一个同目录的临时件，再把临时件 rename 到目标上。rename 是原子的：
+ * 那一刻之前目标还是旧的完整内容，之后就是新的完整内容，没有中间态。
+ *
+ * 代价说清楚：替换之后新文件拿到的是**默认权限**（原文件若被设过特殊权限位或 ACL，
+ * 这里不会保留），mtime 也一定是新的。临时件落在目标所在的那一层而不是系统临时目录，
+ * 因为跨卷的 rename 退化成复制 + 删除，就不再是原子的了。
+ *
+ * 失败时把临时件删掉：宁可让用户看到一次失败，也不要在他的目录里留一个
+ * `.nide-save-…` —— 那个名字他既没起过，也不会想到去找（与改大小写那一步同理）。
+ */
+export async function writeProjectFile(
+  request: WriteFileRequest,
+  options: RootsOptions
+): Promise<FileWriteResult> {
+  const { filePath } = request
+
+  if (typeof filePath !== 'string' || filePath.length === 0) {
+    return { ok: false, reason: 'invalid-path' }
+  }
+
+  /**
+   * 正文必须是字符串，**不**在这里做 `String(content)`：一个 null 或数字被悄悄
+   * 转成 "null" / "42" 写进稿子，是那种事后完全查不出来的损坏。
+   */
+  if (typeof request.content !== 'string') {
+    logger.warn('Refused to write a file whose content is not a string', { file: filePath })
+    return { ok: false, reason: 'invalid-path' }
+  }
+
+  // 与新建 / 改名同理：走到这里都是主进程给过的绝对路径，收到别的说明调用方错了
+  if (!path.isAbsolute(filePath)) return { ok: false, reason: 'invalid-path' }
+
+  if (!isInsideAnyRoot(options.roots, filePath, options.caseInsensitive)) {
+    logger.warn('Refused to write a file outside every known root', { file: filePath })
+    return { ok: false, reason: 'outside-project' }
+  }
+
+  /**
+   * 目标是什么，先问清楚。
+   *
+   * 顺序上放在格式与大小之前：那两条说的是**请求**，而这一条说的是**目标**。
+   * 「这个路径上是个文件夹」比「这个格式宿主不解码」准确得多 —— 后者会把
+   * `chapters` 这种没有扩展名的目录说成格式问题。
+   */
+  let stats: Stats
+  try {
+    stats = await fs.lstat(filePath)
+  } catch (err) {
+    /**
+     * 目标已经不在了：**不**顺手建一个出来。
+     *
+     * 保存覆盖的必须正是这个标签页当初读的那个文件；它没了（被删、被别的程序移走）
+     * 意味着磁盘的现状与用户看到的已经不是一回事，此时悄悄重建一个同名文件会让他
+     * 以为「文件还在」。返回 not-a-file，由界面说清楚。
+     */
+    logger.warn('Failed to stat the write target', { file: filePath, error: err })
+    return { ok: false, reason: 'not-a-file' }
+  }
+
+  // 符号链接一律不碰：它可以把「写根内的文件」变成「写根外的某个东西」（与新建同理）
+  if (stats.isSymbolicLink()) {
+    logger.warn('Refused to write through a symbolic link', { file: filePath })
+    return { ok: false, reason: 'not-a-file' }
+  }
+
+  if (!stats.isFile()) {
+    logger.warn('Refused to write to an entry that is not a regular file', { file: filePath })
+    return { ok: false, reason: 'not-a-file' }
+  }
+
+  /**
+   * 只写宿主编解码得出来的格式。
+   *
+   * 这一条挡的不是用户 —— 界面上的保存入口只对已经打开的标签页存在，而能打开的
+   * 就只有这些格式。它挡的是**边界之外**的调用方：写回比新建更狠（新建只增不改，
+   * 而这里的内容是覆盖式的），所以这条通道至少要和「打开」一样窄。
+   */
+  if (!isSupportedTextPath(filePath)) {
+    logger.warn('Refused to write a file whose format the host does not decode', {
+      file: filePath
+    })
+    return { ok: false, reason: 'not-text' }
+  }
+
+  if (Buffer.byteLength(request.content, 'utf-8') > MAX_TEXT_FILE_BYTES) {
+    logger.warn('Refused to write an oversized file', { file: filePath })
+    return { ok: false, reason: 'too-large' }
+  }
+
+  const temporary = path.join(path.dirname(filePath), temporaryName('save'))
+
+  try {
+    // `wx`：临时件也绝不覆盖任何已存在的东西
+    await fs.writeFile(temporary, request.content, { encoding: 'utf-8', flag: 'wx' })
+    await fs.rename(temporary, filePath)
+  } catch (err) {
+    await fs.rm(temporary, { force: true }).catch(() => undefined)
+    logger.warn('Failed to write a file', {
+      file: filePath,
+      code: (err as { code?: unknown } | null)?.code
+    })
+    return { ok: false, reason: classifyWriteError(err) }
+  }
+
+  logger.info('Project file saved', { file: path.basename(filePath) })
+  return { ok: true, path: filePath }
+}
+
+/**
+ * 一个临时文件名（只取最后一段）。
+ *
+ * 前导点走不过 validateEntryName，所以用户自己撞不上这个名字；`save` / `rename`
+ * 这一小段只影响日志里看不看得出来是谁留下的。
+ */
+function temporaryName(scope: string): string {
+  return `${HOST_TEMP_FILE_PREFIX}${scope}-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`
+}
+
+/**
+ * 把 Node 的错误码翻成界面用语。
+ *
+ * `ENOSPC` 单列一类：磁盘满是**用户能处理**的一种失败（清点东西再存一次），
+ * 而把它和「没有权限」混在一起说，人会去查权限，查不出任何结果。
+ */
+function classifyWriteError(err: unknown): FileWriteFailureReason {
+  const code = (err as { code?: unknown } | null)?.code
+
+  if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'EISDIR') return 'not-a-file'
+  if (code === 'ENOSPC') return 'too-large'
+
+  return 'unreadable'
+}
+
 /**
  * 读一个内容目录里的章节列表。
- *
- * 与 readProjectDir 是两件事：那个回答「这一层有什么」，这个回答「这些文件各自是第
- * 几章」。后者要读每个文件的**开头**（frontmatter），而为此把整章正文读进来是不合适
- * 的 —— 一章稿子可能几百 KiB，而这里只关心前十几行。
  *
  * 因此这里只取目录里的文件（章节直接放在内容目录下，不起子目录），逐个读一小段头部，
  * 再用纯逻辑（`parseChapterNumber`，见 shared/project/chapters）取编号。读不出来的文件
@@ -567,10 +734,7 @@ async function resolveRenameTarget(
 async function renameWithCaseChange(previousPath: string, nextPath: string): Promise<void> {
   const parent = path.dirname(previousPath)
   // 前导点的名字走不过 validateEntryName，用户自己撞不上这个临时名
-  const temporary = path.join(
-    parent,
-    `.nide-rename-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-  )
+  const temporary = path.join(parent, temporaryName('rename'))
 
   await fs.rename(previousPath, temporary)
 

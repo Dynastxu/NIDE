@@ -10,7 +10,7 @@ import { baseNameOf, isInsideProject, languageForPath } from '@shared/project'
  *    而是代表一整组「这次会话打开过的东西」。识别一个标签页用**路径**，因为
  *    路径来自主进程、天然唯一；文件名只用来显示（同名文件在不同目录里很常见）。
  * 2. **标签页里没有正文。** 正文归 Monaco 的 model（按 URI 建，见
- *    editor/EditorTabs.tsx），这里只留一个 `originalValue` 当作「与磁盘一致」
+ *    editor/model-registry.ts），这里只留一个 `originalValue` 当作「与磁盘一致」
  *    的基准，用来算 `dirty`。两份正文迟早会不一致，而那时没人知道该信谁。
  */
 
@@ -21,13 +21,18 @@ export interface EditorTab {
   name: string
   /** Monaco 的语言 id，由 shared/project 的 languageForPath 推导 */
   language: string
-  /** 从磁盘读到的原样内容。与当前正文不同即为「有未保存的改动」 */
+  /**
+   * 从磁盘读到的原样内容。与当前正文不同即为「有未保存的改动」。
+   *
+   * 保存成功之后会被推到刚写下去的那一份（见 editor/editor-save.ts）：它是
+   * 「与磁盘一致」的基准，而不是「读进来时的那一份」。
+   */
   originalValue: string
   /**
    * 与磁盘不一致。
    *
-   * 宿主目前**没有实现保存**（见 editor/EditorTabs.tsx 的说明），所以这个标记
-   * 只能提示「这些改动还没落盘」，界面据此给出说法。
+   * 这一个布尔值同时管两件事：标签页上的圆点（「这些改动还没落盘」），以及关掉它时
+   * 要不要先问一句「保存吗」（见 requestClose）。
    */
   dirty: boolean
   /**
@@ -52,6 +57,17 @@ interface EditorState {
   activePath: string | null
   /** 需要展示的 Diff（AI 提议修改时触发）。与标签页无关，是覆盖在上面的浮层 */
   pendingDiff: { original: string; modified: string } | null
+  /**
+   * 排队等着关掉的标签页（路径）。
+   *
+   * 关标签是**两步**的：没有未落盘改动的直接关，有改动的要先问一句「保存吗」。
+   * 一次关多个（关闭其他 / 关闭全部）时，那些要问的必须一个一个问 —— 一次摆出三个
+   * 浮层，用户根本分不清哪一句对应哪个文件。所以关闭动作统一进这条队列：队首那个
+   * 正在处理，没有改动的会被连续摘掉（见 drainCloseQueue），停在第一个要问的上面。
+   *
+   * 队首那个就是界面要画「保存吗」的那个（非空即有待决的那一问）。
+   */
+  closeQueue: string[]
 
   /**
    * 打开一个文件。
@@ -64,26 +80,28 @@ interface EditorState {
   /** 切到某个标签页。路径不存在时什么都不做 */
   setActive: (path: string) => void
   /**
-   * 关掉一个标签页。
+   * 请求关掉一个标签页（标签上那个关闭按钮）。
    *
-   * 关掉当前这一个时，焦点交给**右邻**（没有右邻就交给左邻）—— 与浏览器标签页
-   * 一致：连按几次关闭，看到的是同一批文件按打开顺序退出，而不是焦点来回跳。
-   */
-  closeTab: (path: string) => void
-  /**
-   * 标题栏上那一下「关闭」。
-   *
-   * 与 closeTab 是同一件事，单独一个名字是为了**标出那个决定**：宿主没有保存功能
-   * （见 EditorTabs 的说明），所以关掉一个改过的标签页就是直接丢掉那些改动。
-   * 将来接上保存时，这里正是加一问「要不要先保存」的位置，而不必去翻每个关闭入口。
+   * 没有未落盘改动就直接关；有改动时**不关**，只把它挂进 `closeQueue` 等用户回答
+   * 「保存 / 不保存」。这一问归 editor/UnsavedCloseDialog，保存与关闭的收尾归
+   * editor/editor-save.ts —— 这里只决定「要不要问」。
    */
   requestClose: (path: string) => void
-  /** 关掉除当前这一个以外的全部标签页。没有当前标签页时什么都不做 */
-  closeOthers: () => void
-  /** 关掉所有**没有未落盘改动**的标签页。改过的留着，它们还需要一个去处 */
-  closeSaved: () => void
-  /** 关掉全部标签页 */
-  closeAll: () => void
+  /** 请求关掉除当前这一个以外的全部标签页。没有当前标签页时什么都不做 */
+  requestCloseOthers: () => void
+  /** 请求关掉所有**没有未落盘改动**的标签页。改过的留着，它们还需要一个去处 */
+  requestCloseSaved: () => void
+  /** 请求关掉全部标签页 */
+  requestCloseAll: () => void
+  /**
+   * 用户对队首那一问做了决定（保存完了，或者选了「不保存」）：关掉它，继续处理队列。
+   *
+   * 「保存」先由 editor-save 写盘、把基准推到新内容，再走到这里；「不保存」直接走到
+   * 这里 —— 两条路在这一步之后是同一个动作：这个标签页不该再留着了。
+   */
+  finishClose: () => void
+  /** 用户撤销了这次关闭：整条队列一起丢掉（关闭其他 / 关闭全部都就此停下） */
+  cancelClose: () => void
   /** 正文变化（用户在编辑器里改，或宿主推来新内容）。同步重算 dirty */
   setContent: (path: string, content: string) => void
   /**
@@ -92,6 +110,8 @@ interface EditorState {
    * 与 openFile 的区别只有一处，但那一处很要紧：**不动 activePath**。
    * 宿主（AI 插件）改写一个后台文件不该把用户的视图抢过去 —— 他可能正看着
    * 另一章。返回 false 表示这个文件没开着，调用方据此决定要不要新开标签页。
+   *
+   * 保存成功之后也走它：那时「磁盘上是什么」与「刚写下去的是什么」是同一份内容。
    */
   syncFromDisk: (path: string, content: string) => boolean
 
@@ -110,7 +130,7 @@ interface EditorState {
    * 某个条目在磁盘上被删了（文件树里的删除）。
    *
    * 关掉这个文件自己的标签页，以及它作为目录时**里面那个文件**的标签页 —— 那些文件
-   * 已经不在磁盘上了，留着就是几个点不开的空标签。焦点按 closeTab 的规则重新落地。
+   * 已经不在磁盘上了，留着就是几个点不开的空标签。焦点按 closedTab 的规则重新落地。
    *
    * `path` 精确相等也算（删的是一个文件）。返回被关掉的条数。
    */
@@ -120,10 +140,111 @@ interface EditorState {
   clearDiff: () => void
 }
 
+/**
+ * 与「关标签页」有关的那一半状态。
+ *
+ * 抽出来是因为关闭有一串公共步骤（算邻居、摘队列），它们既要在 zustand 的更新函数里
+ * 用，也要在几条动作之间复用 —— 直接对着整份 EditorState 写会把「标签数组」与
+ * 「关闭队列」两件事混在一处。
+ */
+interface CloseSlice {
+  tabs: EditorTab[]
+  activePath: string | null
+}
+
+/**
+ * 关掉一个标签页之后的样子。
+ *
+ * 关掉的是当前这一个时，焦点交给**右邻**（没有右邻就交给左邻）—— 与浏览器标签页
+ * 一致：连按几次关闭，看到的是同一批文件按打开顺序退出，而不是焦点来回跳。关的不是
+ * 当前这一个时焦点不动（用户是在清理开多的标签页）。
+ *
+ * 路径不在时返回 null：调用方据此知道这一步什么都不用做。
+ */
+function closedTab(slice: CloseSlice, path: string): CloseSlice | null {
+  const index = slice.tabs.findIndex((tab) => tab.path === path)
+  if (index < 0) return null
+
+  const tabs = slice.tabs.filter((tab) => tab.path !== path)
+  if (slice.activePath !== path) return { tabs, activePath: slice.activePath }
+
+  const next = tabs[index] ?? tabs[index - 1] ?? null
+  return { tabs, activePath: next?.path ?? null }
+}
+
+/**
+ * 从队首开始连续关掉那些**不需要用户决定**的标签页，停在第一个有未落盘改动的上面。
+ *
+ * 这就是「关标签是两步的」那件事：干净的直接关，脏的必须等一句回答。走队列而不是在
+ * 每条动作里各分一次叉，是为了让「关一个 / 关闭其他 / 关闭全部 / 关闭未改动的」共用
+ * 同一套收尾 —— 它们的差别只剩**入队哪些路径**。
+ *
+ * 队首那个已经不在标签数组里的（被别的路径顺手关掉了）直接出队：留着它只会让界面
+ * 问一个已经没有的问题。
+ */
+function drainCloseQueue(
+  slice: CloseSlice,
+  queue: string[]
+): CloseSlice & { closeQueue: string[] } {
+  let current = slice
+  let rest = queue
+
+  while (rest.length > 0) {
+    const head = rest[0]
+    const tab = current.tabs.find((item) => item.path === head)
+
+    if (!tab) {
+      rest = rest.slice(1)
+      continue
+    }
+
+    // 有未落盘的改动：停下来等用户回答（界面据队列非空画出那一问）
+    if (tab.dirty) break
+
+    current = closedTab(current, head) ?? current
+    rest = rest.slice(1)
+  }
+
+  return { ...current, closeQueue: rest }
+}
+
+/**
+ * 把一批路径接进关闭队列，然后按同一套规则往下走。
+ *
+ * 已经在队列里的路径不再接一次：连点两下关闭按钮不该问两遍同一件事。一个都没接上时
+ * 返回空对象 —— 让 zustand 跳过这次通知，与 setContent 那条早退同一个理由。
+ */
+function enqueueClose(state: EditorState, paths: readonly string[]): Partial<EditorState> {
+  const queued = new Set(state.closeQueue)
+  const additions = paths.filter((path) => !queued.has(path))
+  if (additions.length === 0) return {}
+
+  return drainCloseQueue(state, [...state.closeQueue, ...additions])
+}
+
+/** 当前标签页以外的全部标签页（「关闭其他」要关的就是这些） */
+function othersOf(state: EditorState): string[] {
+  return state.tabs.filter((tab) => tab.path !== state.activePath).map((tab) => tab.path)
+}
+
+/**
+ * 关闭队列跟着一次改名走。
+ *
+ * 队列里存的是路径，而路径一变就再也对不上任何标签页了 —— 不跟着改的话，改名之后
+ * 那一问会指向一个不存在的文件（队首成了「不在标签数组里」的那种，会被丢掉，
+ * 于是用户刚决定要处理的标签页悄悄不问了）。
+ *
+ * 顺带去重：改名可能把两条并成一条（新名字本来就开着），队列里不该留着两份。
+ */
+function renameInQueue(queue: readonly string[], previousPath: string, nextPath: string): string[] {
+  return [...new Set(queue.map((path) => (path === previousPath ? nextPath : path)))]
+}
+
 export const useEditorStore = create<EditorState>((set) => ({
   tabs: [],
   activePath: null,
   pendingDiff: null,
+  closeQueue: [],
 
   openFile: (file) =>
     set((s) => {
@@ -167,46 +288,37 @@ export const useEditorStore = create<EditorState>((set) => ({
   setActive: (path) =>
     set((s) => (s.tabs.some((tab) => tab.path === path) ? { activePath: path } : {})),
 
-  closeTab: (path) =>
+  requestClose: (path) => set((s) => enqueueClose(s, [path])),
+
+  requestCloseOthers: () => set((s) => (s.activePath === null ? {} : enqueueClose(s, othersOf(s)))),
+
+  requestCloseSaved: () =>
+    set((s) =>
+      // 「关闭未改动的」永远不需要问：要关的那些本来就没有未落盘的内容
+      enqueueClose(
+        s,
+        s.tabs.filter((tab) => !tab.dirty).map((tab) => tab.path)
+      )
+    ),
+
+  requestCloseAll: () =>
+    set((s) =>
+      enqueueClose(
+        s,
+        s.tabs.map((tab) => tab.path)
+      )
+    ),
+
+  finishClose: () =>
     set((s) => {
-      const index = s.tabs.findIndex((tab) => tab.path === path)
-      if (index < 0) return {}
+      const [head, ...rest] = s.closeQueue
+      if (head === undefined) return {}
 
-      const tabs = s.tabs.filter((tab) => tab.path !== path)
-
-      // 关的不是当前这一个时，焦点不动（用户是在清理开多的标签页）
-      if (s.activePath !== path) return { tabs }
-
-      const next = tabs[index] ?? tabs[index - 1] ?? null
-      return { tabs, activePath: next?.path ?? null }
+      // 先把队首那个真正关掉（用户已经决定「保存」或「不保存」了），再继续处理队列
+      return drainCloseQueue(closedTab(s, head) ?? s, rest)
     }),
 
-  requestClose: (path) => useEditorStore.getState().closeTab(path),
-
-  closeOthers: () =>
-    set((s) => {
-      if (s.activePath === null) return {}
-
-      const tabs = s.tabs.filter((tab) => tab.path === s.activePath)
-      return tabs.length === s.tabs.length ? {} : { tabs }
-    }),
-
-  closeSaved: () =>
-    set((s) => {
-      const tabs = s.tabs.filter((tab) => tab.dirty)
-      if (tabs.length === s.tabs.length) return {}
-
-      // 关掉的是当前这一个（它是干净的）时，焦点按 closeTab 的规则落到右邻
-      if (s.activePath && !tabs.some((tab) => tab.path === s.activePath)) {
-        const index = s.tabs.findIndex((tab) => tab.path === s.activePath)
-        const next = tabs[index] ?? tabs[index - 1] ?? null
-        return { tabs, activePath: next?.path ?? null }
-      }
-
-      return { tabs }
-    }),
-
-  closeAll: () => set((s) => (s.tabs.length === 0 ? {} : { tabs: [], activePath: null })),
+  cancelClose: () => set((s) => (s.closeQueue.length === 0 ? {} : { closeQueue: [] })),
 
   setContent: (path, content) =>
     set((s) => {
@@ -277,7 +389,8 @@ export const useEditorStore = create<EditorState>((set) => ({
 
         return {
           tabs,
-          activePath: s.activePath === previousPath ? nextPath : s.activePath
+          activePath: s.activePath === previousPath ? nextPath : s.activePath,
+          closeQueue: renameInQueue(s.closeQueue, previousPath, nextPath)
         }
       }
 
@@ -294,7 +407,8 @@ export const useEditorStore = create<EditorState>((set) => ({
       return {
         tabs,
         // 改名的可能正是当前看着的那一个：路径一变，活跃标签页也要跟着换
-        activePath: s.activePath === previousPath ? nextPath : s.activePath
+        activePath: s.activePath === previousPath ? nextPath : s.activePath,
+        closeQueue: renameInQueue(s.closeQueue, previousPath, nextPath)
       }
     })
 
@@ -317,16 +431,18 @@ export const useEditorStore = create<EditorState>((set) => ({
 
       closed = gone.size
       const tabs = s.tabs.filter((tab) => !gone.has(tab.path))
+      // 队列里那些已经不在了的路径一起摘掉：文件都被删了，没什么可问的了
+      const closeQueue = s.closeQueue.filter((queued) => !gone.has(queued))
 
-      // 焦点按 closeTab 的规则重新落地：删掉的若是当前这一个，交给它的右邻（没有就左邻）
+      // 焦点按 closedTab 的规则重新落地：删掉的若是当前这一个，交给它的右邻（没有就左邻）
       if (s.activePath && gone.has(s.activePath)) {
-        // 位置在**原来那个数组**里算，再去掉之后的那一份里取邻居（与 closeTab 同一套算法）
+        // 位置在**原来那个数组**里算，再去掉之后的那一份里取邻居（与 closedTab 同一套算法）
         const index = s.tabs.findIndex((tab) => tab.path === s.activePath)
         const next = tabs[index] ?? tabs[index - 1] ?? null
-        return { tabs, activePath: next?.path ?? null }
+        return { tabs, activePath: next?.path ?? null, closeQueue }
       }
 
-      return { tabs }
+      return { tabs, closeQueue }
     })
 
     return closed

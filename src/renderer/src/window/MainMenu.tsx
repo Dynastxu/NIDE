@@ -1,5 +1,7 @@
 import { JSX, useEffect, useRef, useState } from 'react'
+import { saveActiveTab } from '@renderer/editor/editor-save'
 import { useT } from '@renderer/stores/i18n.store'
+import { useEditorStore } from '@renderer/stores/editor.store'
 import { useLayoutStore } from '@renderer/stores/layout.store'
 import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
@@ -58,6 +60,16 @@ interface MenuGroup {
 export function MainMenu(): JSX.Element {
   const t = useT()
   const showView = useLayoutStore((s) => s.showView)
+  /**
+   * 当前标签页有没有未落盘的改动。
+   *
+   * 菜单项要据此置灰：没有改动时「保存」写下去的就是磁盘上已有的那一份。选择器返回
+   * 的是**布尔值**而不是那个标签页对象 —— 后者每次都是新引用，会让菜单每敲一个字
+   * 就重渲染一遍（与 editor store 里 setContent 那条早退同一个理由）。
+   */
+  const activeDirty = useEditorStore(
+    (s) => s.tabs.find((tab) => tab.path === s.activePath)?.dirty ?? false
+  )
   /** false = 显示菜单按钮 + 项目下拉；true = 显示「文件 / 编辑」 */
   const [menuOpen, setMenuOpen] = useState(false)
   /** 当前展开的子菜单 id。null 表示菜单栏开着但没有任何一项展开 */
@@ -117,6 +129,22 @@ export function MainMenu(): JSX.Element {
       id: 'file',
       labelKey: 'host.menu.file',
       items: [
+        /**
+         * 保存当前标签页。
+         *
+         * 与 Ctrl+S、标签条「更多 -> 保存」、以及关掉一个改过的标签页时那一问的
+         * 「保存」是**同一个函数**（见 editor/editor-save）：四条入口对「保存到底是
+         * 什么」只该有一种理解。没有改动时置灰 —— 那时写下去的就是磁盘上已有的那一份，
+         * 一个注定什么都不改的入口不如直接说明为什么按不动。
+         */
+        {
+          id: 'save',
+          label: t('host.menu.file.save'),
+          icon: 'save',
+          disabled: !activeDirty,
+          disabledReason: t('host.menu.file.save.disabled'),
+          onSelect: pick(() => void saveActiveTab())
+        },
         {
           id: 'closeProject',
           label: t('host.menu.file.closeProject'),

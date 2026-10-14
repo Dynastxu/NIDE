@@ -2,10 +2,20 @@ import { JSX, useEffect, useRef } from 'react'
 import * as monaco from 'monaco-editor'
 import loader from '@monaco-editor/loader'
 import { useEditorChrome } from '@renderer/editor/editor-chrome'
+import { saveActiveTab, saveTab } from '@renderer/editor/editor-save'
+import {
+  ensureModel,
+  modelFor,
+  pathOfModel,
+  releaseClosedModels,
+  writeModelSilently
+} from '@renderer/editor/model-registry'
+import { UnsavedCloseDialog } from '@renderer/editor/UnsavedCloseDialog'
 import { ViewFrame } from '@renderer/view/ViewFrame'
-import { useT } from '@renderer/stores/i18n.store'
+import { getT, useT } from '@renderer/stores/i18n.store'
 import { useEditorStore } from '@renderer/stores/editor.store'
-import { baseNameOf, languageForPath } from '@shared/project'
+import { baseNameOf, languageForPath, type FileWriteFailureReason } from '@shared/project'
+import type { HostMessageKey } from '@shared/i18n'
 
 /**
  * 工作台中间的主编辑区：上面一条标签页（由通用视图外壳画），下面一个 Monaco 实例。
@@ -20,7 +30,7 @@ import { baseNameOf, languageForPath } from '@shared/project'
  * Monaco 的初始化不便宜（加载、建 DOM、挂事件）。一个文件都没打开时不渲染它，
  * 只显示一句「在左侧点一个文件」—— 首屏也因此不必为一个空编辑器付代价。
  * 代价是编辑器组件会随标签页从 0 到 1、再从 1 到 0 挂载和卸载，所以 model
- * 不能挂在组件内部（见下面的 MODEL_CACHE）。
+ * 不能挂在组件内部（见 model-registry.ts）。
  *
  * ## 一个编辑器，多个 model
  *
@@ -36,53 +46,43 @@ import { baseNameOf, languageForPath } from '@shared/project'
  *
  * ## 保存
  *
- * 宿主没有实现保存：`readOnly` 是 false（宿主是写作工具，不让打字没有意义），
- * 但 Ctrl+S 不会写盘，标签页上的圆点只表示「这些改动还没落盘」。
- * 接入保存时落点就是这里 —— 读 model 的值、走一条新的 IPC、成功后把
- * `originalValue` 推到当前值。
+ * 三条入口共用同一个函数（见 editor-save.ts）：编辑器里的 Ctrl+S、标题栏文件菜单的
+ * 「保存」、以及关掉一个改过的标签页时那一问的「保存」。这里负责前两条中的第一条
+ * —— 键位属于编辑器这一层，而动作本身不在这里。
+ *
+ * ## 关掉一个改过的标签页
+ *
+ * 关闭是**两步**的：没有未落盘改动就直接关，有改动的先问一句（保存 / 不保存 /
+ * 取消）。要问哪一问由 store 的关闭队列说了算（见 stores/editor.store），这一层
+ * 只把队首画成 `UnsavedCloseDialog`，并把用户的回答交给保存与收尾那两步。
+ * 放在这里而不是外壳里，是因为那一问要用到 model（保存要读正文）—— 那是编辑器
+ * 这一层才知道的事，通用外壳不该认识它。
  */
 
-/**
- * 已建好的 model 缓存：`文件路径 -> model`。
- *
- * 放在**模块级**而不是 useRef 里，是因为编辑器组件会在标签页归零时卸载 ——
- * 挂在组件内部的缓存在那一刻就没了，而 model 是「打开过的文件」这个更长寿的
- * 概念的一部分。它的生命周期只跟随 store 里的 `tabs`：
- * 标签页被关掉时释放（见下面的清理 effect），窗口重建时随渲染进程一起消失。
- *
- * 同一时刻只有一个窗口能用到它：这个模块属于主窗口的渲染进程。
- */
-const MODEL_CACHE = new Map<string, monaco.editor.ITextModel>()
-
-/** 关掉标签页时释放它的 model，否则改一次文件、关一次，model 会一直攒着 */
-function releaseClosedModels(openPaths: ReadonlySet<string>): void {
-  for (const [path, model] of MODEL_CACHE) {
-    if (openPaths.has(path)) continue
-    model.dispose()
-    MODEL_CACHE.delete(path)
-  }
+/** 保存失败的原因 -> 词条 key。与读取失败那一张表分开：要做的事不一样 */
+const SAVE_FAILURE_KEYS: Record<FileWriteFailureReason, HostMessageKey> = {
+  'invalid-path': 'host.editor.save.failed.invalid-path',
+  'outside-project': 'host.editor.save.failed.outside-project',
+  'not-text': 'host.editor.save.failed.not-text',
+  'not-a-file': 'host.editor.save.failed.not-a-file',
+  'too-large': 'host.editor.save.failed.too-large',
+  unreadable: 'host.editor.save.failed.unreadable'
 }
+
 /**
- * 把一份内容写进 model，并且**不让这次写入被当成用户的编辑**。
+ * 这一下键盘事件落在能打字的地方吗。
  *
- * 用 `pushEditOperations` 而不是 `setValue`：前者保留撤销历史（宿主改过之后
- * 用户还能 Ctrl+Z 退回去），后者会把历史清空。
- *
- * `syncing` 是指向调用方那个 ref 的引用 —— 写入期间把它置成 true，
- * `onDidChangeModelContent` 据此跳过 setContent，否则「写入 -> 算 dirty ->
- * 又写回 store」会绕成环，把刚刚设好的基准立刻推翻。
+ * 落在输入框里时**不抢** Ctrl+S：那时用户正在起名字（新建 / 重命名对话框）或者正在
+ * 回答一个浮层里的话，而把这一下当成「保存当前标签页」的后果是悄悄写了一次盘 ——
+ * 保存是显式动作，不该从别的地方顺手发生。编辑器自己那一份由 Monaco 的命令接管
+ * （见 MonacoPane），所以排除了它也不会少一条路。
  */
-function writeModelSilently(
-  model: monaco.editor.ITextModel,
-  content: string,
-  syncing: { current: boolean }
-): void {
-  syncing.current = true
-  try {
-    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: content }], () => null)
-  } finally {
-    syncing.current = false
-  }
+function isTypingTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null
+  if (!element || typeof element.tagName !== 'string') return false
+
+  const tag = element.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || element.isContentEditable
 }
 
 /**
@@ -103,12 +103,7 @@ function applyActiveModel(editor: monaco.editor.IStandaloneCodeEditor): void {
     return
   }
 
-  let model = MODEL_CACHE.get(tab.path)
-  if (!model) {
-    model = monaco.editor.createModel(tab.originalValue, tab.language, monaco.Uri.file(tab.path))
-    MODEL_CACHE.set(tab.path, model)
-  }
-
+  const model = ensureModel(tab)
   if (editor.getModel() !== model) editor.setModel(model)
 }
 
@@ -121,6 +116,13 @@ export function EditorTabs(): JSX.Element {
    * 标题与高亮都跟着活跃标签页走，而订阅点就是这里。
    */
   const activePath = useEditorStore((s) => s.activePath)
+  /**
+   * 等着用户回答「保存吗」的那些标签页。
+   *
+   * 队首那个就是要画出来的那一问（见 stores/editor.store 的 drainCloseQueue）：
+   * 一次关多个时，要问的会一个一个问过来，而不是同时摆出几个浮层。
+   */
+  const closeQueue = useEditorStore((s) => s.closeQueue)
   const t = useT()
 
   /**
@@ -140,6 +142,35 @@ export function EditorTabs(): JSX.Element {
     releaseClosedModels(new Set(tabs.map((tab) => tab.path)))
   }, [tabs])
 
+  /**
+   * Ctrl+S / ⌘S。
+   *
+   * 焦点在编辑器里时由 Monaco 的命令接住（见 MonacoPane），这里补的是**其余地方**
+   * —— 文件树、标签条、工具区。监听挂在 document 上而不是某个容器上：这些地方的
+   * 焦点落点五花八门，而「保存」是窗口级的一个动作。
+   *
+   * 没有改动时 saveActiveTab 什么都不做（见 editor-save.ts）：一次写入会换掉文件的
+   * inode 与 mtime，没有理由为一次空按付那个代价。
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      // 带上 Alt / Shift 的那几组不是「保存」：Ctrl+Shift+S 是「另存为」的习惯键位，
+      // 而宿主没有另存为 —— 把它当保存吃掉，比什么都不做更让人意外
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+      if (event.key !== 's' && event.key !== 'S') return
+      if (isTypingTarget(event.target)) return
+
+      event.preventDefault()
+      void saveActiveTab()
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  const pendingPath = closeQueue[0] ?? null
+  const pendingTab = pendingPath ? (tabs.find((tab) => tab.path === pendingPath) ?? null) : null
+
   return (
     <ViewFrame chrome={chrome}>
       {tabs.length > 0 ? (
@@ -155,6 +186,27 @@ export function EditorTabs(): JSX.Element {
             {t('host.editor.empty.hint')}
           </p>
         </div>
+      )}
+
+      {/*
+        key 绑路径：换一个标签页来问时重新挂载，焦点与「上一次保存失败」那句话都跟着
+        重来 —— 否则第二个标签页会带着第一个的错误提示出现。
+      */}
+      {pendingTab && (
+        <UnsavedCloseDialog
+          key={pendingTab.path}
+          name={pendingTab.name}
+          onSave={async () => {
+            const result = await saveTab(pendingTab.path)
+            if (!result.ok) return getT()(SAVE_FAILURE_KEYS[result.reason])
+
+            // 写盘成功了，把它从队列里摘掉，继续处理后面那些（可能还有要问的）
+            useEditorStore.getState().finishClose()
+            return null
+          }}
+          onDiscard={() => useEditorStore.getState().finishClose()}
+          onCancel={() => useEditorStore.getState().cancelClose()}
+        />
       )}
     </ViewFrame>
   )
@@ -223,10 +275,25 @@ function MonacoPane(): JSX.Element {
         /**
          * 模型值变了，把「与磁盘是否一致」的结论推回 store。
          *
-         * 依赖「切 model 不会触发本事件」这一点：Monaco 只在**内容**变化时触发，
-         * setModel 本身不算。所以这里不必判断这条通知来自哪个 model。
+         * 路径由注册表给（`pathOfModel`），**不是** `model.uri.path`：后者在 Windows 上
+         * 是 `/c:/a/b.md` 这种写法，store 里认的却是主进程给的 `C:\a\b.md`，拿它去查
+         * 标签页永远查不到（见 model-registry 里那张对应表的说明）。
+         *
+         * 另外，切 model 本身不会触发本事件 —— Monaco 只在**内容**变化时触发 ——
+         * 所以这里不必判断这条通知来自哪个 model。
          */
-        useEditorStore.getState().setContent(model.uri.path, model.getValue())
+        const path = pathOfModel(model)
+        if (!path) return
+
+        useEditorStore.getState().setContent(path, model.getValue())
+      })
+
+      /**
+       * Ctrl+S：焦点在编辑器里时由这条命令接住（Monaco 处理掉的键位不会再冒泡到
+       * document，所以与 EditorTabs 里那条监听不会各存一次）。
+       */
+      editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
+        void saveActiveTab()
       })
 
       editorRef.current = editor
@@ -255,7 +322,7 @@ function MonacoPane(): JSX.Element {
       disposed = true
       editorRef.current?.dispose()
       editorRef.current = null
-      // model 不归编辑器管，它由 EditorTabs 的缓存管理，这里不碰
+      // model 不归编辑器管，它由 model-registry 管理，这里不碰
     }
   }, [])
 
@@ -274,9 +341,9 @@ function MonacoPane(): JSX.Element {
   /**
    * 重新打开一个**改动还没落盘**的文件时，把它的 model 拉回磁盘上的版本。
    *
-   * 场景：用户改了第 3 章（圆点亮了），没有保存功能，于是再点一次文件树里的它 ——
-   * store 那边 `originalValue` 已经换成磁盘内容、dirty 清成 false，但 model 里
-   * 还是改过的正文。不同步的话，圆点说的和正文写的就对不上了。
+   * 场景：用户改了第 3 章（圆点亮了），于是再点一次文件树里的它 —— store 那边
+   * `originalValue` 已经换成磁盘内容、dirty 清成 false，但 model 里还是改过的正文。
+   * 不同步的话，圆点说的和正文写的就对不上了。
    *
    * 触发条件是 `refreshToken`（只由 openFile 命中已开标签页时推进），**不是**
    * 「model 与 originalValue 不同」—— 后者在用户打字时也成立，那样每敲一个字符
@@ -294,7 +361,7 @@ function MonacoPane(): JSX.Element {
     // refreshToken 为 0 表示这个标签页是刚建的，model 本来就照它建，不必再写
     if (tab.refreshToken === 0) return
 
-    const model = MODEL_CACHE.get(tab.path)
+    const model = modelFor(tab.path)
     if (!model || model.getValue() === tab.originalValue) return
 
     writeModelSilently(model, tab.originalValue, syncingRef)
@@ -321,7 +388,7 @@ function MonacoPane(): JSX.Element {
         })
       }
 
-      const model = MODEL_CACHE.get(filePath)
+      const model = modelFor(filePath)
       if (!model || model.getValue() === content) return
 
       writeModelSilently(model, content, syncingRef)

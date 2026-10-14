@@ -39,6 +39,9 @@ export const zhCN = {
   // ---- 主窗口标题栏的菜单（文件 / 编辑）----
   'host.menu.button': '菜单',
   'host.menu.file': '文件',
+  // 保存：与 Ctrl+S、标签条「更多」里的那一项是同一个动作（见 renderer/editor 的 saveActiveTab）
+  'host.menu.file.save': '保存',
+  'host.menu.file.save.disabled': '当前标签页没有未保存的改动。',
   'host.menu.file.closeProject': '关闭项目',
   'host.menu.file.closeProject.confirm.title': '关闭项目',
   'host.menu.file.closeProject.confirm.message':
@@ -271,10 +274,22 @@ export const zhCN = {
   'host.editor.empty.title': '没有打开的文件',
   'host.editor.empty.hint': '在左侧的文件树里点一个文件，它会在这里以标签页打开。',
   'host.editor.tab.close': '关闭',
-  'host.editor.unsaved': '尚未保存：保存功能还没实现',
-  'host.editor.unsaved.hint': '保存功能尚未实现，这里的改动不会写回磁盘。',
-  // 标题栏右上角「更多」菜单：一次关掉多个标签页。宿主还没有保存功能，
-  // 所以这几个动作都会直接丢掉未落盘的改动（见 stores/editor.store）
+  // 保存：Ctrl+S / 文件菜单 / 标签条右上角的「更多」共用同一句话
+  'host.editor.save': '保存',
+  // 关掉一个改过的标签页时问的那一句。三个按钮：保存 / 不保存 / 取消
+  'host.editor.unsaved.title': '「{name}」有未保存的改动',
+  'host.editor.unsaved.message': '要保存这些改动吗？不保存的话，关掉这个标签页就会丢掉它们。',
+  // 「不保存」而不是「丢弃」：界面上要否定的正是「保存」这个动作
+  'host.editor.unsaved.discard': '不保存',
+  // 保存失败：按原因分开说，它们要做的事不一样（改名 / 找权限 / 腾空间）
+  'host.editor.save.failed.invalid-path': '这个文件的路径不可用，没有保存。',
+  'host.editor.save.failed.outside-project': '这个文件不在当前项目里，没有保存。',
+  'host.editor.save.failed.not-text': '这个格式宿主不解码，没有保存。',
+  'host.editor.save.failed.not-a-file':
+    '这个文件已经不在了，或者它不是一个文件（可能被删掉、改名，或被换成了链接）。',
+  'host.editor.save.failed.too-large': '保存失败：内容太大，或者磁盘空间不够。',
+  'host.editor.save.failed.unreadable': '保存失败：没有权限，或者磁盘不可写。',
+  // 标题栏右上角「更多」菜单：一次关掉多个标签页。有未保存改动的那些会逐个问一句
   'host.editor.menu.closeOthers': '关闭其他标签页',
   'host.editor.menu.closeOthers.disabled': '只开着一个文件。',
   'host.editor.menu.closeSaved': '关闭未改动的标签页',
