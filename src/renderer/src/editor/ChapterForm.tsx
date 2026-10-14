@@ -147,8 +147,9 @@ export function ChapterForm({
     /**
      * 一列字段。高度按内容排 —— 这一格里唯一有高度的东西是调用方摆在下面的那个编辑器。
      *
-     * 左右留白**不在这里**：它由承载这一层的滚动容器给（见 EditorPanes 的表单那一格），
-     * 那样字段与编辑器共用同一条边距，不会各写一遍再各自漂移。
+     * 左右留白**不在这里**：它由调用方那一层给（见 EditorPanes 表单那一格），而且只给
+     * 字段这一层 —— 正文编辑器贴着窗口两边（编辑器是写字的地方，边距会把它变成一个
+     * 窗口里的小框），两者因此不再共用同一条边距。
      */
     <section className="flex flex-col gap-4">
       <Field label={t('host.editor.form.index')} hint={t('host.editor.form.index.hint')}>

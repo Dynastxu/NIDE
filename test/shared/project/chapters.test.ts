@@ -15,7 +15,8 @@ import {
   parseChapterNumber,
   splitFrontmatter,
   takenChapterFileNumbers,
-  usedChapterNumbers
+  usedChapterNumbers,
+  writeChapterBody
 } from '@shared/project'
 import type { ChapterFile } from '@shared/project'
 
@@ -264,5 +265,50 @@ describe('chapterBodyOf', () => {
     const document = composeChapterDocument(3)
 
     expect(chapterBodyOf(document)).toBe(`# ${defaultChapterHeading(3)}\n\n`)
+  })
+})
+
+/**
+ * 写回正文：表单模式里那个只认正文的编辑器每敲一个字都会走到这里。
+ *
+ * 这一组的判据只有一条 —— **读回来的正文与写进去的那份逐字相同**（除此之外文件的
+ * 其余部分一点都不该动）。所以正面的用例都写成「往返一趟」，而不是各自盯着字符串的
+ * 某个位置：位置会随着排版约定变，而往返不变。
+ */
+describe('writeChapterBody', () => {
+  const DOCUMENT = '---\ncategory: chapter\ndata:\n  index: "001"\n---\n\n# 标题\n\n正文\n'
+
+  it('只换正文，frontmatter 原样留下', () => {
+    expect(writeChapterBody(DOCUMENT, '# 改过的标题\n\n改过的正文\n')).toBe(
+      '---\ncategory: chapter\ndata:\n  index: "001"\n---\n\n# 改过的标题\n\n改过的正文\n'
+    )
+  })
+
+  it('往返一趟读到的是同一段正文（空、单行、结尾没有换行都算）', () => {
+    for (const body of ['', '# 标题', '# 标题\n', '第一段\n\n第二段\n', '\n以空行开头\n']) {
+      expect(chapterBodyOf(writeChapterBody(DOCUMENT, body))).toBe(body)
+    }
+  })
+
+  it('手写的那种没有空行的写法：写回一次就归到「围栏 + 空行 + 正文」', () => {
+    const handwritten = '---\ncategory: chapter\n---\n# 标题\n\n正文'
+
+    expect(writeChapterBody(handwritten, '正文')).toBe('---\ncategory: chapter\n---\n\n正文')
+  })
+
+  it('没有 frontmatter 时整篇就是正文：写回来也就是正文本身', () => {
+    expect(writeChapterBody('# 随便写的一篇\n', '改写过的\n')).toBe('改写过的\n')
+  })
+
+  it('只有 frontmatter 时写进去的就是全部正文', () => {
+    expect(writeChapterBody('---\ncategory: chapter\n---\n', '# 新的一章\n')).toBe(
+      '---\ncategory: chapter\n---\n\n# 新的一章\n'
+    )
+  })
+
+  it('正文里的分隔线不会被当成围栏：只有首行那一段算 frontmatter', () => {
+    const body = '第一段\n\n---\n\n第二段\n'
+
+    expect(chapterBodyOf(writeChapterBody(DOCUMENT, body))).toBe(body)
   })
 })

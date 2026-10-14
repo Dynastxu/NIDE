@@ -3,10 +3,14 @@ import * as monaco from 'monaco-editor'
 import { monacoLoader } from '@renderer/monaco-env'
 import { ChapterForm } from '@renderer/editor/ChapterForm'
 import { MarkdownPreview } from '@renderer/editor/MarkdownPreview'
+import { applyChapterBody } from '@renderer/editor/chapter-body'
 import { applyChapterMetadata } from '@renderer/editor/chapter-metadata'
 import {
+  bodyModelFor,
+  ensureBodyModel,
   ensureModel,
   modelFor,
+  pathOfBodyModel,
   pathOfModel,
   writeModelSilently
 } from '@renderer/editor/model-registry'
@@ -15,7 +19,7 @@ import { loggerFor } from '@renderer/logger'
 import { defaultDocumentMode } from '@renderer/editor/document-mode'
 import { useDocumentViewStore } from '@renderer/stores/document-view.store'
 import { useEditorStore, type EditorTab } from '@renderer/stores/editor.store'
-import { splitFrontmatter } from '@shared/project'
+import { chapterBodyOf, splitFrontmatter } from '@shared/project'
 
 const logger = loggerFor('editor')
 
@@ -31,13 +35,16 @@ const logger = loggerFor('editor')
  * └────────┘  └────────────────┘  └──────┴──────┘    └──────┘
  * ```
  *
- * ## 布局只有一条规则
+ * ## 高度有两种给法
  *
- * 正文那一格是**弹性列的直接子元素**（`flex-col` 里的 `flex-1`）—— 与改动前完全一样。
+ * 「纯文本 / 拆分 / 预览」里那一格是**弹性列的直接子元素**（`flex-col` 里的 `flex-1`）：
  * 它的高度由 flex 布局直接给出，编辑器量到的就是「剩下多少地方」。
  *
- * 刻意**不**用网格叠层：`grid` 的默认行轨道是 `auto`，而编辑器那一格的内容是 Monaco
- * 自己绝对定位出来的层、不贡献高度 —— 行会塌成 0，编辑器什么都画不出来。
+ * 「表单」里那一格反过来 —— 高度**按内容给**（`getContentHeight`，见 fitBodyHeight），
+ * 不矮于那一格看得见的区域：那一格整块可滚，编辑器自己不再是一条内部滚动的小窗口。
+ *
+ * 两者都刻意**不**用网格叠层：`grid` 的默认行轨道是 `auto`，而编辑器那一格的内容是
+ * Monaco 自己绝对定位出来的层、不贡献高度 —— 行会塌成 0，编辑器什么都画不出来。
  *
  * ## 编辑器容器由 React 直接渲染
  *
@@ -60,9 +67,10 @@ const logger = loggerFor('editor')
  * 的编辑器一起挪过去，实例与历史都跟着走。
  *
  * 切到「表单」时那一格换到另一处 JSX 位置（表单字段之后），组件会重新挂载、编辑器因此
- * 重建一次。这是**刻意接受**的代价：把同一个实例在两种布局之间搬来搬去，正是前面几版
- * 出错的地方（容器还没进文档就被建出来、或者永远等不到一次尺寸测量）。重建只影响撤销
- * 历史与光标位置，正文本身在 model 里、一个字都不会丢。
+ * 重建一次，绑的也是另一份 model（只有正文的那一份，见 MonacoHost 的 `content`）。这是
+ * **刻意接受**的代价：把同一个实例在两种布局之间搬来搬去，正是前面几版出错的地方
+ * （容器还没进文档就被建出来、或者永远等不到一次尺寸测量）。重建只影响撤销历史与光标
+ * 位置，正文本身在 model 里、一个字都不会丢。
  */
 export function EditorPanes({
   tab,
@@ -85,37 +93,39 @@ export function EditorPanes({
      * 而挂载/卸载会连同子树里的编辑器一起拆掉 —— 那意味着在索引框里每敲一个字符，
      * Monaco 就被销毁重建一次。把编辑器放在它**外面**，这条重挂载路线就与编辑器无关了。
      *
-     * 编辑器的高度用 `h-[60vh]`（视口比例）而不是 `flex-1`：它是一段很长的稿子，需要
-     * 一块**实打实**的地方，而不是「字段排完之后剩多少算多少」—— 后者在字段多的章节上
-     * 会把它压成一条缝。它是这一格里唯一有高度的东西，其余字段按内容排。
+     * 编辑器的高度**按内容长**（见 MonacoHost 的 fitBodyHeight），不矮于这一格看得见的
+     * 那一片地方：稿子短时它是一整页可以点下去继续写的地方，稿子长时它跟着长，滚动交给
+     * 这一格。
      */
     return (
       /**
-       * 表单那一格：整块可滚，左右留白**只在这里给一次**。
+       * 表单那一格：整块可滚。
        *
-       * 表单字段与正文编辑器都是它的子元素，公共留白放在父级比在两处各写一遍好：
-       * 后者迟早会分叉（事实上已经分叉过一次 —— 表单那一层掉了 `px-4`，编辑器还在，
-       * 于是字段贴着窗口边缘、编辑器却有留白）。
+       * 左右留白落在**元数据字段**那一层，不在这里：正文那一格要贴着窗口两边（编辑器
+       * 是写字的地方，边距会把它变成一个窗口里的小框 —— 见 MonacoHost 的说明），而
+       * 字段贴着窗口边只是难看。两处各自的留白因此各写各的，不再共用父级那一份。
        */
-      <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4">
-        {/*
-          **没有 key**：这一层自己管着「用户手上那份草稿」与「上游那份元数据」的对账
-          （见 ChapterForm 的说明），改一个字段时它就是靠这份对账保住输入框的。
-          给它加 `key`（绑 frontmatter 原文）会让它在每次按键后重新挂载 —— 表现是
-          **每敲一个字就丢一次焦点**，而那正是这一层要避免的事。
+      <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <div className="px-4 pt-4">
+          {/*
+            **没有 key**：这一层自己管着「用户手上那份草稿」与「上游那份元数据」的对账
+            （见 ChapterForm 的说明），改一个字段时它就是靠这份对账保住输入框的。
+            给它加 `key`（绑 frontmatter 原文）会让它在每次按键后重新挂载 —— 表现是
+            **每敲一个字就丢一次焦点**，而那正是这一层要避免的事。
 
-          「元数据在别处被改过」这件事改由 `revision` 告诉它（frontmatter 原文），
-          它在内部判断要不要重取草稿 —— 同样不必重新挂载。
-        */}
-        <ChapterForm
-          metadata={tab.metadata}
-          revision={splitFrontmatter(tab.content)?.raw ?? tab.content}
-          onChange={(metadata) => applyChapterMetadata(tab.path, metadata, syncing)}
-        />
+            「元数据在别处被改过」这件事改由 `revision` 告诉它（frontmatter 原文），
+            它在内部判断要不要重取草稿 —— 同样不必重新挂载。
+          */}
+          <ChapterForm
+            metadata={tab.metadata}
+            revision={splitFrontmatter(tab.content)?.raw ?? tab.content}
+            onChange={(metadata) => applyChapterMetadata(tab.path, metadata, syncing)}
+          />
+        </div>
 
-        {/* 与表单同一档左右留白，编辑器本身铺满这一格的宽度 */}
+        {/* 正文那一格：左右不留白（贴着这一格的两边），高度由 MonacoHost 按内容给 */}
         <div className="pt-4">
-          <MonacoHost tab={tab} syncing={syncing} className="h-[60vh] w-full" />
+          <MonacoHost tab={tab} syncing={syncing} content="chapter-body" className="w-full" />
         </div>
       </div>
     )
@@ -166,6 +176,24 @@ export function EditorPanes({
  * 容器要铺满这一格，所以它自己不带内边距、边框与滚动：任何一样都会让编辑器量到的尺寸
  * 与这一格不一致。
  *
+ * ## 两份内容
+ *
+ * `content` 说明这一格编辑的是哪一种东西，两者的格式与高度规则都不同：
+ *
+ * | 取值           | 绑哪一份 model        | 高度             |
+ * | -------------- | --------------------- | ---------------- |
+ * | `document`     | 整个文件（含元数据）   | 铺满这一格       |
+ * | `chapter-body` | 只有正文              | 按内容长（见下） |
+ *
+ * 表单模式用 `chapter-body`：编辑器里**没有元数据**（那是上面那几个字段的事），改动由
+ * editor/chapter-body.ts 接回整篇。两份 model 都由 model-registry 管，谁都不跟着组件走。
+ *
+ * ## 高度按内容长（`chapter-body`）
+ *
+ * 见 fitBodyHeight。要点是那一格的高度只能**算**出来，不能交给 CSS：Monaco 画在自己
+ * 绝对定位的层里，对布局不贡献任何高度 —— 这正是本文件头部说的那件事。于是「短稿子
+ * 也要有一整页可以点下去继续写」这条下限也一并由它给。
+ *
  * ## 编辑器与它的 model 在同一步落地
  *
  * `monaco.editor.create` 不带 model 时会**自己建一个空 model**并视其为己有（monaco 里
@@ -175,19 +203,136 @@ export function EditorPanes({
  * 回到原值，React 判定没有变化，那条 effect 便不再执行，编辑器就停在空 model 上。
  * 现象正是「切换视图模式之后正文偶尔一片空白」，而且它不报任何错。
  *
- * 所以 model 在创建的同一步就定下来（`ensureModel` + `create({ model })`），
+ * 所以 model 在创建的同一步就定下来（`ensureModel` / `ensureBodyModel` + `create({ model })`），
  * 「切标签页换 model」那条 effect 只负责**换**，不负责补第一次。
  */
+
+/** 这一格里编辑的是哪一种东西 */
+type MonacoHostContent = 'document' | 'chapter-body'
+
+/**
+ * 「一份文档」的编辑器格式（纯文本 / 拆分 / 预览里那一格）。
+ *
+ * 行号、装订线、滚动条都留着：这是「一份文件」该有的样子。
+ */
+const DOCUMENT_EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
+  minimap: { enabled: false },
+  fontSize: 14,
+  automaticLayout: true,
+  // 小说稿是长文本：默认的 80 列参考线在这种文档里没有意义，而软换行必须开
+  wordWrap: 'on',
+  scrollBeyondLastLine: false
+}
+
+/**
+ * 「一章正文」的编辑器格式（表单里那一格）：一段稿子，不是一份代码。
+ *
+ * 四条由「写小说」这件事定：
+ *
+ * 1. **没有行号**，连同装行号的那条沟一起收掉：`lineNumbers: 'off'` 只关掉数字本身，
+ *    `glyphMargin` 与 `lineDecorationsWidth` 还各占一段空白。
+ * 2. **不可滚动**：高度按内容长（见 fitBodyHeight），所以它自己不该再有滚动条。滚轮
+ *    交给外面那一格（`handleMouseWheel: false`）—— 光标停在正文里时那一下滚动不该没有
+ *    反应，何况在正文上滚与在表单上滚本来就是同一件事。
+ * 3. **内部的滚动条与它占的那条带子一起去掉**。只写 `vertical: 'hidden'` 是不够的：
+ *    Monaco 的排版里，滚动条的宽度**与可见性无关**地留在右侧（见 editorOptions 的
+ *    layoutInfo：`verticalScrollbarWidth = scrollbar.verticalScrollbarSize`，软换行的
+ *    列宽还要再减掉它），而概览标尺正好画在那条带子上、宽度也等于它 —— 带子上再画一个
+ *    光标标记（`hideCursorInOverviewRuler`），看上去就是一个滚动条。所以宽度一并给 0、
+ *    标尺关掉：右边那条带子彻底不存在，正文排到窗口边上。
+ * 4. **左右没有边距**：不在选项里，由调用方那一格给（见 EditorPanes 的表单分支）。
+ *
+ * 「没有元数据」同样不在选项里：那由绑的 model 决定 —— 这一格绑的是只有正文的那一份
+ * （见 model-registry 的 ensureBodyModel）。
+ */
+const CHAPTER_BODY_EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
+  minimap: { enabled: false },
+  fontSize: 14,
+  automaticLayout: true,
+  wordWrap: 'on',
+  scrollBeyondLastLine: false,
+  lineNumbers: 'off',
+  glyphMargin: false,
+  folding: false,
+  lineDecorationsWidth: 0,
+  overviewRulerLanes: 0,
+  overviewRulerBorder: false,
+  hideCursorInOverviewRuler: true,
+  scrollbar: {
+    vertical: 'hidden',
+    horizontal: 'hidden',
+    // 宽度也给 0：可见性关掉的是「画不画」，占位是另一回事（见上面第 3 条）
+    verticalScrollbarSize: 0,
+    horizontalScrollbarSize: 0,
+    handleMouseWheel: false,
+    alwaysConsumeMouseWheel: false
+  }
+}
+
+/**
+ * 把正文那一格的高度调成「内容需要的高度」，并且不矮于视图高度（`floor`）。
+ *
+ * 两件事都做在这一处：高度**先写容器、再让编辑器按同一组数字排一次**。`automaticLayout`
+ * 盯的是窗口尺寸，它量到的是这一格当时的大小（含被上一条规则撑出来的那一层），而这里
+ * 量出来的（`getContentHeight`）才是这一篇真正需要的地方。
+ *
+ * 视图高度由调用方量好传进来（见 viewportHeightOf）：那样「什么时候重算」就落在受控的
+ * 那一次渲染上，而不是在 `ResizeObserver` 的回调里改尺寸 —— 在回调里改被观察元素的尺寸
+ * 会让浏览器报一条「ResizeObserver loop」。
+ */
+function fitBodyHeight(
+  container: HTMLElement,
+  editor: monaco.editor.IStandaloneCodeEditor,
+  floor: number
+): void {
+  const height = Math.max(editor.getContentHeight(), floor)
+
+  // 量不出正的高度（这一格还在 display:none 里）时不动它：写一个 0 进去就是把正文压成一条缝
+  if (height <= 0) return
+
+  // 差不到一个像素时不 layout：亚像素的差会让每一次按键都重排一遍
+  if (Math.abs(container.getBoundingClientRect().height - height) < 1) return
+
+  container.style.height = `${height}px`
+  editor.layout({ width: container.clientWidth, height })
+}
+
+/**
+ * 「视图高度」：离这个元素**最近的那个可滚动祖先**的可见高度。
+ *
+ * 认「谁能滚」而不是某个类名或 DOM 位置：表单那一格的排布改过好几次，而判据绑在
+ * 「能滚的那一层」上就不会跟着一起改。
+ *
+ * 一个都找不到时回落到窗口高度：这种情形不该出现（表单那一格本身就能滚），而给 0 的
+ * 后果是编辑器永远等不到一个非零尺寸、一个都不建（见上面那条创建 effect）。
+ */
+function viewportHeightOf(element: HTMLElement): number {
+  return scrollableAncestorOf(element)?.clientHeight ?? window.innerHeight
+}
+
+/** 离这个元素最近的那个可滚动祖先；一个都没有时给 null */
+function scrollableAncestorOf(element: HTMLElement): HTMLElement | null {
+  for (let current = element.parentElement; current; current = current.parentElement) {
+    const overflowY = getComputedStyle(current).overflowY
+    if (overflowY === 'auto' || overflowY === 'scroll') return current
+  }
+
+  return null
+}
+
 function MonacoHost({
   tab,
   syncing,
+  content = 'document',
   className = 'h-full w-full'
 }: {
   /** 当前标签页：路径决定用哪个 model，正文决定写什么 */
   tab: EditorTab
   /** 「这次写入是宿主发起的」标记，见下面那条写入 effect */
   syncing: { current: boolean }
-  /** 这一格怎么排（尺寸/留白）。默认铺满父级 —— 正文那一格的用法 */
+  /** 这一格编辑的是哪一种东西。两种的格式与高度规则都不同（见组件头部） */
+  content?: MonacoHostContent
+  /** 这一格怎么排（尺寸/留白）。默认铺满父级 —— 整篇文档那一格的用法 */
   className?: string
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -200,6 +345,12 @@ function MonacoHost({
    * 从隐藏变得可见（切回「纯文本」）时它会自己醒过来 —— 不必靠轮询去猜。
    */
   const [measured, setMeasured] = useState<{ width: number; height: number } | null>(null)
+  /**
+   * 「视图高度」：这一格看得见的那一片地方有多高（见 viewportHeightOf）。只看 `measured`
+   * 是不够的 —— 窗口变化时这一格自己可能一点都不变（按内容长的那一格，高度是算出来的，
+   * 不是 CSS 给的），而它的下限跟着视图高度走。
+   */
+  const [viewport, setViewport] = useState(0)
 
   /**
    * 尺寸变了要重新布局。
@@ -209,15 +360,37 @@ function MonacoHost({
    *
    * 隐藏中（`measured` 为 null）不量：那时量到的是 0×0，对编辑器没有任何意义，
    * 而重新可见时这一次量尺寸会再跑一遍。
+   *
+   * `ready` 也在依赖里：编辑器是异步建出来的，建好那一下要按它的内容算一次高度
+   * （那之前 `measured` 给的是垫底的那一层）。
    */
   useLayoutEffect(() => {
     if (!measured) return
-    editorRef.current?.layout()
-  }, [measured])
+
+    const editor = editorRef.current
+    if (!editor) return
+
+    const container = containerRef.current
+    if (content === 'chapter-body' && container) {
+      fitBodyHeight(container, editor, viewport)
+      return
+    }
+
+    editor.layout()
+  }, [measured, viewport, ready, content])
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+
+    /**
+     * 按内容长的那一格在算出高度之前不能是 0：0 高会让下面那条创建 effect 一直等下去
+     * （它要的是量到非零尺寸），而编辑器建不出来就永远算不出内容高度。所以先按视图
+     * 高度垫一层 —— 那本来就是它的下限（见 fitBodyHeight）。
+     */
+    if (content === 'chapter-body' && container.getBoundingClientRect().height <= 0) {
+      container.style.height = `${viewportHeightOf(container)}px`
+    }
 
     const observer = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect()
@@ -230,11 +403,22 @@ function MonacoHost({
             ? current
             : { width, height }
       )
+
+      // 高度按内容长的那一格连视图那一层也要盯：见上面那条 state 的说明
+      if (content === 'chapter-body') setViewport(viewportHeightOf(container))
     })
 
     observer.observe(container)
+
+    /**
+     * 视图那一层也要观察：窗口变高时容器自己可能一点没变（高度是算出来的），那就只有
+     * 它的变化能把这一次重算叫醒。
+     */
+    const viewportElement = content === 'chapter-body' ? scrollableAncestorOf(container) : null
+    if (viewportElement) observer.observe(viewportElement)
+
     return () => observer.disconnect()
-  }, [])
+  }, [content])
 
   /**
    * 编辑器只建一次：容器量到非零尺寸之后建，**卸载时**才销毁。
@@ -266,22 +450,30 @@ function MonacoHost({
         if (cancelled || editorRef.current) return
 
         /**
+         * 整篇那一份**总要建出来**。
+         *
+         * 保存（editor-save 读的正是它）与表单字段改元数据（chapter-metadata）拿的都是
+         * 它，而表单模式下这一格绑的是另一份（只有正文的那一份）—— 不在这里建，整篇
+         * 那一份在表单模式里就永远不存在，保存会以「没有 model」被拒。
+         */
+        const current = useEditorStore.getState().tabs.find((item) => item.path === tab.path)
+        if (current) ensureModel(current)
+
+        /**
          * model 与编辑器**同一步**落地（见组件头部的说明）。
          *
          * 查不到标签页时给 null：编辑器先空着，也不会显示一个自己建的空文档 ——
          * 那种空文档会让「还没有 model」看起来像「正文丢了」。
          */
-        const current = useEditorStore.getState().tabs.find((item) => item.path === tab.path)
-        const model = current ? ensureModel(current) : null
+        const model = current
+          ? content === 'chapter-body'
+            ? ensureBodyModel(current)
+            : ensureModel(current)
+          : null
 
         const editor = instance.editor.create(container, {
           model,
-          minimap: { enabled: false },
-          fontSize: 14,
-          automaticLayout: true,
-          // 小说稿是长文本：默认的 80 列参考线在这种文档里没有意义，而软换行必须开
-          wordWrap: 'on',
-          scrollBeyondLastLine: false
+          ...(content === 'chapter-body' ? CHAPTER_BODY_EDITOR_OPTIONS : DOCUMENT_EDITOR_OPTIONS)
         })
 
         editor.onDidChangeModelContent(() => {
@@ -293,15 +485,41 @@ function MonacoHost({
           /**
            * 模型值变了，把新正文交给 store。
            *
-           * 路径由注册表给（`pathOfModel`），**不是** `model.uri.path`：后者在 Windows 上
-           * 是 `/c:/a/b.md` 这种写法，而标签页的路径是主进程给的 `C:\a\b.md`（见
-           * model-registry 里那张对应表的说明）。
+           * 路径由注册表给（`pathOfModel` / `pathOfBodyModel`），**不是** `model.uri.path`：
+           * 后者在 Windows 上是 `/c:/a/b.md` 这种写法，而标签页的路径是主进程给的
+           * `C:\a\b.md`（见 model-registry 里那两张对应表的说明）。
            */
-          const changed = pathOfModel(model)
+          const changed = pathOfModel(model) ?? pathOfBodyModel(model)
           if (!changed) return
+
+          /**
+           * 表单模式改的是**正文那一份**，文件里的正文只有一处来源 —— 所以这一份要接回
+           * 整篇（frontmatter 原样不动，见 editor/chapter-body.ts），保存读的才是新正文。
+           */
+          if (content === 'chapter-body') {
+            applyChapterBody(changed, model.getValue(), syncing)
+            return
+          }
 
           useEditorStore.getState().setDocument(changed, model.getValue())
         })
+
+        /**
+         * 按内容长的那一格：内容变了就重算一次高度。
+         *
+         * 这是三条重算路径里最要紧的一条 —— 敲字、切标签页（换 model）、宿主机写入都会
+         * 走到这里，而它们**都不改容器自己的尺寸**：没有它，换到一个短篇时那一格还撑着
+         * 上一篇的高度，换到一个长篇时正文会被压在一条内部滚动的小窗口里。
+         *
+         * 视图高度在这里现量（不取 state）：这一条活在编辑器的生命周期里，拿到的 state
+         * 是建出来那一刻的那一份，而窗口之后可能已经变过。在这里量也不会绕圈 —— 它改的
+         * 是被观察元素的尺寸，而这条通知来自**内容**变化，不是尺寸变化。
+         */
+        if (content === 'chapter-body') {
+          editor.onDidContentSizeChange(() =>
+            fitBodyHeight(container, editor, viewportHeightOf(container))
+          )
+        }
 
         /**
          * Ctrl+S：焦点在编辑器里时由这条命令接住（Monaco 处理掉的键位不会再冒泡到
@@ -328,7 +546,7 @@ function MonacoHost({
     return () => {
       cancelled = true
     }
-  }, [measured, tab.path, syncing])
+  }, [measured, tab.path, syncing, content])
 
   /**
    * 卸载时销毁编辑器。
@@ -359,24 +577,49 @@ function MonacoHost({
       return
     }
 
-    const model = ensureModel(current)
+    /**
+     * 表单模式里还要顺手把**整篇那一份**建出来：切到这一篇之后，保存与表单字段用的是
+     * 它，而这一格里没有别的组件会去建（与上面创建 effect 里同一句话）。
+     */
+    if (content === 'chapter-body') ensureModel(current)
+
+    const model = content === 'chapter-body' ? ensureBodyModel(current) : ensureModel(current)
     if (editor.getModel() !== model) editor.setModel(model)
-  }, [tab.path, ready])
+  }, [tab.path, ready, content])
 
   /**
    * 宿主写入。
    *
    * 写入期间把 `syncing` 置起来，`onDidChangeModelContent` 据此跳过这次通知 ——
    * 否则「写入 -> 通知 -> 又当成用户编辑 -> 再写回」会绕成环。
+   *
+   * 表单模式里这一格有**两份**内容要对齐：整篇那一份（保存与表单字段读它）与正文那一份
+   * （屏幕上这一份）。前者按 store 里那一篇对（表单字段改元数据、宿主重新读盘都走它），
+   * 后者按**整篇那一份**里摘出来的正文对 —— 见下面那句说明。
    */
   useEffect(() => {
     if (!ready) return
 
-    const model = modelFor(tab.path)
-    if (!model || model.getValue() === tab.content) return
+    const file = modelFor(tab.path)
+    if (file && file.getValue() !== tab.content) {
+      writeModelSilently(file, tab.content, syncing)
+    }
 
-    writeModelSilently(model, tab.content, syncing)
-  }, [tab.content, tab.path, ready, syncing])
+    if (content !== 'chapter-body') return
+
+    const body = bodyModelFor(tab.path)
+    if (!body) return
+
+    /**
+     * 正文那一份对的是**整篇那一份 model**，不是 store 里那个副本。
+     *
+     * 整篇那一份是每一次按键都同步写过的那一份（见 editor/chapter-body.ts），比 store
+     * 里推过来的副本新；拿副本对账会把用户刚敲下的那一下退回去 —— 一帧里落下两次编辑
+     * 时就会出现（这一条 effect 拿到的 `tab.content` 是那一帧渲染时的值）。
+     */
+    const text = chapterBodyOf(file ? file.getValue() : tab.content)
+    if (body.getValue() !== text) writeModelSilently(body, text, syncing)
+  }, [tab.content, tab.path, ready, syncing, content])
 
   return (
     <div

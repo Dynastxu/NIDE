@@ -1,7 +1,12 @@
 import * as monaco from 'monaco-editor'
+import { chapterBodyOf } from '@shared/project'
 
 /**
  * 打开过的文件的 Monaco model 登记表。
+ *
+ * 表有两份：每篇文件的**整篇**（frontmatter + 正文，`MODEL_CACHE`），以及章节的
+ * **正文**（`BODY_CACHE`，表单模式里那个只编辑正文的编辑器用的，见 ensureBodyModel）。
+ * 两份都按路径登记，因为它们都是「这一篇的正文」在不同视图里的一份表示。
  *
  * 从 EditorTabs 里单独拆出来，是因为**正文的所有权不在组件上**：
  *
@@ -64,12 +69,80 @@ export function ensureModel(tab: {
   return model
 }
 
-/** 关掉标签页时释放它的 model，否则改一次文件、关一次，model 会一直攒着 */
+/**
+ * 打开过的章节的**正文** model。
+ *
+ * 它与上面那份「整篇文件」的表是两件东西：文件那一份是这一篇的全部（frontmatter +
+ * 正文，保存与表单字段改的都是它），正文这一份只是它的后半段 —— 表单模式里那个编辑器
+ * 绑的是这一份，于是编辑器里**没有元数据**。
+ *
+ * 两份之间的对应关系由两处维持，方向各一个（见 editor/chapter-body.ts 与 EditorPanes
+ * 的宿主写入）：正文变了就写回整篇，整篇变了（表单改元数据、宿主写入）就重取一次正文。
+ *
+ * 生命周期与文件那一份完全一样：跟着标签页走。它**不**跟着表单模式一起消失 ——
+ * 切到纯文本再切回来时，撤销历史与光标位置还在。
+ */
+const BODY_CACHE = new Map<string, monaco.editor.ITextModel>()
+
+/** 正文 model -> 它属于哪一篇。理由与 PATH_BY_MODEL 相同（见那里的说明） */
+const PATH_BY_BODY = new WeakMap<monaco.editor.ITextModel, string>()
+
+/**
+ * 正文 model 的 URI scheme。
+ *
+ * 同一个文件有两条 model（整篇 / 正文），而 Monaco 里同一个 URI 只该有一份 model ——
+ * 换一个 scheme 是最省事的区分方式，同时 URI 里仍然留着那个路径，排查时看得出来它
+ * 是哪一篇的。
+ */
+const CHAPTER_BODY_SCHEME = 'nide-chapter-body'
+
+/** 这一篇的正文 model；没建过（或者已经释放）时给 null */
+export function bodyModelFor(filePath: string): monaco.editor.ITextModel | null {
+  return BODY_CACHE.get(filePath) ?? null
+}
+
+/** 这个 model 是哪一篇的正文；不是这里建出来的 model 时给 null */
+export function pathOfBodyModel(model: monaco.editor.ITextModel): string | null {
+  return PATH_BY_BODY.get(model) ?? null
+}
+
+/**
+ * 取这一篇的正文 model，没有就按正文建一个。
+ *
+ * 建的时候用的是 **tab.content 里那段正文**，不是磁盘上那一份（`originalValue`，见
+ * ensureModel）：这一份是从整篇派生出来的视图，一建出来就该是屏幕上该有的那段文字 ——
+ * 从磁盘那一份起头只会先摆出一段可能已经不成立的旧正文，再靠一次写入追上来。
+ */
+export function ensureBodyModel(tab: {
+  path: string
+  language: string
+  content: string
+}): monaco.editor.ITextModel {
+  const existing = BODY_CACHE.get(tab.path)
+  if (existing) return existing
+
+  const model = monaco.editor.createModel(
+    chapterBodyOf(tab.content),
+    tab.language,
+    monaco.Uri.file(tab.path).with({ scheme: CHAPTER_BODY_SCHEME })
+  )
+  BODY_CACHE.set(tab.path, model)
+  PATH_BY_BODY.set(model, tab.path)
+  return model
+}
+
+/** 关掉标签页时释放它的 model（整篇与正文两份），否则改一次文件、关一次，model 会一直攒着 */
 export function releaseClosedModels(openPaths: ReadonlySet<string>): void {
   for (const [path, model] of MODEL_CACHE) {
     if (openPaths.has(path)) continue
     model.dispose()
     MODEL_CACHE.delete(path)
+  }
+
+  for (const [path, model] of BODY_CACHE) {
+    if (openPaths.has(path)) continue
+    model.dispose()
+    BODY_CACHE.delete(path)
   }
 }
 

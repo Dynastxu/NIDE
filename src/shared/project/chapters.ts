@@ -641,6 +641,32 @@ export function chapterBodyOf(text: string): string {
 }
 
 /**
+ * 把一段**正文**写回一篇 Markdown，frontmatter 原样不动。
+ *
+ * 与 `writeChapterMetadata` 是一对：那边只换开头那一块、正文一个字都不碰；这边只换
+ * 正文、开头那一块一个字都不碰。表单模式里的正文编辑器用的就是它 —— 编辑器里只有
+ * 正文（frontmatter 由表单字段管），而文件里仍然是「元数据 + 正文」一整篇。
+ *
+ * 三条约束：
+ *
+ * 1. **围栏与正文之间固定留一个空行。** 这一条是为了让读回来的正文与写进去的那份
+ *    逐字相同：`chapterBodyOf` 摘正文时吃掉的是紧跟围栏的那一个换行，所以只有
+ *    「围栏 + 空行 + 正文」这种写法能满足 `chapterBodyOf(writeChapterBody(text, body))
+ *    === body`（对任何 body 都成立，包括空正文与以换行开头的正文）。
+ * 2. **frontmatter 那一段原样搬回去**（`splitFrontmatter` 给的 `raw`），不在这里整理
+ *    用户的元数据：那是表单字段与 `writeChapterMetadata` 的事。它的行尾跟着那一份
+ *    的约定走 `\n`（与 `writeChapterMetadata` 写出来的 frontmatter 同一条约定）。
+ * 3. **没有 frontmatter 时整篇就是正文**：写回来也就是正文本身 —— 与 `chapterBodyOf`
+ *    的另一半严格对称（那边把整篇当正文读，这边把整篇当正文写）。
+ */
+export function writeChapterBody(text: string, body: string): string {
+  const block = splitFrontmatter(text)
+  if (!block) return body
+
+  return `${block.raw}\n\n${body}`
+}
+
+/**
  * 从一段 Markdown 里读**一级标题**（`# …`）。
  *
  * 列表里「这一章叫什么」用的是它：文件名是磁盘上的身份，而一级标题是作者给这一章
