@@ -91,7 +91,21 @@ interface ExplorerState {
   /** 正在读章节列表 */
   chaptersLoading: boolean
 
-  /** 启动时调一次：定下根目录并读它的第一层 */
+  /**
+   * 补一次根目录：启动参数里有项目、而根还没定在它上面时才真正去读。
+   *
+   * **幂等**。任何要用到树、或要用到「内容目录的绝对路径」的一方，在动手之前都该先
+   * 调它一次 —— 它把「项目在哪儿」这件事收在 store 里，调用方不必各自去读启动参数。
+   * 反复调它不会清掉缓存，所以它可以挂在随时会重新挂载的地方（见 ExplorerView 的
+   * 文件树那一面）。
+   */
+  ensureRoots: () => Promise<void>
+  /**
+   * 直接定下根目录并读它的第一层，**不判重**。
+   *
+   * 这是「换了一个项目」用的重置：缓存、展开状态、配置与章节列表一起丢掉之后重来。
+   * 日常补根走 ensureRoots，否则每次挂载都会把树清空重读。
+   */
   setRoots: (roots: string[]) => Promise<void>
   /**
    * 读一次项目配置并据此定下四个内容目录的绝对路径。
@@ -286,6 +300,23 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
     chaptersError: null,
     chaptersLoading: false,
 
+    ensureRoots: async () => {
+      const projectPath = window.__NIDE_BOOT__.projectPath
+      if (!projectPath) return
+
+      /*
+       * 根已经定在这个项目上就什么都不做。重来一次会把 children 与 expanded 一起清掉
+       * —— 那是「切走再切回来，树就收起了、目录要重新展开」的来源，读盘本身也是一次
+       * 白费的往返。要重置走 setRoots（它不判重）。
+       *
+       * 判据是「项目根已经在 roots 里」，不是「roots 恰好只有一项」：临时文件夹将来是
+       * 第二个根（见文件头），那时这个判断照样成立。
+       */
+      if (get().roots.includes(projectPath)) return
+
+      await get().setRoots([projectPath])
+    },
+
     setRoots: async (roots) => {
       inflight.clear()
       set({
@@ -313,11 +344,20 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
       // 已经读过就不重读：配置在一次会话里不会变（改配置要重建窗口）
       if (get().config || get().configLoading) return
 
-      const root = get().roots[0]
-      if (!root) return
-
       set({ configLoading: true })
       try {
+        /*
+         * 内容目录是相对**项目根**算出来的，所以根必须先定下来。这一步不能假设文件树
+         * 已经做过它：「项目」是默认标签页，启动时文件树根本没挂载过，而挂载副作用是
+         * **子组件先于父组件**跑的 —— 谁先谁后由不得调用方。补根因此放在这里，而不是
+         * 放在某一个面板的挂载处（否则「项目」那一面读配置时根还是空的，列表一直空着，
+         * 切到「文件」再切回来才好）。
+         */
+        await get().ensureRoots()
+
+        const root = get().roots[0]
+        if (!root) return
+
         const config = await window.hostAPI.projects.readConfig()
         if (!config) {
           logger.warn(

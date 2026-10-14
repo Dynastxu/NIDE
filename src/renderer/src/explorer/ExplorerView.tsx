@@ -191,7 +191,7 @@ function FileTreePane(): JSX.Element {
   const errors = useExplorerStore((s) => s.errors)
   const loading = useExplorerStore((s) => s.loading)
   const expanded = useExplorerStore((s) => s.expanded)
-  const setRoots = useExplorerStore((s) => s.setRoots)
+  const ensureRoots = useExplorerStore((s) => s.ensureRoots)
 
   const [target, setTarget] = useState<ContextTarget | null>(null)
   const [hovered, setHovered] = useState<HoveredRow | null>(null)
@@ -250,18 +250,23 @@ function FileTreePane(): JSX.Element {
   }
 
   /**
-   * 根目录取**启动参数**里的项目路径，而不是再发一次 IPC。
+   * 项目路径。根目录**不在这里定**（见下面的 ensureRoots），这一份只用来判断有没有项目。
    *
-   * 它在首帧之前就可得（见 preload 的说明），而树的第一层读取本来就要等一次往返。
-   * 传数组是因为根不止一个（临时文件夹将来是第二个，见 explorer.store）。
+   * 它在首帧之前就可得（见 preload 的说明），没有项目（欢迎窗口）时为空。
    */
   const projectPath = window.__NIDE_BOOT__.projectPath
 
+  /**
+   * 补一次根目录。
+   *
+   * 这一步**幂等**，所以这一面反复挂载不会把树清空重读：根已经定在这个项目上时它
+   * 什么都不做（见 explorer.store 的 ensureRoots）。它也不必抢在别人前面 —— 「项目」
+   * 那一面先挂载时，根由读配置那条路补上（loadConfig 会先 ensureRoots），而两个面板
+   * 谁先挂载、父组件的副作用何时跑，都由不得调用方。
+   */
   useEffect(() => {
-    if (!projectPath) return
-    // 换项目会重建窗口，所以这个 store 一生只 setRoots 一次
-    void setRoots([projectPath])
-  }, [projectPath, setRoots])
+    void ensureRoots()
+  }, [ensureRoots])
 
   /**
    * 「这个目录的子项该不该显示」。useMemo 是必须的：返回的是个新函数，在选择器里

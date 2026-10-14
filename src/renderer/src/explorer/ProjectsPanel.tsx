@@ -77,11 +77,18 @@ function ChapterSection({ onCreate }: { onCreate: () => void }): JSX.Element {
   const chapters = useExplorerStore((s) => s.chapters)
   const error = useExplorerStore((s) => s.chaptersError)
   const loading = useExplorerStore((s) => s.chaptersLoading)
+  const configLoading = useExplorerStore((s) => s.configLoading)
   const loadConfig = useExplorerStore((s) => s.loadConfig)
   const loadChapters = useExplorerStore((s) => s.loadChapters)
   const [menu, setMenu] = useState<ChapterMenu | null>(null)
 
-  // 首次挂载拉一次配置；配置到手之后再拉章节列表（目录要从配置里算出来）
+  /*
+   * 首次挂载拉一次配置；配置到手之后再拉章节列表（目录要从配置里算出来）。
+   *
+   * 读配置之前**不需要谁来替这一面定下项目根**：loadConfig 自己会补（见 explorer.store
+   * 的 ensureRoots）。这一面是默认标签页，启动时文件树并不存在 —— 定根那一步要是只
+   * 挂在文件树里，这里拿到的内容目录就永远是未知的，列表一片空白。
+   */
   useEffect(() => {
     void loadConfig()
   }, [loadConfig])
@@ -101,7 +108,11 @@ function ChapterSection({ onCreate }: { onCreate: () => void }): JSX.Element {
 
       {error ? (
         <p className="px-3 py-1 text-xs text-red-400">{t(CHAPTER_ERROR_KEYS[error])}</p>
-      ) : loading && chapters === null ? (
+      ) : (loading || configLoading) && chapters === null ? (
+        /*
+         * 读配置那一段也算「在加载」。少了它，启动后会先显示一帧「这个目录里还没有
+         * 章节」—— 那时章节列表**还没开始读**，而内容目录是不是空的根本还不知道。
+         */
         <p className="px-3 py-1 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
       ) : items.length === 0 ? (
         <p className="px-3 py-1 text-xs text-zinc-500">{t('host.project.panel.chapter.empty')}</p>
