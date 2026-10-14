@@ -289,3 +289,62 @@
 .theme-light .shadow-black\/60 {
   --tw-shadow-color: rgb(0 0 0 / 0.15);
 }
+
+/* ============================ Markdown 预览 ============================ */
+
+/*
+ * 预览的排版是 index.css 里的一份普通 CSS（用后代选择器写 marked 生成的任意层级
+ * 标签），所以这里逐条给浅色对应值 —— 规则同上面那几条：面翻成近白、字翻成近黑、
+ * 线与代码底色翻成浅灰。
+ */
+.theme-light .nide-markdown {
+  color: #3f3f46; /* zinc-700 */
+}
+
+.theme-light .nide-markdown h1,
+.theme-light .nide-markdown h2,
+.theme-light .nide-markdown h3,
+.theme-light .nide-markdown h4,
+.theme-light .nide-markdown h5,
+.theme-light .nide-markdown h6 {
+  color: #18181b; /* zinc-900 */
+}
+
+.theme-light .nide-markdown h1 {
+  border-bottom-color: #e4e4e7; /* zinc-200 */
+}
+
+.theme-light .nide-markdown h2 {
+  border-bottom-color: #f4f4f5; /* zinc-100 */
+}
+
+.theme-light .nide-markdown blockquote {
+  border-left-color: #d4d4d8; /* zinc-300 */
+  color: #52525b; /* zinc-600 */
+}
+
+.theme-light .nide-markdown code {
+  background: #f4f4f5; /* zinc-100 */
+}
+
+.theme-light .nide-markdown pre {
+  border-color: #e4e4e7;
+  background: #fafafa; /* zinc-50 */
+}
+
+.theme-light .nide-markdown th,
+.theme-light .nide-markdown td {
+  border-color: #d4d4d8;
+}
+
+.theme-light .nide-markdown th {
+  background: #f4f4f5;
+}
+
+.theme-light .nide-markdown hr {
+  border-top-color: #d4d4d8;
+}
+
+.theme-light .nide-markdown a {
+  color: #2563eb; /* blue-600：浅底上 blue-400 太飘 */
+}

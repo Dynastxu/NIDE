@@ -64,5 +64,173 @@ body {
 
 /* 两个方向交汇的那个小方块：不画的话会在右下角留一块浅色 */
 .nide-scrollbar::-webkit-scrollbar-corner {
-  background: #18181b;
+  background: #18181b; /* zinc-900 */
+}
+
+/*
+ * 表单视图里那一块元数据字段（行内嵌视图里，见 editor/chapter-form-zone.ts）。
+ *
+ * 它必须跟着主视图的宽度走：Monaco 的浮层是一片**横向铺满**的区域，行内嵌视图挂在里面
+ * 就是一个普通块级元素；而表单自己的输入框按 `width: 100%` 排，所以这一层不许被内容
+ * 撑开（备注里贴一行很长的字，编辑器会跟着横向滚出去）。
+ */
+.nide-form-zone,
+.nide-form-zone * {
+  min-width: 0;
+}
+
+.nide-form-zone {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/*
+ * Markdown 预览的排版。
+ *
+ * 写成这里的一份**普通 CSS**，而不是在组件里堆一串 Tailwind 类：预览内容是 marked
+ * 生成的任意层级标签（`ul > li > p`、`blockquote > p` 这些组合写不全），而这里正好
+ * 能用后代选择器一次说清。
+ *
+ * 颜色全部取自 zinc 色板，与界面其余部分同一档；浅色主题不在这里重复一遍 ——
+ * 它由 light.css 的 `.theme-light` 前缀规则整体翻过去（见那个文件的说明）。
+ */
+.nide-markdown {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #d4d4d8; /* zinc-300 */
+  word-wrap: break-word;
+}
+
+/* 正文里的第一块与最后一块不额外留白：上下留白会让预览看起来被切掉了一截 */
+.nide-markdown > :first-child {
+  margin-top: 0;
+}
+
+.nide-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.nide-markdown h1,
+.nide-markdown h2,
+.nide-markdown h3,
+.nide-markdown h4,
+.nide-markdown h5,
+.nide-markdown h6 {
+  margin: 1.4em 0 0.6em;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #f4f4f5; /* zinc-100 */
+}
+
+.nide-markdown h1 {
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #3f3f46; /* zinc-700 */
+  font-size: 1.6em;
+}
+
+.nide-markdown h2 {
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid #27272a; /* zinc-800 */
+  font-size: 1.35em;
+}
+
+.nide-markdown h3 {
+  font-size: 1.15em;
+}
+
+.nide-markdown p,
+.nide-markdown ul,
+.nide-markdown ol,
+.nide-markdown blockquote,
+.nide-markdown pre,
+.nide-markdown table {
+  margin: 0.8em 0;
+}
+
+.nide-markdown ul,
+.nide-markdown ol {
+  padding-left: 1.5em;
+}
+
+.nide-markdown ul {
+  list-style: disc;
+}
+
+.nide-markdown ol {
+  list-style: decimal;
+}
+
+.nide-markdown li {
+  margin: 0.25em 0;
+}
+
+/* 任务列表（GFM）不带项目符号：它自己那个方框就是标记 */
+.nide-markdown li:has(> input[type='checkbox']) {
+  list-style: none;
+  margin-left: -1.2em;
+}
+
+.nide-markdown blockquote {
+  padding-left: 0.9em;
+  border-left: 3px solid #3f3f46; /* zinc-700 */
+  color: #a1a1aa; /* zinc-400 */
+}
+
+.nide-markdown code {
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+  background: #27272a; /* zinc-800 */
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.9em;
+}
+
+.nide-markdown pre {
+  padding: 0.75em 1em;
+  overflow-x: auto;
+  border: 1px solid #27272a;
+  border-radius: 4px;
+  background: #18181b; /* zinc-900 */
+}
+
+/* 代码块里的 code 不再叠一层自己的底色 */
+.nide-markdown pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 0.85em;
+}
+
+.nide-markdown table {
+  border-collapse: collapse;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.nide-markdown th,
+.nide-markdown td {
+  padding: 0.35em 0.75em;
+  border: 1px solid #3f3f46;
+}
+
+.nide-markdown th {
+  background: #27272a;
+  font-weight: 600;
+  text-align: left;
+}
+
+.nide-markdown hr {
+  margin: 1.5em 0;
+  border: 0;
+  border-top: 1px solid #3f3f46;
+}
+
+.nide-markdown a {
+  color: #60a5fa; /* blue-400 */
+  text-decoration: underline;
+  /* 预览里的链接点不开（见 MarkdownPreview），光标给文本形态而不是手形 */
+  cursor: text;
+}
+
+.nide-markdown img {
+  max-width: 100%;
 }

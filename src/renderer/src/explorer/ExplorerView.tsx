@@ -91,7 +91,13 @@ interface HoveredRow {
 
 export function ExplorerView(): JSX.Element {
   const t = useT()
-  const [tab, setTab] = useState<ExplorerTabId>('files')
+  /**
+   * 打开时停在哪一面。
+   *
+   * 默认是**「项目」**：写作时先看的是「这个项目有哪些章」，文件树是第二顺位的事情
+   * （找配置、找资源）。默认落在文件树上等于每次打开都要先切一下。
+   */
+  const [tab, setTab] = useState<ExplorerTabId>('projects')
   /**
    * 「新建章节」的对话框请求。
    *
@@ -160,7 +166,7 @@ export function ExplorerView(): JSX.Element {
   )
 }
 
-/** 「项目 / 文件」两个标签页 */
+/** 「项目 / 文件」两个标签页。打开时停在「项目」，见 ExplorerView 里的 tab */
 export type ExplorerTabId = 'projects' | 'files'
 
 /**

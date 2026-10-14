@@ -65,7 +65,7 @@ export function MainMenu(): JSX.Element {
    *
    * 菜单项要据此置灰：没有改动时「保存」写下去的就是磁盘上已有的那一份。选择器返回
    * 的是**布尔值**而不是那个标签页对象 —— 后者每次都是新引用，会让菜单每敲一个字
-   * 就重渲染一遍（与 editor store 里 setContent 那条早退同一个理由）。
+   * 就重渲染一遍（与 editor store 里 setDocument 那条早退同一个理由）。
    */
   const activeDirty = useEditorStore(
     (s) => s.tabs.find((tab) => tab.path === s.activePath)?.dirty ?? false

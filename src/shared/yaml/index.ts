@@ -24,9 +24,22 @@
  */
 const YAML_STRUCTURAL_HEAD = /^[&*!|>%@`{}[\]]/
 
-/** 值里的双引号与反斜杠需要转义，否则写出来的 YAML 读到的是另一个值 */
+/**
+ * 把一段文本写成双引号标量。
+ *
+ * 除了引号与反斜杠，**换行也要转义**（`\n`）：本模块只认单行的 `键: 值`，一个跨行的
+ * 引号值会让下一行看起来像结构 —— 读回来时要么被当成别的字段，要么把块截断（章节的
+ * 细纲、备注、概述都是纯文本，用户完全可能在里面换行）。
+ */
 export function quoteYamlValue(value: string): string {
-  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  const escaped = value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+
+  return `"${escaped}"`
 }
 
 /** 读一个双引号标量。不是这一档写法（缺引号、控制字符夹在中间）给 null */
@@ -38,15 +51,24 @@ export function unquoteYamlValue(raw: string): string | null {
     const char = raw[index]
 
     if (char !== '\\') {
+      /**
+       * 引号之间不该出现真正的控制字符（含换行）：写出那一份从不长这样，而容忍它就会
+       * 把一个跨行的引号值读成一个值 —— 那是手写的、意图不明的东西，宁可不认。
+       */
+      if (char === '\n' || char === '\r') return null
+
       result += char
       continue
     }
 
-    // 反斜杠只能引出 `\"` 与 `\\`，其余写法不认（宁可不认，也不要猜）
+    // 反斜杠只能引出下面这几个转义，其余写法不认（宁可不认，也不要猜）
     const next = raw[index + 1]
-    if (next !== '"' && next !== '\\') return null
+    if (next === '"' || next === '\\') result += next
+    else if (next === 'n') result += '\n'
+    else if (next === 'r') result += '\r'
+    else if (next === 't') result += '\t'
+    else return null
 
-    result += next
     index++
   }
 

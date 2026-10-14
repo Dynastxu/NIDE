@@ -73,11 +73,11 @@ export async function saveTab(path: string): Promise<FileWriteResult> {
     /**
      * 写入期间用户又敲了字：model 里那份比磁盘上的新，标签必须继续是脏的。
      *
-     * setContent 重算的正是「与基准是否一致」，所以这里只是把结论再算一次 —— 少了
+     * setDocument 重算的正是「与基准是否一致」，所以这里只是把结论再算一次 —— 少了
      * 这一步，圆点会在保存之后灭掉，而正文与磁盘其实并不一致。
      */
     const latest = model.getValue()
-    if (latest !== content) store.setContent(path, latest)
+    if (latest !== content) store.setDocument(path, latest)
 
     logger.info('File saved', { file: path })
     return { ok: true, path }

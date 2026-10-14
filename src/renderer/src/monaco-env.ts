@@ -1,4 +1,6 @@
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
+import loader from '@monaco-editor/loader'
+import * as monaco from 'monaco-editor'
 import { toMonacoLocale } from '@shared/i18n'
 import { loggerFor } from './logger'
 
@@ -10,6 +12,32 @@ const globalEnv = globalThis as unknown as {
 
 globalEnv.MonacoEnvironment = {
   getWorker: () => new EditorWorker()
+}
+
+/**
+ * 把 `@monaco-editor/loader` 指向**打包进来**的 monaco。
+ *
+ * 这一步不是可选的：loader 的默认配置是从 CDN（`cdn.jsdelivr.net`）下载 monaco 的
+ * `loader.js`，而宿主的 CSP 只允许 `script-src 'self'`（见主进程的窗口配置）—— 少了
+ * 这一句，加载会被 CSP 拦掉，`loader.init()` 以一个**事件**（`{isTrusted: true}`）拒绝，
+ * 编辑器一片空白，而日志里那句拒绝完全看不出原因。
+ *
+ * 放在模块作用域、并且是**唯一**配置它的地方：两个使用点（编辑器的 MonacoHost、Diff
+ * 视图的 MonacoDiffView）都只 import 这个模块，谁先跑都无所谓，也不可能再漏掉一处。
+ *
+ * 顺带一个实际好处：宿主的编辑器不再依赖网络。CDN 能不能连上、版本对不对，都不再是
+ * 「编辑器能不能用」的一部分。
+ */
+loader.config({ monaco })
+
+/**
+ * 取 loader 的实例（已经指向打包进来的 monaco）。
+ *
+ * 使用点一律走这个函数，不要直接 import `@monaco-editor/loader` —— 那样就绕开了上面
+ * 那次配置，症状是「编辑器不显示」这么一个离原因很远的现象。
+ */
+export function monacoLoader(): typeof loader {
+  return loader
 }
 
 /**

@@ -391,7 +391,8 @@ function classifyWriteError(err: unknown): FileWriteFailureReason {
  *
  * 因此这里只取目录里的文件（章节直接放在内容目录下，不起子目录），逐个读一小段头部，
  * 再用纯逻辑（`parseChapterNumber`，见 shared/project/chapters）取编号。读不出来的文件
- * 仍然列出来（它是一个还没编号的章节），只是 `chapter` 为 null。
+ * 仍然列出来（它是一个还没编号的章节），只是 `chapter` 为 null；编号为 0 是序章，
+ * 与「还没编号」是两件事，所以 0 原样上报。
  *
  * 只认 `.md`：这一层是「章节」，而章节是 Markdown（见 composeChapterDocument）。
  */

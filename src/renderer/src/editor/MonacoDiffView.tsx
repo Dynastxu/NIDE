@@ -1,6 +1,6 @@
 import { JSX, useEffect, useRef } from 'react'
 import * as monaco from 'monaco-editor'
-import loader from '@monaco-editor/loader'
+import { monacoLoader } from '@renderer/monaco-env'
 import { useEditorStore } from '../stores/editor.store'
 import { useT } from '../stores/i18n.store'
 
@@ -13,24 +13,29 @@ export function MonacoDiffView(): JSX.Element | null {
   useEffect(() => {
     if (!pendingDiff || !containerRef.current) return
 
-    loader.config({ monaco })
     let disposed = false
 
-    loader.init().then((monacoInstance) => {
-      if (disposed || !containerRef.current) return
+    /**
+     * 走 monacoLoader() 而不是直接 import loader：那一层已经把它指向打包进来的 monaco
+     * （见 monaco-env）。自己 import 会绕开那次配置，退回加载 CDN —— 而 CSP 不允许。
+     */
+    monacoLoader()
+      .init()
+      .then((monacoInstance) => {
+        if (disposed || !containerRef.current) return
 
-      const diff = monacoInstance.editor.createDiffEditor(containerRef.current, {
-        renderSideBySide: true,
-        ignoreTrimWhitespace: true,
-        readOnly: true
+        const diff = monacoInstance.editor.createDiffEditor(containerRef.current, {
+          renderSideBySide: true,
+          ignoreTrimWhitespace: true,
+          readOnly: true
+        })
+
+        const originalModel = monacoInstance.editor.createModel(pendingDiff.original, 'plaintext')
+        const modifiedModel = monacoInstance.editor.createModel(pendingDiff.modified, 'plaintext')
+
+        diff.setModel({ original: originalModel, modified: modifiedModel })
+        diffRef.current = diff
       })
-
-      const originalModel = monacoInstance.editor.createModel(pendingDiff.original, 'plaintext')
-      const modifiedModel = monacoInstance.editor.createModel(pendingDiff.modified, 'plaintext')
-
-      diff.setModel({ original: originalModel, modified: modifiedModel })
-      diffRef.current = diff
-    })
 
     return () => {
       disposed = true

@@ -80,7 +80,7 @@ export function releaseClosedModels(openPaths: ReadonlySet<string>): void {
  * 用户还能 Ctrl+Z 退回去），后者会把历史清空。
  *
  * `syncing` 是指向调用方那个 ref 的引用 —— 写入期间把它置成 true，
- * `onDidChangeModelContent` 据此跳过 setContent，否则「写入 -> 算 dirty ->
+ * `onDidChangeModelContent` 据此跳过 setDocument，否则「写入 -> 算 dirty ->
  * 又写回 store」会绕成环，把刚刚设好的基准立刻推翻。
  */
 export function writeModelSilently(

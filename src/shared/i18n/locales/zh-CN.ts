@@ -300,6 +300,33 @@ export const zhCN = {
   'host.editor.menu.closeSaved.disabled': '每个打开的文件都有未保存的改动。',
   'host.editor.menu.closeAll': '关闭全部标签页',
 
+  // ---- 当前文件怎么看（标题栏上、Markdown 文件才有的一组按钮）----
+  // 四种模式互斥，所以它们是一组开关而不是标签条（见 editor/DocumentViewModes）
+  'host.editor.view.label': '视图模式',
+  'host.editor.view.text': '纯文本',
+  'host.editor.view.form': '表单',
+  'host.editor.view.split': '拆分文本及预览',
+  'host.editor.view.preview': '预览',
+  // 正文为空时预览里的一句话：一片留白看起来像坏了
+  'host.editor.preview.empty': '这一篇还没有正文。',
+
+  // ---- 章节表单（frontmatter 里的那几项元数据）----
+  // 只对写了 `category: chapter` 的文件出现（见 editor/document-mode.ts）
+  'host.editor.form.index': '索引',
+  'host.editor.form.index.hint': '0 是序章',
+  'host.editor.form.index.placeholder': '留空表示还没编号',
+  'host.editor.form.outline': '细纲',
+  'host.editor.form.outline.placeholder': '这一章要写什么',
+  'host.editor.form.characters': '出场角色',
+  // 图鉴还没实现，所以这一项暂时只显示、不能改（见 editor/ChapterForm）
+  'host.editor.form.characters.hint': '要从图鉴里选，图鉴还没实现，暂时不能编辑。',
+  'host.editor.form.characters.empty': '还没有出场角色。',
+  'host.editor.form.body': '正文',
+  'host.editor.form.notes': '备注',
+  'host.editor.form.notes.placeholder': '备注',
+  'host.editor.form.summary': '概述',
+  'host.editor.form.summary.placeholder': '这一章的概述',
+
   'host.plugin.loading': '加载中…',
 
   'host.locale.switch.title': '切换语言',

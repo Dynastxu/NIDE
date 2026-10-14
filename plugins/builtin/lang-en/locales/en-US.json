@@ -228,6 +228,27 @@
   "host.editor.menu.closeSaved.disabled": "Every open file has unsaved changes.",
   "host.editor.menu.closeAll": "Close all tabs",
 
+  "host.editor.view.label": "View mode",
+  "host.editor.view.text": "Plain text",
+  "host.editor.view.form": "Form",
+  "host.editor.view.split": "Split text and preview",
+  "host.editor.view.preview": "Preview",
+  "host.editor.preview.empty": "This document has no body yet.",
+
+  "host.editor.form.index": "Index",
+  "host.editor.form.index.hint": "0 is the prologue",
+  "host.editor.form.index.placeholder": "Leave empty for unnumbered",
+  "host.editor.form.outline": "Outline",
+  "host.editor.form.outline.placeholder": "What this chapter covers",
+  "host.editor.form.characters": "Characters",
+  "host.editor.form.characters.hint": "Picked from the gallery, which is not implemented yet, so this cannot be edited.",
+  "host.editor.form.characters.empty": "No characters yet.",
+  "host.editor.form.body": "Body",
+  "host.editor.form.notes": "Notes",
+  "host.editor.form.notes.placeholder": "Notes",
+  "host.editor.form.summary": "Summary",
+  "host.editor.form.summary.placeholder": "A summary of this chapter",
+
   "host.plugin.loading": "Loading…",
 
   "host.locale.switch.title": "Switch language",

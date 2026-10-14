@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import { baseNameOf, isInsideProject, languageForPath } from '@shared/project'
+import {
+  baseNameOf,
+  isInsideProject,
+  languageForPath,
+  readChapterMetadata,
+  type ChapterMetadata
+} from '@shared/project'
 
 /**
  * 主编辑区的状态：**打开了哪些文件、当前看的是哪一个**。
@@ -28,6 +34,26 @@ export interface EditorTab {
    * 「与磁盘一致」的基准，而不是「读进来时的那一份」。
    */
   originalValue: string
+  /**
+   * 标签页**当前**的正文。
+   *
+   * 与 Monaco 的 model 是同一份文字，这里存一个副本是为了让标签页之外的消费者也能
+   * 拿到正文：章节表单与 Markdown 预览都要按正文渲染，而它们不该为此把一个编辑器
+   * 实例传下去（正文的所有权在 model-registry，见那里的说明）。
+   *
+   * 它不是第二个真相：正文只有一处来源（model），`content` 是它每次变化时**推过来**
+   * 的结果 —— 用户在编辑器里打字（editor/EditorPanes 的 MonacoHost）与表单改元数据
+   * （editor/chapter-metadata.ts）都走同一条 `setDocument`。
+   */
+  content: string
+  /**
+   * `content` 里那份 frontmatter 的解析结果（见 editor/chapter-metadata.ts）。
+   *
+   * 与 `content` 一起更新，所以界面拿到它就知道「这一篇是不是章节、编号是多少」。
+   * 没有它的话，每个要问这两个问题的组件都得自己解析一遍 —— 而它们解析的时机
+   * 各不相同，迟早会有一个算的是上一版的正文。
+   */
+  metadata: ChapterMetadata
   /**
    * 与磁盘不一致。
    *
@@ -102,8 +128,17 @@ interface EditorState {
   finishClose: () => void
   /** 用户撤销了这次关闭：整条队列一起丢掉（关闭其他 / 关闭全部都就此停下） */
   cancelClose: () => void
-  /** 正文变化（用户在编辑器里改，或宿主推来新内容）。同步重算 dirty */
-  setContent: (path: string, content: string) => void
+  /**
+   * 正文变化（用户在编辑器里改，或宿主推来新内容）。
+   *
+   * 三个字段一起更新：正文本身、由它比出来的 `dirty`、以及重算后的章节元数据（见
+   * editor/chapter-metadata.ts）。三者必须同一步落地 —— 分开更新会出现「正文已经
+   * 改了、表单还显示着上一版的编号」这种中间态。
+   *
+   * 正文没有变化时返回空对象：`onDidChangeModelContent` 在**每一次按键**后都会触发，
+   * 而每一步都换新引用会让标签条与文件树跟着白重渲染（下面那条早退的说明）。
+   */
+  setDocument: (path: string, content: string) => void
   /**
    * 磁盘上的内容变了，把新内容记成**这个标签页的新基准**（清掉 dirty）。
    *
@@ -138,6 +173,27 @@ interface EditorState {
 
   showDiff: (original: string, modified: string) => void
   clearDiff: () => void
+}
+
+/**
+ * 「正文 -> 标签页上与它有关的三个字段」。
+ *
+ * 抽出来是因为正文有**三个**消费者（编辑器、章节表单、Markdown 预览），而它们必须
+ * 落在同一份事实上：正文一变，元数据与 dirty 都要跟着重算。让每一处各写一遍，迟早
+ * 会出现「正文改了、表单还显示着上一版的编号」。
+ *
+ * `originalValue` 单独传：它是**磁盘上**的那一份，只在打开与保存时变，不是每次正文
+ * 变化都跟着走。
+ */
+function tabText(
+  content: string,
+  originalValue: string
+): Pick<EditorTab, 'content' | 'metadata' | 'dirty'> {
+  return {
+    content,
+    metadata: readChapterMetadata(content),
+    dirty: content !== originalValue
+  }
 }
 
 /**
@@ -212,7 +268,7 @@ function drainCloseQueue(
  * 把一批路径接进关闭队列，然后按同一套规则往下走。
  *
  * 已经在队列里的路径不再接一次：连点两下关闭按钮不该问两遍同一件事。一个都没接上时
- * 返回空对象 —— 让 zustand 跳过这次通知，与 setContent 那条早退同一个理由。
+ * 返回空对象 —— 让 zustand 跳过这次通知，与 setDocument 那条早退同一个理由。
  */
 function enqueueClose(state: EditorState, paths: readonly string[]): Partial<EditorState> {
   const queued = new Set(state.closeQueue)
@@ -249,6 +305,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   openFile: (file) =>
     set((s) => {
       const existing = s.tabs.find((tab) => tab.path === file.path)
+      const text = tabText(file.content, file.content)
 
       if (existing) {
         return {
@@ -261,7 +318,7 @@ export const useEditorStore = create<EditorState>((set) => ({
                   name: file.name,
                   language: file.language,
                   originalValue: file.content,
-                  dirty: false,
+                  ...text,
                   refreshToken: tab.refreshToken + 1
                 }
               : tab
@@ -278,7 +335,7 @@ export const useEditorStore = create<EditorState>((set) => ({
             name: file.name,
             language: file.language,
             originalValue: file.content,
-            dirty: false,
+            ...text,
             refreshToken: 0
           }
         ]
@@ -320,25 +377,25 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   cancelClose: () => set((s) => (s.closeQueue.length === 0 ? {} : { closeQueue: [] })),
 
-  setContent: (path, content) =>
+  setDocument: (path, content) =>
     set((s) => {
       const index = s.tabs.findIndex((tab) => tab.path === path)
       if (index < 0) return {}
 
       const tab = s.tabs[index]
-      const dirty = content !== tab.originalValue
 
       /*
-       * dirty 没变时返回空对象。
+       * 正文一模一样时返回空对象。
        *
-       * 这条不是省事的优化：`onDidChangeModelContent` 在**每一次按键**后都会
-       * 触发，如果每次都换一个新数组，标签页条与整棵文件树都会跟着白重渲染一遍。
-       * 打字的第一个字符之后 dirty 就一直是 true，所以这里几乎总是走这条早退。
+       * 这条不是省事的优化：`onDidChangeModelContent` 在**每一次按键**后都会触发，
+       * 而这里每换一次引用，标签条、文件树与正打开着这一篇的表单都要白重渲染一遍。
+       * Monaco 只在内容真的变了时才发这条通知，所以「走不到这里」的情形很少 ——
+       * 但宿主自己写回 model 之后（表单改元数据）会补一次通知，那一次必须被它拦住。
        */
-      if (tab.dirty === dirty) return {}
+      if (tab.content === content) return {}
 
       const tabs = [...s.tabs]
-      tabs[index] = { ...tab, dirty }
+      tabs[index] = { ...tab, ...tabText(content, tab.originalValue) }
       return { tabs }
     }),
 
@@ -355,7 +412,12 @@ export const useEditorStore = create<EditorState>((set) => ({
       if (tab.originalValue === content && !tab.dirty) return {}
 
       const tabs = [...s.tabs]
-      tabs[index] = { ...tab, originalValue: content, dirty: false }
+      /**
+       * 磁盘上的新内容同时是新基准**与**新正文：宿主（AI 插件）改写一个文件之后，
+       * 用户看到的就该是改过的那一份。正文是不是也跟着换由调用方决定 —— 它先写
+       * model，再走到这里；两个副本（model 与 store）因此落在同一份文字上。
+       */
+      tabs[index] = { ...tab, originalValue: content, ...tabText(content, content) }
       return { tabs }
     })
 
