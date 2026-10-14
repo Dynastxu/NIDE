@@ -1,5 +1,5 @@
 import type { LocaleContribution } from '@shared/i18n'
-import type { ViewLocation } from './view'
+import type { ViewChromeOptions, ViewLocation } from './view'
 
 export interface PluginManifest {
   /** 插件唯一标识，例如 "builtin.demo" */
@@ -97,6 +97,15 @@ export interface PluginViewContribution {
    * 老插件不改 manifest 也能正常显示。
    */
   location?: ViewLocation | 'sidebar' | 'panel'
+  /**
+   * 视图外壳（标题栏）的静态开关：要不要标题栏、标题、更多按钮、最小化按钮、
+   * 标签条。**全部默认打开**，所以省略它就得到最基本的那套外壳。
+   *
+   * 运行时那一半不在这里：标签列表、更多菜单的条目、标题栏里的按钮都由视图
+   * 在渲染期自己给（`useViewChrome`），manifest 是启动时读一次的静态 JSON，
+   * 装不下随状态变化的东西。
+   */
+  chrome?: ViewChromeOptions
   /**
    * UI 组件入口，**相对于插件目录**的 POSIX 路径，例如 "src/ui/index.tsx"。
    * 省略时默认为 "src/ui/index.tsx"。

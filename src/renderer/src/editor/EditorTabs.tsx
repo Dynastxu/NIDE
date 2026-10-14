@@ -1,13 +1,19 @@
 import { JSX, useEffect, useRef } from 'react'
 import * as monaco from 'monaco-editor'
 import loader from '@monaco-editor/loader'
-import { EditorTabBar } from '@renderer/editor/TabBar'
+import { useEditorChrome } from '@renderer/editor/editor-chrome'
+import { ViewFrame } from '@renderer/view/ViewFrame'
 import { useT } from '@renderer/stores/i18n.store'
 import { useEditorStore } from '@renderer/stores/editor.store'
 import { baseNameOf, languageForPath } from '@shared/project'
 
 /**
- * 工作台中间的主编辑区：上面一条标签页，下面一个 Monaco 实例。
+ * 工作台中间的主编辑区：上面一条标签页（由通用视图外壳画），下面一个 Monaco 实例。
+ *
+ * 标签页**不是**自己画的一行 —— 它走的是 `ViewFrame` 那套通用外壳：同一份标签页
+ * 数据结构（ViewTab）、同一个关闭按钮、同一个「更多」菜单。中间这一块与六个工具区
+ * 因此长得一样，能力也一样（可关闭的标签、×/圆点两种关闭按钮、标签上的自定义按钮）。
+ * 这里只把编辑器的业务状态翻译成外壳要的展示数据（见 editor-chrome.ts）。
  *
  * ## 没有打开任何文件时不建编辑器
  *
@@ -56,7 +62,6 @@ function releaseClosedModels(openPaths: ReadonlySet<string>): void {
     MODEL_CACHE.delete(path)
   }
 }
-
 /**
  * 把一份内容写进 model，并且**不让这次写入被当成用户的编辑**。
  *
@@ -109,7 +114,26 @@ function applyActiveModel(editor: monaco.editor.IStandaloneCodeEditor): void {
 
 export function EditorTabs(): JSX.Element {
   const tabs = useEditorStore((s) => s.tabs)
+  /**
+   * 当前标签页。
+   *
+   * 这个组件本身不拿它换 model（那是 MonacoPane 的事），但**必须订阅**：标题栏上的
+   * 标题与高亮都跟着活跃标签页走，而订阅点就是这里。
+   */
+  const activePath = useEditorStore((s) => s.activePath)
   const t = useT()
+
+  /**
+   * 标签页的展示数据 + 外壳配置。
+   *
+   * 主编辑区不在任何工具区里（没有视图描述），所以它自己就是那个视图：外壳由它
+   * 交给 ViewFrame，与六个工具区里那些视图走的是同一个组件。
+   *
+   * `activePath` 在上面订阅、在这里经 hook 使用：标题栏上的标题与高亮都跟着活跃
+   * 标签页走，而这个组件是这一块唯一的订阅点（换 model 那件事归 MonacoPane，
+   * 它只管正文）。
+   */
+  const chrome = useEditorChrome(activePath)
 
   // 关掉的标签页要连它的 model 一起释放，否则改一次文件、关一次，model 会一直攒着
   useEffect(() => {
@@ -117,13 +141,14 @@ export function EditorTabs(): JSX.Element {
   }, [tabs])
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col bg-zinc-900">
-      <EditorTabBar />
-
+    <ViewFrame chrome={chrome}>
       {tabs.length > 0 ? (
         <MonacoPane />
       ) : (
-        // 空态：告诉用户文件从哪儿来。中间区域没有任何入口按钮，只能靠这句
+        /**
+         * 空态：告诉用户文件从哪儿来。中间区域没有任何入口按钮，只能靠这两句。
+         * 有标签页时标题栏已经写着当前文件，这里再重复一遍就是占地方。
+         */
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
           <p className="text-sm text-zinc-400">{t('host.editor.empty.title')}</p>
           <p className="max-w-sm text-xs leading-relaxed text-zinc-500">
@@ -131,7 +156,7 @@ export function EditorTabs(): JSX.Element {
           </p>
         </div>
       )}
-    </div>
+    </ViewFrame>
   )
 }
 

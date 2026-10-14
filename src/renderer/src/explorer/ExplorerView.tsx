@@ -1,5 +1,9 @@
 import { JSX, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { getT, useT } from '@renderer/stores/i18n.store'
+import { useViewChrome } from '@renderer/view/chrome-context'
+import { ViewFrame } from '@renderer/view/ViewFrame'
+import { ProjectsPanel } from '@renderer/explorer/ProjectsPanel'
+import { createChapter, suggestNextChapter } from '@renderer/explorer/chapter-actions'
 import {
   createProjectEntry,
   deleteProjectEntry,
@@ -20,6 +24,7 @@ import {
   type TreeRow
 } from '@shared/project'
 import type { HostMessageKey } from '@shared/i18n'
+import type { ViewTab } from '@shared/plugin-api'
 import type {
   DeleteEntryFailureReason,
   DirReadFailureReason,
@@ -159,6 +164,94 @@ interface HoveredRow {
 }
 
 export function ExplorerView(): JSX.Element {
+  const t = useT()
+  const [tab, setTab] = useState<ExplorerTabId>('files')
+  /**
+   * 「新建章节」的对话框请求。
+   *
+   * 章节号与默认文件名在**开对话框那一刻**算一次并定下来：列表随时可能变（刚建完
+   * 一章），而用户已经在输入框里改名字了 —— 边打字边重算号会让输入框里的内容自己变。
+   */
+  const [chapterPrompt, setChapterPrompt] = useState<{
+    key: number
+    chapter: number
+    fileName: string
+  } | null>(null)
+  const promptSeq = useRef(0)
+
+  const openChapterPrompt = (): void => {
+    const suggestion = suggestNextChapter()
+    if (!suggestion) return
+
+    promptSeq.current += 1
+    setChapterPrompt({ key: promptSeq.current, ...suggestion })
+  }
+
+  const tabs: ViewTab[] = [
+    { id: 'projects', label: t('host.explorer.tab.projects') },
+    { id: 'files', label: t('host.explorer.tab.files') }
+  ]
+
+  const chrome = useViewChrome({
+    tabs,
+    activeTabId: tab,
+    controller: {
+      selectTab: (id) => setTab(id === 'projects' ? 'projects' : 'files'),
+      // 这两个标签是视图自己的两面，不是「打开的东西」：没有关闭这回事
+      closeTab: () => {}
+    },
+    configure: {
+      showTitle: false,
+      tabStrip: 'dropdown',
+      tabsClosable: false,
+      // 没有内容可关掉，标签里也没有按钮可放
+      showMore: false
+    }
+  })
+
+  return (
+    <ViewFrame chrome={chrome}>
+      {tab === 'files' ? <FileTreePane /> : <ProjectsPanel onCreateChapter={openChapterPrompt} />}
+
+      {chapterPrompt && (
+        <NamePromptDialog
+          key={chapterPrompt.key}
+          mode="create"
+          kind="file"
+          scope="inside"
+          target={chapterPromptTarget(chapterPrompt.fileName)}
+          initialName={chapterPrompt.fileName}
+          onCancel={() => setChapterPrompt(null)}
+          onSubmit={async (name) => {
+            const message = await createChapter(chapterPrompt.chapter, name)
+            // 成功（null）时对话框由这里卸掉；失败则留在原地让他改名字
+            if (message === null) setChapterPrompt(null)
+            return message
+          }}
+        />
+      )}
+    </ViewFrame>
+  )
+}
+
+/** 「项目 / 文件」两个标签页 */
+export type ExplorerTabId = 'projects' | 'files'
+
+/**
+ * 给名字对话框造一个「落点」条目。
+ *
+ * 对话框的标题要用它说清「建在哪儿」（`host.explorer.newFile.inside`），而章节是
+ * 建在内容目录里的 —— 所以这里给的是那个目录。它不会被写盘（章节走的是 chapter-actions
+ * 里那条用目录当落点的请求），只用于标题与预填。
+ */
+function chapterPromptTarget(fileName: string): FileTreeEntry {
+  const dir = useExplorerStore.getState().chaptersDir ?? ''
+
+  return { kind: 'directory', path: dir, name: fileName }
+}
+
+/** 文件树那一面 */
+function FileTreePane(): JSX.Element {
   const t = useT()
   const roots = useExplorerStore((s) => s.roots)
   const pinned = useExplorerStore((s) => s.pinned)
@@ -344,8 +437,12 @@ export function ExplorerView(): JSX.Element {
     [roots, children, errors, loading, expanded, isChildVisible, t]
   )
 
+  /**
+   * 没有项目时的空态。
+   *
+   * 只回一行字：外壳（标签条）由外层画，这里只是「文件」那一面的内容。
+   */
   if (!projectPath) {
-    // 主窗口只在有项目时才会被创建，走到这里说明启动参数丢了
     return <p className="p-3 text-xs text-zinc-500">{t('host.explorer.empty')}</p>
   }
 

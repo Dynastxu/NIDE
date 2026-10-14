@@ -18,7 +18,11 @@
         "title": "%demo.rightTop.title%",
         "icon": "file",
         "location": "rightTop",
-        "entry": "src/ui/rightTop.tsx"
+        "entry": "src/ui/rightTop.tsx",
+        "chrome": {
+          "title": false,
+          "minimize": false
+        }
       },
       {
         "id": "demo.leftTop",

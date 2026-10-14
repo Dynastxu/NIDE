@@ -3,11 +3,14 @@ import { getT } from './i18n.store'
 import {
   isInsideProject,
   languageForPath,
+  type ChapterFile,
+  type ChapterListResult,
   type CreateEntryKind,
   type CreateEntryResult,
   type DeleteEntryResult,
   type DirReadFailureReason,
   type FileTreeEntry,
+  type ProjectConfig,
   type RenameEntryResult
 } from '@shared/project'
 import { loggerFor } from '@renderer/logger'
@@ -63,12 +66,40 @@ interface ExplorerState {
   /** 打开 / 新建失败的提示（渲染在树的顶部），null 表示没有 */
   notice: string | null
 
+  /**
+   * 当前项目的配置（`.nide/config.yml`：四个内容目录）。
+   *
+   * null 表示**还没读过**，不是「没有配置」：主进程的读通道会在配置缺失或坏掉时
+   * 静默重建一份默认配置，所以读到了就一定有一份可用的。放在这里是因为它属于
+   * 「当前项目有哪些内容目录」—— 与文件树同一件事实，生命周期也一样（换项目就重建）。
+   */
+  config: ProjectConfig | null
+  /** 正在读配置 */
+  configLoading: boolean
+  /** 章节目录的绝对路径；null 表示还没有配置（读不到目录） */
+  chaptersDir: string | null
+  /** 章节目录里的章节列表；null 表示**还没读过**（空数组表示确实没有章节） */
+  chapters: ChapterFile[] | null
+  /** 读章节列表的失败原因 */
+  chaptersError: DirReadFailureReason | null
+  /** 正在读章节列表 */
+  chaptersLoading: boolean
+
   /** 启动时调一次：定下根目录并读它的第一层 */
   setRoots: (roots: string[]) => Promise<void>
-  /** 展开 / 收起一个目录。首次展开时才去读它 */
-  toggle: (dirPath: string) => Promise<void>
+  /**
+   * 读一次项目配置并据此定下四个内容目录的绝对路径。
+   *
+   * 已经读过时直接返回：配置在一次会话里不会变（改配置要重建窗口），重复读只是浪费
+   * 一次 IPC。要重新读就把它当「换项目」处理（setRoots 会清空这一份）。
+   */
+  loadConfig: () => Promise<void>
+  /** 读一次章节列表。目录未知时先读配置。失败记进 chaptersError，不抛 */
+  loadChapters: () => Promise<void>
   /** 重新读一个目录（新建条目之后用它把新节点显示出来） */
   refreshDir: (dirPath: string) => Promise<void>
+  /** 展开 / 收起一个目录。首次展开时才去读它 */
+  toggle: (dirPath: string) => Promise<void>
   /**
    * 丢掉一个路径的缓存：目录内容、展开状态、错误与加载标记一起清。
    *
@@ -142,6 +173,24 @@ function ancestorChain(roots: string[], target: string): string[] {
 /** 按任意分隔符切段，丢掉空段 */
 function segments(value: string): string[] {
   return value.split(/[\\/]/).filter((segment) => segment.length > 0)
+}
+
+/**
+ * 把「项目根」与「配置里的相对目录」拼成绝对路径。
+ *
+ * 分隔符按**根**的写法给（根里出现过 `\` 就用 `\`）：主进程的 `path.join` 用的是
+ * 平台分隔符，而 `children` / `chapters` 这些缓存都以主进程给的路径为 key ——
+ * 这里拼出另一种写法就会查不到自己。
+ *
+ * 配置里的路径已经过 normalizeConfigDirectory（`/` 分段、无 `..`），所以这里只需要
+ * 逐段接上去。
+ */
+function joinProjectPath(root: string, relative: string): string {
+  const separator = root.includes('\\') ? '\\' : '/'
+  const head = root.replace(/[\\/]+$/, '')
+
+  const tail = segments(relative)
+  return tail.length === 0 ? head : `${head}${separator}${tail.join(separator)}`
 }
 
 /** 摘掉一个 key，返回新对象（zustand 需要新引用才会触发重渲染） */
@@ -224,6 +273,12 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
     loading: {},
     errors: {},
     notice: null,
+    config: null,
+    configLoading: false,
+    chaptersDir: null,
+    chapters: null,
+    chaptersError: null,
+    chaptersLoading: false,
 
     setRoots: async (roots) => {
       inflight.clear()
@@ -234,10 +289,76 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
         pinned: {},
         loading: {},
         errors: {},
-        notice: null
+        notice: null,
+        // 换项目就是换一套内容目录与章节列表：这一份必须跟着清掉，
+        // 否则新的项目会先带着上一个项目的章节列表渲染一帧
+        config: null,
+        configLoading: false,
+        chaptersDir: null,
+        chapters: null,
+        chaptersError: null,
+        chaptersLoading: false
       })
 
       for (const root of roots) await readDir(root)
+    },
+
+    loadConfig: async () => {
+      // 已经读过就不重读：配置在一次会话里不会变（改配置要重建窗口）
+      if (get().config || get().configLoading) return
+
+      const root = get().roots[0]
+      if (!root) return
+
+      set({ configLoading: true })
+      try {
+        const config = await window.hostAPI.projects.readConfig()
+        if (!config) {
+          logger.warn(
+            'The project configuration is unavailable, the content directories stay unknown'
+          )
+          return
+        }
+
+        set({
+          config,
+          // 内容目录是相对项目根的，绝对路径在这里一次算出来 —— 下游（章节列表、
+          // 将来的图鉴与伏笔）拿到的都该是能直接用的绝对路径
+          chaptersDir: joinProjectPath(root, config.chapters)
+        })
+      } catch (err) {
+        logger.error('Reading the project configuration failed unexpectedly', { error: err })
+      } finally {
+        set({ configLoading: false })
+      }
+    },
+
+    loadChapters: async () => {
+      if (get().chaptersLoading) return
+
+      if (!get().chaptersDir) await get().loadConfig()
+
+      const dir = get().chaptersDir
+      if (!dir) return
+
+      set({ chaptersLoading: true, chaptersError: null })
+      try {
+        const result: ChapterListResult = await window.hostAPI.projects.readChapters(dir)
+        if (!result.ok) {
+          logger.warn('Failed to read the chapter list', { dir, reason: result.reason })
+          // chapters 保持原样（可能还是 null）：错误由 chaptersError 表达，
+          // 界面据此显示「读不了」而不是「没有章节」
+          set({ chaptersError: result.reason })
+          return
+        }
+
+        set({ chapters: result.chapters })
+      } catch (err) {
+        logger.error('Reading the chapter list failed unexpectedly', { error: err })
+        set({ chaptersError: 'unreadable' })
+      } finally {
+        set({ chaptersLoading: false })
+      }
     },
 
     toggle: async (dirPath) => {

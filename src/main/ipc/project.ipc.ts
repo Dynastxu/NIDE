@@ -8,6 +8,7 @@ import {
   projectNameFromPath,
   type CreateEntryRequest,
   type CreateEntryResult,
+  type ChapterListResult,
   type DeleteEntryRequest,
   type DeleteEntryResult,
   type DirReadResult,
@@ -33,6 +34,7 @@ import {
   createProjectEntry,
   deleteProjectEntry,
   entryKindAt,
+  readProjectChapters,
   readProjectDir,
   readProjectFile,
   renameProjectEntry
@@ -126,7 +128,10 @@ async function pickDirectory(
  * 从欢迎窗口打开时当前项目是 null，重复打开同一个项目时目标就是当前项目
  * （判据见 shared/project 的 isProjectSwitch）。
  *
+ * @param dirPath 要打开的项目目录路径
+ * @param create 是否为新建项目。为真时会初始化 `.nide` 目录结构
  * @param initiator 发起这次打开的渲染进程。确认框问到它那个窗口上
+ * @param options 调用方传上来的确认选项。`{ confirm: false }` 时跳过换项目的二次确认
  */
 async function activate(
   dirPath: string,
@@ -251,6 +256,28 @@ export function registerProjectIPC(): void {
         return { ok: false, reason: 'outside-project' }
       }
       return readProjectFile(String(filePath ?? ''), {
+        roots,
+        caseInsensitive: caseInsensitivePaths()
+      })
+    }
+  )
+
+  /**
+   * 读一个内容目录里的章节列表。
+   *
+   * 与 readDir 同一套边界（根由主进程取当前项目、只认绝对路径、逐段比对），只是
+   * 这一步还会**只读每个文件的头部**去取章节号。放到主进程做是因为渲染进程没有
+   * 「读前 8 KiB」这个能力：它只有整文件读，而为一章的编号去读整篇正文不合适。
+   */
+  ipcMain.handle(
+    PROJECT_FILE_CHANNELS.readChapters,
+    async (_event, dirPath): Promise<ChapterListResult> => {
+      const roots = allowedRoots()
+      if (roots.length === 0) {
+        logger.warn('Rejected a chapter read without an open project')
+        return { ok: false, reason: 'outside-project' }
+      }
+      return readProjectChapters(String(dirPath ?? ''), {
         roots,
         caseInsensitive: caseInsensitivePaths()
       })
@@ -420,12 +447,18 @@ function caseInsensitivePaths(): boolean {
 function parseCreateRequest(request: unknown): CreateEntryRequest | null {
   if (!request || typeof request !== 'object') return null
 
-  const { kind, targetPath, name } = request as Partial<CreateEntryRequest>
+  const { kind, targetPath, name, content } = request as Partial<CreateEntryRequest>
   if (kind !== 'file' && kind !== 'directory') return null
   if (typeof targetPath !== 'string' || targetPath.length === 0) return null
   if (typeof name !== 'string') return null
 
-  return { kind, targetPath, name }
+  /**
+   * 初始内容是可选的，但**给了就必须是字符串**：一个 `null` 或数字在这里被当成
+   * 空内容，会让「文件为什么是空的」变成一个查不出来的问题。
+   */
+  if (content !== undefined && typeof content !== 'string') return null
+
+  return { kind, targetPath, name, ...(content === undefined ? {} : { content }) }
 }
 
 /**

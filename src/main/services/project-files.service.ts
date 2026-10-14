@@ -1,24 +1,32 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Dirent, Stats } from 'node:fs'
+import type { FileHandle } from 'node:fs/promises'
 import {
+  FRONTMATTER_SCAN_LIMIT,
   MAX_TEXT_FILE_BYTES,
   createNameCollator,
   filePathKey,
   isIgnoredDirectoryName,
   isInsideProject,
+  isMarkdownPath,
   isSupportedTextPath,
+  parseChapterHeading,
+  parseChapterNumber,
   sortTreeEntries,
   validateEntryName
 } from '@shared/project'
 import { loggerFor } from '../logger'
 import type {
+  ChapterFile,
+  ChapterListResult,
   CreateEntryRequest,
   CreateEntryResult,
   CreateEntryFailureReason,
   DeleteEntryFailureReason,
   DeleteEntryRequest,
   DeleteEntryResult,
+  DirReadFailureReason,
   DirReadResult,
   FileReadResult,
   FileTreeEntry,
@@ -65,6 +73,26 @@ function isInsideAnyRoot(
 }
 
 /**
+ * 把 Node 的错误码翻成读取失败的原因。
+ *
+ * `ENOENT` / `ENOTDIR` 这两码的语义是**明确的**，与权限无关：
+ *
+ * - `ENOENT`：这个路径上什么都没有（目录被删了、项目被移动了，或者内容目录还
+ *   从来没建出来过 —— 「新建项目」会建它，打开一个已有项目不会）；
+ * - `ENOTDIR`：路径中间有一段不是目录。
+ *
+ * 把它们归到 `unreadable`（「读不了：可能已被删除，或者没有访问权限」）曾经把
+ * 「目录不存在」说成了「没有权限」，界面上完全看不出该做什么 —— 而这两种情形的
+ * 处置正好相反：一个要建出来，一个要去改权限。
+ */
+function classifyReadError(err: unknown): DirReadFailureReason {
+  const code = (err as { code?: unknown } | null)?.code
+  if (code === 'ENOENT' || code === 'ENOTDIR') return 'not-a-directory'
+
+  return 'unreadable'
+}
+
+/**
  * 读一层目录。
  *
  * 刻意**不递归**：整棵树一次读完在小说项目上尚可，但目录一大就是一次长卡顿，
@@ -88,7 +116,7 @@ export async function readProjectDir(
     dirents = await fs.readdir(dirPath, { withFileTypes: true })
   } catch (err) {
     logger.warn('Failed to read a directory', { dir: dirPath, error: err })
-    return { ok: false, reason: 'unreadable' }
+    return { ok: false, reason: classifyReadError(err) }
   }
 
   const entries: FileTreeEntry[] = []
@@ -188,6 +216,76 @@ export async function readProjectFile(
 }
 
 /**
+ * 读一个内容目录里的章节列表。
+ *
+ * 与 readProjectDir 是两件事：那个回答「这一层有什么」，这个回答「这些文件各自是第
+ * 几章」。后者要读每个文件的**开头**（frontmatter），而为此把整章正文读进来是不合适
+ * 的 —— 一章稿子可能几百 KiB，而这里只关心前十几行。
+ *
+ * 因此这里只取目录里的文件（章节直接放在内容目录下，不起子目录），逐个读一小段头部，
+ * 再用纯逻辑（`parseChapterNumber`，见 shared/project/chapters）取编号。读不出来的文件
+ * 仍然列出来（它是一个还没编号的章节），只是 `chapter` 为 null。
+ *
+ * 只认 `.md`：这一层是「章节」，而章节是 Markdown（见 composeChapterDocument）。
+ */
+export async function readProjectChapters(
+  dirPath: string,
+  options: RootsOptions
+): Promise<ChapterListResult> {
+  const listing = await readProjectDir(dirPath, options)
+  if (!listing.ok) return { ok: false, reason: listing.reason }
+
+  const files = listing.entries.filter(
+    (entry): entry is Extract<FileTreeEntry, { kind: 'file' }> =>
+      entry.kind === 'file' && isMarkdownPath(entry.path)
+  )
+
+  const chapters: ChapterFile[] = []
+
+  for (const file of files) {
+    const head = await readFileHead(file.path)
+    chapters.push({
+      path: file.path,
+      name: file.name,
+      chapter: head === null ? null : parseChapterNumber(head),
+      // 一级标题也在正文开头，同一次读取就够 —— 不必为它再读一遍盘
+      heading: head === null ? null : parseChapterHeading(head)
+    })
+  }
+
+  return { ok: true, path: listing.path, chapters }
+}
+
+/**
+ * 读一个文件开头的那一小段，失败给 null。
+ *
+ * 只读 `FRONTMATTER_SCAN_LIMIT` 个**字节**：它是 UTF-8 下的近似值，而多字节字符被
+ * 切断在末尾时解出来的那一个替换字符落在 frontmatter 之后，读属性不受影响。
+ *
+ * 失败**不**记为目录错误：一个读不了的文件（权限、正被别的程序独占）不该让整份章节
+ * 列表消失，它只是拿不到编号。
+ */
+async function readFileHead(filePath: string): Promise<string | null> {
+  let handle: FileHandle | null = null
+
+  try {
+    handle = await fs.open(filePath, 'r')
+    const buffer = Buffer.alloc(FRONTMATTER_SCAN_LIMIT)
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+
+    return buffer.subarray(0, bytesRead).toString('utf-8')
+  } catch (err) {
+    logger.warn('Failed to read a file head while listing chapters', {
+      file: filePath,
+      error: err
+    })
+    return null
+  } finally {
+    await handle?.close().catch(() => undefined)
+  }
+}
+
+/**
  * 在 `target` 所在的位置新建一个条目。
  *
  * 目标目录由 `target` 推导，两种情形：
@@ -214,6 +312,15 @@ export async function createProjectEntry(
 
   const validation = validateEntryName(request.name)
   if (!validation.ok) return { ok: false, reason: 'invalid-name' }
+
+  /**
+   * 初始内容只对文件有意义。给目录传内容时**拒绝**而不是忽略：那说明调用方对
+   * 「自己在建什么」的理解与这里不一致，悄悄建一个空目录会让那个误解留到下一次。
+   */
+  if (request.content !== undefined && kind !== 'file') {
+    logger.warn('Refused to create a directory with initial content', { target: targetPath })
+    return { ok: false, reason: 'not-a-directory' }
+  }
 
   if (typeof targetPath !== 'string' || targetPath.length === 0) {
     return { ok: false, reason: 'unreadable' }
@@ -260,8 +367,11 @@ export async function createProjectEntry(
        * `wx` = 只新建、已存在就报错。用 `writeFile` 而不是「先 exists 再 write」，
        * 因为中间那段时间刚好够别人把同名文件建出来 —— 那一步会把「不覆盖」这条
        * 承诺变成一个竞态。
+       *
+       * 初始内容与文件在同一次调用里落盘：分两次写会在磁盘上留一个「建好了但还没
+       * 内容」的中间态，而那个中间态恰好是一份没有编号的稿子。
        */
-      await fs.writeFile(entryPath, '', { encoding: 'utf-8', flag: 'wx' })
+      await fs.writeFile(entryPath, request.content ?? '', { encoding: 'utf-8', flag: 'wx' })
     } else {
       // 不带 recursive：父目录不存在应当失败，而不是顺手建出一串中间目录
       await fs.mkdir(entryPath)

@@ -54,6 +54,14 @@ export type NamePromptDialogProps = {
    * 显示在输入框下面，浮层**留在原地**让用户改名字。 */
   onSubmit: (name: string) => Promise<string | null>
   onCancel: () => void
+  /**
+   * 输入框的预填值。
+   *
+   * 省略时：改名用条目**现在**的名字（改一个字比重新敲一遍常见），新建是空。
+   * 显式给它是为了「新建一个已经有默认名字的东西」—— 章节的 `chapter_1.md` 就是：
+   * 那个名字由宿主按已有章节算出来，而用户可以随手改掉。
+   */
+  initialName?: string
 } & (
   | {
       mode: 'create'
@@ -68,12 +76,11 @@ export type NamePromptDialogProps = {
 )
 
 export function NamePromptDialog(props: NamePromptDialogProps): JSX.Element {
-  const { mode, target, onSubmit, onCancel } = props
+  const { mode, target, onSubmit, onCancel, initialName } = props
   const t = useT()
   const titleId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
-  // 重命名时框里先放着它现在的名字：改一个字比重新敲一遍整名常见得多
-  const [value, setValue] = useState(mode === 'rename' ? target.name : '')
+  const [value, setValue] = useState(initialName ?? (mode === 'rename' ? target.name : ''))
   const [failure, setFailure] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 

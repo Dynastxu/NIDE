@@ -70,6 +70,20 @@ interface EditorState {
    * 一致：连按几次关闭，看到的是同一批文件按打开顺序退出，而不是焦点来回跳。
    */
   closeTab: (path: string) => void
+  /**
+   * 标题栏上那一下「关闭」。
+   *
+   * 与 closeTab 是同一件事，单独一个名字是为了**标出那个决定**：宿主没有保存功能
+   * （见 EditorTabs 的说明），所以关掉一个改过的标签页就是直接丢掉那些改动。
+   * 将来接上保存时，这里正是加一问「要不要先保存」的位置，而不必去翻每个关闭入口。
+   */
+  requestClose: (path: string) => void
+  /** 关掉除当前这一个以外的全部标签页。没有当前标签页时什么都不做 */
+  closeOthers: () => void
+  /** 关掉所有**没有未落盘改动**的标签页。改过的留着，它们还需要一个去处 */
+  closeSaved: () => void
+  /** 关掉全部标签页 */
+  closeAll: () => void
   /** 正文变化（用户在编辑器里改，或宿主推来新内容）。同步重算 dirty */
   setContent: (path: string, content: string) => void
   /**
@@ -166,6 +180,33 @@ export const useEditorStore = create<EditorState>((set) => ({
       const next = tabs[index] ?? tabs[index - 1] ?? null
       return { tabs, activePath: next?.path ?? null }
     }),
+
+  requestClose: (path) => useEditorStore.getState().closeTab(path),
+
+  closeOthers: () =>
+    set((s) => {
+      if (s.activePath === null) return {}
+
+      const tabs = s.tabs.filter((tab) => tab.path === s.activePath)
+      return tabs.length === s.tabs.length ? {} : { tabs }
+    }),
+
+  closeSaved: () =>
+    set((s) => {
+      const tabs = s.tabs.filter((tab) => tab.dirty)
+      if (tabs.length === s.tabs.length) return {}
+
+      // 关掉的是当前这一个（它是干净的）时，焦点按 closeTab 的规则落到右邻
+      if (s.activePath && !tabs.some((tab) => tab.path === s.activePath)) {
+        const index = s.tabs.findIndex((tab) => tab.path === s.activePath)
+        const next = tabs[index] ?? tabs[index - 1] ?? null
+        return { tabs, activePath: next?.path ?? null }
+      }
+
+      return { tabs }
+    }),
+
+  closeAll: () => set((s) => (s.tabs.length === 0 ? {} : { tabs: [], activePath: null })),
 
   setContent: (path, content) =>
     set((s) => {

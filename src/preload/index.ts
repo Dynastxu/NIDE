@@ -37,6 +37,7 @@ import type { AppearancePreference } from '@shared/appearance'
 import type { ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
 import type { ConfirmOptions, ConfirmRequest } from '@shared/confirm'
 import type {
+  ChapterListResult,
   CreateEntryRequest,
   CreateEntryResult,
   DeleteEntryRequest,
@@ -281,6 +282,15 @@ const projectAPI = {
   /** 读项目里的一个纯文本 / Markdown 文件。失败同样返回带原因的结果 */
   readFile: (filePath: string): Promise<FileReadResult> =>
     ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readFile, filePath),
+
+  /**
+   * 读一个内容目录里的章节列表（含每一章的编号）。
+   *
+   * 与 readDir 分开：这一步会只读每个文件的**开头**（frontmatter）取章节号，
+   * 而渲染进程没有「只读一段」这个能力 —— 那是主进程的活。
+   */
+  readChapters: (dirPath: string): Promise<ChapterListResult> =>
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readChapters, dirPath),
 
   /**
    * 新建文件 / 文件夹。

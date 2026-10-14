@@ -2,22 +2,26 @@ import { JSX } from 'react'
 import { HostSlot } from '@renderer/plugins/HostSlot'
 import { PluginSlot } from '@renderer/plugins/PluginSlot'
 import { useActiveView } from '@renderer/layout/zone-state'
+import { ViewDescriptorContext } from '@renderer/view/view-descriptor'
 import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
 import type { ZoneId } from '@renderer/stores/layout.store'
 
 /**
- * 单个工具区：只有视图本体，没有宿主标题栏。
+ * 单个工具区：一个视图，外壳与正文都由视图自己给。
  *
- * 视图名由侧边按钮条在图标下面显示 —— 宿主不在内容区里重复一遍标题，
- * 这行高度全部让给视图。收起这个区的入口也是按钮条上那个按钮（再点一次）。
+ * 这个组件只做三件事：
  *
- * 视图分两类，**出口只有这一个**：
+ * 1. 把「现在展示哪个视图」解析出来（布局 store 的 activeViewId）；
+ * 2. 把视图描述**放进上下文** —— 视图正文里调用 `useViewChrome()` 时要靠它拿到
+ *    标题、图标与 manifest 里声明的静态开关；
+ * 3. 把正文交给对应的插槽（宿主内建视图走 HostSlot，插件视图走 PluginSlot）。
  *
- * - 插件视图：按 `dir` / `entry` 去构建期的 glob 表里找模块（PluginSlot）；
- * - 宿主内建视图（文件树）：组件直接编译在宿主里（HostSlot）。
+ * 外层**不**替视图画标题栏：外壳与正文同属视图，视图自己挂的按钮才带着它这一帧的
+ * 闭包（见 view/chrome-context 的装配约定）。这样六个区与中间主编辑区是同一套外壳，
+ * 而每个视图仍然可以只声明它要的那部分。
  *
- * 之所以让它们共用同一个组件，是因为「哪个区展示谁」由布局 store 的
- * activeViewId 决定，而那个判断不该知道视图是谁提供的。区分只发生在最后一步。
+ * 「收起这个区」的入口因此有两个 —— 按钮条上那颗按钮，和标题栏右端的最小化按钮 ——
+ * 两者改的是同一份布局状态。
  */
 export function ToolZone({ id }: { id: ZoneId }): JSX.Element | null {
   const view = useActiveView(id)
@@ -28,13 +32,16 @@ export function ToolZone({ id }: { id: ZoneId }): JSX.Element | null {
   const isHostView = view.pluginId === HOST_VIEW_PLUGIN_ID
 
   return (
-    <section className="h-full overflow-hidden bg-zinc-950/30">
-      {/* key 换掉时插槽会重新按 viewId 挂载（插件视图要重新加载模块） */}
+    /**
+     * key 换掉时插槽重新按 viewId 挂载：插件视图要重新加载模块，外壳也要丢掉上一个
+     * 视图留下的标签与菜单。
+     */
+    <ViewDescriptorContext.Provider value={view}>
       {isHostView ? (
         <HostSlot key={view.id} viewId={view.id} />
       ) : (
         <PluginSlot key={view.id} viewId={view.id} />
       )}
-    </section>
+    </ViewDescriptorContext.Provider>
   )
 }

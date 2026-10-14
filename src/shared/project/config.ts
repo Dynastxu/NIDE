@@ -7,7 +7,13 @@
  *
  * 配置里只放**相对项目根**的路径。绝对路径一旦落盘，项目被移动或换一台机器就
  * 指向了别处，而这份文件是要跟项目一起进版本库的。
+ *
+ * YAML 那一档写法（标量与引号）在 `@shared/yaml`：章节 Markdown 的 frontmatter 用的是
+ * 同一档，两处共用同一份实现，才不会出现「config.yml 读得出、frontmatter 读不出」
+ * 这类只在运行时才看得见的分叉。
  */
+
+import { parseYamlScalar, quoteYamlValue } from '@shared/yaml'
 
 /** 配置项：四个内容目录 */
 export const PROJECT_CONFIG_KEYS = ['chapters', 'gallery', 'foreshadowing', 'overview'] as const
@@ -236,12 +242,8 @@ export type ProjectConfigUpdateResult =
 /**
  * config.yml 的写法：**只有顶层、只有字符串**。
  *
- * 刻意不用完整的 YAML 库：读者与写者都是宿主，格式是这个模块自己定的；换一个库
- * 就等于把「配置文件会不会被解析成别的形状」押在依赖的版本上。副作用是这一层
- * 在渲染进程里也能跑（不会把一份解析器打进前端包）。
- *
- * 用的都是 YAML 里最普通的那一档写法（`key: "value"`），别的 YAML 解析器读它没有
- * 歧义。反过来，这里**只认这一档**：手改过的 config.yml 用了锚点、多行块、嵌套
+ * 标量与引号那一档实现在 `@shared/yaml`（章节 frontmatter 用的是同一档）。这里只留
+ * 本文件特有的两样：落盘顺序与注释头。手改过的 config.yml 用了锚点、多行块、嵌套
  * 映射这类结构时判为坏配置，由调用方回落成默认值（见 loadProjectConfig）。
  */
 
@@ -250,71 +252,6 @@ const YAML_FIELD_ORDER = PROJECT_CONFIG_KEYS
 
 /** 配置文件的注释头。写出来的第一行永远是它 */
 const YAML_HEADER = '# NIDE project configuration\n# Paths are relative to the project root.\n'
-
-/** 值里的双引号需要转义，否则写出来的 YAML 读到的是另一个值 */
-function quoteYamlValue(value: string): string {
-  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
-}
-
-function unquoteYamlValue(raw: string): string | null {
-  if (raw.length < 2 || !raw.startsWith('"') || !raw.endsWith('"')) return null
-
-  let result = ''
-  for (let index = 1; index < raw.length - 1; index++) {
-    const char = raw[index]
-
-    if (char !== '\\') {
-      result += char
-      continue
-    }
-
-    // 反斜杠只能引出 `\"` 与 `\\`，其余写法不认（宁可不认，也不要猜）
-    const next = raw[index + 1]
-    if (next !== '"' && next !== '\\') return null
-
-    result += next
-    index++
-  }
-
-  return result
-}
-
-/**
- * YAML 里表示「结构」而不是「字符串」的开头字符（锚点、别名、流式集合、块标量、
- * 标签、指令）。这样的值交给别的解析器会被读成另一种东西 —— 本模块只认字符串，
- * 所以一律判为坏配置，而不是猜一个值出来。
- */
-const YAML_STRUCTURAL_HEAD = /^[&*!|>%@`{}[\]]/
-
-/**
- * 取一个 YAML 的值，读不成字符串给 null。
- *
- * 两种写法：本模块写出来的双引号标量，以及人手写的普通标量（`chapters: chapters`）。
- * 后者也收，是因为配置文件是给人改的，改配置不该被迫先学会引号 —— 但只收**能
- * 确定是字符串**的那些：控制字符、结构字符开头、以及 `true` / 数字 / `null` / `~`
- * 这类在 YAML 里有别的类型的值，一律判为坏配置（一个数字目录名没有意义，而按
- * 字符串收下等于替用户改了他写的东西）。
- */
-function parseYamlScalar(raw: string): string | null {
-  if (raw.startsWith('"')) return unquoteYamlValue(raw)
-  if (raw.startsWith("'")) return null
-  if (raw.length === 0) return null
-
-  /**
-   * 控制字符（含换行、制表）不该出现在目录名里：换个编码或插了换行的行，
-   * 不该被当成一个正常的路径。关掉 no-control-regex 是**刻意**的，与 files.ts
-   * 的名字校验同理 —— 那条规则防的是「拿控制字符当分隔符」，这里正是要匹配它们。
-   */
-  // eslint-disable-next-line no-control-regex
-  if (/[\u0000-\u001f\u007f]/.test(raw)) return null
-  if (YAML_STRUCTURAL_HEAD.test(raw)) return null
-
-  // 去引号之后 YAML 会把它读成别的类型，而不是字符串
-  if (/^(true|false|null|~)$/i.test(raw)) return null
-  if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(raw)) return null
-
-  return raw
-}
 
 /** 按字段顺序序列化一份配置 */
 export function serializeProjectConfig(config: ProjectConfig): string {

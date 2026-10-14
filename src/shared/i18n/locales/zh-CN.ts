@@ -20,6 +20,16 @@ export const zhCN = {
   'host.stripe.tooltip': '右键：显示/隐藏标题',
   'host.stripe.menu.showTitles': '显示工具窗口名称',
 
+  // ---- 视图外壳（标题栏）----
+  // 所有 ViewLocation 上的视图共用这一套外壳：宿主画标题栏与标签条，视图往里面
+  // 写内容。这几条是外壳自己画出来的按钮与标签条的说法
+  'host.view.more': '更多',
+  'host.view.collapse': '收起视图',
+  'host.view.tabs': '标签页',
+  'host.view.tab.close': '关闭',
+  'host.view.tab.status': '关闭（这个标签有未保存的改动）',
+  'host.editor.title': '编辑器',
+
   // ---- 窗口（自定义标题栏）----
   'host.window.minimize': '最小化',
   'host.window.maximize': '最大化',
@@ -174,6 +184,9 @@ export const zhCN = {
 
   // ---- 文件树（左上工具区，宿主内建视图）----
   'host.explorer.title': '文件',
+  // 这个视图的两个标签页：文件树，以及按四个内容目录分组的项目内容
+  'host.explorer.tab.files': '文件',
+  'host.explorer.tab.projects': '项目',
   'host.explorer.empty': '这个项目里没有可显示的文件。',
   'host.explorer.error.invalid-path': '这个路径不可用。',
   'host.explorer.error.outside-project': '只能浏览当前项目里的文件。',
@@ -235,12 +248,38 @@ export const zhCN = {
   'host.explorer.delete.failed.is-project-root': '不能删除项目根目录。',
   'host.explorer.delete.failed.unreadable': '删除失败：没有权限，或者磁盘不可写。',
 
+  // ---- 「项目」标签页：四个内容分类 ----
+  // 分类名与 .nide/config.yml 里的四项一一对应（章节 / 图鉴 / 伏笔 / 概述）。
+  // 目录名不在这里 —— 那由配置决定，界面只认这四个分类的显示名
+  'host.project.panel.section.chapters': '章节',
+  'host.project.panel.section.gallery': '图鉴',
+  'host.project.panel.section.foreshadowing': '伏笔',
+  'host.project.panel.section.overview': '概述',
+  'host.project.panel.new': '新建',
+  'host.project.panel.section.notImplemented': '尚未实现',
+  'host.project.panel.chapter.empty': '这个目录里还没有章节。',
+  // 编号读不出来时列表左边显示的字样：那是一个还没写章节属性的文件，不是错误
+  'host.project.panel.chapter.unnumbered': '—',
+  'host.project.panel.chapter.no-dir': '读不到章节目录：项目配置不可用。',
+  'host.project.panel.chapter.failed.invalid-name': '名称不合法。',
+  'host.project.panel.chapter.failed.already-exists':
+    '这个名字已经有了（新建不会覆盖它）。改个名字，或者先重命名已有的那一章。',
+  'host.project.panel.chapter.failed.not-a-directory': '章节目录不存在，或者那里不是一个文件夹。',
+  'host.project.panel.chapter.failed.unreadable': '新建失败：没有权限，或者磁盘不可写。',
+
   // ---- 中间的主编辑区（标签页）----
   'host.editor.empty.title': '没有打开的文件',
   'host.editor.empty.hint': '在左侧的文件树里点一个文件，它会在这里以标签页打开。',
   'host.editor.tab.close': '关闭',
   'host.editor.unsaved': '尚未保存：保存功能还没实现',
   'host.editor.unsaved.hint': '保存功能尚未实现，这里的改动不会写回磁盘。',
+  // 标题栏右上角「更多」菜单：一次关掉多个标签页。宿主还没有保存功能，
+  // 所以这几个动作都会直接丢掉未落盘的改动（见 stores/editor.store）
+  'host.editor.menu.closeOthers': '关闭其他标签页',
+  'host.editor.menu.closeOthers.disabled': '只开着一个文件。',
+  'host.editor.menu.closeSaved': '关闭未改动的标签页',
+  'host.editor.menu.closeSaved.disabled': '每个打开的文件都有未保存的改动。',
+  'host.editor.menu.closeAll': '关闭全部标签页',
 
   'host.plugin.loading': '加载中…',
 

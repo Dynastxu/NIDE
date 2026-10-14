@@ -5,6 +5,7 @@ import type { AppearancePreference } from '@shared/appearance'
 import type { ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
 import type { ConfirmOptions, ConfirmRequest } from '@shared/confirm'
 import type {
+  ChapterListResult,
   CreateEntryRequest,
   CreateEntryResult,
   DeleteEntryRequest,
@@ -146,10 +147,19 @@ export interface ProjectAPI {
   /** 读一个纯文本 / Markdown 文件。不支持的格式由主进程拒绝 */
   readFile: (filePath: string) => Promise<FileReadResult>
   /**
+   * 读一个内容目录里的章节列表（含每一章的编号）。
+   *
+   * 与 readDir 分开：章节号写在文件开头的 frontmatter 里，主进程只读那一小段，
+   * 而渲染进程没有「只读一段」的能力。目录里读不出编号的 `.md` 仍然列出来，
+   * 只是 `chapter` 为 null。
+   */
+  readChapters: (dirPath: string) => Promise<ChapterListResult>
+  /**
    * 新建文件 / 文件夹 —— 宿主唯一的写入入口。
    *
    * 目标目录由主进程从 `request.targetPath`（被右键的条目）推导，渲染进程指定
    * 不了任意写入位置。同名条目已存在时**不覆盖**，返回 `already-exists`。
+   * 文件可以带一段初始内容（`request.content`），建出来就是完整的。
    */
   createEntry: (request: CreateEntryRequest) => Promise<CreateEntryResult>
   /**

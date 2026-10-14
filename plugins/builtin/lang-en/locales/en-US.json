@@ -4,6 +4,13 @@
   "host.stripe.tooltip": "Right-click: show/hide titles",
   "host.stripe.menu.showTitles": "Show tool window names",
 
+  "host.view.more": "More",
+  "host.view.collapse": "Collapse view",
+  "host.view.tabs": "Tabs",
+  "host.view.tab.close": "Close",
+  "host.view.tab.status": "Close (this tab has unsaved changes)",
+  "host.editor.title": "Editor",
+
   "host.window.minimize": "Minimize",
   "host.window.maximize": "Maximize",
   "host.window.restore": "Restore Down",
@@ -129,6 +136,8 @@
   "host.commit.placeholder": "The commit page is not implemented yet.",
 
   "host.explorer.title": "Files",
+  "host.explorer.tab.files": "Files",
+  "host.explorer.tab.projects": "Project",
   "host.explorer.empty": "There is nothing to show in this project.",
   "host.explorer.error.invalid-path": "That path is not usable.",
   "host.explorer.error.outside-project": "Only files inside the current project can be browsed.",
@@ -183,11 +192,30 @@
   "host.explorer.delete.failed.is-project-root": "The project root cannot be deleted.",
   "host.explorer.delete.failed.unreadable": "Could not delete it: no permission, or the disk is not writable.",
 
+  "host.project.panel.section.chapters": "Chapters",
+  "host.project.panel.section.gallery": "Gallery",
+  "host.project.panel.section.foreshadowing": "Foreshadowing",
+  "host.project.panel.section.overview": "Overview",
+  "host.project.panel.new": "New",
+  "host.project.panel.section.notImplemented": "Not implemented yet",
+  "host.project.panel.chapter.empty": "No chapters in this directory yet.",
+  "host.project.panel.chapter.unnumbered": "—",
+  "host.project.panel.chapter.no-dir": "The chapter directory is unavailable: the project configuration cannot be read.",
+  "host.project.panel.chapter.failed.invalid-name": "That name is not valid.",
+  "host.project.panel.chapter.failed.already-exists": "That name is taken (creating never overwrites). Pick another name, or rename the existing chapter first.",
+  "host.project.panel.chapter.failed.not-a-directory": "The chapter directory does not exist, or it is not a folder.",
+  "host.project.panel.chapter.failed.unreadable": "Could not create it: no permission, or the disk is not writable.",
+
   "host.editor.empty.title": "No file open",
   "host.editor.empty.hint": "Click a file in the tree on the left; it opens here as a tab.",
   "host.editor.tab.close": "Close",
   "host.editor.unsaved": "Unsaved: saving is not implemented yet",
   "host.editor.unsaved.hint": "Saving is not implemented yet, so these changes will not be written to disk.",
+  "host.editor.menu.closeOthers": "Close other tabs",
+  "host.editor.menu.closeOthers.disabled": "Only one file is open.",
+  "host.editor.menu.closeSaved": "Close unmodified tabs",
+  "host.editor.menu.closeSaved.disabled": "Every open file has unsaved changes.",
+  "host.editor.menu.closeAll": "Close all tabs",
 
   "host.plugin.loading": "Loading…",
 

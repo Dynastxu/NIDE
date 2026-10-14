@@ -7,12 +7,14 @@
  * 不需要起 electron。
  *
  * 文件树（目录条目、排序、支持哪些文本格式、新建时的名字校验）在 `./files`，
- * 同样只放纯逻辑；项目级配置（`.nide/config.yml` 的形状与文本读写）在 `./config`。
+ * 同样只放纯逻辑；项目级配置（`.nide/config.yml` 的形状与文本读写）在 `./config`；
+ * 章节 Markdown 的开头属性（frontmatter）在 `./chapters`。
  */
 
 export * from './files'
 export * from './tree'
 export * from './config'
+export * from './chapters'
 
 /**
  * 项目 = 一个文件夹。

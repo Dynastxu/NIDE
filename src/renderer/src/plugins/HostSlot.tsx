@@ -2,6 +2,8 @@ import { type ComponentType, type JSX } from 'react'
 import { ExplorerView } from '@renderer/explorer/ExplorerView'
 import { CommitView } from '@renderer/git/CommitView'
 import { GitView } from '@renderer/git/GitView'
+import { useViewChrome } from '@renderer/view/chrome-context'
+import { ViewFrame } from '@renderer/view/ViewFrame'
 import { HOST_COMMIT_VIEW_ID, HOST_EXPLORER_VIEW_ID, HOST_GIT_VIEW_ID } from '@shared/plugin-api'
 
 /**
@@ -25,19 +27,27 @@ const HOST_VIEW_COMPONENTS: Record<string, ComponentType> = {
  * 渲染一个内建视图。
  *
  * 认不出的 id 会显示一句说明而不是空白：那说明主进程声明了一个渲染进程没有
- * 实现的视图，是**两处清单不同步**的 bug，让它显眼。
+ * 实现的视图，是**两处清单不同步**的 bug，让它显眼。那一句也走通用外壳，
+ * 否则这一块会连标题栏一起消失，看起来像整个工具区坏了。
  */
 export function HostSlot({ viewId }: { viewId: string }): JSX.Element {
   const Component = HOST_VIEW_COMPONENTS[viewId]
 
-  if (!Component) {
-    return (
-      <pre className="h-full overflow-auto whitespace-pre-wrap p-3 font-mono text-[11px] leading-4 text-red-400">
+  if (!Component) return <HostNotice viewId={viewId} />
+
+  return <Component />
+}
+
+/** 内建视图清单不同步时的说明页 */
+function HostNotice({ viewId }: { viewId: string }): JSX.Element {
+  const chrome = useViewChrome()
+
+  return (
+    <ViewFrame chrome={chrome}>
+      <pre className="h-full overflow-auto p-3 font-mono text-[11px] leading-4 whitespace-pre-wrap text-red-400">
         {`宿主没有实现内建视图 ${viewId}。\n主进程的 HOST_VIEWS 与渲染进程的 ` +
           'HOST_VIEW_COMPONENTS 必须一一对应。'}
       </pre>
-    )
-  }
-
-  return <Component />
+    </ViewFrame>
+  )
 }

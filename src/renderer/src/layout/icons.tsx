@@ -127,6 +127,24 @@ export const BUILTIN_ICONS: Record<string, ReactElement> = {
   /** 下拉箭头 */
   chevronDown: <path d="m6 9.5 6 6 6-6" />,
 
+  /** 向左的箭头。收起左侧内容用 */
+  chevronLeft: <path d="m14 6-6 6 6 6" />,
+
+  /** 向右的箭头 */
+  chevronRight: <path d="m10 6 6 6-6 6" />,
+
+  /** 更多（三个点）。视图标题栏的「更多」按钮用它 */
+  more: (
+    <>
+      <circle cx="5.5" cy="12" r="1.4" />
+      <circle cx="12" cy="12" r="1.4" />
+      <circle cx="18.5" cy="12" r="1.4" />
+    </>
+  ),
+
+  /** 最小化 / 收起。一条横线，与窗口的最小化按钮同形 */
+  minimize: <path d="M5 12h14" />,
+
   /** 关闭（叉）。菜单里表示「关掉当前这个东西」 */
   close: (
     <>

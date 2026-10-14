@@ -1,4 +1,12 @@
 {
+  /*
+   * 主进程 / 共享层 / 测试的编译单元。
+   *
+   * 测试落在这个工程里（见 include 的 test/**），而测试的落点不限于主进程：
+   * test/main 与 test/shared 里都有用例在测渲染进程那一侧的纯逻辑（合并规则、
+   * 本地化数据这类与 React 无关的东西）。所以两个别名都要能解析 —— 否则某个
+   * 测试文件会因为「被算在哪个工程里」而拿不到它 import 的模块。
+   */
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
     "electron.vite.config.*",
@@ -13,7 +21,8 @@
     "types": ["electron-vite/node"],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["src/shared/*"],
+      "@renderer/*": ["src/renderer/src/*"]
     }
   }
 }

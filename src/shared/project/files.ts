@@ -210,6 +210,14 @@ export const PROJECT_FILE_CHANNELS = {
   readDir: 'host:project-read-dir',
   /** 读一个文本文件，参数是文件绝对路径（invoke） */
   readFile: 'host:project-read-file',
+  /**
+   * 读一个内容目录里的章节列表（invoke），参数是目录绝对路径。
+   *
+   * 与 readDir 分开是因为它多做了**只读文件开头**（frontmatter）这一件事：章节列表
+   * 要的是每一章的编号，而那个编号在正文之前。渲染进程自己做不到这件事 —— 它只有
+   * 「把整个文件读进来」这一条路，为一章的编号去读几百 KiB 的正文不合适。
+   */
+  readChapters: 'host:project-read-chapters',
   /** 在一个目录里新建文件 / 文件夹（invoke），参数见 CreateEntryRequest */
   createEntry: 'host:project-create-entry',
   /** 给一个已存在的文件 / 文件夹改名（invoke），参数见 RenameEntryRequest */
@@ -261,6 +269,16 @@ export interface CreateEntryRequest {
   targetPath: string
   /** 用户输入的名字（单段，未补扩展名） */
   name: string
+  /**
+   * 新文件的初始内容；省略即空文件。
+   *
+   * 存在的理由是「文件建出来那一刻就该是完整的」：一章的 Markdown 需要在开头带上
+   * 章节属性（见 ./chapters），先建一个空文件再写一次等于给磁盘留一个中间态 ——
+   * 那段时间里它是一章没有编号的稿子，而中间被中断（崩溃、拔盘）就会永远停在那里。
+   *
+   * 只在 `kind: 'file'` 时有意义；给目录传内容会被拒绝，而不是悄悄忽略。
+   */
+  content?: string
 }
 
 /**

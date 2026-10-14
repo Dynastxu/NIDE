@@ -14,7 +14,7 @@ import { loggerFor } from '../logger'
 import type { LocaleId, LocaleSourceTier, MessageTable } from '@shared/i18n'
 import type { ManifestNlsTables } from '../i18n/manifest-nls'
 import { isReservedHostId } from '@shared/plugin-api'
-import type { PluginManifest, ViewLocation } from '@shared/plugin-api'
+import type { PluginManifest, ViewChromeOptions, ViewLocation } from '@shared/plugin-api'
 import type { Logger } from '@shared/logger'
 
 /**
@@ -53,6 +53,14 @@ const LEGACY_LOCATIONS: Record<string, ViewLocation> = {
 const FALLBACK_LOCATION: ViewLocation = 'rightTop'
 
 /**
+ * manifest 里 `contributes.views[].chrome` 认得的字段。
+ *
+ * 单独列出来而不是直接遍历对象：多出来的键会被静默忽略，作者拼错 `ttile` 时
+ * 不会有任何提示 —— 而这张表让「哪些键有用」有一个可读的答案。
+ */
+const CHROME_FLAGS = ['header', 'title', 'more', 'minimize', 'tabs'] as const
+
+/**
  * 把 manifest 里写的 location 归一化成合法的 ViewLocation。
  *
  * 渲染进程按 location 把视图塞进对应的工具区，一个不认识的值会让视图
@@ -80,6 +88,55 @@ function normalizeLocation(raw: string | undefined, viewId: string): ViewLocatio
 
 function toPosix(p: string): string {
   return p.replace(/\\/g, '/')
+}
+
+/**
+ * 收敛 manifest 里写的 chrome 开关。
+ *
+ * 只接受布尔值，其余一律丢弃并告警：这份数据会跨 IPC 送到渲染进程并直接决定
+ * 界面画什么，而 manifest 是插件作者手写的 JSON —— 一个 `"false"` 字符串在这里
+ * 被当成真值，界面上就会多出一个作者明确想关掉的按钮。
+ *
+ * 逐字段校验而不是整份丢弃：写坏一项不该带走同一份声明里其他有效的开关。
+ * 全部省略时返回 undefined，让渲染进程直接落到默认值（全开）。
+ */
+function normalizeViewChrome(
+  raw: unknown,
+  pluginId: string,
+  viewId: string
+): ViewChromeOptions | undefined {
+  if (raw === undefined) return undefined
+
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    logger.warn('View chrome must be an object, the declaration is ignored', {
+      pluginId,
+      viewId,
+      valueType: typeof raw
+    })
+    return undefined
+  }
+
+  const source = raw as Record<string, unknown>
+  const chrome: ViewChromeOptions = {}
+
+  for (const key of CHROME_FLAGS) {
+    const value = source[key]
+    if (value === undefined) continue
+
+    if (typeof value !== 'boolean') {
+      logger.warn('View chrome flag must be a boolean, the flag is ignored', {
+        pluginId,
+        viewId,
+        flag: key,
+        valueType: typeof value
+      })
+      continue
+    }
+
+    chrome[key] = value
+  }
+
+  return chrome
 }
 
 /**
@@ -289,6 +346,8 @@ export class PluginLoader {
       const titleSpec = view.title ?? view.id
       warnUnresolvableTitle(manifest.id, view.id, titleSpec, nlsTables)
 
+      const chrome = normalizeViewChrome(view.chrome, manifest.id, view.id)
+
       uiRegistry.register({
         id: view.id,
         // 存原始值而不是解析结果：解析要用当前语言，而这里跑在 initI18n() 之前。
@@ -296,6 +355,8 @@ export class PluginLoader {
         titleSpec,
         location: normalizeLocation(view.location, view.id),
         icon: view.icon,
+        // 与标题同理存原样：它是纯数据，渲染进程合并默认值时才知道缺了哪几项
+        ...(chrome ? { chrome } : {}),
         pluginId: manifest.id,
         dir,
         entry
