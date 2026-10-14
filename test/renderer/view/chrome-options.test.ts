@@ -8,6 +8,11 @@ import { buildChromeConfig, resolveChromeOptions } from '@renderer/view/chrome-o
  * 这里是「所有 ViewLocation 上的视图都默认有标题栏」这条约定的落点：默认值写错一个
  * 字段，界面上就是某个视图的标题栏或按钮凭空消失（或者一个什么都没声明的视图多出
  * 一个点了没反应的「更多」按钮）。所以默认值本身也要被断言，不能只测合并。
+ *
+ * 放在 test/renderer 而不是 test/shared/plugin-api：这一份断言的是**渲染进程那一侧**
+ * 的合并逻辑（`@renderer/view/chrome-options`），只有默认值来自 shared。测试跟被测的
+ * 东西走同一个编译单元 —— 跟着 shared 走的话，这个 import 在 IDE 的项目检查里会报
+ * TS6307（见 tsconfig.node.json 与 tsconfig.web.json 的 include 划分）。
  */
 describe('视图外壳的默认值', () => {
   it('全部开关默认打开', () => {

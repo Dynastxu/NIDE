@@ -1,11 +1,19 @@
 {
   /*
-   * 主进程 / 共享层 / 测试的编译单元。
+   * 主进程 / 共享层 / 这一侧测试的编译单元。
    *
-   * 测试落在这个工程里（见 include 的 test/**），而测试的落点不限于主进程：
-   * test/main 与 test/shared 里都有用例在测渲染进程那一侧的纯逻辑（合并规则、
-   * 本地化数据这类与 React 无关的东西）。所以两个别名都要能解析 —— 否则某个
-   * 测试文件会因为「被算在哪个工程里」而拿不到它 import 的模块。
+   * **测试按「被测的东西住在哪个工程」分家**（test/main 与 test/shared 在这里，
+   * test/renderer 在 tsconfig.web.json）。一个工程只包含它自己列出的文件，
+   * 所以只要某个用例 import 了另一个工程的源码，`tsc` 就会报 TS6307
+   * （「File is not listed within the file list of project」）—— 这不是提醒，
+   * 是硬错误：`composite` 的工程必须能自证文件清单。
+   *
+   * 注意 `npm run typecheck` 传了 `--composite false`，那条路径**看不到** TS6307，
+   * 所以这个划分只有 IDE 与 `tsc -p tsconfig.node.json`（不带那个开关）才知道对错。
+   * 加用例之前先想清楚它测的是哪一侧。
+   *
+   * 别名两个都要能解析：这一侧的用例会用 `@shared/*`，将来也可能用到 `@renderer/*`
+   * 的**类型**（只 import type 不会把文件拉进工程，所以不会触发 TS6307）。
    */
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
@@ -14,7 +22,9 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
-    "test/**/*"
+    "test/main/**/*",
+    "test/shared/**/*",
+    "test/fixtures/**/*"
   ],
   "compilerOptions": {
     "composite": true,

@@ -7,5 +7,9 @@ out
 /.idea/
 /.vscode/
 
+# 工程编排（composite）的增量缓存：tsc 与 IDE 都会在仓库根写它，
+# 每次分析都可能变，不该进版本库（npm run typecheck 传了 --composite false，不写它）
+*.tsbuildinfo
+
 # Github Wiki
 /docs/wiki/

@@ -1,12 +1,20 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
+  /*
+   * 渲染进程的编译单元，含**测渲染进程那一侧的用例**。
+   *
+   * `test/renderer/**` 只放 import 了 `@renderer/*` 的用例：工程的 `composite` 要求
+   * 文件清单必须自证，所以一个用例跟着它被测的东西走 —— 留在 node 那一侧的话，
+   * 那个 `@renderer/*` 的 import 会报 TS6307（详见 tsconfig.node.json 的说明）。
+   */
   "include": [
     "src/renderer/src/env.d.ts",
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.tsx",
     "src/preload/*.d.ts",
     "src/shared/**/*",
-    "plugins/builtin/*/src/ui/**/*"
+    "plugins/builtin/*/src/ui/**/*",
+    "test/renderer/**/*"
   ],
   "compilerOptions": {
     "composite": true,
