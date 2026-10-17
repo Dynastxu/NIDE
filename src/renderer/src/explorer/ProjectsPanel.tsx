@@ -264,11 +264,15 @@ function GallerySection(): JSX.Element {
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className="truncate">{gallery.name}</span>
                 {/* 角色图鉴是章节表单的出场角色来源，值得在列表里认出来 */}
-                {isCharacterGallery(gallery, registry) && (
+                {
                   <span className="shrink-0 rounded bg-zinc-700 px-1 py-0.5 text-[10px] text-zinc-300">
-                    {t('host.project.panel.gallery.characters')}
+                    {t(
+                      isCharacterGallery(gallery, registry)
+                        ? 'host.project.panel.gallery.characters'
+                        : 'host.project.panel.section.gallery'
+                    )}
                   </span>
-                )}
+                }
               </span>
             }
             onContextMenu={(event) => {
