@@ -63,6 +63,23 @@ export type NamePromptDialogProps = {
    * 那个名字由宿主按已有章节算出来，而用户可以随手改掉。
    */
   initialName?: string
+  /**
+   * 标题的词条 key。省略时按 mode 与 kind 推（新建文件 / 新建文件夹 / 重命名）。
+   *
+   * 显式给它是为了那不普通的几种新建：**新建图鉴**（一个目录 + 一张字段表）与
+   * **新建图鉴条目**（一个带骨架的 yml）。它们对用户是独立的动作，值得一个自己的标题，
+   * 而「在此文件夹中新建文件夹」那种说法会把它们说小。
+   */
+  titleKey?: HostMessageKey
+  /**
+   * 输入的名字没有扩展名时补上的那一个（含点）。
+   *
+   * 图鉴条目用它：条目**必须**是 yml（见 shared/project 的 galleryEntryFileName），
+   * 而用户完全可以只敲「主角」。与「新建不补扩展名」那条约定的调和方式是**把结果显示
+   * 出来**（见下面那句 savedAs）：磁盘上的名字与用户看见的那个因此仍然一致，而这条
+   * 例外也不会变成一个猜不到的改名。
+   */
+  defaultExtension?: string
 } & (
   | {
       mode: 'create'
@@ -76,8 +93,21 @@ export type NamePromptDialogProps = {
     }
 )
 
+/**
+ * 提交时真正用的名字：没有扩展名时补上传进来的那一个。
+ *
+ * 只在**完全没有扩展名**时补。敲了 `.yaml` 就按 `.yaml` 落盘（那也是图鉴认的扩展名），
+ * 敲了别的扩展名也照原样 —— 那是用户自己选的，宿主不替他改（与新建不补扩展名同一条
+ * 立场，只是这里多了一个「什么都没有」时的默认值）。
+ */
+function appliedName(name: string, defaultExtension?: string): string {
+  if (!defaultExtension) return name
+
+  return extensionOf(name).length === 0 ? `${name}${defaultExtension}` : name
+}
+
 export function NamePromptDialog(props: NamePromptDialogProps): JSX.Element {
-  const { mode, target, onSubmit, onCancel, initialName } = props
+  const { mode, target, onSubmit, onCancel, initialName, titleKey, defaultExtension } = props
   const t = useT()
   const titleId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -110,6 +140,12 @@ export function NamePromptDialog(props: NamePromptDialogProps): JSX.Element {
    * 那是用户起的名字带来的结果，不是宿主背着他改的。
    */
   const trimmed = validation.ok ? validation.name : value.trim()
+  /**
+   * 落盘时用的名字。与 `trimmed` 只在「补了默认扩展名」时不同，而那一点会显示出来
+   * （见下面那句 savedAs）—— 用户看着一个名字、得到另一个，正是「不补扩展名」那条
+   * 约定当初要避免的事，所以这一档必须把他补上的那一步说出来。
+   */
+  const applied = appliedName(trimmed, defaultExtension)
   /** 还没敲任何东西时不报错：空输入是初始状态，不是用户犯的错 */
   const inlineError =
     value.length > 0 && !validation.ok ? t(INVALID_NAME_KEYS[validation.reason]) : null
@@ -121,7 +157,7 @@ export function NamePromptDialog(props: NamePromptDialogProps): JSX.Element {
     setBusy(true)
     setFailure(null)
     try {
-      const message = await onSubmit(validation.name)
+      const message = await onSubmit(applied)
       // 成功时调用方会把整个浮层卸掉，这里的 setState 落在一个已卸载的组件上也无妨
       if (message) setFailure(message)
     } finally {
@@ -129,8 +165,9 @@ export function NamePromptDialog(props: NamePromptDialogProps): JSX.Element {
     }
   }
 
-  const title =
-    mode === 'rename'
+  const title = titleKey
+    ? t(titleKey)
+    : mode === 'rename'
       ? t('host.explorer.rename.title')
       : t(
           props.kind === 'file'
@@ -187,6 +224,13 @@ export function NamePromptDialog(props: NamePromptDialogProps): JSX.Element {
           {extensionChanged && (
             <p className="mt-1.5 text-[11px] text-amber-400">
               {t('host.explorer.rename.extensionChanged', { name: trimmed })}
+            </p>
+          )}
+
+          {/* 补了扩展名时把落盘的名字说出来，别让磁盘上的名字与框里那个不一样 */}
+          {validation.ok && applied !== trimmed && (
+            <p className="mt-1.5 text-[11px] text-zinc-500">
+              {t('host.explorer.name.savedAs', { name: applied })}
             </p>
           )}
 

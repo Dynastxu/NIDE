@@ -4,6 +4,8 @@ import {
   PROJECT_CHANNELS,
   PROJECT_CONFIG_CHANNELS,
   PROJECT_FILE_CHANNELS,
+  PROJECT_GALLERY_CHANNELS,
+  filePathKey,
   isProjectSwitch,
   projectNameFromPath,
   type CreateEntryRequest,
@@ -13,6 +15,11 @@ import {
   type DeleteEntryResult,
   type DirReadResult,
   type FileReadResult,
+  type GalleryCreateRequest,
+  type GalleryCreateResult,
+  type GalleryListResult,
+  type GalleryRegistryUpdateRequest,
+  type GalleryRegistryUpdateResult,
   type ProjectConfig,
   type ProjectConfigUpdateResult,
   type ProjectOpenResult,
@@ -34,17 +41,22 @@ import {
 } from '../services/project-store'
 import {
   createProjectEntry,
+  createProjectGallery,
   deleteProjectEntry,
   entryKindAt,
   readProjectChapters,
   readProjectDir,
   readProjectFile,
+  readProjectGalleries,
   renameProjectEntry,
   writeProjectFile
 } from '../services/project-files.service'
 import {
   initializeProjectDirectory,
+  loadGalleryRegistry,
   loadProjectConfig,
+  resolveConfigDirectory,
+  updateGalleryRegistry,
   updateProjectConfig
 } from '../services/project-config.service'
 import { activateMainWindow, returnToWelcomeWindow } from '../window'
@@ -322,6 +334,104 @@ export function registerProjectIPC(): void {
   )
 
   /**
+   * 图鉴：内容目录下每个子目录一个图鉴（见 shared/project/gallery）。
+   *
+   * 与文件树、章节列表同一套边界（根由主进程取当前项目，渲染进程只声明路径），另外
+   * 多一条：**报上来的路径必须正是配置里那个图鉴内容目录**。图鉴是分区结构，若随便
+   * 一个目录都能被当成「图鉴目录」，渲染进程就能借它枚举项目里任意一层的子目录。
+   *
+   * 注册表（`.nide/gallery.yml`）与列表在同一个结果里：界面上它们总是一起用
+   * （「哪个图鉴是角色图鉴」只有在图鉴列表里才有意义）。
+   */
+  ipcMain.handle(
+    PROJECT_GALLERY_CHANNELS.readGalleries,
+    async (_event, targetPath: unknown): Promise<GalleryListResult> => {
+      const roots = allowedRoots()
+      const root = roots[0]
+      if (!root) {
+        logger.warn('Rejected a gallery read without an open project')
+        return { ok: false, reason: 'outside-project' }
+      }
+
+      const galleryRoot = await resolveGalleryRoot(root)
+      if (galleryRoot === null || !samePath(galleryRoot, String(targetPath ?? ''))) {
+        logger.warn('Rejected a gallery read outside the configured gallery directory')
+        return { ok: false, reason: 'outside-project' }
+      }
+
+      const listing = await readProjectGalleries(galleryRoot, {
+        roots,
+        caseInsensitive: caseInsensitivePaths()
+      })
+      if (!listing.ok) return listing
+
+      return {
+        ok: true,
+        path: listing.path,
+        registry: await loadGalleryRegistry(root),
+        galleries: listing.galleries
+      }
+    }
+  )
+
+  /**
+   * 新建一个图鉴（一个目录 + 它的字段表）。
+   *
+   * 落点同样被限死在配置里那个图鉴目录上：渲染进程交上来的是路径，而它是**不是**那个
+   * 目录由这一层判 —— 不判的话，「新建图鉴」就成了一条在项目里任意位置建目录的通道。
+   */
+  ipcMain.handle(
+    PROJECT_GALLERY_CHANNELS.createGallery,
+    async (_event, request: unknown): Promise<GalleryCreateResult> => {
+      const parsed = parseGalleryCreateRequest(request)
+      if (!parsed) {
+        logger.warn('Rejected a malformed gallery create request')
+        return { ok: false, reason: 'invalid-name' }
+      }
+
+      const roots = allowedRoots()
+      const root = roots[0]
+      if (!root) {
+        logger.warn('Rejected a gallery create request without an open project')
+        return { ok: false, reason: 'unreadable' }
+      }
+
+      const galleryRoot = await resolveGalleryRoot(root)
+      if (galleryRoot === null || !samePath(galleryRoot, parsed.targetPath)) {
+        logger.warn('Rejected a gallery create outside the configured gallery directory')
+        return { ok: false, reason: 'not-a-directory' }
+      }
+
+      return createProjectGallery(parsed, { roots, caseInsensitive: caseInsensitivePaths() })
+    }
+  )
+
+  /**
+   * 改图鉴注册表：把某一个图鉴设成角色图鉴（章节表单的出场角色从它里面选）。
+   *
+   * 只收一个目录名。它是不是一个真的图鉴由服务读一次盘判（见 updateGalleryRegistry）：
+   * 注册表指向一个不存在的图鉴时，出场角色永远选不出东西，而用户看不到任何原因。
+   */
+  ipcMain.handle(
+    PROJECT_GALLERY_CHANNELS.updateRegistry,
+    async (_event, request: unknown): Promise<GalleryRegistryUpdateResult | null> => {
+      const root = getCurrentProject()?.path
+      if (!root) {
+        logger.warn('Rejected a gallery registry update without an open project')
+        return null
+      }
+
+      const name = parseGalleryRegistryRequest(request)
+      if (name === null) {
+        logger.warn('Rejected a malformed gallery registry update')
+        return { ok: false, reason: 'invalid-name' }
+      }
+
+      return updateGalleryRegistry(root, name)
+    }
+  )
+
+  /**
    * 新建文件 / 文件夹 —— 用户内容**唯一**的写入入口（宿主自己的 `.nide` 不算，
    * 那个由 project-config.service 管）。
    *
@@ -470,6 +580,32 @@ function caseInsensitivePaths(): boolean {
 }
 
 /**
+ * 当前项目配置里那个图鉴内容目录的绝对路径；读不到配置时给 null。
+ *
+ * 图鉴的三个通道都要它：渲染进程报上来的路径必须**正是**这一个，否则拒绝。写成一处，
+ * 是因为三处各判一次的话迟早会有一处漏判，而漏掉的那一处就是沙箱边界上的洞。
+ */
+async function resolveGalleryRoot(root: string): Promise<string | null> {
+  try {
+    const config = await loadProjectConfig(root)
+    return resolveConfigDirectory(root, config.gallery)
+  } catch (err) {
+    logger.warn('Failed to resolve the gallery directory from the project configuration', {
+      error: err
+    })
+    return null
+  }
+}
+
+/** 两个路径是不是同一个位置。大小写按平台语义折叠（与范围校验同一条约定） */
+function samePath(left: string, right: string): boolean {
+  if (right.length === 0) return false
+
+  const caseInsensitive = caseInsensitivePaths()
+  return filePathKey(left, caseInsensitive) === filePathKey(right, caseInsensitive)
+}
+
+/**
  * 校验一个新建立请求的形状。
  *
  * IPC 的载荷是渲染进程给的，形状完全不可信 —— 这里逐字段确认类型，之后
@@ -533,4 +669,30 @@ function parseDeleteRequest(request: unknown): DeleteEntryRequest | null {
   if (typeof targetPath !== 'string' || targetPath.length === 0) return null
 
   return { targetPath }
+}
+
+/**
+ * 校验一个「新建图鉴」请求的形状。
+ *
+ * 名字的合法性由服务用 `validateEntryName` 判（与新建文件夹同一条规则）；这一层只确认
+ * 载荷是两个非空字符串 —— 把类型确认与业务校验混在一起，会让「哪一条规则管什么」变模糊。
+ */
+function parseGalleryCreateRequest(request: unknown): GalleryCreateRequest | null {
+  if (!request || typeof request !== 'object') return null
+
+  const { targetPath, name } = request as Partial<GalleryCreateRequest>
+  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
+  if (typeof name !== 'string') return null
+
+  return { targetPath, name }
+}
+
+/** 校验一个注册表更新请求：只认一个非空字符串（图鉴目录名） */
+function parseGalleryRegistryRequest(request: unknown): string | null {
+  if (!request || typeof request !== 'object') return null
+
+  const { characters } = request as Partial<GalleryRegistryUpdateRequest>
+  if (typeof characters !== 'string' || characters.length === 0) return null
+
+  return characters
 }

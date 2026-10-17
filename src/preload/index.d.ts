@@ -13,6 +13,11 @@ import type {
   DirReadResult,
   FileReadResult,
   FileWriteResult,
+  GalleryCreateRequest,
+  GalleryCreateResult,
+  GalleryListResult,
+  GalleryRegistryUpdateRequest,
+  GalleryRegistryUpdateResult,
   ProjectConfig,
   ProjectConfigUpdateResult,
   ProjectListItem,
@@ -188,6 +193,29 @@ export interface ProjectAPI {
    * `{ ok: false, reason: 'cancelled' }`，那不是失败，界面不该提示什么。
    */
   deleteEntry: (request: DeleteEntryRequest, options?: ConfirmOptions) => Promise<DeleteEntryResult>
+  /**
+   * 读图鉴：内容目录下每个子目录一个图鉴（各自的字段表与条目），以及 `.nide` 里的
+   * 注册表。
+   *
+   * 传的是图鉴内容目录的绝对路径，而它必须正是配置里那一个 —— 判据在主进程，渲染
+   * 进程声明不了「哪个目录算图鉴目录」。失败返回带原因的结果，不抛异常。
+   */
+  readGalleries: (galleryRoot: string) => Promise<GalleryListResult>
+  /**
+   * 新建一个图鉴：一个目录 + 它的 `config.yml`（默认字段表）。
+   *
+   * 落点必须是配置里那个图鉴内容目录（主进程核对）；目录已存在时**不覆盖**，
+   * 返回 `already-exists`。
+   */
+  createGallery: (request: GalleryCreateRequest) => Promise<GalleryCreateResult>
+  /**
+   * 改图鉴注册表：把某一个图鉴设成角色图鉴（章节表单的出场角色从它里面选）。
+   *
+   * 名字指向的目录不在时返回 `unknown-gallery`，什么都改。
+   */
+  updateGalleryRegistry: (
+    request: GalleryRegistryUpdateRequest
+  ) => Promise<GalleryRegistryUpdateResult | null>
   /**
    * 读当前项目的配置（`.nide/config.yml`）。没有项目时为 null。
    *

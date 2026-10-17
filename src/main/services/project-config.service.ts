@@ -1,19 +1,33 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  DEFAULT_CHARACTER_GALLERY_FIELDS,
+  DEFAULT_GALLERY_REGISTRY,
   DEFAULT_PROJECT_CONFIG,
   DEFAULT_PROJECT_META_IGNORE,
+  GALLERY_CONFIG_FILE_NAME,
   PROJECT_CONFIG_FILE_NAME,
   PROJECT_CONFIG_KEYS,
+  PROJECT_GALLERY_FILE_NAME,
   PROJECT_META_DIR_NAME,
   PROJECT_META_IGNORE_FILE_NAME,
   applyProjectConfigPatch,
+  normalizeGalleryName,
+  parseGalleryRegistry,
   parseProjectConfig,
   sanitizeProjectConfigPatch,
+  serializeGalleryConfig,
+  serializeGalleryRegistry,
   serializeProjectConfig
 } from '@shared/project'
 import { loggerFor } from '../logger'
-import type { ProjectConfig, ProjectConfigKey, ProjectConfigUpdateResult } from '@shared/project'
+import type {
+  GalleryRegistry,
+  GalleryRegistryUpdateResult,
+  ProjectConfig,
+  ProjectConfigKey,
+  ProjectConfigUpdateResult
+} from '@shared/project'
 
 const logger = loggerFor('project-config')
 
@@ -33,6 +47,11 @@ const logger = loggerFor('project-config')
  *    不是用户的稿子：删掉它只意味着「回到默认配置」，而不是「这个项目坏了」。
  *    所以这种情况不弹错、不阻塞，写回默认配置后照常返回。
  *    重建的只有 `.nide` 与配置里写明的四个目录，其余一律不碰。
+ *
+ * `.nide` 里有**两份**文件：`config.yml`（四个内容目录）与 `gallery.yml`（图鉴注册表：
+ * 哪个图鉴是角色图鉴，见 shared/project/gallery）。两者共用「被删就重建」这条语义，
+ * 但**只有前者会顺带把目录补回来**：内容目录由配置写明、里面是空目录，而图鉴是用户
+ * 内容（有字段表、进版本库）—— 读一次盘就把它建出来会越过「打开项目不建东西」的边界。
  */
 
 /** 一份默认配置的**副本**。常量本身不共享给调用方，免得被就地改掉 */
@@ -53,6 +72,11 @@ export function projectConfigPath(root: string): string {
 /** `<root>/.nide/.gitignore` */
 export function projectMetaIgnorePath(root: string): string {
   return path.join(projectMetaDir(root), PROJECT_META_IGNORE_FILE_NAME)
+}
+
+/** `<root>/.nide/gallery.yml` —— 图鉴注册表（哪个图鉴是角色图鉴） */
+export function projectGalleryRegistryPath(root: string): string {
+  return path.join(projectMetaDir(root), PROJECT_GALLERY_FILE_NAME)
 }
 
 /**
@@ -206,6 +230,153 @@ function isMissingFileError(err: unknown): boolean {
   return (err as { code?: unknown } | null)?.code === 'ENOENT'
 }
 
+// ============ 图鉴注册表（.nide/gallery.yml） ============
+
+/**
+ * 写注册表，返回是否真的写了。
+ *
+ * 与 `writeProjectConfig` 同一条节约约定：磁盘上的内容已经等价于规范写法时不动它
+ * （读一次配置就会走到这条路径，每次都摸一遍修改时间没有意义）。
+ */
+async function writeGalleryRegistry(root: string, registry: GalleryRegistry): Promise<boolean> {
+  const target = projectGalleryRegistryPath(root)
+  const text = serializeGalleryRegistry(registry)
+
+  try {
+    const existing = parseGalleryRegistry(await fs.readFile(target, 'utf-8'))
+    if (existing !== null && serializeGalleryRegistry(existing) === text) return false
+  } catch {
+    // 读不出来（不存在、坏掉、没权限）都要走下面那次写入
+  }
+
+  try {
+    await fs.mkdir(projectMetaDir(root), { recursive: true })
+    await fs.writeFile(target, text, 'utf-8')
+    return true
+  } catch (err) {
+    logger.warn('Failed to write the gallery registry', { error: err })
+    return false
+  }
+}
+
+/**
+ * 把默认的角色图鉴建出来：一个目录 + 它的 `config.yml`。
+ *
+ * **只建不覆盖**：目录已经在了就什么都不做，字段表已经在了就留着用户那份 —— 用户在
+ * 那个图鉴里加过字段之后，宿主每次新建项目都把它改回默认值是不可接受的。
+ *
+ * 只由 `initializeProjectDirectory` 调用（见 loadGalleryRegistry 里那条说明：读盘
+ * 不建用户内容）。建不出来（只读目录、权限不足）只记一行：项目仍然可用，只是少了
+ * 那个默认图鉴。
+ */
+async function ensureDefaultGallery(
+  root: string,
+  name: string,
+  fields: readonly string[]
+): Promise<void> {
+  const galleryName = normalizeGalleryName(name)
+  if (galleryName === null) return
+
+  try {
+    const config = await loadProjectConfig(root)
+    const dir = path.join(resolveConfigDirectory(root, config.gallery), galleryName)
+
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(
+      path.join(dir, GALLERY_CONFIG_FILE_NAME),
+      serializeGalleryConfig({ fields: [...fields] }),
+      { encoding: 'utf-8', flag: 'wx' }
+    )
+  } catch (err) {
+    // 目录与字段表都已存在时是 EEXIST，那是常态（这里只建不覆盖），只有别的错误值得记一行
+    if ((err as { code?: unknown } | null)?.code !== 'EEXIST') {
+      logger.warn('Failed to create the default gallery', { name, error: err })
+    }
+  }
+}
+
+/**
+ * 读图鉴注册表；缺失或读坏时静默回落成默认注册表并写回。
+ *
+ * 与 `loadProjectConfig` 同一条语义：`.nide` 是宿主的元数据，删掉它只意味着「回到
+ * 默认」。但这里**不**顺手把那个默认的角色图鉴建出来 —— 图鉴是**用户内容**（它在
+ * 图鉴内容目录里、跟着项目进版本库、字段表由用户改），而「读一次盘就替人建一份内容」
+ * 正是那条「打开一个项目不会建任何东西」的边界。默认图鉴只在**新建项目**时建一次
+ * （见 initializeProjectDirectory）。
+ *
+ * 代价说清楚：`.nide` 被整个删掉之后，重建出来的注册表会指向一个可能不存在的图鉴。
+ * 那在界面上是可见且可修的（章节表单的出场角色会说明「还没有角色图鉴」，图鉴面板里
+ * 可以新建一个、或者把已有的那个设成角色图鉴）—— 比宿主偷偷长出一个用户删过的目录好。
+ *
+ * 注册表本身**不**按图鉴列表纠正：用户把角色图鉴改名或删掉之后，这份文件仍然指向
+ * 原来的名字（宿主不追着用户改配置），要换一个走 `updateGalleryRegistry`。
+ */
+export async function loadGalleryRegistry(root: string): Promise<GalleryRegistry> {
+  const target = projectGalleryRegistryPath(root)
+
+  let raw: string | null = null
+  let readError: unknown = null
+
+  try {
+    raw = await fs.readFile(target, 'utf-8')
+  } catch (err) {
+    readError = err
+  }
+
+  if (raw !== null) {
+    const parsed = parseGalleryRegistry(raw)
+    if (parsed !== null) return parsed
+
+    logger.warn('The gallery registry is invalid; regenerating it')
+  } else if (readError !== null && !isMissingFileError(readError)) {
+    logger.warn('The gallery registry could not be read; regenerating it', { error: readError })
+  }
+
+  const registry: GalleryRegistry = { ...DEFAULT_GALLERY_REGISTRY }
+  await writeGalleryRegistry(root, registry)
+
+  return registry
+}
+
+/**
+ * 改注册表：把某一个图鉴设成角色图鉴。
+ *
+ * 名字必须是**图鉴目录里真的存在的一个目录**：注册表指向一个不存在的图鉴时，章节表单
+ * 的出场角色永远选不出东西，而用户看不到任何原因。所以这一层先读一次盘再写。
+ *
+ * 校验不过时**一个字节都不写**，返回的注册表仍然是磁盘上那一份。
+ */
+export async function updateGalleryRegistry(
+  root: string,
+  rawName: unknown
+): Promise<GalleryRegistryUpdateResult> {
+  const name = typeof rawName === 'string' ? normalizeGalleryName(rawName) : null
+  if (name === null) {
+    logger.warn('Refused a gallery registry update with an invalid name')
+    return { ok: false, reason: 'invalid-name' }
+  }
+
+  const config = await loadProjectConfig(root)
+  const dir = path.join(resolveConfigDirectory(root, config.gallery), name)
+
+  try {
+    const stats = await fs.stat(dir)
+    if (!stats.isDirectory()) return { ok: false, reason: 'unknown-gallery' }
+  } catch (err) {
+    // 目录不在：用户点的是图鉴列表里的一项，走到这里说明那份列表已经过期
+    if (isMissingFileError(err)) return { ok: false, reason: 'unknown-gallery' }
+
+    logger.warn('Failed to stat a gallery while updating the registry', { error: err })
+    return { ok: false, reason: 'unreadable' }
+  }
+
+  const registry: GalleryRegistry = { characters: name }
+  const written = await writeGalleryRegistry(root, registry)
+
+  logger.info('Gallery registry updated', { written })
+  return { ok: true, registry }
+}
+
 /**
  * 更新项目配置并把目录补齐。
  *
@@ -244,7 +415,8 @@ export async function updateProjectConfig(
 }
 
 /**
- * 创建项目时的初始化：建 `.nide`、写默认配置与 `.gitignore`、按配置建内容目录。
+ * 创建项目时的初始化：建 `.nide`、写默认配置与 `.gitignore`、按配置建内容目录，
+ * 以及建出默认的角色图鉴并把它记进注册表。
  *
  * **只在用户经「新建项目」选定目录时调用一次**，打开已有目录不走这里（见文件头）。
  * 已经存在的东西一律不覆盖：`.nide` 在（哪怕是别的工具建的）就沿用它的配置，
@@ -281,7 +453,20 @@ export async function initializeProjectDirectory(root: string): Promise<ProjectC
 
   await ensureMetaIgnoreFile(root)
   await ensureDirectories(root, config)
-  logger.info('Project directory initialized', { dir: PROJECT_META_DIR_NAME })
+  /**
+   * 默认的角色图鉴与它的注册表。写入失败同样只记一行（见 ensureDefaultGallery），
+   * 但要在内容目录建出来之后做 —— 图鉴是建在 `gallery` 那个目录里的。
+   *
+   * **这两件事只在这里做**：新建项目是唯一「宿主可以往项目里放骨架」的时刻。读注册表
+   * 那条路只重建 `.nide` 里那一份文件，不会把用户删掉的图鉴长回来。
+   */
+  const registry = await loadGalleryRegistry(root)
+  /*
+   * 建的是**注册表指的那个**图鉴，而不是写死的默认名字：一个已经带着自己的注册表
+   * （例如角色图鉴改成了「人物」）的项目被重新初始化时，不该凭空多出一个图鉴。
+   */
+  await ensureDefaultGallery(root, registry.characters, DEFAULT_CHARACTER_GALLERY_FIELDS)
 
+  logger.info('Project directory initialized', { dir: PROJECT_META_DIR_NAME })
   return config
 }

@@ -222,6 +222,9 @@ export const zhCN = {
   'host.explorer.newFolder.sibling': '在此处新建文件夹',
   'host.explorer.name.placeholder': '名称',
   'host.explorer.name.confirm': '新建',
+  // 名字没有扩展名时被补上了那一个（图鉴条目）：把落盘的名字说出来，
+  // 免得磁盘上的名字与输入框里那个不一样
+  'host.explorer.name.savedAs': '会存成「{name}」',
   'host.explorer.name.error.empty': '名称不能为空。',
   'host.explorer.name.error.path-separator': '名称里不能有「/」或「\\」。',
   'host.explorer.name.error.illegal-character': '名称里不能有 : * ? " < > | 或控制字符。',
@@ -274,6 +277,46 @@ export const zhCN = {
   'host.project.panel.chapter.failed.not-a-directory': '章节目录不存在，或者那里不是一个文件夹。',
   'host.project.panel.chapter.failed.unreadable': '新建失败：没有权限，或者磁盘不可写。',
 
+  // ---- 图鉴 ----
+  // 与章节的差别是**分区**：一个图鉴是内容目录下的一个子目录（角色 / 地点 / 物品……），
+  // 子目录里的 config.yml 记着这个图鉴有哪些字段（见 shared/project/gallery）
+  'host.project.panel.gallery.new': '新建图鉴',
+  'host.project.panel.gallery.newEntry': '新建条目',
+  'host.project.panel.gallery.editFields': '编辑字段',
+  'host.project.panel.gallery.setCharacters': '设为角色图鉴',
+  'host.project.panel.gallery.alreadyCharacters': '这个图鉴已经是角色图鉴了。',
+  // 图鉴分组标题上的小标记：它是章节表单「出场角色」的来源
+  'host.project.panel.gallery.characters': '角色图鉴',
+  'host.project.panel.gallery.empty': '这个项目里还没有图鉴。',
+  'host.project.panel.gallery.entry.empty': '这个图鉴里还没有条目。',
+  'host.project.panel.gallery.no-dir': '读不到图鉴目录：项目配置不可用。',
+  'host.project.panel.gallery.failed.invalid-name': '这个名字不能当图鉴名。',
+  'host.project.panel.gallery.failed.unknown-gallery': '这个图鉴已经不在了。',
+  // config.yml 是那个图鉴的字段表：拿它当条目名会建出一个列表里看不见的文件
+  'host.project.panel.gallery.failed.reserved-name': '「config.yml」是图鉴字段表的名字，换一个。',
+  'host.project.panel.gallery.failed.unreadable': '操作失败：没有权限，或者磁盘不可写。',
+
+  // 图鉴条目的表单：字段名与值都由这个图鉴的 config.yml 决定，所以界面不写死任何字段
+  'host.editor.gallery.empty': '这个图鉴还没有字段。先在图鉴的 config.yml 里加上几个。',
+  'host.editor.gallery.extra':
+    '下面这些字段不在图鉴配置里（可能是字段改过名）。它们会原样保留，不会被删掉。',
+  'host.editor.gallery.value.placeholder': '留空表示这一项还没写',
+
+  // 图鉴字段表的表单（编辑 config.yml）
+  'host.editor.gallery.config.title': '图鉴字段',
+  'host.editor.gallery.config.hint':
+    '一个字段一行，顺序就是条目表单里的顺序。第一个字段用来当条目的名字。',
+  'host.editor.gallery.config.first': '条目的名字',
+  'host.editor.gallery.config.placeholder': '字段名',
+  'host.editor.gallery.config.add': '添加字段',
+  'host.editor.gallery.config.add.disabled': '字段数量已经到上限。',
+  'host.editor.gallery.config.remove': '删除这个字段',
+  'host.editor.gallery.config.invalid.empty': '字段名不能为空。',
+  'host.editor.gallery.config.invalid.illegal-character':
+    '字段名里不能有空格、冒号、# 或控制字符。',
+  'host.editor.gallery.config.invalid.too-long': '字段名过长。',
+  'host.editor.gallery.config.invalid.duplicate': '这个字段已经有了。',
+
   // ---- 中间的主编辑区（标签页）----
   'host.editor.empty.title': '没有打开的文件',
   'host.editor.empty.hint': '在左侧的文件树里点一个文件，它会在这里以标签页打开。',
@@ -318,9 +361,12 @@ export const zhCN = {
   'host.editor.form.outline': '细纲',
   'host.editor.form.outline.placeholder': '这一章要写什么',
   'host.editor.form.characters': '出场角色',
-  // 图鉴还没实现，所以这一项暂时只显示、不能改（见 editor/ChapterForm）
-  'host.editor.form.characters.hint': '要从图鉴里选，图鉴还没实现，暂时不能编辑。',
-  'host.editor.form.characters.empty': '还没有出场角色。',
+  // 建议来自角色图鉴（.nide/gallery.yml 记着是哪一个），但仍然可以手写一个还没建档的角色
+  'host.editor.form.characters.hint': '从角色图鉴里选，也可以直接输入一个还没建档的名字',
+  'host.editor.form.characters.placeholder': '输入名字后回车',
+  'host.editor.form.characters.remove': '把「{name}」从出场角色里去掉',
+  'host.editor.form.characters.missing':
+    '还没有角色图鉴：在「项目 -> 图鉴」里新建一个，或者把已有的那个设为角色图鉴。',
   'host.editor.form.body': '正文',
   'host.editor.form.notes': '备注',
   'host.editor.form.notes.placeholder': '备注',

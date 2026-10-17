@@ -59,8 +59,11 @@ export type DirReadResult =
 /**
  * 能打开的扩展名 -> Monaco 语言 id。
  *
- * 表里只有纯文本与 Markdown 两类。Markdown 的变体（.markdown / .mdown / .mkd）
+ * 表里只有纯文本、Markdown 与 YAML 三类。Markdown 的变体（.markdown / .mdown / .mkd）
  * 归到同一档，它们都是 Markdown 的不同写法。
+ *
+ * YAML 是给**图鉴**开的：图鉴的字段表（`config.yml`）与每一个条目都是 yml，而它们要
+ * 在编辑器里以纯文本方式改（见 shared/project/gallery）。
  *
  * 没有 `.txt` 之外的「无扩展名」兜底：没有扩展名的文件可能是任何东西，
  * 而这一层的立场是「不认识就不解码」。
@@ -70,7 +73,9 @@ const TEXT_LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
   '.md': 'markdown',
   '.markdown': 'markdown',
   '.mdown': 'markdown',
-  '.mkd': 'markdown'
+  '.mkd': 'markdown',
+  '.yml': 'yaml',
+  '.yaml': 'yaml'
 } // TODO 实际上理应能使用记事本进行编辑的文件都应支持，后缀只做语法高亮的判断标准
 
 /** 支持打开的扩展名集合（只读，供界面做快速判断） */

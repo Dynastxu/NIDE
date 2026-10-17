@@ -1,7 +1,11 @@
 import { JSX, useEffect, useRef } from 'react'
 import { DocumentViewModes } from '@renderer/editor/DocumentViewModes'
 import { EditorPanes } from '@renderer/editor/EditorPanes'
-import { canPreviewDocument } from '@renderer/editor/document-mode'
+import {
+  documentViewInputOf,
+  documentViewOf,
+  resolveDocumentMode
+} from '@renderer/editor/document-mode'
 import { useEditorChrome } from '@renderer/editor/editor-chrome'
 import { saveActiveTab, saveTab } from '@renderer/editor/editor-save'
 import { releaseClosedModels } from '@renderer/editor/model-registry'
@@ -40,11 +44,14 @@ import type { HostMessageKey } from '@shared/i18n'
  * `dirty`。副本是给**正文之外的消费者**用的：章节表单与 Markdown 预览都要按正文渲染，
  * 而它们不该为此拿到一个编辑器实例（见 stores/editor.store 里那段说明）。
  *
- * ## 四种视图模式
+ * ## 视图模式
  *
- * Markdown 文件在标题栏上多出一组按钮（纯文本 / 表单 / 拆分文本及预览 / 预览，见
- * DocumentViewModes），正文的排布随之变化（见 EditorPanes）。分类与默认值都在
- * document-mode.ts 里，这一层只负责把当前标签页的信息喂给那两处。
+ * 有几种看法的文件在标题栏上多出一组按钮：Markdown 是「纯文本 / 拆分 / 预览」（章节还
+ * 多一个表单），图鉴的 yml 是「纯文本 / 表单」。正文的排布随之变化（见 EditorPanes）。
+ *
+ * 分类、可用模式与默认值都在 document-mode.ts 里，**这一层把它算成一份结论**再交给
+ * 工具栏与正文那两层：三处各判一次迟早会分叉，而分叉的表现是「按钮说能填表单、正文却
+ * 给了一段纯文本」。
  *
  * ## 保存
  *
@@ -106,8 +113,16 @@ export function EditorTabs(): JSX.Element {
   const t = useT()
 
   const activeTab = tabs.find((tab) => tab.path === activePath) ?? null
-  const activeMarkdown =
-    activeTab !== null && canPreviewDocument(activeTab.language, activeTab.path)
+
+  /**
+   * 这一篇能怎么看：有哪几种看法、默认停在哪一种、现在在哪一种。
+   *
+   * 结论只算一处（见 document-mode.ts），工具栏与正文那一层拿到的是**同一份** —— 少了
+   * 这一点就会出现「按钮有表单、正文给纯文本」这类只有对照两处才看得出来的分叉。
+   */
+  const view = activeTab === null ? null : documentViewOf(documentViewInputOf(activeTab))
+  const selectedMode = useDocumentViewStore((s) => (activePath ? s.modes[activePath] : undefined))
+  const mode = view === null ? null : resolveDocumentMode(selectedMode, view)
 
   /**
    * 「这一帧往 model 里写的值，是宿主写的不算用户编辑」。
@@ -117,15 +132,22 @@ export function EditorTabs(): JSX.Element {
    */
   const syncingRef = useRef(false)
 
-  const toolbar = activeMarkdown ? (
-    <DocumentViewModes
-      // key 绑路径：换一篇时这一组按钮重新挂载，免得把上一篇的展开状态带过去
-      key={activeTab.path}
-      path={activeTab.path}
-      language={activeTab.language}
-      metadata={activeTab.metadata}
-    />
-  ) : null
+  /**
+   * 标题栏上那一组视图按钮。
+   *
+   * 没有可切换的看法时**一个按钮都不画**（纯文本文件、不认识的 yml）：一组点了没反应
+   * 的按钮不如不画。判据就是 `modes` 是不是空的 —— 这一层不再自己判断「是不是 Markdown」。
+   */
+  const toolbar =
+    activeTab !== null && view !== null && mode !== null && view.modes.length > 0 ? (
+      <DocumentViewModes
+        // key 绑路径：换一篇时这一组按钮重新挂载，免得把上一篇的展开状态带过去
+        key={activeTab.path}
+        path={activeTab.path}
+        modes={view.modes}
+        mode={mode}
+      />
+    ) : null
 
   /**
    * 标签页的展示数据 + 外壳配置，外加标题栏上的视图模式按钮。
@@ -185,17 +207,20 @@ export function EditorTabs(): JSX.Element {
             {t('host.editor.empty.hint')}
           </p>
         </div>
-      ) : (
+      ) : view !== null && mode !== null ? (
         /**
          * 正文一律走 EditorPanes：**包括**没有预览、没有表单的纯文本文件。
          *
-         * 那条路只有「纯文本」一种模式（见 document-mode.ts），排布与改动前的
+         * 那一类只有「纯文本」一种模式（见 document-mode.ts），排布与改动前的
          * `MonacoPane` 完全一样（弹性列里的 `flex-1`）。不另开一个组件，是因为两个
          * 组件各持一个 Monaco 实例、而 `loader.init()` 是异步的 —— 在两类标签页之间
          * 来回切时，先卸载的那一个可能在被拆掉之后才把实例建出来。
+         *
+         * `view` 与 `mode` 由这里传下去：结论只算一处（见上面的 view），而正文那一层
+         * 按同一份决定画哪一种表单。
          */
-        <EditorPanes tab={activeTab} syncing={syncingRef} />
-      )}
+        <EditorPanes tab={activeTab} view={view} mode={mode} syncing={syncingRef} />
+      ) : null}
 
       {/*
         key 绑路径：换一个标签页来问时重新挂载，焦点与「上一次保存失败」那句话都跟着

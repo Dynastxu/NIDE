@@ -1,5 +1,9 @@
-import { JSX, useEffect, useRef, useState, type ReactNode } from 'react'
+import { JSX, useEffect, useRef, useState } from 'react'
 import { formatChapterNumber, type ChapterMetadata } from '@shared/project'
+import { FormField, FormTextArea } from '@renderer/editor/form-controls'
+import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
+import { useExplorerStore } from '@renderer/stores/explorer.store'
+import { characterGalleryOf, useGalleryStore } from '@renderer/stores/gallery.store'
 import { useT } from '@renderer/stores/i18n.store'
 
 /**
@@ -10,7 +14,7 @@ import { useT } from '@renderer/stores/i18n.store'
  * ```
  * 索引         ［输入框］
  * 细纲         ［多行文本］
- * 出场角色      ［只读列表］      ← 要从图鉴里选，图鉴还没实现
+ * 出场角色      ［标签 + 从图鉴里选 / 直接输入］
  * 备注         ［多行文本］
  * 概述         ［多行文本］
  * ```
@@ -29,21 +33,16 @@ import { useT } from '@renderer/stores/i18n.store'
  * 草稿因此重新取自最新的那一份。用 key 而不是在 effect 里同步 state：后者会先渲染
  * 一帧旧值再渲染一帧新值，用户看得见字段闪一下。
  *
- * ## 出场角色为什么不能编辑
+ * ## 出场角色从角色图鉴里选
  *
- * 它要从图鉴里选（`gallery` 那一类内容），而图鉴还没实现（见 ProjectsPanel 里另外
- * 三个分类的占位）。先把它**只读地显示出来**：这一项已经在元数据里、也能被宿主读，
- * 藏起来只会让人以为文件里的那几行是多余的。
+ * 「谁是角色」这件事由**图鉴**回答（见 shared/project/gallery）：`.nide/gallery.yml`
+ * 记着哪个图鉴是角色图鉴，那一份图鉴的每个条目就是一个角色。这里给出它的条目当建议，
+ * 但仍然**允许手写** —— 一个还没建档的群众演员照样要能写进这一章的出场角色里，而
+ * 「先建条目再回来填」多出来的那一步不会让任何人更准确。
+ *
+ * 存进 frontmatter 的是**名字**（条目的第一个字段），不是路径：稿件要能被别的编辑器
+ * 读懂，而一个指向图鉴文件的相对路径会把「这一章有谁」变成一个只有宿主答得上来的问题。
  */
-
-/** 表单里各字段的草稿。与 ChapterMetadata 的差别只有索引：这里是用户正在敲的那个字符串 */
-interface ChapterDraft {
-  index: string
-  outline: string
-  notes: string
-  summary: string
-}
-
 export function ChapterForm({
   metadata,
   revision,
@@ -76,7 +75,7 @@ export function ChapterForm({
    */
   const [editing, setEditing] = useState<{
     draft: ChapterDraft
-    sent: Pick<ChapterMetadata, 'index' | 'outline' | 'notes' | 'summary'>
+    sent: Pick<ChapterMetadata, 'index' | 'outline' | 'characters' | 'notes' | 'summary'>
   } | null>(null)
 
   /** 上游那份与 `sent` 同值：这一趟已经绕回来了，用上游那份；否则用草稿 */
@@ -120,6 +119,7 @@ export function ChapterForm({
     const values = {
       index: parseIndex(next.index),
       outline: next.outline,
+      characters: next.characters,
       notes: next.notes,
       summary: next.summary
     }
@@ -152,7 +152,7 @@ export function ChapterForm({
      * 窗口里的小框），两者因此不再共用同一条边距。
      */
     <section className="flex flex-col gap-4">
-      <Field label={t('host.editor.form.index')} hint={t('host.editor.form.index.hint')}>
+      <FormField label={t('host.editor.form.index')} hint={t('host.editor.form.index.hint')}>
         <input
           type="text"
           inputMode="numeric"
@@ -163,117 +163,199 @@ export function ChapterForm({
           placeholder={t('host.editor.form.index.placeholder')}
           className="h-7 w-28 rounded border border-zinc-700 bg-zinc-900 px-2 font-mono text-xs text-zinc-100 outline-none focus:border-blue-500"
         />
-      </Field>
+      </FormField>
 
-      <Field label={t('host.editor.form.outline')}>
-        <TextArea
+      <FormField label={t('host.editor.form.outline')}>
+        <FormTextArea
           value={active.outline}
           onChange={(value) => commit({ ...active, outline: value })}
           placeholder={t('host.editor.form.outline.placeholder')}
         />
-      </Field>
+      </FormField>
 
-      <Field label={t('host.editor.form.characters')} hint={t('host.editor.form.characters.hint')}>
-        <CharacterList names={metadata.characters} />
-      </Field>
+      <FormField
+        label={t('host.editor.form.characters')}
+        hint={t('host.editor.form.characters.hint')}
+      >
+        <CharacterPicker
+          names={active.characters}
+          onChange={(names) => commit({ ...active, characters: names })}
+        />
+      </FormField>
 
-      <Field label={t('host.editor.form.notes')}>
-        <TextArea
+      <FormField label={t('host.editor.form.notes')}>
+        <FormTextArea
           value={active.notes}
           onChange={(value) => commit({ ...active, notes: value })}
           placeholder={t('host.editor.form.notes.placeholder')}
         />
-      </Field>
+      </FormField>
 
-      <Field label={t('host.editor.form.summary')}>
-        <TextArea
+      <FormField label={t('host.editor.form.summary')}>
+        <FormTextArea
           value={active.summary}
           onChange={(value) => commit({ ...active, summary: value })}
           placeholder={t('host.editor.form.summary.placeholder')}
         />
-      </Field>
+      </FormField>
     </section>
   )
 }
 
 /**
- * 出场角色：只读。
+ * 出场角色：一组标签 + 一个「从角色图鉴里选」的输入框。
  *
- * 图鉴还没实现（见 ProjectsPanel 里另外三个分类的占位），所以这里既不能选、也不能手写
- * —— 但**要把文件里已有的那几个显示出来**：它们已经在稿子里了，藏起来会让人以为元数据
- * 丢了。等到能选的那一天，这个组件换成从图鉴里挑人的输入框即可。
+ * 三条刻意的行为：
+ *
+ * - **可以直接输入**。图鉴是建议的来源，不是许可：写一场只有一句台词的戏时，为一个
+ *   群众演员先建一个条目再回来填，比直接敲下他的名字慢得多；
+ * - **录入前先去掉首尾空白**，并且同一个名字只留一份（frontmatter 里那个列表的语义是
+ *   集合，重复写两遍只会让「这一章有谁」变得难读）；
+ * - **建议里排掉已经加过的名字**：一个点了没有反应的候选，比一个不出现的候选更让人
+ *   怀疑这个框坏了。
  */
-function CharacterList({ names }: { names: readonly string[] }): JSX.Element {
+function CharacterPicker({
+  names,
+  onChange
+}: {
+  names: readonly string[]
+  onChange: (names: string[]) => void
+}): JSX.Element {
   const t = useT()
+  const galleries = useGalleryStore((s) => s.galleries)
+  const registry = useGalleryStore((s) => s.registry)
+  const loadGalleries = useExplorerStore((s) => s.loadGalleries)
 
-  if (names.length === 0) {
-    return <p className="text-xs text-zinc-500">{t('host.editor.form.characters.empty')}</p>
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+
+  /*
+   * 补一次图鉴列表：角色图鉴的条目就是建议的来源，而「项目」那一面可能从没挂载过。
+   * 幂等（读过就不重读），所以每次打开一章都问一次是安全的。
+   */
+  useEffect(() => {
+    void loadGalleries()
+  }, [loadGalleries])
+
+  const gallery = characterGalleryOf(galleries, registry)
+  const available = (gallery?.entries ?? [])
+    .map((entry) => entry.label)
+    .filter((label) => label.length > 0 && !names.includes(label))
+
+  const trimmed = query.trim()
+  const matches =
+    trimmed.length === 0
+      ? available
+      : available.filter((label) => label.toLowerCase().includes(trimmed.toLowerCase()))
+
+  const add = (name: string): void => {
+    const value = name.trim()
+    setQuery('')
+
+    if (value.length === 0 || names.includes(value)) return
+    onChange([...names, value])
+  }
+
+  const remove = (name: string): void => {
+    onChange(names.filter((item) => item !== name))
   }
 
   return (
-    <ul className="flex flex-wrap gap-1">
-      {names.map((name) => (
-        <li
-          key={name}
-          className="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-300"
-          // 悬停说清「为什么点不动」：一个没有说明的禁用控件只会让人反复点它
-          title={t('host.editor.form.characters.hint')}
-        >
-          {name}
-        </li>
-      ))}
-    </ul>
-  )
-}
+    <div className="flex flex-col gap-2">
+      {names.length > 0 && (
+        <ul className="flex flex-wrap gap-1">
+          {names.map((name) => (
+            <li
+              key={name}
+              className="flex items-center gap-1 rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-300"
+            >
+              {name}
+              <button
+                type="button"
+                aria-label={t('host.editor.form.characters.remove', { name })}
+                title={t('host.editor.form.characters.remove', { name })}
+                onClick={() => remove(name)}
+                className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
+              >
+                <BuiltinIcon name="close" className="h-2.5 w-2.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
-/** 一个字段：左边固定宽度的标签，右边控件。宽度固定是为了让所有控件左边缘对齐 */
-function Field({
-  label,
-  hint,
-  children
-}: {
-  label: string
-  hint?: string
-  children: ReactNode
-}): JSX.Element {
-  return (
-    <div className="flex min-w-0 gap-3">
-      <div className="flex w-20 shrink-0 flex-col gap-0.5 pt-1">
-        <span className="text-xs text-zinc-300">{label}</span>
-        {hint && <span className="text-[10px] leading-3 text-zinc-500">{hint}</span>}
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return
+
+            // 回车 = 把输入框里那个名字收下（不提交整个表单：这里是本章的一个字段）
+            event.preventDefault()
+            add(query)
+          }}
+          placeholder={t('host.editor.form.characters.placeholder')}
+          className="h-7 w-56 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500"
+        />
+
+        {open && matches.length > 0 && (
+          <ul className="nide-scrollbar absolute top-8 left-0 z-20 max-h-48 w-56 overflow-y-auto rounded border border-zinc-700 bg-zinc-800 py-1 shadow-lg shadow-black/50">
+            {matches.map((label) => (
+              <li key={label}>
+                {/*
+                  mousedown 上 preventDefault：不这样做的话，按下鼠标会让输入框先失焦，
+                  而失焦会把这一份候选列表收掉 —— 于是「点一个候选」永远点不中。
+                */}
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => add(label)}
+                  className="block w-full px-2 py-1 text-left text-xs text-zinc-200 transition-colors hover:bg-zinc-700"
+                >
+                  {label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  )
-}
 
-/** 多行文本字段。样式统一在这里，调用点只给值与回调 */
-function TextArea({
-  value,
-  onChange,
-  placeholder
-}: {
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
-}): JSX.Element {
-  return (
-    <textarea
-      value={value}
-      rows={3}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
-      className="nide-scrollbar w-full resize-y rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs leading-5 text-zinc-100 outline-none focus:border-blue-500"
-    />
+      {/*
+        一个建议都没有、而且没有角色图鉴时说清楚为什么：空白的输入框看起来像坏了，
+        而真正的原因是「还没有哪个图鉴被设为角色图鉴」（见 .nide/gallery.yml）。
+      */}
+      {gallery === null && (
+        <p className="text-[10px] leading-3 text-zinc-500">
+          {t('host.editor.form.characters.missing')}
+        </p>
+      )}
+    </div>
   )
 }
 
 // ============ 草稿与元数据之间的换算 ============
 
+/** 表单里各字段的草稿。与 ChapterMetadata 的差别只有索引：这里是用户正在敲的那个字符串 */
+interface ChapterDraft {
+  index: string
+  outline: string
+  characters: string[]
+  notes: string
+  summary: string
+}
+
 function toDraft(metadata: ChapterMetadata): ChapterDraft {
   return {
     index: metadata.index === null ? '' : formatChapterNumber(metadata.index),
     outline: metadata.outline,
+    characters: [...metadata.characters],
     notes: metadata.notes,
     summary: metadata.summary
   }
@@ -282,31 +364,43 @@ function toDraft(metadata: ChapterMetadata): ChapterDraft {
 /**
  * 两份元数据在**表单管得着的**那几项上是不是同一个值。
  *
- * 只比这四项：`category`（它决定有没有这个表单）与 `characters`（还不能编辑）不由这一层
- * 产生，拿它们一起比会把「宿主改了出场角色」也判成「用户这份草稿过期了」。
+ * 只比这五项：`category` 不由这一层产生，拿它一起比会把「宿主改了类别」也判成
+ * 「用户这份草稿过期了」。
  */
 function sameMetadata(
   metadata: ChapterMetadata,
-  other: Pick<ChapterMetadata, 'index' | 'outline' | 'notes' | 'summary'>
+  other: Pick<ChapterMetadata, 'index' | 'outline' | 'characters' | 'notes' | 'summary'>
 ): boolean {
   return (
     metadata.index === other.index &&
     metadata.outline === other.outline &&
+    sameTexts(metadata.characters, other.characters) &&
     metadata.notes === other.notes &&
     metadata.summary === other.summary
   )
 }
 
 /**
- * 那四项的指纹，用来判「上游这一趟是不是自己刚发出去的那一趟」。
+ * 那五项的指纹，用来判「上游这一趟是不是自己刚发出去的那一趟」。
  *
- * JSON 而不是手写比较：形状固定（四个字段，其中一个是数字或 null），序列化一次比写
- * 四行 `===` 更不容易漏项，而它只在表单提交与上游变化时各跑一次。
+ * JSON 而不是手写比较：形状固定（四个字符串或 null + 一个字符串数组），序列化一次比
+ * 写五行 `===` 更不容易漏项，而它只在表单提交与上游变化时各跑一次。
  */
 function serialize(
-  values: Pick<ChapterMetadata, 'index' | 'outline' | 'notes' | 'summary'>
+  values: Pick<ChapterMetadata, 'index' | 'outline' | 'characters' | 'notes' | 'summary'>
 ): string {
-  return JSON.stringify([values.index, values.outline, values.notes, values.summary])
+  return JSON.stringify([
+    values.index,
+    values.outline,
+    values.characters,
+    values.notes,
+    values.summary
+  ])
+}
+
+/** 两个角色列表是不是同一组（顺序也算：用户看到的顺序就是这里存着的那个） */
+function sameTexts(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
 /** 索引：空或不是十进制整数时给 null（「还没有索引」）；`0` 是序章，照收 */

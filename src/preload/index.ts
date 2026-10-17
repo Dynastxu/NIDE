@@ -21,7 +21,8 @@ import {
   PROJECT_ARG_PREFIX,
   PROJECT_CHANNELS,
   PROJECT_CONFIG_CHANNELS,
-  PROJECT_FILE_CHANNELS
+  PROJECT_FILE_CHANNELS,
+  PROJECT_GALLERY_CHANNELS
 } from '@shared/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
@@ -45,6 +46,11 @@ import type {
   DirReadResult,
   FileReadResult,
   FileWriteResult,
+  GalleryCreateRequest,
+  GalleryCreateResult,
+  GalleryListResult,
+  GalleryRegistryUpdateRequest,
+  GalleryRegistryUpdateResult,
   ProjectConfig,
   ProjectConfigUpdateResult,
   ProjectListItem,
@@ -337,6 +343,36 @@ const projectAPI = {
     options?: ConfirmOptions
   ): Promise<DeleteEntryResult> =>
     ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, options),
+
+  /**
+   * 读图鉴：内容目录下每个子目录一个图鉴（各自的字段表与条目），外加 `.nide` 里的
+   * 注册表（哪个图鉴是角色图鉴）。
+   *
+   * 传的是图鉴内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在主进程：
+   * 渲染进程只声明「我想读这个图鉴目录」，声明不了「哪个目录算图鉴目录」。
+   */
+  readGalleries: (galleryRoot: string): Promise<GalleryListResult> =>
+    ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.readGalleries, galleryRoot),
+
+  /**
+   * 新建一个图鉴：一个目录 + 它的 `config.yml`。
+   *
+   * 落点（`request.targetPath`）同样必须是配置里那个图鉴内容目录，主进程会核对；
+   * 目录已存在时**不覆盖**，返回 `already-exists`。
+   */
+  createGallery: (request: GalleryCreateRequest): Promise<GalleryCreateResult> =>
+    ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.createGallery, request),
+
+  /**
+   * 改图鉴注册表（把某一个图鉴设成角色图鉴）。
+   *
+   * 名字指向的目录不在时返回 `unknown-gallery`：注册表指向一个不存在的图鉴，章节表单
+   * 的出场角色就永远选不出东西，而那在界面上看不出任何原因。
+   */
+  updateGalleryRegistry: (
+    request: GalleryRegistryUpdateRequest
+  ): Promise<GalleryRegistryUpdateResult | null> =>
+    ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.updateRegistry, request),
 
   /**
    * 读当前项目的配置（`.nide/config.yml`）。

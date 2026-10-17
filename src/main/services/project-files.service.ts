@@ -3,11 +3,16 @@ import path from 'node:path'
 import type { Dirent, Stats } from 'node:fs'
 import type { FileHandle } from 'node:fs/promises'
 import {
+  DEFAULT_GALLERY_FIELDS,
   FRONTMATTER_SCAN_LIMIT,
+  GALLERY_CONFIG_FILE_NAME,
   HOST_TEMP_FILE_PREFIX,
   MAX_TEXT_FILE_BYTES,
   createNameCollator,
   filePathKey,
+  galleryEntryLabel,
+  isGalleryConfigFileName,
+  isGalleryEntryPath,
   isHostTempFileName,
   isIgnoredDirectoryName,
   isInsideProject,
@@ -15,6 +20,9 @@ import {
   isSupportedTextPath,
   parseChapterHeading,
   parseChapterNumber,
+  parseGalleryConfig,
+  readGalleryEntry,
+  serializeGalleryConfig,
   sortTreeEntries,
   validateEntryName
 } from '@shared/project'
@@ -35,6 +43,11 @@ import type {
   FileUnsupportedReason,
   FileWriteFailureReason,
   FileWriteResult,
+  GalleryCreateRequest,
+  GalleryCreateResult,
+  GalleryEntryFile,
+  GalleryFolder,
+  GalleryFoldersResult,
   RenameEntryFailureReason,
   RenameEntryRequest,
   RenameEntryResult,
@@ -898,4 +911,208 @@ function classifyDeleteError(err: unknown): DeleteEntryFailureReason {
   if (code === 'ENOENT') return 'not-a-file'
 
   return 'unreadable'
+}
+
+// ============ 图鉴（内容目录下的一层子目录） ============
+
+/**
+ * 读图鉴目录里的所有图鉴：每个子目录算一个图鉴，各自带自己的字段表与条目。
+ *
+ * 与 `readProjectChapters` 同一套边界（根由调用方收窄成图鉴内容目录、逐段比对），
+ * 只是这里要读两层：图鉴目录本身（有哪些图鉴），以及每个图鉴目录（有哪些条目）。
+ *
+ * 三条刻意的行为：
+ *
+ * - **读不出 `config.yml` 的图鉴用默认字段**，不是错误。一个由别的工具建出来、或者
+ *   字段表被手删掉的目录仍然是一个能用的图鉴（见 shared/project 的 GalleryFolder）；
+ *   报错只会让那个目录在界面上消失，而它明明在磁盘上。
+ * - **某个图鉴目录读不出来时只让那个图鉴空着**，不影响别的图鉴：它有 `error` 字段，
+ *   界面据此说一句「读不了」，而不是把整个列表变成一次失败。
+ * - **条目只读开头一小段**（与章节列表同一条理由，见 readFileHead）：列表要的是每个
+ *   条目的名字，而名字在文件开头。这一层不去读整份条目。
+ *
+ * 列条目时**不按内容筛类别**：图鉴目录里除 `config.yml` 之外的每个 yml 都算一个条目。
+ * 按 `category: gallery` 筛的话，手写的条目（没有那一行、只有字段）会从列表里消失 ——
+ * 那是用户自己的文件，「看得见」比一个更纯净的列表重要。点开它时没有表单（见 renderer
+ * 的 document-mode），用户一眼就看得出缺的是那一行。
+ */
+export async function readProjectGalleries(
+  galleryRoot: string,
+  options: RootsOptions
+): Promise<GalleryFoldersResult> {
+  const listing = await readProjectDir(galleryRoot, options)
+  if (!listing.ok) return { ok: false, reason: listing.reason }
+
+  const galleries: GalleryFolder[] = []
+
+  for (const entry of listing.entries) {
+    // 图鉴目录下散着的文件不是图鉴：图鉴是**分区**，只有目录才算
+    if (entry.kind !== 'directory') continue
+
+    galleries.push(await readGalleryFolder(entry, options))
+  }
+
+  return { ok: true, path: listing.path, galleries }
+}
+
+/** 一个图鉴：字段表 + 条目列表 */
+async function readGalleryFolder(
+  dir: Extract<FileTreeEntry, { kind: 'directory' }>,
+  options: RootsOptions
+): Promise<GalleryFolder> {
+  const configPath = path.join(dir.path, GALLERY_CONFIG_FILE_NAME)
+  const fields = await readGalleryFields(configPath)
+
+  const listing = await readProjectDir(dir.path, options)
+  if (!listing.ok) {
+    logger.warn('Failed to read a gallery directory', { dir: dir.name, reason: listing.reason })
+    return {
+      name: dir.name,
+      path: dir.path,
+      configPath,
+      fields,
+      entries: [],
+      error: listing.reason
+    }
+  }
+
+  const entries: GalleryEntryFile[] = []
+
+  for (const item of listing.entries) {
+    if (item.kind !== 'file') continue
+    if (!isGalleryEntryPath(item.path)) continue
+    // 字段表自己不是条目：它描述的是这个图鉴，列进条目里只会让人以为能编辑它
+    if (isGalleryConfigFileName(item.name)) continue
+
+    const head = await readFileHead(item.path)
+    const values = head === null ? {} : readGalleryEntry(head).values
+
+    entries.push({
+      path: item.path,
+      name: item.name,
+      label: galleryEntryLabel(values, fields, item.name)
+    })
+  }
+
+  return { name: dir.name, path: dir.path, configPath, fields, entries }
+}
+
+/**
+ * 读一个图鉴的字段表；读不出来（不在、坏掉、没权限）时给默认字段。
+ *
+ * 「坏掉」也算读不出来：一份写坏的 `config.yml` 会让这个图鉴的每个条目都失去字段，
+ * 而用户此时更需要的是能继续用（默认字段 + 一条日志），不是一个空的图鉴。
+ */
+async function readGalleryFields(configPath: string): Promise<string[]> {
+  try {
+    const parsed = parseGalleryConfig(await fs.readFile(configPath, 'utf-8'))
+    if (parsed !== null) return parsed.fields
+
+    logger.warn('The gallery configuration is invalid; using the default fields', {
+      file: path.basename(path.dirname(configPath))
+    })
+  } catch (err) {
+    if ((err as { code?: unknown } | null)?.code !== 'ENOENT') {
+      logger.warn('Failed to read a gallery configuration', {
+        file: path.basename(path.dirname(configPath)),
+        error: err
+      })
+    }
+  }
+
+  return [...DEFAULT_GALLERY_FIELDS]
+}
+
+/**
+ * 新建一个图鉴：在 `targetPath`（图鉴内容目录）里建一个目录，并写它的 `config.yml`。
+ *
+ * 这是宿主写用户内容的**又一处**，所以与新建文件 / 文件夹同一条边界：范围校验、
+ * 符号链接、绝对路径三条一条不少（见 createProjectEntry 的说明）。它与那个函数的
+ * 差别只在「一个条目 + 一份元数据要一起落盘」：
+ *
+ * ```
+ * gallery/角色/            <- mkdir，不带 recursive：父目录必须已经是那个内容目录
+ * gallery/角色/config.yml  <- 默认字段表，`wx`：绝不覆盖
+ * ```
+ *
+ * 字段表写不成时**把刚建的目录撤掉**：磁盘上留一个没有字段表的图鉴，正是「两件事只
+ * 做成了一件」的那种状态，而它比一次失败更难解释（用户看到的是一个空图鉴，日志里
+ * 也没有对应的失败）。撤不掉也只是一行日志 —— 撤销失败不该换掉原本那个错误。
+ *
+ * **「图鉴建在哪个内容目录里」不在这里判断**：那需要项目配置，由 IPC 层核对
+ * （见 ipc/project.ipc.ts）—— 这一层只收一个路径，不读 `.nide`。
+ */
+export async function createProjectGallery(
+  request: GalleryCreateRequest,
+  options: RootsOptions
+): Promise<GalleryCreateResult> {
+  const { targetPath } = request
+
+  const validation = validateEntryName(request.name)
+  if (!validation.ok) return { ok: false, reason: 'invalid-name' }
+
+  if (typeof targetPath !== 'string' || targetPath.length === 0) {
+    return { ok: false, reason: 'unreadable' }
+  }
+
+  // 与新建条目同理：走到这里都是主进程给过的绝对路径，收到别的说明调用方错了
+  if (!path.isAbsolute(targetPath)) return { ok: false, reason: 'unreadable' }
+
+  if (!isInsideAnyRoot(options.roots, targetPath, options.caseInsensitive)) {
+    logger.warn('Refused to create a gallery outside every known root', { target: targetPath })
+    return { ok: false, reason: 'unreadable' }
+  }
+
+  let stats: Stats
+  try {
+    stats = await fs.lstat(targetPath)
+  } catch (err) {
+    logger.warn('Failed to stat the gallery create target', { target: targetPath, error: err })
+    return { ok: false, reason: 'unreadable' }
+  }
+
+  // 符号链接一律不碰：它可以把「根内新建」变成「根外新建」（与新建条目同一个立场）
+  if (stats.isSymbolicLink()) {
+    logger.warn('Refused to create a gallery through a symbolic link', { target: targetPath })
+    return { ok: false, reason: 'not-a-directory' }
+  }
+
+  if (!stats.isDirectory()) {
+    logger.warn('Refused to create a gallery inside an entry that is not a directory', {
+      target: targetPath
+    })
+    return { ok: false, reason: 'not-a-directory' }
+  }
+
+  const galleryPath = path.join(targetPath, validation.name)
+  const configPath = path.join(galleryPath, GALLERY_CONFIG_FILE_NAME)
+
+  try {
+    // 不带 recursive：父目录不存在应当失败，而不是顺手在别处建出一串目录
+    await fs.mkdir(galleryPath)
+  } catch (err) {
+    return { ok: false, reason: classifyCreateError(err) }
+  }
+
+  try {
+    await fs.writeFile(
+      configPath,
+      serializeGalleryConfig({ fields: [...DEFAULT_GALLERY_FIELDS] }),
+      {
+        encoding: 'utf-8',
+        flag: 'wx'
+      }
+    )
+  } catch (err) {
+    await fs.rm(galleryPath, { recursive: true, force: true }).catch((rollbackError: unknown) => {
+      logger.warn('Failed to remove a gallery directory after a failed create', {
+        name: validation.name,
+        error: rollbackError
+      })
+    })
+    return { ok: false, reason: classifyCreateError(err) }
+  }
+
+  logger.info('Project gallery created', { name: validation.name })
+  return { ok: true, path: galleryPath, configPath }
 }

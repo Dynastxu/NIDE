@@ -8,6 +8,7 @@ import {
   useEntryActionStore
 } from '@renderer/stores/entry-action.store'
 import { NamePromptDialog } from '@renderer/entry/NamePromptDialog'
+import { DEFAULT_GALLERY_ENTRY_EXTENSION } from '@shared/project'
 
 /**
  * 条目动作在界面上的两个落点：名字输入框与失败提示。
@@ -36,27 +37,61 @@ export function EntryActionHost(): JSX.Element {
       {/*
         key 绑编号：换一次动作就重新挂载，输入框的初值、焦点与 Esc 监听都跟着重来一遍 ——
         否则「取消新建」之后紧接着「重命名」，框里会留着上一个人的文字。
+
+        四种动作共用这一个输入框（见 NamePromptDialog 的 titleKey / defaultExtension）：
+        「新建图鉴」与「新建图鉴条目」各自有一个标题与一个落盘名字的规则，而输入框本身
+        ——校验、回车、失败留在原地——完全相同，没必要各写一份。
       */}
-      {prompt &&
-        (prompt.mode === 'create' ? (
-          <NamePromptDialog
-            key={prompt.key}
-            mode="create"
-            kind={prompt.kind}
-            scope={prompt.scope}
-            target={prompt.target}
-            onCancel={closePrompt}
-            onSubmit={(name) => submitPromptName(prompt, name)}
-          />
-        ) : (
-          <NamePromptDialog
-            key={prompt.key}
-            mode="rename"
-            target={prompt.target}
-            onCancel={closePrompt}
-            onSubmit={(name) => submitPromptName(prompt, name)}
-          />
-        ))}
+      {prompt && prompt.mode === 'create' && (
+        <NamePromptDialog
+          key={prompt.key}
+          mode="create"
+          kind={prompt.kind}
+          scope={prompt.scope}
+          target={prompt.target}
+          onCancel={closePrompt}
+          onSubmit={(name) => submitPromptName(prompt, name)}
+        />
+      )}
+
+      {prompt && prompt.mode === 'createGallery' && (
+        <NamePromptDialog
+          key={prompt.key}
+          mode="create"
+          // 图鉴是一个目录，落点就在被点的那一个目录里面（图鉴内容目录）
+          kind="directory"
+          scope="inside"
+          target={prompt.target}
+          titleKey="host.project.panel.gallery.new"
+          onCancel={closePrompt}
+          onSubmit={(name) => submitPromptName(prompt, name)}
+        />
+      )}
+
+      {prompt && prompt.mode === 'createGalleryEntry' && (
+        <NamePromptDialog
+          key={prompt.key}
+          mode="create"
+          kind="file"
+          scope="inside"
+          target={prompt.target}
+          titleKey="host.project.panel.gallery.newEntry"
+          // 条目必须是 yml：没写扩展名时补上，并把补出来的名字显示在输入框下面
+          defaultExtension={DEFAULT_GALLERY_ENTRY_EXTENSION}
+          onCancel={closePrompt}
+          onSubmit={(name) => submitPromptName(prompt, name)}
+        />
+      )}
+
+      {prompt && prompt.mode === 'rename' && (
+        <NamePromptDialog
+          key={prompt.key}
+          mode="rename"
+          target={prompt.target}
+          onCancel={closePrompt}
+          onSubmit={(name) => submitPromptName(prompt, name)}
+        />
+      )}
 
       <NoticeToast />
     </>

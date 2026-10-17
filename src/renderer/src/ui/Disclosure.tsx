@@ -1,4 +1,4 @@
-import { JSX, useState, type ReactNode } from 'react'
+import { JSX, useState, type MouseEvent, type ReactNode } from 'react'
 
 /**
  * 可折叠的一段：一个标题行 + 可展开的内容。
@@ -16,6 +16,7 @@ export function Disclosure({
   defaultOpen = true,
   open,
   onToggle,
+  onContextMenu,
   children
 }: {
   /** 标题行左侧的文字 */
@@ -25,6 +26,13 @@ export function Disclosure({
   defaultOpen?: boolean
   open?: boolean
   onToggle?: (next: boolean) => void
+  /**
+   * 右键标题行。调用方负责 `preventDefault` 与画菜单（见 ProjectsPanel 的图鉴分组）。
+   *
+   * 挂在**标题行那个按钮**上而不是外层容器上：这一个组件在别处是纯展示的一段（四个
+   * 内容分类），右键那一条空白的边距不该弹出一个菜单。
+   */
+  onContextMenu?: (event: MouseEvent<HTMLButtonElement>) => void
   children: ReactNode
 }): JSX.Element {
   const [inner, setInner] = useState(defaultOpen)
@@ -42,6 +50,7 @@ export function Disclosure({
         type="button"
         aria-expanded={expanded}
         onClick={toggle}
+        {...(onContextMenu ? { onContextMenu } : {})}
         className="flex w-full shrink-0 items-center gap-1.5 px-2 py-1.5 text-left text-[11px] font-medium tracking-wide text-zinc-400 uppercase transition-colors hover:bg-zinc-800/60 hover:text-zinc-200"
       >
         {/* 展开方向用旋转的箭头表示，不额外占一个图标位 */}

@@ -2,6 +2,8 @@ import { JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import * as monaco from 'monaco-editor'
 import { monacoLoader } from '@renderer/monaco-env'
 import { ChapterForm } from '@renderer/editor/ChapterForm'
+import { GalleryConfigForm } from '@renderer/editor/GalleryConfigForm'
+import { GalleryEntryForm } from '@renderer/editor/GalleryEntryForm'
 import { MarkdownPreview } from '@renderer/editor/MarkdownPreview'
 import { applyChapterBody } from '@renderer/editor/chapter-body'
 import { applyChapterMetadata } from '@renderer/editor/chapter-metadata'
@@ -16,10 +18,10 @@ import {
 } from '@renderer/editor/model-registry'
 import { saveActiveTab } from '@renderer/editor/editor-save'
 import { loggerFor } from '@renderer/logger'
-import { defaultDocumentMode } from '@renderer/editor/document-mode'
-import { useDocumentViewStore } from '@renderer/stores/document-view.store'
 import { useEditorStore, type EditorTab } from '@renderer/stores/editor.store'
 import { chapterBodyOf, splitFrontmatter } from '@shared/project'
+import type { DocumentView } from '@renderer/editor/document-mode'
+import type { DocumentViewMode } from '@renderer/stores/document-view.store'
 
 const logger = loggerFor('editor')
 
@@ -71,18 +73,70 @@ const logger = loggerFor('editor')
  * **刻意接受**的代价：把同一个实例在两种布局之间搬来搬去，正是前面几版出错的地方
  * （容器还没进文档就被建出来、或者永远等不到一次尺寸测量）。重建只影响撤销历史与光标
  * 位置，正文本身在 model 里、一个字都不会丢。
+ *
+ * ## 表单有两种，差别在有没有编辑器
+ *
+ * 「表单」这一档实际画什么由 `view.kind` 决定：
+ *
+ * | 是哪一篇 | 表单 | 编辑器 |
+ * |---|---|---|
+ * | 章节 | 索引 / 细纲 / 角色 / 备注 / 概述 | 有：正文（只有正文的那一份 model） |
+ * | 图鉴条目 | 图鉴的各个字段 | **没有**：整份文件就是那些字段 |
+ * | 图鉴字段表 | 字段名列表 | **没有**：同上 |
+ *
+ * 后两种因此没有「正文」可言（见 GalleryEntryForm）：同一份数据在同一屏里显示两遍
+ * 只会让人分不清改的是哪一份。代价是 model 得由表单自己建出来（见 gallery-metadata
+ * 的 syncGalleryForm）—— 保存读的是 model，而这里没有哪个 MonacoHost 会顺手建它。
  */
 export function EditorPanes({
   tab,
+  view,
+  mode,
   syncing
 }: {
   /** 当前标签页。它的语言、路径与元数据决定这一帧长什么样 */
   tab: EditorTab
+  /**
+   * 这一篇能怎么看（见 editor/document-mode.ts）。
+   *
+   * 由 EditorTabs 算好传进来，而不是在这里再判一次：工具栏就在它的隔壁，两处各判一次
+   * 就会出现「按钮说能填表单、这里却给了纯文本」。
+   */
+  view: DocumentView
+  /** 当前落在哪一种看法上（已经按可用模式回落过） */
+  mode: DocumentViewMode
   /** 「这次 model 写入是宿主发起的」标记，与 MonacoHost 共用同一个（见那里的说明） */
   syncing: { current: boolean }
 }): JSX.Element {
-  const selected = useDocumentViewStore((s) => s.modes[tab.path])
-  const mode = selected ?? defaultDocumentMode(tab.language, tab.path, tab.metadata)
+  if (mode === 'form' && view.kind === 'gallery-entry') {
+    /**
+     * 图鉴条目的表单：整块可滚，**没有编辑器**。
+     *
+     * 与章节表单的差别只有这一点：那里「表单字段」与「正文」是文件里两段互不相干的
+     * 内容，所以正文要有一个编辑器；而图鉴条目整份文件就是那些字段 —— 再摆一个编辑器
+     * 只会把同一份数据在同一屏里显示两遍。
+     *
+     * model 仍然会建出来（见 GalleryEntryForm 里的 syncGalleryForm），否则保存没有东西可读。
+     */
+    return (
+      <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <div className="px-4 py-4">
+          <GalleryEntryForm tab={tab} syncing={syncing} />
+        </div>
+      </div>
+    )
+  }
+
+  if (mode === 'form' && view.kind === 'gallery-config') {
+    // 字段表的表单：同样整块可滚、没有编辑器（理由同上）
+    return (
+      <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <div className="px-4 py-4">
+          <GalleryConfigForm tab={tab} syncing={syncing} />
+        </div>
+      </div>
+    )
+  }
 
   if (mode === 'form') {
     /**

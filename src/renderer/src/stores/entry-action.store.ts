@@ -6,6 +6,7 @@ import {
   renameProjectEntry,
   useExplorerStore
 } from './explorer.store'
+import { createGalleryAction, createGalleryEntryAction } from '@renderer/explorer/gallery-actions'
 import { createScopeOf, type CreateScope, type EntryActionTarget } from '@renderer/entry/entry-menu'
 import type { CreateEntryKind, DeleteEntryFailureReason } from '@shared/project'
 import type { HostMessageKey } from '@shared/i18n'
@@ -31,6 +32,10 @@ import type { HostMessageKey } from '@shared/i18n'
  *
  * `key` 每次开框换一个：React 据此**重新挂载**对话框，否则「取消新建」之后紧接着
  * 「重命名」，输入框里会留着上一个人的文字。
+ *
+ * 四个模式里有三个都是「新建」，差别在**建什么**：普通条目（文件 / 文件夹）、一个图鉴
+ * （目录 + 字段表）、一个图鉴条目（带骨架的 yml）。它们对用户是三个动作，所以各有一个
+ * 自己的标题与确认逻辑（见 `submitPromptName`）。
  */
 export type PendingPrompt =
   | {
@@ -41,6 +46,10 @@ export type PendingPrompt =
       scope: CreateScope
     }
   | { key: number; mode: 'rename'; target: EntryActionTarget }
+  /** 新建一个图鉴：`target` 是图鉴内容目录 */
+  | { key: number; mode: 'createGallery'; target: EntryActionTarget }
+  /** 新建一个图鉴条目：`target` 是那个图鉴的目录 */
+  | { key: number; mode: 'createGalleryEntry'; target: EntryActionTarget }
 
 interface EntryActionState {
   /** 正在等用户输入名字的动作；null 表示没有对话框 */
@@ -74,6 +83,28 @@ export function openRenamePrompt(target: EntryActionTarget): void {
   useEntryActionStore.getState().setPrompt({ key: promptSeq, mode: 'rename', target })
 }
 
+/**
+ * 开「新建图鉴」的输入框。落点固定是**图鉴内容目录**（`target` 就是它）。
+ *
+ * 与普通「新建文件夹」分开，是因为建出来的东西不一样：图鉴目录里必须有一份字段表
+ * （见 shared/project/gallery），而那份表要和目录一起落盘。
+ */
+export function openCreateGalleryPrompt(target: EntryActionTarget): void {
+  promptSeq += 1
+  useEntryActionStore.getState().setPrompt({ key: promptSeq, mode: 'createGallery', target })
+}
+
+/**
+ * 开「新建图鉴条目」的输入框，落点是某一个图鉴的目录。
+ *
+ * 名字没有扩展名时会补 `.yml`（见 NamePromptDialog 的 defaultExtension）：条目必须是
+ * yml，而补出来的名字会显示在输入框下面，所以用户不会拿到一个他没看见过的文件名。
+ */
+export function openCreateGalleryEntryPrompt(target: EntryActionTarget): void {
+  promptSeq += 1
+  useEntryActionStore.getState().setPrompt({ key: promptSeq, mode: 'createGalleryEntry', target })
+}
+
 /** 关掉输入框（取消，或者提交成功之后） */
 export function closePrompt(): void {
   useEntryActionStore.getState().setPrompt(null)
@@ -92,18 +123,42 @@ export async function submitPromptName(
   request: PendingPrompt,
   name: string
 ): Promise<string | null> {
-  const result =
+  /*
+   * 三个「新建」各自走自己的动作：普通条目写一个空文件 / 空目录，图鉴连字段表一起写，
+   * 条目写一份骨架。它们的失败文案共用一套（都是「没建成」），差别只在建的是什么。
+   */
+  const message =
     request.mode === 'create'
-      ? await createProjectEntry(request.kind, request.target.path, name)
-      : await renameProjectEntry(request.target.path, name)
+      ? await submitCreate(request, name)
+      : request.mode === 'createGallery'
+        ? await createGalleryAction(request.target, name)
+        : request.mode === 'createGalleryEntry'
+          ? await createGalleryEntryAction(request.target, name)
+          : await submitRename(request.target.path, name)
 
-  if (!result.ok) {
-    const action = request.mode === 'create' ? 'create' : 'rename'
-    return getT()(`host.explorer.${action}.failed.${result.reason}` as HostMessageKey)
-  }
+  if (message !== null) return message
 
   closePrompt()
   return null
+}
+
+/** 新建一个普通条目（文件 / 文件夹） */
+async function submitCreate(
+  request: Extract<PendingPrompt, { mode: 'create' }>,
+  name: string
+): Promise<string | null> {
+  const result = await createProjectEntry(request.kind, request.target.path, name)
+  if (result.ok) return null
+
+  return getT()(`host.explorer.create.failed.${result.reason}` as HostMessageKey)
+}
+
+/** 重命名一个条目。与新建分开：两者失败时说的话不一样（「建不了」/「改不了」） */
+async function submitRename(targetPath: string, name: string): Promise<string | null> {
+  const result = await renameProjectEntry(targetPath, name)
+  if (result.ok) return null
+
+  return getT()(`host.explorer.rename.failed.${result.reason}` as HostMessageKey)
 }
 
 /**

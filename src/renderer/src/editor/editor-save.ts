@@ -1,6 +1,13 @@
 import { loggerFor } from '@renderer/logger'
 import { useEditorStore } from '@renderer/stores/editor.store'
+import { useExplorerStore } from '@renderer/stores/explorer.store'
 import { modelFor } from '@renderer/editor/model-registry'
+import {
+  isGalleryConfigFileName,
+  isGalleryEntryDocument,
+  isGalleryEntryPath,
+  readGalleryEntry
+} from '@shared/project'
 import type { FileWriteResult } from '@shared/project'
 
 const logger = loggerFor('editor')
@@ -25,6 +32,12 @@ const logger = loggerFor('editor')
  * 标签条上的圆点问出来的「保存吗」，按「保存」走的正是这里 —— 四条入口（`Ctrl+S`、
  * 标题栏文件菜单、标签条「更多」、关闭时那一问）因此不可能对「保存到底是什么」有
  * 两套理解。
+ *
+ * ## 保存之后只有一件事是「顺带」做的
+ *
+ * 图鉴的文件（条目 / 字段表）存下去之后，图鉴列表那一份缓存要重读一次：列表里的名字
+ * 与条目表单的字段都来自它，而它是按「一次会话读一次」缓存的（见下面那条说明）。
+ * 除此之外没有任何副作用 —— 写完盘之后，谁赢、要不要留副本，仍然没有第二套规则。
  */
 
 /**
@@ -78,6 +91,22 @@ export async function saveTab(path: string): Promise<FileWriteResult> {
      */
     const latest = model.getValue()
     if (latest !== content) store.setDocument(path, latest)
+
+    /**
+     * 保存的是一份**图鉴的文件**时（条目或字段表），把图鉴列表那一份缓存也刷一次。
+     *
+     * 「项目 -> 图鉴」里每一行显示的名字取自条目的第一个字段，而那一份是按「一次会话
+     * 读一次」缓存着的（见 gallery.store）：刚把 `名称` 填上、存下来之后不刷新，列表里
+     * 那一行还是旧名字 —— 用户会以为自己的改动没生效。字段表同理：条目表单的字段来自它。
+     *
+     * 刷在**保存**这一处而不是表单的每次输入上：后者是一次按键一条 IPC，而保存本来就是
+     * 用户显式说「就以这一份为准」的那一下。
+     */
+    const galleryFile =
+      isGalleryConfigFileName(path) ||
+      (isGalleryEntryPath(path) && isGalleryEntryDocument(readGalleryEntry(content)))
+
+    if (galleryFile) void useExplorerStore.getState().loadGalleries(true)
 
     logger.info('File saved', { file: path })
     return { ok: true, path }

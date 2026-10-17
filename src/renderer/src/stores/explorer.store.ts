@@ -15,6 +15,7 @@ import {
 } from '@shared/project'
 import { loggerFor } from '@renderer/logger'
 import { useEditorStore } from './editor.store'
+import { useGalleryStore } from './gallery.store'
 
 const logger = loggerFor('explorer')
 
@@ -116,6 +117,17 @@ interface ExplorerState {
   loadConfig: () => Promise<void>
   /** 读一次章节列表。目录未知时先读配置。失败记进 chaptersError，不抛 */
   loadChapters: () => Promise<void>
+  /**
+   * 读一次图鉴列表（内容目录下每个子目录一个图鉴）。
+   *
+   * 与 loadChapters 同一条理由与同一个位置：图鉴也是「当前项目有哪些内容」，目录要从
+   * 配置里算出来，而图鉴的消费者不止这一个面板（章节表单要选角色、图鉴表单要字段表）。
+   * 真正的读盘与缓存归 gallery store，这里只负责把「项目根 + 配置」翻译成绝对路径 ——
+   * 那是这一层才知道的事（见 gallery.store 文件头）。
+   *
+   * `force` 是刷新：图鉴的增删改都发生在界面上，那些动作之后要重读一次。
+   */
+  loadGalleries: (force?: boolean) => Promise<void>
   /** 重新读一个目录（新建条目之后用它把新节点显示出来） */
   refreshDir: (dirPath: string) => Promise<void>
   /** 展开 / 收起一个目录。首次展开时才去读它 */
@@ -204,8 +216,11 @@ function segments(value: string): string[] {
  *
  * 配置里的路径已经过 normalizeConfigDirectory（`/` 分段、无 `..`），所以这里只需要
  * 逐段接上去。
+ *
+ * 导出是给 gallery store 用的（它收一个图鉴目录的绝对路径，见那里的文件头）：这条
+ * 拼法只该有一处，两个 store 各拼一次迟早会拼出两种写法。
  */
-function joinProjectPath(root: string, relative: string): string {
+export function joinProjectPath(root: string, relative: string): string {
   const separator = root.includes('\\') ? '\\' : '/'
   const head = root.replace(/[\\/]+$/, '')
 
@@ -319,6 +334,13 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
 
     setRoots: async (roots) => {
       inflight.clear()
+      /*
+       * 图鉴那一份也一起丢掉：换项目就是换一套内容目录，而图鉴列表与注册表都是**一次
+       * 性读盘的结论**（见 gallery.store 的生命周期说明）。不丢的话，新项目会先带着
+       * 上一个项目的图鉴渲染一帧。
+       */
+      useGalleryStore.getState().forget()
+
       set({
         roots,
         children: {},
@@ -407,6 +429,17 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
       }
     },
 
+    loadGalleries: async (force = false) => {
+      // 目录要从配置里算出来（与 loadChapters 同一条路：配置自己会先补上项目根）
+      if (!get().config) await get().loadConfig()
+
+      const root = get().roots[0]
+      const config = get().config
+      if (!root || !config) return
+
+      await useGalleryStore.getState().load(joinProjectPath(root, config.gallery), force)
+    },
+
     toggle: async (dirPath) => {
       const open = get().expanded[dirPath] ?? false
       set((s) => ({ expanded: { ...s.expanded, [dirPath]: !open } }))
@@ -472,26 +505,27 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
 })
 
 /**
- * 一个条目改动之后，章节列表那一份缓存该不该跟着刷新。
+ * 一个条目改动之后，那些**从磁盘读出来的缓存**该不该跟着刷新。
  *
- * 同一个文件在**两处**各有一份缓存：文件树的 `children`，以及「项目」标签页的
- * `chapters`（读的是同一个章节目录）。一次新建 / 改名 / 删除只发生在其中一个入口，
- * 不在这里一起刷的话，章节目录里的文件改完名之后，章节列表会一直显示旧名字
- * —— 直到那个面板被重新挂载。以前只有文件树能发起这些动作，这一点不明显；
- * 现在条目菜单在章节列表里也有一份（见 renderer/src/entry），不刷就是当场看得见的错。
+ * 同一份内容在**几处**各有一份缓存：文件树的 `children`、「项目」标签页的 `chapters`
+ * （读的是章节目录）、以及图鉴列表（每个图鉴的条目与字段表）。一次新建 / 改名 / 删除
+ * 只发生在其中一个入口，不在这里一起刷的话，改完名之后另一处会一直显示旧名字 ——
+ * 直到那个面板被重新挂载。以前只有文件树能发起这些动作，这一点不明显；现在条目菜单
+ * 在章节列表与图鉴列表里也各有一份（见 renderer/src/entry），不刷就是当场看得见的错。
  *
  * 范围判断用 `isInsideProject`（逐段比对、大小写折叠），与文件树自己算祖先链时同一套：
  * 判断的是「这个路径是不是在那个目录里」，不是「两次拿到的字符串是否一模一样」。
  */
-async function refreshChaptersIfTouched(paths: string[]): Promise<void> {
+async function refreshContentCaches(paths: string[]): Promise<void> {
   const store = useExplorerStore.getState()
-  const dir = store.chaptersDir
+  const touches = (dir: string | null): boolean =>
+    dir !== null && paths.some((path) => isInsideProject(dir, path, true))
 
-  // 配置还没读出来时没有章节列表可刷，也就不必它去读一次配置
-  if (!dir) return
-  if (!paths.some((path) => isInsideProject(dir, path, true))) return
+  // 配置还没读出来时没有章节列表、也没有图鉴目录可刷，也就不必它去读一次配置
+  if (touches(store.chaptersDir)) await store.loadChapters()
 
-  await store.loadChapters()
+  const galleryRoot = useGalleryStore.getState().root
+  if (galleryRoot !== null && touches(galleryRoot)) await store.loadGalleries(true)
 }
 
 /**
@@ -564,8 +598,8 @@ export async function createProjectEntry(
 
   if (kind === 'directory') await store.refreshDir(result.path)
 
-  // 建在章节目录里的条目也要在章节列表里出现（见 refreshChaptersIfTouched）
-  await refreshChaptersIfTouched([result.path])
+  // 建在内容目录里的条目也要在章节列表 / 图鉴列表里出现（见 refreshContentCaches）
+  await refreshContentCaches([result.path])
 
   return result
 }
@@ -605,8 +639,8 @@ export async function renameProjectEntry(
   await store.refreshDir(parentDir)
   store.forgetPath(result.previousPath)
 
-  // 章节列表按旧名字排着的那一条要跟着换（见 refreshChaptersIfTouched）
-  await refreshChaptersIfTouched([result.previousPath, result.path])
+  // 章节 / 图鉴列表里按旧名字排着的那一条要跟着换（见 refreshContentCaches）
+  await refreshContentCaches([result.previousPath, result.path])
 
   return result
 }
@@ -643,8 +677,8 @@ export async function deleteProjectEntry(targetPath: string): Promise<DeleteEntr
   store.forgetSubtree(targetPath)
   await store.refreshDir(parentOf(targetPath))
 
-  // 章节列表里那一行也要消失（见 refreshChaptersIfTouched）
-  await refreshChaptersIfTouched([targetPath])
+  // 章节 / 图鉴列表里那一行也要消失（见 refreshContentCaches）
+  await refreshContentCaches([targetPath])
 
   return result
 }

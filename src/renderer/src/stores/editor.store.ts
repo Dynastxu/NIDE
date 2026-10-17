@@ -1,10 +1,15 @@
 import { create } from 'zustand'
 import {
   baseNameOf,
+  isGalleryConfigFileName,
   isInsideProject,
   languageForPath,
+  parseGalleryConfig,
   readChapterMetadata,
-  type ChapterMetadata
+  readGalleryEntry,
+  type ChapterMetadata,
+  type GalleryConfig,
+  type GalleryEntryDocument
 } from '@shared/project'
 
 /**
@@ -54,6 +59,25 @@ export interface EditorTab {
    * 各不相同，迟早会有一个算的是上一版的正文。
    */
   metadata: ChapterMetadata
+  /**
+   * `content` 里那份 yml 的解析结果（见 shared/project 的 readGalleryEntry）。
+   *
+   * 与 `metadata` 并列而不是合成一个对象：章节看 Markdown 的 frontmatter，图鉴看整份
+   * yml，两者的判据互不相干（一个要 `---` 围栏、一个要整份文件就是属性）。
+   *
+   * 图鉴条目、图鉴字段表、普通 yml、Markdown、纯文本**都会有这一份**（没有内容的文件
+   * 得到的是空白一份）：界面按它决定给不给图鉴表单，而「是不是图鉴」这件事只该由
+   * 文件自己回答（见 editor/document-mode.ts）。
+   */
+  gallery: GalleryEntryDocument
+  /**
+   * `content` 是一份图鉴字段表时的解析结果；不是那个文件名、或者读不出来时是 null。
+   *
+   * 只在文件名是 `config.yml` 时才解析（见 tabText）：别的文件解析它没有意义，而这是
+   * 每次按键都要付的代价。判据的另一半是 parseGalleryConfig —— 名字对、内容也读得出来，
+   * 界面才给字段表的表单（否则用户在一份写坏的配置里连纯文本都看不到）。
+   */
+  galleryConfig: GalleryConfig | null
   /**
    * 与磁盘不一致。
    *
@@ -182,16 +206,23 @@ interface EditorState {
  * 落在同一份事实上：正文一变，元数据与 dirty 都要跟着重算。让每一处各写一遍，迟早
  * 会出现「正文改了、表单还显示着上一版的编号」。
  *
+ * 图鉴那两份（`gallery` / `galleryConfig`）与章节元数据同一条理由：解析一次、跟着正文
+ * 一起走，界面因此不必各自再解析一遍 —— 各自解析的时机不同，迟早会有一个算的是上一版。
+ *
  * `originalValue` 单独传：它是**磁盘上**的那一份，只在打开与保存时变，不是每次正文
  * 变化都跟着走。
  */
 function tabText(
+  path: string,
   content: string,
   originalValue: string
-): Pick<EditorTab, 'content' | 'metadata' | 'dirty'> {
+): Pick<EditorTab, 'content' | 'metadata' | 'gallery' | 'galleryConfig' | 'dirty'> {
   return {
     content,
     metadata: readChapterMetadata(content),
+    gallery: readGalleryEntry(content),
+    // 只有 `config.yml` 才解析字段表：别的文件解析它没有意义，而这是每次按键都要付的代价
+    galleryConfig: isGalleryConfigFileName(path) ? parseGalleryConfig(content) : null,
     dirty: content !== originalValue
   }
 }
@@ -305,7 +336,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   openFile: (file) =>
     set((s) => {
       const existing = s.tabs.find((tab) => tab.path === file.path)
-      const text = tabText(file.content, file.content)
+      const text = tabText(file.path, file.content, file.content)
 
       if (existing) {
         return {
@@ -395,7 +426,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       if (tab.content === content) return {}
 
       const tabs = [...s.tabs]
-      tabs[index] = { ...tab, ...tabText(content, tab.originalValue) }
+      tabs[index] = { ...tab, ...tabText(path, content, tab.originalValue) }
       return { tabs }
     }),
 
@@ -417,7 +448,7 @@ export const useEditorStore = create<EditorState>((set) => ({
        * 用户看到的就该是改过的那一份。正文是不是也跟着换由调用方决定 —— 它先写
        * model，再走到这里；两个副本（model 与 store）因此落在同一份文字上。
        */
-      tabs[index] = { ...tab, originalValue: content, ...tabText(content, content) }
+      tabs[index] = { ...tab, originalValue: content, ...tabText(path, content, content) }
       return { tabs }
     })
 
