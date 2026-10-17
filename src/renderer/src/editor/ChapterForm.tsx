@@ -35,8 +35,9 @@ import { useT } from '@renderer/stores/i18n.store'
  *
  * ## 出场角色从角色图鉴里选
  *
- * 「谁是角色」这件事由**图鉴**回答（见 shared/project/gallery）：`.nide/gallery.yml`
- * 记着哪个图鉴是角色图鉴，那一份图鉴的每个条目就是一个角色。这里给出它的条目当建议，
+ * 「谁是角色」这件事由**图鉴**回答（见 shared/project/gallery）：`.nide/config.yml`
+ * 里图鉴那一段的 `characters` 记着哪个图鉴是角色图鉴，那一份图鉴的每个条目就是一个
+ * 角色。这里给出它的条目当建议，
  * 但仍然**允许手写** —— 一个还没建档的群众演员照样要能写进这一章的出场角色里，而
  * 「先建条目再回来填」多出来的那一步不会让任何人更准确。
  *
@@ -329,7 +330,7 @@ function CharacterPicker({
 
       {/*
         一个建议都没有、而且没有角色图鉴时说清楚为什么：空白的输入框看起来像坏了，
-        而真正的原因是「还没有哪个图鉴被设为角色图鉴」（见 .nide/gallery.yml）。
+        而真正的原因是「还没有哪个图鉴被设为角色图鉴」（见 .nide/config.yml 的 gallery）。
       */}
       {gallery === null && (
         <p className="text-[10px] leading-3 text-zinc-500">

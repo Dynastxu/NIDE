@@ -11,6 +11,9 @@ import {
   isMetaDirectoryPath,
   isProjectConfigKey,
   normalizeConfigDirectory,
+  normalizeDirectorySegment,
+  parseLegacyGalleryRegistry,
+  parseLegacyProjectConfig,
   parseProjectConfig,
   sanitizeProjectConfigPatch,
   serializeProjectConfig,
@@ -27,13 +30,14 @@ import {
  *   把逃出项目根的路径收下（目录名是可以写进配置的，`..` 会建到项目外面去）；
  * - 补丁：一项不合格却让别的项生效（半生效的配置比整条拒绝更难查）。
  *
- * 落盘那一半（建 `.nide`、静默重建、`initializeProjectDirectory` 只在创建项目时
- * 调用）在 `src/main/services/project-config.service.ts`，它依赖 fs 与主进程日志，
- * 不在这里 —— 清单见 [测试](Testing) 与 [项目与欢迎窗口](Projects) 的手工验证。
+ * 合并之前那一版（扁平四项 + 单独的 `gallery.yml`）由 `parseLegacyProjectConfig` 与
+ * `parseLegacyGalleryRegistry` 读出来；「把它们合成一份写回去」在
+ * `src/main/services/project-config.service.ts`，它依赖 fs 与主进程日志，不在这里 ——
+ * 清单见 [测试](Testing) 与 [项目与欢迎窗口](Projects) 的手工验证。
  */
 
 describe('配置的形状', () => {
-  it('四个键就是配置项', () => {
+  it('四个分区就是配置项', () => {
     for (const key of ['chapters', 'gallery', 'foreshadowing', 'overview']) {
       expect(isProjectConfigKey(key)).toBe(true)
     }
@@ -44,12 +48,12 @@ describe('配置的形状', () => {
     expect(isProjectConfigKey('')).toBe(false)
   })
 
-  it('默认值都是单段英文目录名', () => {
+  it('默认值都是单段英文目录名，图鉴那一段还记着角色图鉴', () => {
     expect(DEFAULT_PROJECT_CONFIG).toEqual({
-      chapters: 'chapters',
-      gallery: 'gallery',
-      foreshadowing: 'foreshadowing',
-      overview: 'overview'
+      chapters: { path: 'chapters' },
+      gallery: { path: 'gallery', characters: 'characters' },
+      foreshadowing: { path: 'foreshadowing' },
+      overview: { path: 'overview' }
     })
   })
 
@@ -101,35 +105,84 @@ describe('normalizeConfigDirectory', () => {
   })
 })
 
+describe('normalizeDirectorySegment（图鉴名只有一段）', () => {
+  it('单段目录名照收，多段与绝对路径都拒', () => {
+    expect(normalizeDirectorySegment('characters')).toBe('characters')
+    expect(normalizeDirectorySegment(' 人物 ')).toBe('人物')
+    expect(normalizeDirectorySegment('')).toBeNull()
+    expect(normalizeDirectorySegment('卷一/角色')).toBeNull()
+    expect(normalizeDirectorySegment('D:\\Novel\\gallery')).toBeNull()
+    expect(normalizeDirectorySegment('..')).toBeNull()
+  })
+})
+
 describe('validateProjectConfig', () => {
-  it('四项齐全且合法时通过', () => {
+  it('四个分区齐全且合法时通过', () => {
     const config = {
-      chapters: 'chapters',
-      gallery: 'gallery',
-      foreshadowing: 'foreshadowing',
-      overview: 'overview'
+      chapters: { path: 'chapters' },
+      gallery: { path: 'gallery', characters: 'characters' },
+      foreshadowing: { path: 'foreshadowing' },
+      overview: { path: 'overview' }
     }
 
     expect(validateProjectConfig(config)).toEqual(config)
   })
 
-  it('缺一项就整份作废（不逐项回落）', () => {
+  it('缺一段、或一段里缺 path 就整份作废（不逐项回落）', () => {
     expect(
       validateProjectConfig({
-        chapters: 'chapters',
-        gallery: 'gallery',
-        foreshadowing: 'foreshadowing'
+        chapters: { path: 'chapters' },
+        gallery: { path: 'gallery', characters: 'characters' },
+        foreshadowing: { path: 'foreshadowing' }
+      })
+    ).toBeNull()
+
+    expect(
+      validateProjectConfig({
+        chapters: {},
+        gallery: { path: 'gallery', characters: 'characters' },
+        foreshadowing: { path: 'foreshadowing' },
+        overview: { path: 'overview' }
       })
     ).toBeNull()
   })
 
-  it('有一项非法就整份作废', () => {
+  it('一段写成了扁平字符串（合并之前那一版）就整份作废', () => {
     expect(
       validateProjectConfig({
-        chapters: '../outside',
-        gallery: 'gallery',
-        foreshadowing: 'foreshadowing',
-        overview: 'overview'
+        chapters: 'chapters',
+        gallery: { path: 'gallery', characters: 'characters' },
+        foreshadowing: { path: 'foreshadowing' },
+        overview: { path: 'overview' }
+      })
+    ).toBeNull()
+  })
+
+  it('有一项非法就整份作废（含图鉴名是多段）', () => {
+    expect(
+      validateProjectConfig({
+        chapters: { path: '../outside' },
+        gallery: { path: 'gallery', characters: 'characters' },
+        foreshadowing: { path: 'foreshadowing' },
+        overview: { path: 'overview' }
+      })
+    ).toBeNull()
+
+    expect(
+      validateProjectConfig({
+        chapters: { path: 'chapters' },
+        gallery: { path: 'gallery', characters: '卷一/角色' },
+        foreshadowing: { path: 'foreshadowing' },
+        overview: { path: 'overview' }
+      })
+    ).toBeNull()
+
+    expect(
+      validateProjectConfig({
+        chapters: { path: 'chapters' },
+        gallery: { path: 'gallery' },
+        foreshadowing: { path: 'foreshadowing' },
+        overview: { path: 'overview' }
       })
     ).toBeNull()
   })
@@ -142,15 +195,22 @@ describe('validateProjectConfig', () => {
 })
 
 describe('sanitizeProjectConfigPatch', () => {
-  it('只收已知的键与非空字符串值', () => {
+  it('只认已知的分区、分区里只认 path 与 characters、只认字符串值', () => {
     expect(
       sanitizeProjectConfigPatch({
-        chapters: 'manuscript',
-        unknown: 'x',
-        gallery: 42,
+        chapters: { path: 'manuscript', characters: 'x' },
+        unknown: { path: 'x' },
+        gallery: { path: 42, characters: '人物' },
         overview: null
       })
-    ).toEqual({ chapters: 'manuscript' })
+    ).toEqual({
+      chapters: { path: 'manuscript' },
+      gallery: { characters: '人物' }
+    })
+  })
+
+  it('分区里没有可用字段时整段丢掉', () => {
+    expect(sanitizeProjectConfigPatch({ chapters: {}, gallery: 'gallery' })).toEqual({})
   })
 
   it('非对象给空补丁', () => {
@@ -160,17 +220,41 @@ describe('sanitizeProjectConfigPatch', () => {
 })
 
 describe('applyProjectConfigPatch', () => {
-  it('全部合格时替换，未提到的键保持原样', () => {
-    const result = applyProjectConfigPatch(DEFAULT_PROJECT_CONFIG, { chapters: 'manuscript' })
+  it('全部合格时替换，未提到的分区保持原样', () => {
+    const result = applyProjectConfigPatch(DEFAULT_PROJECT_CONFIG, {
+      chapters: { path: 'manuscript' }
+    })
 
     expect(result.ok).toBe(true)
-    expect(result.config).toEqual({ ...DEFAULT_PROJECT_CONFIG, chapters: 'manuscript' })
+    expect(result.config).toEqual({
+      ...DEFAULT_PROJECT_CONFIG,
+      chapters: { path: 'manuscript' }
+    })
+  })
+
+  it('图鉴那一段的 characters 也能改', () => {
+    const result = applyProjectConfigPatch(DEFAULT_PROJECT_CONFIG, {
+      gallery: { characters: '人物' }
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.config.gallery).toEqual({ path: 'gallery', characters: '人物' })
   })
 
   it('有一项不合格就一项都不改', () => {
     const result = applyProjectConfigPatch(DEFAULT_PROJECT_CONFIG, {
-      chapters: 'manuscript',
-      gallery: '../outside'
+      chapters: { path: 'manuscript' },
+      gallery: { path: '../outside' }
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.rejected).toEqual(['gallery'])
+    expect(result.config).toEqual(DEFAULT_PROJECT_CONFIG)
+  })
+
+  it('多段的角色图鉴名判为不合格', () => {
+    const result = applyProjectConfigPatch(DEFAULT_PROJECT_CONFIG, {
+      gallery: { characters: '卷一/角色' }
     })
 
     expect(result.ok).toBe(false)
@@ -179,7 +263,9 @@ describe('applyProjectConfigPatch', () => {
   })
 
   it('指向 `.nide` 内部的值判为冲突', () => {
-    const result = applyProjectConfigPatch(DEFAULT_PROJECT_CONFIG, { overview: '.nide/notes' })
+    const result = applyProjectConfigPatch(DEFAULT_PROJECT_CONFIG, {
+      overview: { path: '.nide/notes' }
+    })
 
     expect(result.ok).toBe(false)
     expect(result.conflicts).toEqual(['overview'])
@@ -188,67 +274,94 @@ describe('applyProjectConfigPatch', () => {
 })
 
 describe('config.yml 的文本', () => {
-  it('写出来的形状稳定：注释头 + 四个带引号的字段', () => {
+  it('写出来的形状稳定：注释头 + 四段，每段缩进两格', () => {
     expect(serializeProjectConfig(DEFAULT_PROJECT_CONFIG)).toBe(
       [
         '# NIDE project configuration',
         '# Paths are relative to the project root.',
-        'chapters: "chapters"',
-        'gallery: "gallery"',
-        'foreshadowing: "foreshadowing"',
-        'overview: "overview"',
+        'chapters:',
+        '  path: "chapters"',
+        'gallery:',
+        '  path: "gallery"',
+        '  characters: "characters"',
+        'foreshadowing:',
+        '  path: "foreshadowing"',
+        'overview:',
+        '  path: "overview"',
         ''
       ].join('\n')
     )
   })
 
-  it('读写一个来回不丢东西（含引号）', () => {
+  it('读写一个来回不丢东西（含引号与角色图鉴名）', () => {
     const config = {
-      chapters: 'chapters/volume-1',
-      gallery: 'a "quoted" name',
-      foreshadowing: 'foreshadowing',
-      overview: 'overview'
+      chapters: { path: 'chapters/volume-1' },
+      gallery: { path: 'a "quoted" name', characters: '人物' },
+      foreshadowing: { path: 'foreshadowing' },
+      overview: { path: 'overview' }
     }
 
     const text = serializeProjectConfig(config)
     // 值里的引号在写出来时必须被转义，否则读回来的是另一个值
-    expect(text).toContain('gallery: "a \\"quoted\\" name"')
+    expect(text).toContain('  path: "a \\"quoted\\" name"')
     expect(parseProjectConfig(text)).toEqual(config)
   })
 
   it('反斜杠按分隔符收敛成 /（Windows 上习惯写的那种路径）', () => {
-    expect(
-      parseProjectConfig(
-        [
-          'chapters: chapters\\volume-1',
-          'gallery: gallery',
-          'foreshadowing: foreshadowing',
-          'overview: overview'
-        ].join('\n')
-      )
-    ).toEqual({ ...DEFAULT_PROJECT_CONFIG, chapters: 'chapters/volume-1' })
+    const text = [
+      'chapters:',
+      '  path: chapters\\volume-1',
+      'gallery:',
+      '  path: gallery',
+      '  characters: characters',
+      'foreshadowing:',
+      '  path: foreshadowing',
+      'overview:',
+      '  path: overview'
+    ].join('\n')
 
-    // 分隔符的语义优先于「名字里真的有反斜杠」：那样的目录在 Windows 上建不出来，
-    // 与其留下一个各平台表现不同的值，不如判为坏配置
-    expect(parseProjectConfig('chapters: "a\\\\b"\n')).toBeNull()
+    expect(parseProjectConfig(text)).toEqual({
+      ...DEFAULT_PROJECT_CONFIG,
+      chapters: { path: 'chapters/volume-1' }
+    })
   })
 
-  it('人手写的普通标量也认', () => {
-    expect(
-      parseProjectConfig(
-        ['chapters: chapters', 'gallery: gallery', 'foreshadowing: f', 'overview: o'].join('\n')
-      )
-    ).toEqual({ chapters: 'chapters', gallery: 'gallery', foreshadowing: 'f', overview: 'o' })
+  it('人手写的普通标量也认（不强制加引号）', () => {
+    const text = [
+      'chapters:',
+      '    path: chapters',
+      'gallery:',
+      '    path: gallery',
+      '    characters: 人物',
+      'foreshadowing:',
+      '    path: f',
+      'overview:',
+      '    path: o'
+    ].join('\n')
+
+    expect(parseProjectConfig(text)).toEqual({
+      chapters: { path: 'chapters' },
+      gallery: { path: 'gallery', characters: '人物' },
+      foreshadowing: { path: 'f' },
+      overview: { path: 'o' }
+    })
   })
 
-  it('未知的键被忽略，BOM 与 CRLF 都能读', () => {
+  it('未知的分区连同它缩进的子键一起被忽略，BOM 与 CRLF 都能读', () => {
     const text = [
       '\uFEFF# comment',
-      'chapters: "chapters"',
-      'gallery: "gallery"',
-      'foreshadowing: "foreshadowing"',
-      'overview: "overview"',
-      'future-key: "whatever"',
+      'chapters:',
+      '  path: "chapters"',
+      'gallery:',
+      '  path: "gallery"',
+      '  characters: "characters"',
+      'foreshadowing:',
+      '  path: "foreshadowing"',
+      'overview:',
+      '  path: "overview"',
+      'future-section:',
+      '  path: "whatever"',
+      '  characters: "whatever"',
       ''
     ].join('\r\n')
 
@@ -256,26 +369,138 @@ describe('config.yml 的文本', () => {
   })
 
   it('坏掉的写法判为坏配置，而不是猜一个值', () => {
-    // 空值、单引号、锚点、块标量、嵌套映射
-    expect(parseProjectConfig('chapters:\n')).toBeNull()
-    expect(parseProjectConfig("chapters: 'chapters'\n")).toBeNull()
-    expect(parseProjectConfig('chapters: &anchor chapters\n')).toBeNull()
-    expect(parseProjectConfig('chapters: |\n  chapters\n')).toBeNull()
-    expect(parseProjectConfig('chapters:\n  nested: x\n')).toBeNull()
-    expect(parseProjectConfig('chapters: true\n')).toBeNull()
-    expect(parseProjectConfig('chapters: 42\n')).toBeNull()
-    expect(parseProjectConfig('not-a-mapping\n')).toBeNull()
+    const section = (body: string): string =>
+      ['chapters:', body, 'foreshadowing:', '  path: f', 'overview:', '  path: o'].join('\n')
+
+    // 空值、单引号、锚点、块标量、流式集合、别的类型
+    expect(parseProjectConfig(section('  path:'))).toBeNull()
+    expect(parseProjectConfig(section("  path: 'chapters'"))).toBeNull()
+    expect(parseProjectConfig(section('  path: &anchor chapters'))).toBeNull()
+    expect(parseProjectConfig(section('  path: |\n    chapters'))).toBeNull()
+    expect(parseProjectConfig(section('  path: {a: b}'))).toBeNull()
+    expect(parseProjectConfig(section('  path: true'))).toBeNull()
+    expect(parseProjectConfig(section('  path: 42'))).toBeNull()
     // 引号没闭合
-    expect(parseProjectConfig('chapters: "chapters\n')).toBeNull()
+    expect(parseProjectConfig(section('  path: "chapters'))).toBeNull()
+    // 顶层不是一个 `键:`
+    expect(parseProjectConfig('not-a-mapping\n')).toBeNull()
+    // 缩进的行没有可归属的分区
+    expect(parseProjectConfig('  path: chapters\n')).toBeNull()
   })
 
-  it('只有部分键时判为坏配置', () => {
-    expect(parseProjectConfig('chapters: "chapters"\n')).toBeNull()
+  it('缺一段、或图鉴那一段缺 characters 时判为坏配置', () => {
+    expect(parseProjectConfig('chapters:\n  path: chapters\n')).toBeNull()
+
+    expect(
+      parseProjectConfig(
+        [
+          'chapters:',
+          '  path: chapters',
+          'gallery:',
+          '  path: gallery',
+          'foreshadowing:',
+          '  path: foreshadowing',
+          'overview:',
+          '  path: overview'
+        ].join('\n')
+      )
+    ).toBeNull()
+  })
+
+  it('图鉴名是多段时判为坏配置', () => {
+    expect(
+      parseProjectConfig(
+        [
+          'chapters:',
+          '  path: chapters',
+          'gallery:',
+          '  path: gallery',
+          '  characters: 卷一/角色',
+          'foreshadowing:',
+          '  path: foreshadowing',
+          'overview:',
+          '  path: overview'
+        ].join('\n')
+      )
+    ).toBeNull()
   })
 
   it('空文件判为坏配置（调用方据此写回默认值）', () => {
     expect(parseProjectConfig('')).toBeNull()
     expect(parseProjectConfig('# 只有注释\n')).toBeNull()
+  })
+})
+
+describe('合并之前那一版的两份文件', () => {
+  const legacy = [
+    '# NIDE project configuration',
+    '# Paths are relative to the project root.',
+    'chapters: "chapters"',
+    'gallery: "gallery"',
+    'foreshadowing: "foreshadowing"',
+    'overview: "overview"'
+  ].join('\n')
+
+  it('旧版 config.yml 是扁平四项，读得出来', () => {
+    expect(parseLegacyProjectConfig(legacy)).toEqual({
+      chapters: 'chapters',
+      gallery: 'gallery',
+      foreshadowing: 'foreshadowing',
+      overview: 'overview'
+    })
+  })
+
+  it('旧版也认手写的裸标量、反斜杠与未知键', () => {
+    expect(
+      parseLegacyProjectConfig(
+        [
+          'chapters: chapters\\volume-1',
+          'gallery: gallery',
+          'foreshadowing: f',
+          'overview: o'
+        ].join('\n')
+      )
+    ).toEqual({
+      chapters: 'chapters/volume-1',
+      gallery: 'gallery',
+      foreshadowing: 'f',
+      overview: 'o'
+    })
+
+    expect(parseLegacyProjectConfig(`${legacy}\nfuture-key: "whatever"`)).toEqual({
+      chapters: 'chapters',
+      gallery: 'gallery',
+      foreshadowing: 'foreshadowing',
+      overview: 'overview'
+    })
+  })
+
+  it('新格式不是旧格式：两种写法不会互相误读', () => {
+    expect(parseLegacyProjectConfig(serializeProjectConfig(DEFAULT_PROJECT_CONFIG))).toBeNull()
+    // 反过来也一样：旧格式进不了新格式那一份
+    expect(parseProjectConfig(legacy)).toBeNull()
+  })
+
+  it('旧版读不出来时给 null（缺键、值非法、缩进）', () => {
+    expect(parseLegacyProjectConfig('')).toBeNull()
+    expect(parseLegacyProjectConfig('chapters: chapters\n')).toBeNull()
+    expect(
+      parseLegacyProjectConfig(
+        'chapters: ../outside\ngallery: gallery\nforeshadowing: f\noverview: o'
+      )
+    ).toBeNull()
+    expect(parseLegacyProjectConfig('chapters:\n  path: chapters\n')).toBeNull()
+  })
+
+  it('旧版 gallery.yml 只认一个 characters 键', () => {
+    expect(parseLegacyGalleryRegistry('# NIDE gallery registry\ncharacters: "人物"\n')).toBe('人物')
+    expect(parseLegacyGalleryRegistry('characters: characters\n')).toBe('characters')
+    expect(parseLegacyGalleryRegistry('')).toBeNull()
+    expect(parseLegacyGalleryRegistry('# 只有注释\n')).toBeNull()
+    expect(parseLegacyGalleryRegistry('characters: 12\n')).toBeNull()
+    expect(parseLegacyGalleryRegistry('characters: 卷一/角色\n')).toBeNull()
+    expect(parseLegacyGalleryRegistry('characters: ../外面\n')).toBeNull()
+    expect(parseLegacyGalleryRegistry('characters:\n  characters: x\n')).toBeNull()
   })
 })
 

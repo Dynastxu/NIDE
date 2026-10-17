@@ -33,7 +33,7 @@ interface GalleryState {
   root: string | null
   /** 项目里的图鉴。null 表示**还没读过**（空数组表示确实一个都没有） */
   galleries: GalleryFolder[] | null
-  /** `.nide/gallery.yml`：哪个图鉴是角色图鉴。null 表示还没读过 */
+  /** `.nide/config.yml` 里图鉴那一段的 `characters`：哪个图鉴是角色图鉴。null 表示还没读过 */
   registry: GalleryRegistry | null
   loading: boolean
   /** 读图鉴列表的失败原因；null 表示这次读没出错 */

@@ -1,6 +1,6 @@
-import { parseYamlScalar, parseYamlTextValue, quoteYamlValue } from '@shared/yaml'
+import { parseYamlTextValue, quoteYamlValue } from '@shared/yaml'
 import { baseNameOf, extensionOf } from './files'
-import { normalizeConfigDirectory } from './config'
+import { DEFAULT_PROJECT_CONFIG, normalizeDirectorySegment } from './config'
 import { parseDocumentFields, type FrontmatterCell } from './frontmatter'
 import type { CreateEntryFailureReason, DirReadFailureReason } from './files'
 
@@ -76,13 +76,13 @@ export const DEFAULT_GALLERY_FIELDS: readonly string[] = ['名称', '描述']
  * 默认角色图鉴的字段。
  *
  * 比通用默认多一项「外貌」，因为角色图鉴还有一个消费者：章节表单的「出场角色」
- * （见 .nide/gallery.yml 的注册表）。第一章还没写、先建几个角色是常态，所以字段要
- * 够用而不必先改配置。
+ * （见 .nide/config.yml 里图鉴那一段的 `characters`）。第一章还没写、先建几个角色是
+ * 常态，所以字段要够用而不必先改配置。
  */
 export const DEFAULT_CHARACTER_GALLERY_FIELDS: readonly string[] = ['名称', '外貌']
 
-/** 新建项目时默认建出来的那个图鉴（角色）的目录名 */
-export const DEFAULT_CHARACTER_GALLERY_NAME = 'characters'
+/** 新建项目时默认建出来的那个图鉴（角色）的目录名：默认配置里图鉴那一段记着它 */
+export const DEFAULT_CHARACTER_GALLERY_NAME = DEFAULT_PROJECT_CONFIG.gallery.characters
 
 /** 字段名长度上限。按字符算，与文件名的上限同一条理由（中日文按字节算会莫名很短） */
 export const MAX_GALLERY_FIELD_LENGTH = 64
@@ -401,7 +401,7 @@ export function composeGalleryEntry(): string {
   return `${GALLERY_CATEGORY_FIELD}: ${quoteYamlValue(GALLERY_CATEGORY)}\n${GALLERY_DATA_FIELD}:\n`
 }
 
-// ============ 注册表（.nide/gallery.yml） ============
+// ============ 角色图鉴（.nide/config.yml 的 gallery.characters） ============
 
 /**
  * 项目里「哪个图鉴是干什么用的」。
@@ -410,82 +410,30 @@ export function composeGalleryEntry(): string {
  * 写死在代码里，是因为图鉴的目录名是用户自己的命名（把 `characters` 改成 `人物` 是
  * 常事），而「角色图鉴是哪一个」这句话得有个地方记住。
  *
- * 存的是**图鉴目录的名字**（相对图鉴内容目录的一层），不是绝对路径：`.nide` 是要跟
- * 项目一起进版本库的，绝对路径换台机器就指向别处。
+ * 值记在 `.nide/config.yml` 图鉴那一段的 `characters` 里（见 ./config）。这一层把它
+ * 单独取出来，是因为图鉴的通道与界面只关心这一个字段。存的是**图鉴目录的名字**
+ * （相对图鉴内容目录的一层），不是绝对路径：`.nide` 要跟项目一起进版本库，
+ * 绝对路径换台机器就指向别处。
  */
 export interface GalleryRegistry {
   /** 角色图鉴的目录名 */
   characters: string
 }
 
-/** 注册表里那个键 */
-export const GALLERY_REGISTRY_CHARACTERS_KEY = 'characters'
-
-/** `.nide` 里那份注册表的文件名 */
-export const PROJECT_GALLERY_FILE_NAME = 'gallery.yml'
-
 /** 默认注册表：角色图鉴叫 `characters`（新建项目就会把它建出来） */
 export const DEFAULT_GALLERY_REGISTRY: GalleryRegistry = {
   characters: DEFAULT_CHARACTER_GALLERY_NAME
 }
 
-/** 注册表文件的注释头 */
-export const GALLERY_REGISTRY_HEADER =
-  '# NIDE gallery registry\n' + '# Gallery folder names, relative to the gallery directory.\n'
-
-/** 按固定顺序序列化注册表 */
-export function serializeGalleryRegistry(registry: GalleryRegistry): string {
-  return `${GALLERY_REGISTRY_HEADER}${GALLERY_REGISTRY_CHARACTERS_KEY}: ${quoteYamlValue(
-    registry.characters
-  )}\n`
-}
-
-/**
- * 读注册表；读不出来给 null（调用方会回落成默认注册表，见主进程的 loadGalleryRegistry）。
- *
- * 与 `.nide/config.yml` 同一档：只认顶层、只认这一个键、值必须是能读成字符串的标量。
- * 缺键、值不是字符串都判为坏文件 —— 一份读不懂的注册表留着的唯一后果是每次启动都再
- * 失败一次。
- */
-export function parseGalleryRegistry(text: string): GalleryRegistry | null {
-  if (typeof text !== 'string') return null
-
-  for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (line.length === 0 || line.startsWith('#')) continue
-
-    // 顶格之外的东西说明这不是本模块写出来的那份文件
-    if (/^\s/.test(rawLine)) return null
-
-    const separator = line.indexOf(':')
-    if (separator <= 0) return null
-
-    const key = line.slice(0, separator).trim()
-    if (key !== GALLERY_REGISTRY_CHARACTERS_KEY) continue
-
-    const value = parseYamlScalar(line.slice(separator + 1).trim())
-    const name = value === null ? null : normalizeGalleryName(value)
-    if (name === null) return null
-
-    return { characters: name }
-  }
-
-  return null
-}
-
 /**
  * 把一个名字收敛成「图鉴目录名」：**只有一段**，不是绝对路径、不含 `..`。
  *
- * 复用配置里那份目录校验（`normalizeConfigDirectory`）再加一条「只有一段」：图鉴是
+ * 判据与配置里那个 `characters` 是同一份实现（`normalizeDirectorySegment`）：图鉴是
  * 内容目录底下的一层，`卷一/角色` 那样的多段名字在这里没有意义，而放它过去就等于
- * 让注册表能指向任何地方。
+ * 让配置能指向任意一层。
  */
 export function normalizeGalleryName(raw: string): string | null {
-  const normalized = normalizeConfigDirectory(raw)
-  if (normalized === null) return null
-  if (normalized.includes('/')) return null
-
-  return normalized
+  return normalizeDirectorySegment(raw)
 }
 
 // ============ IPC ============
@@ -496,7 +444,7 @@ export function normalizeGalleryName(raw: string): string | null {
  * 和其它通道一样集中在这里：拼错通道名没有编译错误，只会在运行时静默失效。
  */
 export const PROJECT_GALLERY_CHANNELS = {
-  /** 读图鉴目录下的所有图鉴（含各自的字段表与条目）与 `.nide` 里的注册表（invoke） */
+  /** 读图鉴目录下的所有图鉴（含各自的字段表与条目）与配置里的角色图鉴（invoke） */
   readGalleries: 'host:project-read-galleries',
   /** 新建一个图鉴：一个文件夹 + 它的 `config.yml`（invoke），参数见 GalleryCreateRequest */
   createGallery: 'host:project-create-gallery',

@@ -19,8 +19,8 @@ const logger = loggerFor('gallery')
  * 图鉴的三个动作：新建图鉴、新建条目、把某一个图鉴设成角色图鉴。
  *
  * 与 `chapter-actions.ts` 同一层、同一条约定：**写盘归主进程，这里只发起与刷新**。
- * 三个动作都会改盘（前两个写用户内容，后一个写 `.nide/gallery.yml`），而落点由主进程
- * 核对（新建图鉴只允许建在配置里那个图鉴内容目录里，见 ipc/project.ipc.ts）。
+ * 三个动作都会改盘（前两个写用户内容，后一个改 `.nide/config.yml` 里的角色图鉴），
+ * 而落点由主进程核对（新建图鉴只允许建在配置里那个图鉴内容目录里，见 ipc/project.ipc.ts）。
  *
  * 与「文件树里右键新建」的差别，和章节那一层完全对称：**建出来那一刻是不是完整的**。
  * 树上的新建建的是一个空文件或空目录；这里是「开一个图鉴」与「开一个条目」，前者连
@@ -126,9 +126,9 @@ export async function createGalleryEntryAction(
 /**
  * 把一个图鉴设成角色图鉴（章节表单的出场角色从它里面选）。
  *
- * 这条动作**不写用户内容**，写的是 `.nide/gallery.yml`，所以它没有对话框、也只会就地
- * 改一行：成功之后把主进程给回来的注册表记进 store（重读整份图鉴列表只为了一行结果
- * 不合适）。失败进全局提示 —— 与删除失败同一个落点。
+ * 这条动作**不写用户内容**，改的是 `.nide/config.yml` 里图鉴那一段的 `characters`，
+ * 所以它没有对话框、也只会就地改一行：成功之后把主进程给回来的注册表记进 store
+ * （重读整份图鉴列表只为了一行结果不合适）。失败进全局提示 —— 与删除失败同一个落点。
  */
 export async function setCharacterGalleryAction(gallery: GalleryFolder): Promise<void> {
   const explorer = useExplorerStore.getState()

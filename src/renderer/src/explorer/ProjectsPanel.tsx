@@ -198,8 +198,8 @@ function ChapterSection({ onCreate }: { onCreate: () => void }): JSX.Element {
  *
  * - 多一层折叠（一个图鉴一段），因为它天然有分组；
  * - 每个分组自己的菜单里有「编辑字段」与「设为角色图鉴」—— 前者打开 `config.yml`
- *   （见 renderer/editor/GalleryConfigForm），后者改 `.nide/gallery.yml`，也就是
- *   章节表单的出场角色从哪儿选。
+ *   （见 renderer/editor/GalleryConfigForm），后者改 `.nide/config.yml` 里图鉴那一段
+ *   的 `characters`，也就是章节表单的出场角色从哪儿选。
  */
 function GallerySection(): JSX.Element {
   const t = useT()

@@ -13,20 +13,21 @@ import {
   isGalleryEntryPath,
   normalizeGalleryName,
   parseGalleryConfig,
-  parseGalleryRegistry,
   readGalleryEntry,
   serializeGalleryConfig,
-  serializeGalleryRegistry,
   validateGalleryField
 } from '@shared/project'
 
 /**
- * 图鉴的纯逻辑：字段表（`config.yml`）、条目（整份 yml）、以及 `.nide` 里的注册表。
+ * 图鉴的纯逻辑：字段表（`config.yml`）、条目（整份 yml）、以及角色图鉴那一段。
  *
  * 这一层不碰盘，是主进程与渲染进程共用的**唯一**一份判据 —— 界面按它决定给不给表单、
  * 主进程按它落盘。所以用例重点撞这几处：写出去的读得回来（包括换行与引号）、
  * **读不出来的形状要判为读不出来**（判宽了表单就会改掉一份别人的文件）、以及
  * 字段名与解析规则的一致性（一个存得进去却读不回来的字段名是最难查的那种）。
+ *
+ * 「哪个图鉴是角色图鉴」现在记在项目配置里（见 shared/project/config 的
+ * gallery.characters），这一份只保留它那一段的契约。
  */
 
 /**
@@ -257,26 +258,9 @@ describe('要编辑的字段与文件里多出来的键', () => {
   })
 })
 
-describe('注册表（.nide/gallery.yml）', () => {
-  it('写出来读回来还是同一份', () => {
-    expect(parseGalleryRegistry(serializeGalleryRegistry({ characters: 'characters' }))).toEqual({
-      characters: 'characters'
-    })
-    expect(parseGalleryRegistry(serializeGalleryRegistry({ characters: '人物' }))).toEqual({
-      characters: '人物'
-    })
-  })
-
+describe('角色图鉴', () => {
   it('默认注册表指向默认的角色图鉴目录', () => {
     expect(DEFAULT_GALLERY_REGISTRY).toEqual({ characters: 'characters' })
-  })
-
-  it('缺键、值不是字符串、或者值是多段路径时判为坏文件', () => {
-    expect(parseGalleryRegistry('')).toBeNull()
-    expect(parseGalleryRegistry('# 只有注释\n')).toBeNull()
-    expect(parseGalleryRegistry('characters: 12\n')).toBeNull()
-    expect(parseGalleryRegistry('characters: 卷一/角色\n')).toBeNull()
-    expect(parseGalleryRegistry('characters: ../外面\n')).toBeNull()
   })
 
   it('图鉴名只有一段：绝对路径与 .. 都过不去', () => {

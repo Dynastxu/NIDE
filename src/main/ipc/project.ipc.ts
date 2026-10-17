@@ -319,7 +319,7 @@ export function registerProjectIPC(): void {
 
   /**
    * 更新配置。补丁在这里**不做形状信任**：服务端的 sanitizeProjectConfigPatch
-   * 只认已知的四个键与非空字符串，校验不过时一项都不写。
+   * 只认已知的四个分区（`{ chapters: { path } }` 这种形状），校验不过时一项都不写。
    */
   ipcMain.handle(
     PROJECT_CONFIG_CHANNELS.update,
@@ -340,8 +340,8 @@ export function registerProjectIPC(): void {
    * 多一条：**报上来的路径必须正是配置里那个图鉴内容目录**。图鉴是分区结构，若随便
    * 一个目录都能被当成「图鉴目录」，渲染进程就能借它枚举项目里任意一层的子目录。
    *
-   * 注册表（`.nide/gallery.yml`）与列表在同一个结果里：界面上它们总是一起用
-   * （「哪个图鉴是角色图鉴」只有在图鉴列表里才有意义）。
+   * 注册表（`.nide/config.yml` 图鉴那一段的 `characters`）与列表在同一个结果里：
+   * 界面上它们总是一起用（「哪个图鉴是角色图鉴」只有在图鉴列表里才有意义）。
    */
   ipcMain.handle(
     PROJECT_GALLERY_CHANNELS.readGalleries,
@@ -588,7 +588,7 @@ function caseInsensitivePaths(): boolean {
 async function resolveGalleryRoot(root: string): Promise<string | null> {
   try {
     const config = await loadProjectConfig(root)
-    return resolveConfigDirectory(root, config.gallery)
+    return resolveConfigDirectory(root, config.gallery.path)
   } catch (err) {
     logger.warn('Failed to resolve the gallery directory from the project configuration', {
       error: err

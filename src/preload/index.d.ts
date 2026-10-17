@@ -19,6 +19,7 @@ import type {
   GalleryRegistryUpdateRequest,
   GalleryRegistryUpdateResult,
   ProjectConfig,
+  ProjectConfigPatch,
   ProjectConfigUpdateResult,
   ProjectListItem,
   ProjectOpenResult,
@@ -224,10 +225,11 @@ export interface ProjectAPI {
    */
   readConfig: () => Promise<ProjectConfig | null>
   /**
-   * 更新当前项目的配置。**一项不合格就一项都不写**，返回的 config 是磁盘上那份
-   * 没被改动的配置，界面据此说明哪一项被拒了。
+   * 更新当前项目的配置。补丁里只放要改的分区（例如 `{ chapters: { path: 'manuscript' } }`）；
+   * **一项不合格就一项都不写**，返回的 config 是磁盘上那份没被改动的配置，界面据此
+   * 说明哪一项被拒了。
    */
-  updateConfig: (patch: Partial<ProjectConfig>) => Promise<ProjectConfigUpdateResult | null>
+  updateConfig: (patch: ProjectConfigPatch) => Promise<ProjectConfigUpdateResult | null>
 }
 
 export interface HostAPI {

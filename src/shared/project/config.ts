@@ -8,6 +8,24 @@
  * 配置里只放**相对项目根**的路径。绝对路径一旦落盘，项目被移动或换一台机器就
  * 指向了别处，而这份文件是要跟项目一起进版本库的。
  *
+ * ## 每个分区是一段映射
+ *
+ * 四个内容分区各成一段，段里至少有一个 `path`；图鉴那一段多一个 `characters`
+ * （角色图鉴的目录名）：
+ *
+ * ```
+ * chapters:
+ *   path: "chapters"
+ * gallery:
+ *   path: "gallery"
+ *   characters: "characters"
+ * ```
+ *
+ * `characters` 原先单独记在 `.nide/gallery.yml` 里，后来合并进这一份。两者都是
+ * 项目结构的一部分：分成两份文件时，删掉其中一份就只剩半份配置，而它们改的本来
+ * 就是同一件事。旧文件由主进程在读到旧格式时合并一次（见 parseLegacyProjectConfig
+ * 与 parseLegacyGalleryRegistry）。
+ *
  * YAML 那一档写法（标量与引号）在 `@shared/yaml`：章节 Markdown 的 frontmatter 用的是
  * 同一档，两处共用同一份实现，才不会出现「config.yml 读得出、frontmatter 读不出」
  * 这类只在运行时才看得见的分叉。
@@ -15,35 +33,58 @@
 
 import { parseYamlScalar, quoteYamlValue } from '@shared/yaml'
 
-/** 配置项：四个内容目录 */
+/** 配置项：四个内容分区 */
 export const PROJECT_CONFIG_KEYS = ['chapters', 'gallery', 'foreshadowing', 'overview'] as const
 
 export type ProjectConfigKey = (typeof PROJECT_CONFIG_KEYS)[number]
 
+/** 每一段共同的键：这一段自己的目录 */
+export const PROJECT_SECTION_PATH_KEY = 'path'
+
+/** 只有图鉴那一段有的键：角色图鉴的目录名 */
+export const PROJECT_SECTION_CHARACTERS_KEY = 'characters'
+
+/** 一个内容分区：它自己的目录 */
+export interface ProjectSection {
+  /** 相对项目根的目录路径，段间用 `/` 分隔（见 normalizeConfigDirectory） */
+  path: string
+}
+
+/** 图鉴分区：目录之外还记着哪一个是角色图鉴 */
+export interface GallerySection extends ProjectSection {
+  /**
+   * 角色图鉴的目录名，相对图鉴目录的一层（见 normalizeDirectorySegment）。
+   *
+   * 章节表单的出场角色从它里面选。存目录名而不是绝对路径，理由与 `path` 相同：
+   * `.nide` 要跟项目一起进版本库，绝对路径换台机器就指向别处。
+   */
+  characters: string
+}
+
 /**
  * 项目配置。
  *
- * 每一项都是**相对项目根**的目录路径，段间用 `/` 分隔（见 normalizeConfigDirectory）。
- * 目录名英文，是为了让同一份内容目录在中文、日文、英文系统上长得一样 —— 显示名
- * 该由界面本地化，磁盘上的结构不该随界面语言变。
+ * 每一段里的 `path` 都是**相对项目根**的目录路径，段间用 `/` 分隔（见
+ * normalizeConfigDirectory）。目录名英文，是为了让同一份内容目录在中文、日文、英文
+ * 系统上长得一样 —— 显示名该由界面本地化，磁盘上的结构不该随界面语言变。
  */
 export interface ProjectConfig {
   /** 章节 */
-  chapters: string
+  chapters: ProjectSection
   /** 图鉴 */
-  gallery: string
+  gallery: GallerySection
   /** 伏笔 */
-  foreshadowing: string
+  foreshadowing: ProjectSection
   /** 概述 */
-  overview: string
+  overview: ProjectSection
 }
 
 /** 默认配置：创建项目时按它建目录，也在配置缺失或读坏时回落 */
 export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
-  chapters: 'chapters',
-  gallery: 'gallery',
-  foreshadowing: 'foreshadowing',
-  overview: 'overview'
+  chapters: { path: 'chapters' },
+  gallery: { path: 'gallery', characters: 'characters' },
+  foreshadowing: { path: 'foreshadowing' },
+  overview: { path: 'overview' }
 }
 
 /** `.nide` 目录名。宿主的项目级数据都在它里面 */
@@ -51,6 +92,14 @@ export const PROJECT_META_DIR_NAME = '.nide'
 
 /** 配置文件名（在 `.nide` 之内） */
 export const PROJECT_CONFIG_FILE_NAME = 'config.yml'
+
+/**
+ * 合并之前的图鉴注册表文件名。
+ *
+ * 只用于**读取旧项目**：主进程读到旧格式的配置时把它并进 `config.yml`，随后删掉它
+ * （见 project-config.service 的 loadProjectConfig）。新项目不会写这份文件。
+ */
+export const LEGACY_GALLERY_REGISTRY_FILE_NAME = 'gallery.yml'
 
 /**
  * `.nide` 自己的忽略文件名。
@@ -108,6 +157,21 @@ export function normalizeConfigDirectory(raw: string): string | null {
 }
 
 /**
+ * 把一个名字收敛成「只有一段的目录名」，校验不过给 null。
+ *
+ * 复用 normalizeConfigDirectory 再加一条「只有一段」：图鉴的目录名是图鉴内容目录
+ * 底下的一层，`卷一/角色` 那样的多段名字在这个位置上没有意义，而放它过去就等于让
+ * 配置能指向图鉴目录里的任意一层。
+ */
+export function normalizeDirectorySegment(raw: string): string | null {
+  const normalized = normalizeConfigDirectory(raw)
+  if (normalized === null) return null
+  if (normalized.includes('/')) return null
+
+  return normalized
+}
+
+/**
  * 这个相对路径是不是宿主自己的元数据目录（`.nide` 或它内部的东西）。
  *
  * 用配置把 `chapters` 指到 `.nide` 里是能写进去、也能读出来的 —— 那样宿主就会把
@@ -126,33 +190,71 @@ export function validateProjectConfig(value: unknown): ProjectConfig | null {
   if (!value || typeof value !== 'object') return null
 
   const source = value as Record<string, unknown>
-  const config = {} as ProjectConfig
+  const paths = {} as Record<ProjectConfigKey, string>
 
   for (const key of PROJECT_CONFIG_KEYS) {
-    const directory = normalizeConfigDirectory(source[key] as string)
+    const section = source[key]
+    if (!section || typeof section !== 'object' || Array.isArray(section)) return null
+
+    const directory = normalizeConfigDirectory((section as { path?: unknown }).path as string)
     if (directory === null) return null
-    config[key] = directory
+    paths[key] = directory
   }
 
-  return config
+  const characters = normalizeDirectorySegment(
+    (source.gallery as { characters?: unknown }).characters as string
+  )
+  if (characters === null) return null
+
+  return {
+    chapters: { path: paths.chapters },
+    gallery: { path: paths.gallery, characters },
+    foreshadowing: { path: paths.foreshadowing },
+    overview: { path: paths.overview }
+  }
 }
+
+/**
+ * 一个分区的补丁：只放要改的那几项。
+ *
+ * `characters` 只有图鉴那一段用得上；别的分区即使给了也被当成未知项忽略 ——
+ * 补丁是渲染进程给的，这一层不替它猜「这段是不是图鉴」。
+ */
+export interface ProjectSectionPatch {
+  path?: string
+  characters?: string
+}
+
+/** 配置补丁：按分区给的那一份 */
+export type ProjectConfigPatch = Partial<Record<ProjectConfigKey, ProjectSectionPatch>>
 
 /**
  * 把一份任意载荷收敛成「可用的配置补丁」。
  *
- * IPC 的载荷是渲染进程给的，形状完全不可信：只认 PROJECT_CONFIG_KEYS 里的键，
- * 只认非空字符串值，坏的那一项**整条丢掉**（而不是回落成默认值）——
- * 悄悄替用户改成别的目录比拒绝这次改动更难解释。
+ * IPC 的载荷是渲染进程给的，形状完全不可信：只认 PROJECT_CONFIG_KEYS 里的分区、
+ * 分区里只认 path 与 characters 两个键、只认字符串值，坏的那一项**整条丢掉**
+ * （而不是回落成默认值）—— 悄悄替用户改成别的目录比拒绝这次改动更难解释。
  */
-export function sanitizeProjectConfigPatch(value: unknown): Partial<ProjectConfig> {
+export function sanitizeProjectConfigPatch(value: unknown): ProjectConfigPatch {
   if (!value || typeof value !== 'object') return {}
 
   const source = value as Record<string, unknown>
-  const patch: Partial<ProjectConfig> = {}
+  const patch: ProjectConfigPatch = {}
 
   for (const key of PROJECT_CONFIG_KEYS) {
-    if (typeof source[key] !== 'string') continue
-    patch[key] = source[key] as string
+    const section = source[key]
+    if (!section || typeof section !== 'object' || Array.isArray(section)) continue
+
+    const fields = section as Record<string, unknown>
+    const entry: ProjectSectionPatch = {}
+    if (typeof fields[PROJECT_SECTION_PATH_KEY] === 'string') {
+      entry.path = fields[PROJECT_SECTION_PATH_KEY] as string
+    }
+    if (key === 'gallery' && typeof fields[PROJECT_SECTION_CHARACTERS_KEY] === 'string') {
+      entry.characters = fields[PROJECT_SECTION_CHARACTERS_KEY] as string
+    }
+
+    if (entry.path !== undefined || entry.characters !== undefined) patch[key] = entry
   }
 
   return patch
@@ -162,43 +264,65 @@ export function sanitizeProjectConfigPatch(value: unknown): Partial<ProjectConfi
 export interface ProjectConfigApplyResult {
   ok: boolean
   config: ProjectConfig
-  /** 被拒绝的键：值不是合法的相对目录路径 */
+  /** 被拒绝的分区：段里有值不是合法的相对目录路径（或角色图鉴名不是一段） */
   rejected: ProjectConfigKey[]
-  /** 被拒绝的键里，值指向 `.nide` 内部的那些 */
+  /** 被拒绝的分区里，路径指向 `.nide` 内部的那些 */
   conflicts: ProjectConfigKey[]
 }
 
 /**
  * 把补丁应用到一份配置上。
  *
- * 两项都拒绝：路径不合法（逃出项目根、空路径），以及指向 `.nide` 内部的路径。
- * 返回的 `config` 在**全部**合格时才替换，否则原样返回 —— 一次改动留下一半生效
- * 的配置，比整条拒绝更难查。
+ * 两种情形都拒绝：路径不合法（逃出项目根、空路径、多段的角色图鉴名），以及路径
+ * 指向 `.nide` 内部。一个分区里只要有一项不合格，这个分区就整段不改 —— 而返回的
+ * `config` 在**全部分区都合格**时才替换，否则原样返回：一次改动留下一半生效的配置，
+ * 比整条拒绝更难查。
  */
 export function applyProjectConfigPatch(
   current: ProjectConfig,
-  patch: Partial<ProjectConfig>
+  patch: ProjectConfigPatch
 ): ProjectConfigApplyResult {
   const rejected: ProjectConfigKey[] = []
   const conflicts: ProjectConfigKey[] = []
-  const next = { ...current }
+  const next: ProjectConfig = { ...current, gallery: { ...current.gallery } }
 
   for (const key of PROJECT_CONFIG_KEYS) {
-    const raw = patch[key]
-    if (raw === undefined) continue
+    const sectionPatch = patch[key]
+    if (!sectionPatch) continue
 
-    const directory = normalizeConfigDirectory(raw)
-    if (directory === null) {
-      rejected.push(key)
+    let directory = current[key].path
+    if (sectionPatch.path !== undefined) {
+      const normalized = normalizeConfigDirectory(sectionPatch.path)
+      if (normalized === null) {
+        rejected.push(key)
+        continue
+      }
+
+      if (isMetaDirectoryPath(normalized)) {
+        conflicts.push(key)
+        continue
+      }
+
+      directory = normalized
+    }
+
+    if (key === 'gallery') {
+      let characters = current.gallery.characters
+      if (sectionPatch.characters !== undefined) {
+        const normalized = normalizeDirectorySegment(sectionPatch.characters)
+        if (normalized === null) {
+          rejected.push(key)
+          continue
+        }
+
+        characters = normalized
+      }
+
+      next.gallery = { path: directory, characters }
       continue
     }
 
-    if (isMetaDirectoryPath(directory)) {
-      conflicts.push(key)
-      continue
-    }
-
-    next[key] = directory
+    next[key] = { path: directory }
   }
 
   const ok = rejected.length === 0 && conflicts.length === 0
@@ -215,7 +339,7 @@ export function applyProjectConfigPatch(
 export const PROJECT_CONFIG_CHANNELS = {
   /** 读当前项目配置（invoke），参数是项目根绝对路径 */
   read: 'host:project-read-config',
-  /** 更新当前项目配置（invoke），参数是项目根 + 只含已知键的补丁 */
+  /** 更新当前项目配置（invoke），参数是项目根 + 只含已知分区的补丁 */
   update: 'host:project-update-config'
 } as const
 
@@ -240,37 +364,73 @@ export type ProjectConfigUpdateResult =
 // ============ config.yml 的文本读写 ============
 
 /**
- * config.yml 的写法：**只有顶层、只有字符串**。
+ * config.yml 的写法：**只有两层的映射**，每个值都是字符串。
  *
  * 标量与引号那一档实现在 `@shared/yaml`（章节 frontmatter 用的是同一档）。这里只留
- * 本文件特有的两样：落盘顺序与注释头。手改过的 config.yml 用了锚点、多行块、嵌套
- * 映射这类结构时判为坏配置，由调用方回落成默认值（见 loadProjectConfig）。
+ * 本文件特有的三样：落盘顺序、缩进与注释头。手改过的 config.yml 用了锚点、多行块、
+ * 流式集合这类结构时判为坏配置，由调用方回落成默认值（见 loadProjectConfig）。
  */
 
-/** 要落盘的字段顺序，与默认配置一致：写出来的文件每次都是同一份 */
-const YAML_FIELD_ORDER = PROJECT_CONFIG_KEYS
+/** 每一段里子键的缩进。写出来的文件固定两格，读的时候只要求「比顶层深」 */
+const YAML_SECTION_INDENT = '  '
 
 /** 配置文件的注释头。写出来的第一行永远是它 */
 const YAML_HEADER = '# NIDE project configuration\n# Paths are relative to the project root.\n'
 
-/** 按字段顺序序列化一份配置 */
+/**
+ * 一段配置该落盘哪些子键，按这个顺序。
+ *
+ * 顺序写死（而不是按对象键的顺序）是为了让写出来的文件**每次都是同一份**：磁盘上
+ * 那份与这里写出来的等价时，主进程就不再碰它（见 writeProjectConfig）。
+ */
+function sectionEntries(key: ProjectConfigKey, config: ProjectConfig): [string, string][] {
+  const entries: [string, string][] = [[PROJECT_SECTION_PATH_KEY, config[key].path]]
+  if (key === 'gallery') {
+    entries.push([PROJECT_SECTION_CHARACTERS_KEY, config.gallery.characters])
+  }
+
+  return entries
+}
+
+/** 按分区顺序序列化一份配置 */
 export function serializeProjectConfig(config: ProjectConfig): string {
-  const lines = YAML_FIELD_ORDER.map((key) => `${key}: ${quoteYamlValue(config[key])}`)
+  const lines: string[] = []
+
+  for (const key of PROJECT_CONFIG_KEYS) {
+    lines.push(`${key}:`)
+    for (const [field, value] of sectionEntries(key, config)) {
+      lines.push(`${YAML_SECTION_INDENT}${field}: ${quoteYamlValue(value)}`)
+    }
+  }
 
   return `${YAML_HEADER}${lines.join('\n')}\n`
 }
 
+/** 一行 `键: 值`。值里只去掉两端的空白，引号与注释留给调用方判 */
+function splitConfigLine(line: string): { name: string; raw: string } | null {
+  const separator = line.indexOf(':')
+  if (separator <= 0) return null
+
+  return { name: line.slice(0, separator).trim(), raw: line.slice(separator + 1).trim() }
+}
+
 /**
- * 解析 config.yml，读不出来给 null。
+ * 读 config.yml，读不出来给 null。
  *
- * 只做两件事：把每行拆成 `键: 值`，再把值交给 validateProjectConfig。因此
- * **未知的键**（别人往里写的东西）被忽略，而**缺一个键**就整份作废 ——
- * 「补上默认值」等于承认一份残缺的文件是有效的，之后所有读者都要再防一遍。
+ * 只认本模块写出来的那一档：顶层的四个分区各写一次键、值在它底下缩进的那一段里。
+ * 因此**未知的顶层键**（别人往里写的东西）连同它的子键一起被忽略，而**缺一个键**
+ * 就整份作废 —— 「补上默认值」等于承认一份残缺的文件是有效的，之后所有读者都要
+ * 再防一遍。
+ *
+ * 与合并之前那一版（四项都是扁平标量）的差别放在 parseLegacyProjectConfig 里：这里
+ * 读不出来的文件还有一次按旧格式读的机会，两份函数都不认时才判为坏配置。
  */
 export function parseProjectConfig(text: string): ProjectConfig | null {
   if (typeof text !== 'string') return null
 
-  const values: Partial<Record<ProjectConfigKey, string>> = {}
+  /** 每个分区收到的那几个子键。不认得的分区也建一个，缩进行才有归属 */
+  const sections = new Map<ProjectConfigKey, Record<string, string>>()
+  let current: Record<string, string> | null = null
 
   for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
     const line = rawLine.trim()
@@ -278,20 +438,152 @@ export function parseProjectConfig(text: string): ProjectConfig | null {
     // 空行与注释行（含写出来的那两行注释头）
     if (line.length === 0 || line.startsWith('#')) continue
 
-    // 顶格之外的东西说明这不是本模块写出来的那份文件
-    if (/^\s/.test(rawLine)) return null
+    const field = splitConfigLine(line)
+    if (field === null) return null
 
-    const separator = line.indexOf(':')
-    if (separator <= 0) return null
+    // `键: # 说明` 与 `键:` 是同一件事：值没写。行尾注释不是本模块写出来的那一档，
+    // 但把它读成一个值（注释文字会变成目录名）比判成空值糟得多
+    const raw = field.raw.startsWith('#') ? '' : field.raw
 
-    const key = line.slice(0, separator).trim()
-    if (!isProjectConfigKey(key)) continue
+    if (/^\s/.test(rawLine)) {
+      // 缩进的行属于上一个分区；没有分区可归属时说明这不是本模块写出来的文件
+      if (current === null || field.name.length === 0) return null
 
-    const value = parseYamlScalar(line.slice(separator + 1).trim())
-    if (value === null) return null
+      const value = parseYamlScalar(raw)
+      if (value === null) return null
 
-    values[key] = value
+      current[field.name] = value
+      continue
+    }
+
+    /**
+     * 顶层的一行。不认得的分区整个跳过：`current` 指向一个不落盘的临时对象，它底下
+     * 缩进的那些行因此既不算进别的分区、也不会让整份文件作废。
+     */
+    if (!isProjectConfigKey(field.name)) {
+      current = {}
+      continue
+    }
+
+    // 已知的分区写成了标量：那是合并之前那一版的写法，交给旧格式那一份去读
+    if (raw.length > 0) return null
+
+    current = {}
+    sections.set(field.name, current)
   }
 
-  return validateProjectConfig(values)
+  const paths = {} as Record<ProjectConfigKey, string>
+
+  for (const key of PROJECT_CONFIG_KEYS) {
+    const section = sections.get(key)
+    if (!section) return null
+
+    const directory = normalizeConfigDirectory(section[PROJECT_SECTION_PATH_KEY] ?? '')
+    if (directory === null) return null
+    paths[key] = directory
+  }
+
+  const characters = normalizeDirectorySegment(
+    sections.get('gallery')?.[PROJECT_SECTION_CHARACTERS_KEY] ?? ''
+  )
+  if (characters === null) return null
+
+  return {
+    chapters: { path: paths.chapters },
+    gallery: { path: paths.gallery, characters },
+    foreshadowing: { path: paths.foreshadowing },
+    overview: { path: paths.overview }
+  }
+}
+
+// ============ 旧格式（合并之前的两份文件） ============
+
+/**
+ * 合并之前那一版 `config.yml`：四项都是扁平标量。
+ *
+ * ```
+ * chapters: "chapters"
+ * gallery: "gallery"
+ * ```
+ *
+ * 只用于迁移：主进程读到这种写法时，把它和 `.nide/gallery.yml` 合成一份新的配置
+ * 写回去（见 loadProjectConfig）。新项目不会写出这种形状。
+ */
+export interface LegacyProjectConfig {
+  chapters: string
+  gallery: string
+  foreshadowing: string
+  overview: string
+}
+
+/** 读旧版 `config.yml`（扁平四项），读不出来给 null */
+export function parseLegacyProjectConfig(text: string): LegacyProjectConfig | null {
+  if (typeof text !== 'string') return null
+
+  const values: Partial<Record<ProjectConfigKey, string>> = {}
+
+  for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const line = rawLine.trim()
+
+    if (line.length === 0 || line.startsWith('#')) continue
+
+    // 顶格之外的东西说明这不是旧版写出来的那份文件
+    if (/^\s/.test(rawLine)) return null
+
+    const field = splitConfigLine(line)
+    if (field === null) return null
+    if (!isProjectConfigKey(field.name)) continue
+
+    const value = parseYamlScalar(field.raw)
+    if (value === null) return null
+
+    values[field.name] = value
+  }
+
+  const paths = {} as Record<ProjectConfigKey, string>
+  for (const key of PROJECT_CONFIG_KEYS) {
+    const directory = normalizeConfigDirectory(values[key] ?? '')
+    if (directory === null) return null
+    paths[key] = directory
+  }
+
+  return {
+    chapters: paths.chapters,
+    gallery: paths.gallery,
+    foreshadowing: paths.foreshadowing,
+    overview: paths.overview
+  }
+}
+
+/**
+ * 读旧版 `.nide/gallery.yml`（图鉴注册表），读不出来给 null。
+ *
+ * ```
+ * characters: "characters"
+ * ```
+ *
+ * 与 parseLegacyProjectConfig 同一条理由：只用于迁移，新项目不会写出这份文件。
+ */
+export function parseLegacyGalleryRegistry(text: string): string | null {
+  if (typeof text !== 'string') return null
+
+  for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const line = rawLine.trim()
+
+    if (line.length === 0 || line.startsWith('#')) continue
+
+    // 顶格之外的东西说明这不是旧版写出来的那份文件
+    if (/^\s/.test(rawLine)) return null
+
+    const field = splitConfigLine(line)
+    if (field === null) return null
+    if (field.name !== PROJECT_SECTION_CHARACTERS_KEY) continue
+
+    const value = parseYamlScalar(field.raw)
+    if (value === null) return null
+
+    return normalizeDirectorySegment(value)
+  }
+
+  return null
 }

@@ -22,10 +22,10 @@ const ROOT = 'D:\\Novel'
 const CHAPTERS_DIR = `${ROOT}\\chapters`
 
 const CONFIG: ProjectConfig = {
-  chapters: 'chapters',
-  gallery: 'gallery',
-  foreshadowing: 'foreshadowing',
-  overview: 'overview'
+  chapters: { path: 'chapters' },
+  gallery: { path: 'gallery', characters: 'characters' },
+  foreshadowing: { path: 'foreshadowing' },
+  overview: { path: 'overview' }
 }
 
 const CHAPTER: ChapterFile = {

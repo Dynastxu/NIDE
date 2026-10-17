@@ -52,6 +52,7 @@ import type {
   GalleryRegistryUpdateRequest,
   GalleryRegistryUpdateResult,
   ProjectConfig,
+  ProjectConfigPatch,
   ProjectConfigUpdateResult,
   ProjectListItem,
   ProjectOpenResult,
@@ -384,10 +385,10 @@ const projectAPI = {
   readConfig: (): Promise<ProjectConfig | null> => ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.read),
 
   /**
-   * 更新当前项目的配置。补丁里只放要改的键；校验不合格时主进程**一项都不写**，
-   * 返回的 config 是磁盘上那份没被改动的配置。
+   * 更新当前项目的配置。补丁里只放要改的分区（`{ chapters: { path: 'manuscript' } }`）；
+   * 校验不合格时主进程**一项都不写**，返回的 config 是磁盘上那份没被改动的配置。
    */
-  updateConfig: (patch: Partial<ProjectConfig>): Promise<ProjectConfigUpdateResult | null> =>
+  updateConfig: (patch: ProjectConfigPatch): Promise<ProjectConfigUpdateResult | null> =>
     ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.update, patch)
 }
 

@@ -74,7 +74,7 @@ interface ExplorerState {
   notice: string | null
 
   /**
-   * 当前项目的配置（`.nide/config.yml`：四个内容目录）。
+   * 当前项目的配置（`.nide/config.yml`：四个内容分区，图鉴那一段还带着角色图鉴）。
    *
    * null 表示**还没读过**，不是「没有配置」：主进程的读通道会在配置缺失或坏掉时
    * 静默重建一份默认配置，所以读到了就一定有一份可用的。放在这里是因为它属于
@@ -392,7 +392,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
           config,
           // 内容目录是相对项目根的，绝对路径在这里一次算出来 —— 下游（章节列表、
           // 将来的图鉴与伏笔）拿到的都该是能直接用的绝对路径
-          chaptersDir: joinProjectPath(root, config.chapters)
+          chaptersDir: joinProjectPath(root, config.chapters.path)
         })
       } catch (err) {
         logger.error('Reading the project configuration failed unexpectedly', { error: err })
@@ -437,7 +437,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
       const config = get().config
       if (!root || !config) return
 
-      await useGalleryStore.getState().load(joinProjectPath(root, config.gallery), force)
+      await useGalleryStore.getState().load(joinProjectPath(root, config.gallery.path), force)
     },
 
     toggle: async (dirPath) => {

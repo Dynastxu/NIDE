@@ -361,7 +361,8 @@ export const zhCN = {
   'host.editor.form.outline': '细纲',
   'host.editor.form.outline.placeholder': '这一章要写什么',
   'host.editor.form.characters': '出场角色',
-  // 建议来自角色图鉴（.nide/gallery.yml 记着是哪一个），但仍然可以手写一个还没建档的角色
+  // 建议来自角色图鉴（.nide/config.yml 的 gallery.characters 记着是哪一个），
+  // 但仍然可以手写一个还没建档的角色
   'host.editor.form.characters.hint': '从角色图鉴里选，也可以直接输入一个还没建档的名字',
   'host.editor.form.characters.placeholder': '输入名字后回车',
   'host.editor.form.characters.remove': '把「{name}」从出场角色里去掉',
