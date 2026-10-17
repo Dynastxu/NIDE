@@ -24,6 +24,13 @@ import {
  * 不跟着符号链接走）。
  */
 
+/**
+ * 图鉴字段名本身就是中文，直接写成标识符会让 IDE 的非 ASCII 名称检查报警。
+ * 对象键用这里的 ASCII 常量（计算键），字段名仍是中文原文。
+ */
+const FIELD_NAME = '名称'
+const FIELD_APPEARANCE = '外貌'
+
 let root = ''
 let outside = ''
 const windows = process.platform === 'win32'
@@ -132,9 +139,12 @@ describe('createProjectGallery', () => {
 describe('readProjectGalleries', () => {
   it('内容目录下每个子目录一个图鉴，各自带字段表与条目', async () => {
     await writeFile('gallery/角色/config.yml', serializeGalleryConfig({ fields: ['名称', '外貌'] }))
-    await writeFile('gallery/角色/主角.yml', entryText({ 名称: '主角', 外貌: '黑发' }))
+    await writeFile(
+      'gallery/角色/主角.yml',
+      entryText({ [FIELD_NAME]: '主角', [FIELD_APPEARANCE]: '黑发' })
+    )
     // 只有文件名、没有名字字段的条目：列表回落到文件名
-    await writeFile('gallery/角色/配角.yml', entryText({ 外貌: '高个' }))
+    await writeFile('gallery/角色/配角.yml', entryText({ [FIELD_APPEARANCE]: '高个' }))
 
     const result = await readProjectGalleries(galleryRoot(), options())
 
@@ -156,10 +166,10 @@ describe('readProjectGalleries', () => {
   })
 
   it('条目按文件名排序（数字按数值大小）', async () => {
-    await writeFile('gallery/角色/a.yml', entryText({ 名称: 'A' }))
-    await writeFile('gallery/角色/b.yml', entryText({ 名称: 'B' }))
-    await writeFile('gallery/角色/10.yml', entryText({ 名称: '十' }))
-    await writeFile('gallery/角色/2.yml', entryText({ 名称: '二' }))
+    await writeFile('gallery/角色/a.yml', entryText({ [FIELD_NAME]: 'A' }))
+    await writeFile('gallery/角色/b.yml', entryText({ [FIELD_NAME]: 'B' }))
+    await writeFile('gallery/角色/10.yml', entryText({ [FIELD_NAME]: '十' }))
+    await writeFile('gallery/角色/2.yml', entryText({ [FIELD_NAME]: '二' }))
 
     const result = await readProjectGalleries(galleryRoot(), options())
 
@@ -176,7 +186,7 @@ describe('readProjectGalleries', () => {
 
   it('读不出 config.yml 的图鉴用默认字段，而不是报错或空表', async () => {
     // 一个由别的工具建出来的目录：没有字段表，但它仍然是一个图鉴
-    await writeFile('gallery/地点/王城.yml', entryText({ 名称: '王城' }))
+    await writeFile('gallery/地点/王城.yml', entryText({ [FIELD_NAME]: '王城' }))
 
     const result = await readProjectGalleries(galleryRoot(), options())
 
@@ -206,7 +216,7 @@ describe('readProjectGalleries', () => {
 
   it('config.yml 自己不是条目，非 yml 的文件也不进列表，散着的文件不算图鉴', async () => {
     await writeFile('gallery/角色/config.yml', serializeGalleryConfig({ fields: ['名称'] }))
-    await writeFile('gallery/角色/主角.yml', entryText({ 名称: '主角' }))
+    await writeFile('gallery/角色/主角.yml', entryText({ [FIELD_NAME]: '主角' }))
     await writeFile('gallery/角色/笔记.txt', '随笔')
     await writeFile('gallery/说明.md', '# 图鉴')
 
@@ -237,7 +247,10 @@ describe('readProjectGalleries', () => {
 
   it('条目很长时只读开头，正文大小不影响名字', async () => {
     const long = 'x'.repeat(256 * 1024)
-    await writeFile('gallery/角色/主角.yml', `${entryText({ 名称: '主角' })}\n备注: ${long}\n`)
+    await writeFile(
+      'gallery/角色/主角.yml',
+      `${entryText({ [FIELD_NAME]: '主角' })}\n备注: ${long}\n`
+    )
 
     const result = await readProjectGalleries(galleryRoot(), options())
 

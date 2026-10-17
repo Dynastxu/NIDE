@@ -29,6 +29,21 @@ import {
  * 字段名与解析规则的一致性（一个存得进去却读不回来的字段名是最难查的那种）。
  */
 
+/**
+ * 图鉴字段名本身就是中文（`名称`、`外貌`……），直接写成标识符会让 IDE 的非 ASCII 名称检查
+ * 逐处报警。这里把用例用到的字段名收成 ASCII 常量，对象键一律写成计算键：字段名仍是
+ * 中文原文，源码里则不出现非 ASCII 标识符。
+ *
+ * 只在**必须写成标识符**的地方用这些常量；字段名作为字符串使用的地方（字段表、
+ * 断言里的字面量）仍写中文原文，那里不报警，也不该多绕一层。
+ */
+const FIELD_NAME = '名称'
+const FIELD_APPEARANCE = '外貌'
+const FIELD_ALIAS = '别名'
+const FIELD_SUMMARY = '简介'
+const FIELD_NOTE = '备注'
+const FIELD_LEGACY = '旧字段'
+
 /** 一份写出来的字段表读回来仍是同一份 */
 function configRoundTrip(fields: string[]): string[] | null {
   const parsed = parseGalleryConfig(serializeGalleryConfig({ fields }))
@@ -130,45 +145,48 @@ describe('条目（整份 yml）', () => {
     const entry = readGalleryEntry(text)
 
     expect(entry.category).toBe(GALLERY_CATEGORY)
-    expect(entry.values).toEqual({ 名称: '主角', 外貌: '黑发' })
+    expect(entry.values).toEqual({ [FIELD_NAME]: '主角', [FIELD_APPEARANCE]: '黑发' })
     expect(isGalleryEntryDocument(entry)).toBe(true)
   })
 
   it('手写的扁平条目也读得出来（没有 data 那一层）', () => {
     const entry = readGalleryEntry('category: gallery\n名称: 主角\n外貌: 黑发\n')
 
-    expect(entry.values).toEqual({ 名称: '主角', 外貌: '黑发' })
+    expect(entry.values).toEqual({ [FIELD_NAME]: '主角', [FIELD_APPEARANCE]: '黑发' })
   })
 
   it('手写的列表读成按行接起来的文本，内容不丢', () => {
     const text = ['category: gallery', 'data:', '  别名:', '    - 小主', '    - 阿主'].join('\n')
 
-    expect(readGalleryEntry(text).values).toEqual({ 别名: '小主\n阿主' })
+    expect(readGalleryEntry(text).values).toEqual({ [FIELD_ALIAS]: '小主\n阿主' })
   })
 
   it('写出去的值一律加引号，值里的引号、冒号与换行都读得回来', () => {
     const values = {
-      名称: '主角',
-      简介: 'a: b "c" \\d',
-      备注: '第一行\n第二行'
+      [FIELD_NAME]: '主角',
+      [FIELD_SUMMARY]: 'a: b "c" \\d',
+      [FIELD_NOTE]: '第一行\n第二行'
     }
 
     expect(entryRoundTrip(values)).toEqual(values)
   })
 
   it('空值不写出来：那不等于「这里就是空的」', () => {
-    const text = formatGalleryEntry({ 名称: '主角', 外貌: '' }, ['名称', '外貌'])
+    const text = formatGalleryEntry({ [FIELD_NAME]: '主角', [FIELD_APPEARANCE]: '' }, [
+      '名称',
+      '外貌'
+    ])
 
     expect(text).not.toContain('外貌')
-    expect(readGalleryEntry(text).values).toEqual({ 名称: '主角' })
+    expect(readGalleryEntry(text).values).toEqual({ [FIELD_NAME]: '主角' })
   })
 
   it('写出去的顺序就是传进来的顺序；没列在里面的键跟在后面', () => {
-    const text = formatGalleryEntry({ 名称: '主角', 旧字段: 'x' }, ['名称', '外貌'])
+    const text = formatGalleryEntry({ [FIELD_NAME]: '主角', [FIELD_LEGACY]: 'x' }, ['名称', '外貌'])
 
     expect(text.indexOf('名称')).toBeLessThan(text.indexOf('旧字段'))
     // 顺序表里的字段即使是空的也占位（不写出来），而文件里多出来的键必须保留
-    expect(readGalleryEntry(text).values).toEqual({ 名称: '主角', 旧字段: 'x' })
+    expect(readGalleryEntry(text).values).toEqual({ [FIELD_NAME]: '主角', [FIELD_LEGACY]: 'x' })
   })
 
   it('新建条目的骨架带着类别，读出来就是图鉴条目', () => {
@@ -191,14 +209,18 @@ describe('条目（整份 yml）', () => {
 
 describe('条目的显示名与文件名', () => {
   it('第一个字段的值就是条目的名字', () => {
-    expect(galleryEntryLabel({ 名称: '主角', 外貌: '黑发' }, ['名称', '外貌'], 'a.yml')).toBe(
-      '主角'
-    )
+    expect(
+      galleryEntryLabel(
+        { [FIELD_NAME]: '主角', [FIELD_APPEARANCE]: '黑发' },
+        ['名称', '外貌'],
+        'a.yml'
+      )
+    ).toBe('主角')
   })
 
   it('取不到名字时回落到文件名（去掉扩展名）', () => {
     expect(galleryEntryLabel({}, ['名称', '外貌'], '主角.yml')).toBe('主角')
-    expect(galleryEntryLabel({ 名称: '  ' }, ['名称'], '主角.yml')).toBe('主角')
+    expect(galleryEntryLabel({ [FIELD_NAME]: '  ' }, ['名称'], '主角.yml')).toBe('主角')
     expect(galleryEntryLabel({}, [], '主角.yaml')).toBe('主角')
   })
 
@@ -216,19 +238,22 @@ describe('条目的显示名与文件名', () => {
 
 describe('要编辑的字段与文件里多出来的键', () => {
   it('配置里的字段按顺序在前，文件里多出来的跟在后面', () => {
-    expect(galleryEntryFields({ 旧字段: 'x', 名称: '主角' }, ['名称', '外貌'])).toEqual([
-      '名称',
-      '外貌',
-      '旧字段'
-    ])
+    expect(
+      galleryEntryFields({ [FIELD_LEGACY]: 'x', [FIELD_NAME]: '主角' }, ['名称', '外貌'])
+    ).toEqual(['名称', '外貌', '旧字段'])
   })
 
   it('空名字与重名跳过：配置里那个空名字是「用户正在敲」', () => {
-    expect(galleryEntryFields({ 名称: '主角' }, ['名称', '', '  ', '名称'])).toEqual(['名称'])
+    expect(galleryEntryFields({ [FIELD_NAME]: '主角' }, ['名称', '', '  ', '名称'])).toEqual([
+      '名称'
+    ])
   })
 
   it('还没有字段表时按文件自己的键来', () => {
-    expect(galleryEntryFields({ 名称: '主角', 外貌: '黑发' }, [])).toEqual(['名称', '外貌'])
+    expect(galleryEntryFields({ [FIELD_NAME]: '主角', [FIELD_APPEARANCE]: '黑发' }, [])).toEqual([
+      '名称',
+      '外貌'
+    ])
   })
 })
 
