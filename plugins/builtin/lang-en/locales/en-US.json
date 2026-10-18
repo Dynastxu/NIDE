@@ -159,6 +159,7 @@
   "host.explorer.menu.rename": "Rename",
   "host.explorer.menu.delete": "Delete",
   "host.explorer.menu.newChapter": "New chapter",
+  "host.explorer.menu.newForeshadowing": "New foreshadowing",
 
   "host.explorer.newFile.inside": "New file in this folder",
   "host.explorer.newFile.sibling": "New file here",
@@ -209,6 +210,14 @@
   "host.project.panel.chapter.failed.already-exists": "That name is taken (creating never overwrites). Pick another name, or rename the existing chapter first.",
   "host.project.panel.chapter.failed.not-a-directory": "The chapter directory does not exist, or it is not a folder.",
   "host.project.panel.chapter.failed.unreadable": "Could not create it: no permission, or the disk is not writable.",
+
+  "host.project.panel.foreshadowing.new": "New foreshadowing",
+  "host.project.panel.foreshadowing.empty": "No foreshadowing in this directory yet.",
+  "host.project.panel.foreshadowing.no-dir": "The foreshadowing directory is unavailable: the project configuration cannot be read.",
+  "host.project.panel.foreshadowing.failed.invalid-name": "That name is not valid.",
+  "host.project.panel.foreshadowing.failed.already-exists": "That name is taken (creating never overwrites). Pick another name, or rename the existing entry first.",
+  "host.project.panel.foreshadowing.failed.not-a-directory": "The foreshadowing directory does not exist, or it is not a folder.",
+  "host.project.panel.foreshadowing.failed.unreadable": "Could not create it: no permission, or the disk is not writable.",
 
   "host.project.panel.gallery.new": "New gallery",
   "host.project.panel.gallery.newEntry": "New entry",
@@ -281,6 +290,15 @@
   "host.editor.form.notes.placeholder": "Notes",
   "host.editor.form.summary": "Summary",
   "host.editor.form.summary.placeholder": "A summary of this chapter",
+
+  "host.editor.form.foreshadowing.name": "Name",
+  "host.editor.form.foreshadowing.name.placeholder": "What is this foreshadowing called",
+  "host.editor.form.foreshadowing.start": "Start chapter",
+  "host.editor.form.foreshadowing.end": "End chapter",
+  "host.editor.form.foreshadowing.chapter.hint": "A chapter number or a chapter title both work",
+  "host.editor.form.foreshadowing.chapter.placeholder": "Leave empty if it is not decided yet",
+  "host.editor.form.foreshadowing.description": "Description",
+  "host.editor.form.foreshadowing.description.placeholder": "What was planted, and where it is meant to pay off",
 
   "host.plugin.loading": "Loading…",
 

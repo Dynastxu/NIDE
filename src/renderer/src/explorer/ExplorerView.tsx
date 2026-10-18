@@ -4,6 +4,10 @@ import { useViewChrome } from '@renderer/view/chrome-context'
 import { ViewFrame } from '@renderer/view/ViewFrame'
 import { ProjectsPanel } from '@renderer/explorer/ProjectsPanel'
 import { createChapter, suggestNextChapter } from '@renderer/explorer/chapter-actions'
+import {
+  createForeshadowing,
+  suggestNextForeshadowing
+} from '@renderer/explorer/foreshadowing-actions'
 import { openProjectFile, useExplorerStore } from '@renderer/stores/explorer.store'
 import { useEditorStore } from '@renderer/stores/editor.store'
 import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
@@ -12,6 +16,7 @@ import { NamePromptDialog } from '@renderer/entry/NamePromptDialog'
 import {
   buildTreeRows,
   createChildVisibility,
+  DEFAULT_FORESHADOWING_EXTENSION,
   isMarkdownPath,
   type FileTreeEntry,
   type TreeRow
@@ -109,6 +114,17 @@ export function ExplorerView(): JSX.Element {
     chapter: number
     fileName: string
   } | null>(null)
+  /**
+   * 「新建伏笔」的对话框请求。
+   *
+   * 与章节那一条同一条理由：默认文件名在**开对话框那一刻**算一次并定下来，之后列表
+   * 怎么变都不再重算 —— 用户已经在输入框里改名字了，边打字边换默认值会让框里的内容
+   * 自己变。
+   */
+  const [foreshadowingPrompt, setForeshadowingPrompt] = useState<{
+    key: number
+    fileName: string
+  } | null>(null)
   const promptSeq = useRef(0)
 
   const openChapterPrompt = (): void => {
@@ -117,6 +133,14 @@ export function ExplorerView(): JSX.Element {
 
     promptSeq.current += 1
     setChapterPrompt({ key: promptSeq.current, ...suggestion })
+  }
+
+  const openForeshadowingPrompt = (): void => {
+    const suggestion = suggestNextForeshadowing()
+    if (!suggestion) return
+
+    promptSeq.current += 1
+    setForeshadowingPrompt({ key: promptSeq.current, ...suggestion })
   }
 
   const tabs: ViewTab[] = [
@@ -143,7 +167,14 @@ export function ExplorerView(): JSX.Element {
 
   return (
     <ViewFrame chrome={chrome}>
-      {tab === 'files' ? <FileTreePane /> : <ProjectsPanel onCreateChapter={openChapterPrompt} />}
+      {tab === 'files' ? (
+        <FileTreePane />
+      ) : (
+        <ProjectsPanel
+          onCreateChapter={openChapterPrompt}
+          onCreateForeshadowing={openForeshadowingPrompt}
+        />
+      )}
 
       {chapterPrompt && (
         <NamePromptDialog
@@ -151,13 +182,34 @@ export function ExplorerView(): JSX.Element {
           mode="create"
           kind="file"
           scope="inside"
-          target={chapterPromptTarget(chapterPrompt.fileName)}
+          target={promptTarget('chaptersDir', chapterPrompt.fileName)}
           initialName={chapterPrompt.fileName}
           onCancel={() => setChapterPrompt(null)}
           onSubmit={async (name) => {
             const message = await createChapter(chapterPrompt.chapter, name)
             // 成功（null）时对话框由这里卸掉；失败则留在原地让他改名字
             if (message === null) setChapterPrompt(null)
+            return message
+          }}
+        />
+      )}
+
+      {foreshadowingPrompt && (
+        <NamePromptDialog
+          key={foreshadowingPrompt.key}
+          mode="create"
+          kind="file"
+          scope="inside"
+          target={promptTarget('foreshadowingDir', foreshadowingPrompt.fileName)}
+          initialName={foreshadowingPrompt.fileName}
+          titleKey="host.project.panel.foreshadowing.new"
+          // 伏笔必须是 yml：没写扩展名时补上，并把补出来的名字显示在输入框下面
+          defaultExtension={DEFAULT_FORESHADOWING_EXTENSION}
+          onCancel={() => setForeshadowingPrompt(null)}
+          onSubmit={async (name) => {
+            const message = await createForeshadowing(name)
+            // 成功（null）时对话框由这里卸掉；失败则留在原地让他改名字
+            if (message === null) setForeshadowingPrompt(null)
             return message
           }}
         />
@@ -172,12 +224,15 @@ export type ExplorerTabId = 'projects' | 'files'
 /**
  * 给名字对话框造一个「落点」条目。
  *
- * 对话框的标题要用它说清「建在哪儿」（`host.explorer.newFile.inside`），而章节是
- * 建在内容目录里的 —— 所以这里给的是那个目录。它不会被写盘（章节走的是 chapter-actions
- * 里那条用目录当落点的请求），只用于标题与预填。
+ * 对话框的标题要用它说清「建在哪儿」（`host.explorer.newFile.inside`），而章节与
+ * 伏笔都建在各自的内容目录里 —— 所以这里给的是那个目录。它不会被写盘（两个动作走的
+ * 都是用目录当落点的请求，见 chapter-actions / foreshadowing-actions），只用于标题与预填。
  */
-function chapterPromptTarget(fileName: string): FileTreeEntry {
-  const dir = useExplorerStore.getState().chaptersDir ?? ''
+function promptTarget(
+  directory: 'chaptersDir' | 'foreshadowingDir',
+  fileName: string
+): FileTreeEntry {
+  const dir = useExplorerStore.getState()[directory] ?? ''
 
   return { kind: 'directory', path: dir, name: fileName }
 }
@@ -446,7 +501,7 @@ function NameOverlay({
           : // 第一帧还没量到位置：先别让人看见它闪一下
             { left: 0, top: 0, visibility: 'hidden' }
       }
-      className="fixed z-[60] w-max rounded border border-zinc-600 bg-zinc-900 py-[3px] text-xs text-zinc-100 shadow-lg shadow-black/60"
+      className="fixed z-60 w-max rounded border border-zinc-600 bg-zinc-900 py-0.75 text-xs text-zinc-100 shadow-lg shadow-black/60"
     >
       {/* 不换行、不截断：外面靠窗口右边缘收住，宽度够就整条显示 */}
       <span className="block whitespace-nowrap">{entry.name}</span>
@@ -556,7 +611,7 @@ function EntryRow({
          * 而树能左右滑之后用户至少还有机会读全。名字元素自己也因此不带截断 ——
          * 它量出来就是文字的完整宽度，浮层判「有没有被切到」要的就是这个。
          */
-        'flex w-max min-w-full items-center gap-1 py-[3px] pr-2 text-left text-xs transition-colors',
+        'flex w-max min-w-full items-center gap-1 py-0.75 pr-2 text-left text-xs transition-colors',
         active ? 'bg-blue-600/30 text-zinc-100' : 'hover:bg-zinc-800',
         // 打不开的文件压低一档对比度：一眼能看出「这一支不进编辑器」，
         // 但仍然有正常的悬停反馈 —— 它不是坏掉的，只是不参与编辑

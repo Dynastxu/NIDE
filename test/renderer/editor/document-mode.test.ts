@@ -6,6 +6,7 @@ import {
   documentKindOf,
   documentViewOf,
   isChapterTab,
+  isForeshadowingTab,
   isGalleryConfigTab,
   isGalleryEntryTab,
   resolveDocumentMode,
@@ -16,9 +17,12 @@ import {
   CHAPTER_CATEGORY,
   DEFAULT_GALLERY_FIELDS,
   emptyChapterMetadata,
+  emptyForeshadowingMetadata,
   emptyGalleryEntry,
+  FORESHADOWING_CATEGORY,
   GALLERY_CATEGORY,
   type ChapterMetadata,
+  type ForeshadowingMetadata,
   type GalleryConfig,
   type GalleryEntryDocument
 } from '@shared/project'
@@ -39,6 +43,11 @@ const chapter: ChapterMetadata = { ...emptyChapterMetadata(), category: CHAPTER_
 const note: ChapterMetadata = { ...emptyChapterMetadata(), category: 'note' }
 const plain: ChapterMetadata = emptyChapterMetadata()
 
+const foreshadowing: ForeshadowingMetadata = {
+  ...emptyForeshadowingMetadata(),
+  category: FORESHADOWING_CATEGORY
+}
+
 const galleryEntry: GalleryEntryDocument = { ...emptyGalleryEntry(), category: GALLERY_CATEGORY }
 const galleryConfig: GalleryConfig = { fields: [...DEFAULT_GALLERY_FIELDS] }
 
@@ -48,6 +57,7 @@ function input(overrides: Partial<DocumentViewInput> = {}): DocumentViewInput {
     language: 'markdown',
     path: '/p/README.md',
     chapter: plain,
+    foreshadowing: emptyForeshadowingMetadata(),
     gallery: emptyGalleryEntry(),
     galleryConfig: null,
     ...overrides
@@ -79,6 +89,45 @@ describe('章节的判据', () => {
     expect(isChapterTab(input({ language: 'plaintext', path: '/p/chapters/a.txt', chapter }))).toBe(
       false
     )
+  })
+})
+
+describe('伏笔的判据', () => {
+  it('写着伏笔类别的 yml 才是伏笔', () => {
+    expect(
+      isForeshadowingTab(input({ language: 'yaml', path: '/p/foreshadowing/a.yml', foreshadowing }))
+    ).toBe(true)
+    expect(
+      isForeshadowingTab(
+        input({ language: 'yaml', path: '/p/foreshadowing/a.yaml', foreshadowing })
+      )
+    ).toBe(true)
+  })
+
+  it('没有类别、类别是别的值、或者不是 yml 时都不是伏笔', () => {
+    expect(isForeshadowingTab(input({ language: 'yaml', path: '/p/foreshadowing/a.yml' }))).toBe(
+      false
+    )
+    expect(
+      isForeshadowingTab(
+        input({
+          language: 'yaml',
+          path: '/p/foreshadowing/a.yml',
+          foreshadowing: { ...foreshadowing, category: 'note' }
+        })
+      )
+    ).toBe(false)
+    // 类别对但文件不是 yml：表单会把整份文件按 YAML 重写，所以不能给表单
+    expect(
+      isForeshadowingTab(
+        input({ language: 'markdown', path: '/p/foreshadowing/a.md', foreshadowing })
+      )
+    ).toBe(false)
+    expect(
+      isForeshadowingTab(
+        input({ language: 'plaintext', path: '/p/foreshadowing/a.txt', foreshadowing })
+      )
+    ).toBe(false)
   })
 })
 
@@ -119,8 +168,11 @@ describe('图鉴的判据', () => {
 })
 
 describe('documentKindOf 与按钮组', () => {
-  it('章节与图鉴都能填表单，纯文本一个按钮都没有', () => {
+  it('章节、伏笔与图鉴都能填表单，纯文本一个按钮都没有', () => {
     expect(documentKindOf(input({ path: '/p/chapters/a.md', chapter }))).toBe('chapter')
+    expect(
+      documentKindOf(input({ language: 'yaml', path: '/p/foreshadowing/a.yml', foreshadowing }))
+    ).toBe('foreshadowing')
     expect(
       documentKindOf(input({ language: 'yaml', path: '/p/角色.yml', gallery: galleryEntry }))
     ).toBe('gallery-entry')
@@ -131,6 +183,7 @@ describe('documentKindOf 与按钮组', () => {
     expect(documentKindOf(input({ language: 'plaintext', path: '/p/notes.txt' }))).toBe('plain')
 
     expect(availableDocumentModes('chapter')).toEqual(['text', 'form', 'split', 'preview'])
+    expect(availableDocumentModes('foreshadowing')).toEqual(['text', 'form'])
     expect(availableDocumentModes('markdown')).toEqual(['text', 'split', 'preview'])
     expect(availableDocumentModes('gallery-entry')).toEqual(['text', 'form'])
     expect(availableDocumentModes('gallery-config')).toEqual(['text', 'form'])
@@ -139,8 +192,9 @@ describe('documentKindOf 与按钮组', () => {
 })
 
 describe('默认模式', () => {
-  it('章节与图鉴默认表单（打开它们就是为了改元数据）', () => {
+  it('章节、伏笔与图鉴默认表单（打开它们就是为了改元数据）', () => {
     expect(defaultDocumentModeOf('chapter')).toBe('form')
+    expect(defaultDocumentModeOf('foreshadowing')).toBe('form')
     expect(defaultDocumentModeOf('gallery-entry')).toBe('form')
     expect(defaultDocumentModeOf('gallery-config')).toBe('form')
   })

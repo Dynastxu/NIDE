@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
-import type { ChapterFile, ChapterListResult, DirReadResult, ProjectConfig } from '@shared/project'
+import type {
+  ChapterFile,
+  ChapterListResult,
+  DirReadResult,
+  ForeshadowingFile,
+  ForeshadowingListResult,
+  ProjectConfig
+} from '@shared/project'
 
 /**
  * 文件树 / 项目面板的**启动顺序**测试。
@@ -20,6 +27,7 @@ import type { ChapterFile, ChapterListResult, DirReadResult, ProjectConfig } fro
 /** 项目根。用 Windows 写法，顺带覆盖「分隔符按根的写法拼」这条 */
 const ROOT = 'D:\\Novel'
 const CHAPTERS_DIR = `${ROOT}\\chapters`
+const FORESHADOWING_DIR = `${ROOT}\\foreshadowing`
 
 const CONFIG: ProjectConfig = {
   chapters: { path: 'chapters' },
@@ -35,11 +43,21 @@ const CHAPTER: ChapterFile = {
   heading: '决战前夜'
 }
 
+const FORESHADOWING: ForeshadowingFile = {
+  path: `${FORESHADOWING_DIR}\\foreshadowing_1.yml`,
+  name: 'foreshadowing_1.yml',
+  label: '主角的身世',
+  startChapter: '003',
+  endChapter: '012',
+  description: '第一章埋下的玉佩'
+}
+
 /** 主进程那三个读通道的替身 */
 interface Host {
   readDir: Mock<(dirPath: string) => Promise<DirReadResult>>
   readConfig: Mock<() => Promise<ProjectConfig>>
   readChapters: Mock<(dirPath: string) => Promise<ChapterListResult>>
+  readForeshadowing: Mock<(dirPath: string) => Promise<ForeshadowingListResult>>
 }
 
 /**
@@ -60,16 +78,21 @@ function installWindow(projectPath: string | null): Host {
     path: dirPath,
     chapters: [CHAPTER]
   }))
+  const readForeshadowing = vi.fn(async (dirPath: string): Promise<ForeshadowingListResult> => ({
+    ok: true,
+    path: dirPath,
+    foreshadowing: [FORESHADOWING]
+  }))
 
   vi.stubGlobal('window', {
     __NIDE_BOOT__: { projectPath, logLevel: 'error' },
     hostAPI: {
       log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
-      projects: { readDir, readConfig, readChapters }
+      projects: { readDir, readConfig, readChapters, readForeshadowing }
     }
   })
 
-  return { readDir, readConfig, readChapters }
+  return { readDir, readConfig, readChapters, readForeshadowing }
 }
 
 /**
@@ -105,6 +128,7 @@ describe('文件树与项目面板的启动顺序', () => {
     expect(store.getState().roots).toEqual([ROOT])
     expect(store.getState().config).toEqual(CONFIG)
     expect(store.getState().chaptersDir).toBe(CHAPTERS_DIR)
+    expect(store.getState().foreshadowingDir).toBe(FORESHADOWING_DIR)
     expect(host.readConfig).toHaveBeenCalledTimes(1)
     expect(host.readDir).toHaveBeenCalledWith(ROOT)
   })
@@ -117,6 +141,16 @@ describe('文件树与项目面板的启动顺序', () => {
 
     expect(host.readChapters).toHaveBeenCalledWith(CHAPTERS_DIR)
     expect(store.getState().chapters).toEqual([CHAPTER])
+  })
+
+  it('伏笔列表读的也是配置算出来的目录', async () => {
+    const host = installWindow(ROOT)
+    const store = await loadStore()
+
+    await store.getState().loadForeshadowing()
+
+    expect(host.readForeshadowing).toHaveBeenCalledWith(FORESHADOWING_DIR)
+    expect(store.getState().foreshadowing).toEqual([FORESHADOWING])
   })
 
   it('根目录已经定过时不重读：切一次标签页不该把树清空重来', async () => {

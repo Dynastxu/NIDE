@@ -15,6 +15,7 @@ import {
   type DeleteEntryResult,
   type DirReadResult,
   type FileReadResult,
+  type ForeshadowingListResult,
   type GalleryCreateRequest,
   type GalleryCreateResult,
   type GalleryListResult,
@@ -47,6 +48,7 @@ import {
   readProjectChapters,
   readProjectDir,
   readProjectFile,
+  readProjectForeshadowing,
   readProjectGalleries,
   renameProjectEntry,
   writeProjectFile
@@ -293,6 +295,27 @@ export function registerProjectIPC(): void {
         return { ok: false, reason: 'outside-project' }
       }
       return readProjectChapters(String(dirPath ?? ''), {
+        roots,
+        caseInsensitive: caseInsensitivePaths()
+      })
+    }
+  )
+
+  /**
+   * 读一个内容目录里的伏笔列表。
+   *
+   * 与章节列表同一套边界（根由主进程取当前项目、只认绝对路径、逐段比对），只是这一步
+   * 读的是伏笔的四个字段（名称 / 起始章节 / 结束章节 / 描述），来源是整份 yml。
+   */
+  ipcMain.handle(
+    PROJECT_FILE_CHANNELS.readForeshadowing,
+    async (_event, dirPath): Promise<ForeshadowingListResult> => {
+      const roots = allowedRoots()
+      if (roots.length === 0) {
+        logger.warn('Rejected a foreshadowing read without an open project')
+        return { ok: false, reason: 'outside-project' }
+      }
+      return readProjectForeshadowing(String(dirPath ?? ''), {
         roots,
         caseInsensitive: caseInsensitivePaths()
       })

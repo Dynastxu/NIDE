@@ -9,8 +9,11 @@ import {
   HOST_TEMP_FILE_PREFIX,
   MAX_TEXT_FILE_BYTES,
   createNameCollator,
+  emptyForeshadowingMetadata,
   filePathKey,
+  foreshadowingEntryLabel,
   galleryEntryLabel,
+  isForeshadowingPath,
   isGalleryConfigFileName,
   isGalleryEntryPath,
   isHostTempFileName,
@@ -21,6 +24,7 @@ import {
   parseChapterHeading,
   parseChapterNumber,
   parseGalleryConfig,
+  readForeshadowingEntry,
   readGalleryEntry,
   serializeGalleryConfig,
   sortTreeEntries,
@@ -43,6 +47,8 @@ import type {
   FileUnsupportedReason,
   FileWriteFailureReason,
   FileWriteResult,
+  ForeshadowingFile,
+  ForeshadowingListResult,
   GalleryCreateRequest,
   GalleryCreateResult,
   GalleryEntryFile,
@@ -435,6 +441,53 @@ export async function readProjectChapters(
   }
 
   return { ok: true, path: listing.path, chapters }
+}
+
+/**
+ * 读一个内容目录里的伏笔列表。
+ *
+ * 与 readProjectChapters 同一套做法：只取目录里的文件（伏笔直接放在内容目录下，不起
+ * 子目录），逐个读出整份 yml，再用纯逻辑（readForeshadowingEntry，见
+ * shared/project/foreshadowing）取那四个字段。读不出来的文件**仍然列出来**（它是一份
+ * 还没写成伏笔的 yml），只是名称回落到文件名、起止章节与描述为空。
+ *
+ * 只认 `.yml` / `.yaml`：伏笔的整份文件就是属性，与图鉴条目同一条边界。这里读的是
+ * 整份文件而不是开头一小段 —— 描述可能很长，截断会把一条伏笔的内容读成半截。
+ * 按内容筛类别则刻意不做 —— 手写的伏笔可能只写了几个字段，看不见它比一个更纯净的
+ * 列表更糟；点开它时表单会不会出现由类别决定（见 renderer 的 document-mode），用户
+ * 一眼就看得出缺的是那一行。
+ */
+export async function readProjectForeshadowing(
+  dirPath: string,
+  options: RootsOptions
+): Promise<ForeshadowingListResult> {
+  const listing = await readProjectDir(dirPath, options)
+  if (!listing.ok) return { ok: false, reason: listing.reason }
+
+  const files = listing.entries.filter(
+    (entry): entry is Extract<FileTreeEntry, { kind: 'file' }> =>
+      entry.kind === 'file' && isForeshadowingPath(entry.path)
+  )
+
+  const foreshadowing: ForeshadowingFile[] = []
+
+  for (const file of files) {
+    const content = await readProjectFile(file.path, options)
+    const metadata = content.ok
+      ? readForeshadowingEntry(content.content)
+      : emptyForeshadowingMetadata()
+
+    foreshadowing.push({
+      path: file.path,
+      name: file.name,
+      label: foreshadowingEntryLabel(metadata, file.name),
+      startChapter: metadata.startChapter,
+      endChapter: metadata.endChapter,
+      description: metadata.description
+    })
+  }
+
+  return { ok: true, path: listing.path, foreshadowing }
 }
 
 /**

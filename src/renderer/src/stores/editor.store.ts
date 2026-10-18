@@ -6,8 +6,10 @@ import {
   languageForPath,
   parseGalleryConfig,
   readChapterMetadata,
+  readForeshadowingEntry,
   readGalleryEntry,
   type ChapterMetadata,
+  type ForeshadowingMetadata,
   type GalleryConfig,
   type GalleryEntryDocument
 } from '@shared/project'
@@ -59,6 +61,13 @@ export interface EditorTab {
    * 各不相同，迟早会有一个算的是上一版的正文。
    */
   metadata: ChapterMetadata
+  /**
+   * `content` 里那份伏笔 yml 的解析结果（见 shared/project 的 readForeshadowingEntry）。
+   *
+   * 与 `metadata` 并列：伏笔与章节都使用「category + data」的形状，但伏笔是整份 yml，
+   * 字段也不同（固定为名称、起始章节、结束章节、描述），因此各解析各的。
+   */
+  foreshadowing: ForeshadowingMetadata
   /**
    * `content` 里那份 yml 的解析结果（见 shared/project 的 readGalleryEntry）。
    *
@@ -206,7 +215,7 @@ interface EditorState {
  * 落在同一份事实上：正文一变，元数据与 dirty 都要跟着重算。让每一处各写一遍，迟早
  * 会出现「正文改了、表单还显示着上一版的编号」。
  *
- * 图鉴那两份（`gallery` / `galleryConfig`）与章节元数据同一条理由：解析一次、跟着正文
+ * 伏笔元数据与图鉴那两份（`gallery` / `galleryConfig`）同一条理由：解析一次、跟着正文
  * 一起走，界面因此不必各自再解析一遍 —— 各自解析的时机不同，迟早会有一个算的是上一版。
  *
  * `originalValue` 单独传：它是**磁盘上**的那一份，只在打开与保存时变，不是每次正文
@@ -216,10 +225,14 @@ function tabText(
   path: string,
   content: string,
   originalValue: string
-): Pick<EditorTab, 'content' | 'metadata' | 'gallery' | 'galleryConfig' | 'dirty'> {
+): Pick<
+  EditorTab,
+  'content' | 'metadata' | 'foreshadowing' | 'gallery' | 'galleryConfig' | 'dirty'
+> {
   return {
     content,
     metadata: readChapterMetadata(content),
+    foreshadowing: readForeshadowingEntry(content),
     gallery: readGalleryEntry(content),
     // 只有 `config.yml` 才解析字段表：别的文件解析它没有意义，而这是每次按键都要付的代价
     galleryConfig: isGalleryConfigFileName(path) ? parseGalleryConfig(content) : null,

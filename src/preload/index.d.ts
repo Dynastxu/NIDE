@@ -13,6 +13,7 @@ import type {
   DirReadResult,
   FileReadResult,
   FileWriteResult,
+  ForeshadowingListResult,
   GalleryCreateRequest,
   GalleryCreateResult,
   GalleryListResult,
@@ -162,6 +163,13 @@ export interface ProjectAPI {
    * 只是 `chapter` 为 null。
    */
   readChapters: (dirPath: string) => Promise<ChapterListResult>
+  /**
+   * 读一个内容目录里的伏笔列表（名称 / 起始章节 / 结束章节 / 描述）。
+   *
+   * 与 readChapters 同一条边界：列表要扫一个目录并逐份取出字段，读不出字段的文件
+   * 仍然列出来，只是名称回落到文件名。
+   */
+  readForeshadowing: (dirPath: string) => Promise<ForeshadowingListResult>
   /**
    * 新建文件 / 文件夹 —— 宿主唯一的写入入口。
    *

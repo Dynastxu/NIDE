@@ -1,11 +1,18 @@
 import {
   isChapterDocument,
+  isForeshadowingDocument,
+  isForeshadowingPath,
   isGalleryConfigFileName,
   isGalleryEntryDocument,
   isGalleryEntryPath,
   isMarkdownPath
 } from '@shared/project'
-import type { ChapterMetadata, GalleryConfig, GalleryEntryDocument } from '@shared/project'
+import type {
+  ChapterMetadata,
+  ForeshadowingMetadata,
+  GalleryConfig,
+  GalleryEntryDocument
+} from '@shared/project'
 import type { DocumentViewMode } from '@renderer/stores/document-view.store'
 
 /**
@@ -30,7 +37,8 @@ import type { DocumentViewMode } from '@renderer/stores/document-view.store'
  */
 
 /** 这一篇在编辑器里属于哪一类。取值决定有没有表单、表单画哪一份 */
-export type DocumentKind = 'plain' | 'markdown' | 'chapter' | 'gallery-entry' | 'gallery-config'
+export type DocumentKind =
+  'plain' | 'markdown' | 'chapter' | 'foreshadowing' | 'gallery-entry' | 'gallery-config'
 
 /** 判据的输入：一个打开着的文件所能提供的事实 */
 export interface DocumentViewInput {
@@ -40,6 +48,8 @@ export interface DocumentViewInput {
   path: string
   /** 章节 frontmatter 的解析结果 */
   chapter: ChapterMetadata
+  /** 伏笔 yml 的解析结果 */
+  foreshadowing: ForeshadowingMetadata
   /** yml 顶层的类别与字段 */
   gallery: GalleryEntryDocument
   /**
@@ -70,6 +80,7 @@ export function documentViewInputOf(tab: {
   language: string
   path: string
   metadata: ChapterMetadata
+  foreshadowing: ForeshadowingMetadata
   gallery: GalleryEntryDocument
   galleryConfig: GalleryConfig | null
 }): DocumentViewInput {
@@ -77,6 +88,7 @@ export function documentViewInputOf(tab: {
     language: tab.language,
     path: tab.path,
     chapter: tab.metadata,
+    foreshadowing: tab.foreshadowing,
     gallery: tab.gallery,
     galleryConfig: tab.galleryConfig
   }
@@ -95,6 +107,20 @@ export function canPreviewDocument(language: string, path: string): boolean {
  */
 export function isChapterTab(input: DocumentViewInput): boolean {
   return canPreviewDocument(input.language, input.path) && isChapterDocument(input.chapter)
+}
+
+/**
+ * 这一篇是不是伏笔。
+ *
+ * 两个条件缺一不可：
+ *
+ * - **扩展名是 `.yml` / `.yaml`**（`FORESHADOWING_FILE_EXTENSIONS`）。表单会把整份
+ *   文件按 YAML 重写，所以一个写着 `category: foreshadowing` 的 `.md` 不能当伏笔 ——
+ *   那样表单保存一次就等于在一份 Markdown 里塞进一段 YAML；
+ * - **文件里写着伏笔的类别**（不看在哪个目录里，与章节同一条理由）。
+ */
+export function isForeshadowingTab(input: DocumentViewInput): boolean {
+  return isForeshadowingPath(input.path) && isForeshadowingDocument(input.foreshadowing)
 }
 
 /**
@@ -125,28 +151,34 @@ export function isGalleryConfigTab(input: DocumentViewInput): boolean {
 /**
  * 这一篇属于哪一类。
  *
- * 顺序上先判图鉴配置、再判图鉴条目：两者互斥（一个要文件名是 `config.yml`、一个要
- * 扩展名是 yml 且带类别），但先判更窄的那一个读起来更清楚。非 Markdown 的文件在
- * 判完图鉴之后就是纯文本 —— 它没有预览可言。
+ * 顺序上先判图鉴配置、再判图鉴条目、最后判伏笔：三者互斥（一个要文件名是
+ * `config.yml`、一个要扩展名是 yml 且带图鉴类别、一个要 yml 且带伏笔类别），先判
+ * 更窄的那一个读起来更清楚。非 Markdown 的文件在判完这几类之后就是纯文本 —— 它没有
+ * 预览可言。
  */
 export function documentKindOf(input: DocumentViewInput): DocumentKind {
   if (isGalleryConfigTab(input)) return 'gallery-config'
   if (isGalleryEntryTab(input)) return 'gallery-entry'
+  if (isForeshadowingTab(input)) return 'foreshadowing'
   if (!canPreviewDocument(input.language, input.path)) return 'plain'
+  if (isChapterDocument(input.chapter)) return 'chapter'
 
-  return isChapterDocument(input.chapter) ? 'chapter' : 'markdown'
+  return 'markdown'
 }
 
 /**
  * 一类文件有哪几种看法。
  *
- * 表单只对章节与图鉴出现：一个会给普通文档补出 `category: chapter` 的表单，比没有
- * 表单糟得多。图鉴两种都不给预览与拆分 —— 它不是 Markdown，没有「预览」可言。
+ * 表单只对章节、伏笔与图鉴出现：一个会给普通文档补出 `category: chapter` 的表单，
+ * 比没有表单糟得多。伏笔与图鉴一样是 yml，没有「预览」可言，所以也不给预览与拆分；
+ * 章节之外的文件只有纯文本与表单两档。
  */
 export function availableDocumentModes(kind: DocumentKind): DocumentViewMode[] {
   switch (kind) {
     case 'chapter':
       return ['text', 'form', 'split', 'preview']
+    case 'foreshadowing':
+      return ['text', 'form']
     case 'markdown':
       return ['text', 'split', 'preview']
     case 'gallery-entry':
@@ -162,8 +194,8 @@ export function availableDocumentModes(kind: DocumentKind): DocumentViewMode[] {
  *
  * 三条：
  *
- * - **章节与图鉴默认表单**：它们打开来就是为了改元数据（章节的索引与细纲、图鉴的字段），
- *   而章节的正文本来就在表单旁边；
+ * - **章节、伏笔与图鉴默认表单**：它们打开来就是为了改元数据（章节的索引与细纲、
+ *   伏笔的四个字段、图鉴的字段），而章节的正文本来就在表单旁边；
  * - **其余 Markdown 默认预览**：没有类别的 Markdown 多半是文档（README、笔记），
  *   打开它是为了读，不是为了改；
  * - **其余一律纯文本**。
@@ -171,6 +203,7 @@ export function availableDocumentModes(kind: DocumentKind): DocumentViewMode[] {
 export function defaultDocumentModeOf(kind: DocumentKind): DocumentViewMode {
   switch (kind) {
     case 'chapter':
+    case 'foreshadowing':
     case 'gallery-entry':
     case 'gallery-config':
       return 'form'

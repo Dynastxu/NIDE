@@ -46,6 +46,7 @@ import type {
   DirReadResult,
   FileReadResult,
   FileWriteResult,
+  ForeshadowingListResult,
   GalleryCreateRequest,
   GalleryCreateResult,
   GalleryListResult,
@@ -300,6 +301,15 @@ const projectAPI = {
    */
   readChapters: (dirPath: string): Promise<ChapterListResult> =>
     ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readChapters, dirPath),
+
+  /**
+   * 读一个内容目录里的伏笔列表（名称 / 起始章节 / 结束章节 / 描述）。
+   *
+   * 与 readChapters 同一条理由：列表要扫一个目录并逐份取出字段；交给渲染进程就
+   * 只有「一次读一个文件」这一条路。读不出字段的 yml 仍然列出来，只是名称回落到文件名。
+   */
+  readForeshadowing: (dirPath: string): Promise<ForeshadowingListResult> =>
+    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readForeshadowing, dirPath),
 
   /**
    * 新建文件 / 文件夹。

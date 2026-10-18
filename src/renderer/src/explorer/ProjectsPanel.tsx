@@ -3,6 +3,7 @@ import { useT } from '@renderer/stores/i18n.store'
 import { useExplorerStore } from '@renderer/stores/explorer.store'
 import { useGalleryStore } from '@renderer/stores/gallery.store'
 import { openChapterFile } from '@renderer/explorer/chapter-actions'
+import { openForeshadowingFile } from '@renderer/explorer/foreshadowing-actions'
 import {
   isCharacterGallery,
   openGalleryFile,
@@ -18,6 +19,7 @@ import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
 import type {
   ChapterFile,
   DirReadFailureReason,
+  ForeshadowingFile,
   GalleryEntryFile,
   GalleryFolder,
   ProjectConfigKey
@@ -31,13 +33,13 @@ import type { HostMessageKey } from '@shared/i18n'
  * 目录名与绝对路径都由 `.nide/config.yml` 给 —— 界面不猜、也不写死 `chapters` 这样的
  * 字面量，用户在配置里把章节目录改成 `manuscript` 之后这里跟着变。
  *
- * **章节与图鉴接了实现**，伏笔 / 概述两个分类的「新建」是置灰的。置灰而不是隐藏，
- * 是因为这几项已经在计划里、位置也定了 —— 一个看得见但点不动的入口，比一个要等到
+ * **章节、伏笔与图鉴接了实现**，概述分类的「新建」是置灰的。置灰而不是隐藏，
+ * 是因为这一项已经在计划里、位置也定了 —— 一个看得见但点不动的入口，比一个要等到
  * 功能上线才出现的入口更容易看懂现在处在哪一步。
  *
- * 分类之间有一点结构上的差别，这里如实呈现：章节是一堆平铺的文件，而**图鉴是分区的**
- * （见 shared/project/gallery）—— 一个图鉴 = 内容目录下的一个子目录，所以图鉴那一块
- * 比章节多一层折叠。
+ * 分类之间有一点结构上的差别，这里如实呈现：章节是一堆平铺的 Markdown，伏笔是一堆
+ * 平铺的 yml，而**图鉴是分区的**（见 shared/project/gallery）—— 一个图鉴 = 内容目录
+ * 下的一个子目录，所以图鉴那一块比章节多一层折叠。
  *
  * 列表刻意只显示**内容里真正写着的东西**：章节显示编号与标题、图鉴条目显示第一个字段
  * 的值。排序与拖拽都还没有，先不摆出一个做不到的样子。右键菜单倒是走的是**条目动作层**
@@ -46,10 +48,13 @@ import type { HostMessageKey } from '@shared/i18n'
  * 被重新实现一遍。
  */
 export function ProjectsPanel({
-  onCreateChapter
+  onCreateChapter,
+  onCreateForeshadowing
 }: {
   /** 开「新建章节」的对话框。章节号与默认文件名由调用方算（它掌握着对话框的生命周期） */
   onCreateChapter: () => void
+  /** 开「新建伏笔」的对话框。默认文件名由调用方算（它掌握着对话框的生命周期） */
+  onCreateForeshadowing: () => void
 }): JSX.Element {
   const t = useT()
 
@@ -64,7 +69,10 @@ export function ProjectsPanel({
         <GallerySection />
       </Disclosure>
 
-      <PlaceholderDisclosure configKey="foreshadowing" />
+      <Disclosure title={t(SECTION_TITLES.foreshadowing)}>
+        <ForeshadowingSection onCreate={onCreateForeshadowing} />
+      </Disclosure>
+
       <PlaceholderDisclosure configKey="overview" />
     </div>
   )
@@ -86,7 +94,15 @@ const CHAPTER_ERROR_KEYS: Record<DirReadFailureReason, HostMessageKey> = {
   unreadable: 'host.explorer.error.unreadable'
 }
 
-/** 读图鉴目录失败的原因 -> 词条 key。与上面那张表分开：说的是另一件事 */
+/** 读伏笔目录失败的原因 -> 词条 key。与章节那张表分开：说的是另一个目录 */
+const FORESHADOWING_ERROR_KEYS: Record<DirReadFailureReason, HostMessageKey> = {
+  'invalid-path': 'host.explorer.error.invalid-path',
+  'outside-project': 'host.explorer.error.outside-project',
+  'not-a-directory': 'host.project.panel.foreshadowing.no-dir',
+  unreadable: 'host.project.panel.foreshadowing.failed.unreadable'
+}
+
+/** 读图鉴目录失败的原因 -> 词条 key。与上面两张表分开：说的是另一件事 */
 const GALLERY_ERROR_KEYS: Record<DirReadFailureReason, HostMessageKey> = {
   'invalid-path': 'host.explorer.error.invalid-path',
   'outside-project': 'host.explorer.error.outside-project',
@@ -189,6 +205,162 @@ function ChapterSection({ onCreate }: { onCreate: () => void }): JSX.Element {
       )}
     </>
   )
+}
+
+/**
+ * 伏笔：内容目录里的一堆平铺 yml，每一个是一张卡片。
+ *
+ * 与章节那一节的差别只有「列表里显示什么」与文件格式：章节是 Markdown、显示编号与
+ * 一级标题，伏笔是整份 yml、显示名称与起止章节。新建方式相同（内容与文件一起落盘，
+ * 见 foreshadowing-actions）。
+ */
+function ForeshadowingSection({ onCreate }: { onCreate: () => void }): JSX.Element {
+  const t = useT()
+  const config = useExplorerStore((s) => s.config)
+  const foreshadowingDir = useExplorerStore((s) => s.foreshadowingDir)
+  const foreshadowing = useExplorerStore((s) => s.foreshadowing)
+  const error = useExplorerStore((s) => s.foreshadowingError)
+  const loading = useExplorerStore((s) => s.foreshadowingLoading)
+  const configLoading = useExplorerStore((s) => s.configLoading)
+  const loadConfig = useExplorerStore((s) => s.loadConfig)
+  const loadForeshadowing = useExplorerStore((s) => s.loadForeshadowing)
+  const [menu, setMenu] = useState<ForeshadowingMenu | null>(null)
+
+  /*
+   * 首次挂载拉一次配置；配置到手之后再拉伏笔列表（目录要从配置里算出来）。
+   *
+   * 与章节那一节同一条理由：读配置之前不需要谁来替这一面定下项目根，loadConfig 自己
+   * 会补（见 explorer.store 的 ensureRoots）。
+   */
+  useEffect(() => {
+    void loadConfig()
+  }, [loadConfig])
+
+  useEffect(() => {
+    if (!config) return
+    void loadForeshadowing()
+  }, [config, loadForeshadowing])
+
+  const items = foreshadowing ?? []
+  /** 目录还没定下来时不给新建入口：敲完名字才被告知「不知道建到哪儿」是白费一次输入 */
+  const canCreate = foreshadowingDir !== null
+
+  return (
+    <>
+      <CreateRow label={t('host.project.panel.new')} onClick={onCreate} disabled={!canCreate} />
+
+      {error ? (
+        <p className="px-3 py-1 text-xs text-red-400">{t(FORESHADOWING_ERROR_KEYS[error])}</p>
+      ) : (loading || configLoading) && foreshadowing === null ? (
+        /*
+         * 读配置那一段也算「在加载」：少了它，启动后会先显示一帧「这个目录里还没有
+         * 伏笔」—— 那时伏笔列表**还没开始读**，而内容目录是不是空的根本还不知道。
+         */
+        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+      ) : items.length === 0 ? (
+        <p className="px-3 py-1 text-xs text-zinc-500">
+          {t('host.project.panel.foreshadowing.empty')}
+        </p>
+      ) : (
+        items.map((file) => (
+          <ForeshadowingRow
+            key={file.path}
+            file={file}
+            onContextMenu={(x, y) => setMenu({ file, x, y })}
+          />
+        ))
+      )}
+
+      {menu && (
+        <EntryMenu
+          x={menu.x}
+          y={menu.y}
+          // 列表里的每一行都是一个文件：伏笔就是 yml 文件
+          target={{ path: menu.file.path, name: menu.file.name, kind: 'file' }}
+          onClose={() => setMenu(null)}
+          /*
+           * 与章节列表同一条约定：这个面自己的「新建」排在共用项前面，共用块的
+           * 「删除」必须留在最后。
+           */
+          viewItems={[
+            {
+              id: 'newForeshadowing',
+              label: t('host.explorer.menu.newForeshadowing'),
+              icon: 'plus',
+              onSelect: onCreate,
+              ...(canCreate
+                ? {}
+                : {
+                    disabled: true,
+                    disabledReason: t('host.project.panel.foreshadowing.no-dir')
+                  })
+            }
+          ]}
+        />
+      )}
+    </>
+  )
+}
+
+/** 伏笔列表里被右键的那一行 */
+interface ForeshadowingMenu {
+  file: ForeshadowingFile
+  x: number
+  y: number
+}
+
+/**
+ * 伏笔列表里的一行：名称 + 起止章节。
+ *
+ * 名称取 frontmatter 里的名称字段，没有时回落到文件名（见主进程的
+ * foreshadowingEntryLabel）—— 与章节列表「标题取不到就回落文件名」同一条约定。
+ */
+function ForeshadowingRow({
+  file,
+  onContextMenu
+}: {
+  file: ForeshadowingFile
+  /** 右键这一行。坐标由行自己报，菜单由上层那一个 EntryMenu 画 */
+  onContextMenu: (x: number, y: number) => void
+}): JSX.Element {
+  const range = chapterRange(file)
+
+  return (
+    <button
+      type="button"
+      // 文件名可能被截断，完整路径放 title —— 与文件树同一条约定
+      title={file.path}
+      onClick={() => void openForeshadowingFile(file)}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        onContextMenu(event.clientX, event.clientY)
+      }}
+      className="flex w-full items-center gap-2 px-1 py-1 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
+    >
+      <span className="min-w-0 flex-1 truncate">{file.label}</span>
+      {range !== null && (
+        <span className="max-w-[45%] shrink-0 truncate font-mono text-[10px] text-zinc-500">
+          {range}
+        </span>
+      )}
+    </button>
+  )
+}
+
+/**
+ * 起止章节在列表里的写法。
+ *
+ * 两端都空时给 null（不画那一格）；只有一端时原样显示那一端 —— 一条只埋下、还没写
+ * 到收束的伏笔是常态，用一个占位符补另一端只会把「还没想好」说成「没有」。
+ */
+function chapterRange(file: ForeshadowingFile): string | null {
+  const start = file.startChapter.trim()
+  const end = file.endChapter.trim()
+
+  if (start.length === 0) return end.length === 0 ? null : end
+  if (end.length === 0) return start
+
+  return `${start} → ${end}`
 }
 
 /**
@@ -430,7 +602,7 @@ function GalleryEntryRow({
 function PlaceholderDisclosure({
   configKey
 }: {
-  configKey: Exclude<ProjectConfigKey, 'chapters' | 'gallery'>
+  configKey: Exclude<ProjectConfigKey, 'chapters' | 'foreshadowing' | 'gallery'>
 }): JSX.Element {
   const t = useT()
 

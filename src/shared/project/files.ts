@@ -240,6 +240,13 @@ export const PROJECT_FILE_CHANNELS = {
    * 「把整个文件读进来」这一条路，为一章的编号去读几百 KiB 的正文不合适。
    */
   readChapters: 'host:project-read-chapters',
+  /**
+   * 读一个内容目录里的伏笔列表（invoke），参数是目录绝对路径。
+   *
+   * 与 readChapters 同一条理由：列表要扫一个目录并逐份取出字段；交给渲染进程就
+   * 只有「一次读一个文件」这一条路，列一页伏笔要发一串 IPC。
+   */
+  readForeshadowing: 'host:project-read-foreshadowing',
   /** 在一个目录里新建文件 / 文件夹（invoke），参数见 CreateEntryRequest */
   createEntry: 'host:project-create-entry',
   /** 把编辑器里的正文写回一个已存在的文件（invoke），参数见 WriteFileRequest */

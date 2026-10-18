@@ -10,6 +10,8 @@ import {
   type DeleteEntryResult,
   type DirReadFailureReason,
   type FileTreeEntry,
+  type ForeshadowingFile,
+  type ForeshadowingListResult,
   type ProjectConfig,
   type RenameEntryResult
 } from '@shared/project'
@@ -92,6 +94,15 @@ interface ExplorerState {
   /** 正在读章节列表 */
   chaptersLoading: boolean
 
+  /** 伏笔目录的绝对路径；null 表示还没有配置（读不到目录） */
+  foreshadowingDir: string | null
+  /** 伏笔目录里的伏笔列表；null 表示**还没读过**（空数组表示确实没有伏笔） */
+  foreshadowing: ForeshadowingFile[] | null
+  /** 读伏笔列表的失败原因 */
+  foreshadowingError: DirReadFailureReason | null
+  /** 正在读伏笔列表 */
+  foreshadowingLoading: boolean
+
   /**
    * 补一次根目录：启动参数里有项目、而根还没定在它上面时才真正去读。
    *
@@ -117,6 +128,8 @@ interface ExplorerState {
   loadConfig: () => Promise<void>
   /** 读一次章节列表。目录未知时先读配置。失败记进 chaptersError，不抛 */
   loadChapters: () => Promise<void>
+  /** 读一次伏笔列表。目录未知时先读配置。失败记进 foreshadowingError，不抛 */
+  loadForeshadowing: () => Promise<void>
   /**
    * 读一次图鉴列表（内容目录下每个子目录一个图鉴）。
    *
@@ -314,6 +327,10 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
     chapters: null,
     chaptersError: null,
     chaptersLoading: false,
+    foreshadowingDir: null,
+    foreshadowing: null,
+    foreshadowingError: null,
+    foreshadowingLoading: false,
 
     ensureRoots: async () => {
       const projectPath = window.__NIDE_BOOT__.projectPath
@@ -356,7 +373,12 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
         chaptersDir: null,
         chapters: null,
         chaptersError: null,
-        chaptersLoading: false
+        chaptersLoading: false,
+        // 伏笔与章节同一份生命周期：换项目就换一套内容目录
+        foreshadowingDir: null,
+        foreshadowing: null,
+        foreshadowingError: null,
+        foreshadowingLoading: false
       })
 
       for (const root of roots) await readDir(root)
@@ -391,8 +413,9 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
         set({
           config,
           // 内容目录是相对项目根的，绝对路径在这里一次算出来 —— 下游（章节列表、
-          // 将来的图鉴与伏笔）拿到的都该是能直接用的绝对路径
-          chaptersDir: joinProjectPath(root, config.chapters.path)
+          // 图鉴、伏笔）拿到的都该是能直接用的绝对路径
+          chaptersDir: joinProjectPath(root, config.chapters.path),
+          foreshadowingDir: joinProjectPath(root, config.foreshadowing.path)
         })
       } catch (err) {
         logger.error('Reading the project configuration failed unexpectedly', { error: err })
@@ -426,6 +449,34 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
         set({ chaptersError: 'unreadable' })
       } finally {
         set({ chaptersLoading: false })
+      }
+    },
+
+    loadForeshadowing: async () => {
+      if (get().foreshadowingLoading) return
+
+      if (!get().foreshadowingDir) await get().loadConfig()
+
+      const dir = get().foreshadowingDir
+      if (!dir) return
+
+      set({ foreshadowingLoading: true, foreshadowingError: null })
+      try {
+        const result: ForeshadowingListResult = await window.hostAPI.projects.readForeshadowing(dir)
+        if (!result.ok) {
+          logger.warn('Failed to read the foreshadowing list', { dir, reason: result.reason })
+          // foreshadowing 保持原样（可能还是 null）：错误由 foreshadowingError 表达，
+          // 界面据此显示「读不了」而不是「没有伏笔」
+          set({ foreshadowingError: result.reason })
+          return
+        }
+
+        set({ foreshadowing: result.foreshadowing })
+      } catch (err) {
+        logger.error('Reading the foreshadowing list failed unexpectedly', { error: err })
+        set({ foreshadowingError: 'unreadable' })
+      } finally {
+        set({ foreshadowingLoading: false })
       }
     },
 
@@ -508,7 +559,8 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
  * 一个条目改动之后，那些**从磁盘读出来的缓存**该不该跟着刷新。
  *
  * 同一份内容在**几处**各有一份缓存：文件树的 `children`、「项目」标签页的 `chapters`
- * （读的是章节目录）、以及图鉴列表（每个图鉴的条目与字段表）。一次新建 / 改名 / 删除
+ * （读的是章节目录）与 `foreshadowing`（读的是伏笔目录）、以及图鉴列表（每个图鉴的
+ * 条目与字段表）。一次新建 / 改名 / 删除
  * 只发生在其中一个入口，不在这里一起刷的话，改完名之后另一处会一直显示旧名字 ——
  * 直到那个面板被重新挂载。以前只有文件树能发起这些动作，这一点不明显；现在条目菜单
  * 在章节列表与图鉴列表里也各有一份（见 renderer/src/entry），不刷就是当场看得见的错。
@@ -521,8 +573,9 @@ async function refreshContentCaches(paths: string[]): Promise<void> {
   const touches = (dir: string | null): boolean =>
     dir !== null && paths.some((path) => isInsideProject(dir, path, true))
 
-  // 配置还没读出来时没有章节列表、也没有图鉴目录可刷，也就不必它去读一次配置
+  // 配置还没读出来时没有章节 / 伏笔列表、也没有图鉴目录可刷，也就不必它去读一次配置
   if (touches(store.chaptersDir)) await store.loadChapters()
+  if (touches(store.foreshadowingDir)) await store.loadForeshadowing()
 
   const galleryRoot = useGalleryStore.getState().root
   if (galleryRoot !== null && touches(galleryRoot)) await store.loadGalleries(true)

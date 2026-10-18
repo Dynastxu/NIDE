@@ -2,6 +2,7 @@ import { JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import * as monaco from 'monaco-editor'
 import { monacoLoader } from '@renderer/monaco-env'
 import { ChapterForm } from '@renderer/editor/ChapterForm'
+import { ForeshadowingForm } from '@renderer/editor/ForeshadowingForm'
 import { GalleryConfigForm } from '@renderer/editor/GalleryConfigForm'
 import { GalleryEntryForm } from '@renderer/editor/GalleryEntryForm'
 import { MarkdownPreview } from '@renderer/editor/MarkdownPreview'
@@ -81,6 +82,7 @@ const logger = loggerFor('editor')
  * | 是哪一篇 | 表单 | 编辑器 |
  * |---|---|---|
  * | 章节 | 索引 / 细纲 / 角色 / 备注 / 概述 | 有：正文（只有正文的那一份 model） |
+ * | 伏笔 | 名称 / 起始章节 / 结束章节 / 描述 | **没有**：四个字段就是全部内容 |
  * | 图鉴条目 | 图鉴的各个字段 | **没有**：整份文件就是那些字段 |
  * | 图鉴字段表 | 字段名列表 | **没有**：同上 |
  *
@@ -133,6 +135,23 @@ export function EditorPanes({
       <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="px-4 py-4">
           <GalleryConfigForm tab={tab} syncing={syncing} />
+        </div>
+      </div>
+    )
+  }
+
+  if (mode === 'form' && view.kind === 'foreshadowing') {
+    /**
+     * 伏笔的表单：四个固定字段，整块可滚，**没有编辑器**。
+     *
+     * 与图鉴条目同一条理由：伏笔的整份 yml 就是那四个字段，文件没有正文可言 —— 再摆
+     * 一个编辑器只会把同一份数据在同一屏里显示两遍。model 仍然会建出来（见
+     * ForeshadowingForm 里的 syncForeshadowingForm），否则保存没有东西可读。
+     */
+    return (
+      <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <div className="px-4 py-4">
+          <ForeshadowingForm tab={tab} syncing={syncing} />
         </div>
       </div>
     )

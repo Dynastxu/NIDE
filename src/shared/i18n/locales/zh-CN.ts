@@ -214,6 +214,8 @@ export const zhCN = {
   // 章节列表自己加的那一项。它与上面「新建 -> 文件」是两个动作：那个建出来的是空文件
   // （先占个位置），这个建出来开头就带着章节属性（见 explorer/chapter-actions.ts）
   'host.explorer.menu.newChapter': '新建章节',
+  // 伏笔列表自己加的那一项，与「新建章节」同一条边界：建出来开头就带着伏笔属性
+  'host.explorer.menu.newForeshadowing': '新建伏笔',
 
   // 新建对话框
   'host.explorer.newFile.inside': '在此文件夹中新建文件',
@@ -276,6 +278,19 @@ export const zhCN = {
     '这个名字已经有了（新建不会覆盖它）。改个名字，或者先重命名已有的那一章。',
   'host.project.panel.chapter.failed.not-a-directory': '章节目录不存在，或者那里不是一个文件夹。',
   'host.project.panel.chapter.failed.unreadable': '新建失败：没有权限，或者磁盘不可写。',
+
+  // ---- 伏笔 ----
+  // 内容目录里平铺的 yml（整份文件就是属性），字段固定为名称、起始章节、结束章节、
+  // 描述（见 shared/project/foreshadowing）
+  'host.project.panel.foreshadowing.new': '新建伏笔',
+  'host.project.panel.foreshadowing.empty': '这个目录里还没有伏笔。',
+  'host.project.panel.foreshadowing.no-dir': '读不到伏笔目录：项目配置不可用。',
+  'host.project.panel.foreshadowing.failed.invalid-name': '名称不合法。',
+  'host.project.panel.foreshadowing.failed.already-exists':
+    '这个名字已经有了（新建不会覆盖它）。改个名字，或者先重命名已有的那一条。',
+  'host.project.panel.foreshadowing.failed.not-a-directory':
+    '伏笔目录不存在，或者那里不是一个文件夹。',
+  'host.project.panel.foreshadowing.failed.unreadable': '新建失败：没有权限，或者磁盘不可写。',
 
   // ---- 图鉴 ----
   // 与章节的差别是**分区**：一个图鉴是内容目录下的一个子目录（角色 / 地点 / 物品……），
@@ -373,6 +388,18 @@ export const zhCN = {
   'host.editor.form.notes.placeholder': '备注',
   'host.editor.form.summary': '概述',
   'host.editor.form.summary.placeholder': '这一章的概述',
+
+  // ---- 伏笔表单（整份 yml 里的四个固定字段）----
+  // 只对写了 `category: foreshadowing` 的 yml 出现（见 editor/document-mode.ts）
+  'host.editor.form.foreshadowing.name': '名称',
+  'host.editor.form.foreshadowing.name.placeholder': '这条伏笔叫什么',
+  'host.editor.form.foreshadowing.start': '起始章节',
+  'host.editor.form.foreshadowing.end': '结束章节',
+  // 起止是对章节的引用，不是章节自己的编号：章节号与章节标题都能写
+  'host.editor.form.foreshadowing.chapter.hint': '可以写章节号，也可以写章节标题',
+  'host.editor.form.foreshadowing.chapter.placeholder': '留空表示还没想好',
+  'host.editor.form.foreshadowing.description': '描述',
+  'host.editor.form.foreshadowing.description.placeholder': '埋下了什么，准备在哪儿收束',
 
   'host.plugin.loading': '加载中…',
 
