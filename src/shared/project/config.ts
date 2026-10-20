@@ -11,7 +11,8 @@
  * ## 每个分区是一段映射
  *
  * 四个内容分区各成一段，段里至少有一个 `path`；图鉴那一段多一个 `characters`
- * （角色图鉴的目录名）：
+ * （角色图鉴的目录名），概述那一段**可以**多 `outline` / `style`（哪份 Markdown 被
+ * 标记成大纲 / 写作风格）：
  *
  * ```
  * chapters:
@@ -19,6 +20,10 @@
  * gallery:
  *   path: "gallery"
  *   characters: "characters"
+ * overview:
+ *   path: "overview"
+ *   outline: "outline.md"
+ *   style: "style.md"
  * ```
  *
  * `characters` 原先单独记在 `.nide/gallery.yml` 里，后来合并进这一份。两者都是
@@ -26,12 +31,17 @@
  * 就是同一件事。旧文件由主进程在读到旧格式时合并一次（见 parseLegacyProjectConfig
  * 与 parseLegacyGalleryRegistry）。
  *
+ * `outline` / `style` 是**可选的标记**：概述目录里全是普通 Markdown，没标记时两个键
+ * 都不存在；用户标记之后才写进来。旧项目的 config.yml 因此不需要迁移 —— 缺这两个键
+ * 就是「还没标记」。缺 `path` 仍然整份作废。
+ *
  * YAML 那一档写法（标量与引号）在 `@shared/yaml`：章节 Markdown 的 frontmatter 用的是
  * 同一档，两处共用同一份实现，才不会出现「config.yml 读得出、frontmatter 读不出」
  * 这类只在运行时才看得见的分叉。
  */
 
 import { parseYamlScalar, quoteYamlValue } from '@shared/yaml'
+import { isMarkdownPath } from './files'
 
 /** 配置项：四个内容分区 */
 export const PROJECT_CONFIG_KEYS = ['chapters', 'gallery', 'foreshadowing', 'overview'] as const
@@ -43,6 +53,23 @@ export const PROJECT_SECTION_PATH_KEY = 'path'
 
 /** 只有图鉴那一段有的键：角色图鉴的目录名 */
 export const PROJECT_SECTION_CHARACTERS_KEY = 'characters'
+
+/** 只有概述那一段有的键：哪份 Markdown 是大纲。没标记时没有这个键 */
+export const PROJECT_SECTION_OUTLINE_KEY = 'outline'
+
+/** 只有概述那一段有的键：哪份 Markdown 是写作风格。没标记时没有这个键 */
+export const PROJECT_SECTION_STYLE_KEY = 'style'
+
+/**
+ * 新建项目时自带的大纲文件名。
+ *
+ * 它不是「缺键时的回落」：概述里没有任何标记时就是没有标记（见 OverviewSection）。
+ * 这两个名字只在**新建项目**时用来建出默认的两份文档，并写进配置。
+ */
+export const DEFAULT_OVERVIEW_OUTLINE_FILE = 'outline.md'
+
+/** 新建项目时自带的写作风格文件名。用途同 DEFAULT_OVERVIEW_OUTLINE_FILE */
+export const DEFAULT_OVERVIEW_STYLE_FILE = 'style.md'
 
 /** 一个内容分区：它自己的目录 */
 export interface ProjectSection {
@@ -62,6 +89,22 @@ export interface GallerySection extends ProjectSection {
 }
 
 /**
+ * 概述分区：目录之外还记着哪两份 Markdown 被标记成「大纲」与「写作风格」。
+ *
+ * 这两份文件仍然是**普通的 Markdown**（见 ./overview）：标记只回答「获取大纲 / 写作
+ * 风格时该读哪个文件」，不改变文件本身，也不影响目录里的其他文件。用户没有标记时
+ * 这两个键都不存在；标记之后才写进配置。
+ *
+ * 值存的是**文件名**（相对概述目录的一层），不是绝对路径：理由与 `path` 相同。
+ */
+export interface OverviewSection extends ProjectSection {
+  /** 大纲的文件名。没有标记时不存在这个键 */
+  outline?: string
+  /** 写作风格的文件名。没有标记时不存在这个键 */
+  style?: string
+}
+
+/**
  * 项目配置。
  *
  * 每一段里的 `path` 都是**相对项目根**的目录路径，段间用 `/` 分隔（见
@@ -76,7 +119,7 @@ export interface ProjectConfig {
   /** 伏笔 */
   foreshadowing: ProjectSection
   /** 概述 */
-  overview: ProjectSection
+  overview: OverviewSection
 }
 
 /** 默认配置：创建项目时按它建目录，也在配置缺失或读坏时回落 */
@@ -172,6 +215,21 @@ export function normalizeDirectorySegment(raw: string): string | null {
 }
 
 /**
+ * 把一个名字收敛成「概述目录里的一份 Markdown」，校验不过给 null。
+ *
+ * 复用 `normalizeDirectorySegment` 再加一条「必须是 Markdown」：配置值只能是一层
+ * 文件名（`..`、`/`、盘符一律拒绝），而大纲与写作风格按约定是 `.md` / `.markdown`。
+ * 非 Markdown 的文件仍然可以放在概述目录里，只是不能被登记成这两个角色。
+ */
+export function normalizeOverviewFileName(raw: string): string | null {
+  const normalized = normalizeDirectorySegment(raw)
+  if (normalized === null) return null
+  if (!isMarkdownPath(normalized)) return null
+
+  return normalized
+}
+
+/**
  * 这个相对路径是不是宿主自己的元数据目录（`.nide` 或它内部的东西）。
  *
  * 用配置把 `chapters` 指到 `.nide` 里是能写进去、也能读出来的 —— 那样宿主就会把
@@ -183,6 +241,20 @@ export function isMetaDirectoryPath(relativePath: string): boolean {
 
   const first = normalized.split('/')[0]
   return first === PROJECT_META_DIR_NAME
+}
+
+/**
+ * 概述那一段里的一个文件名。
+ *
+ * 没有标记时是 `undefined`（合法），写了一个坏值（空串、非字符串、`..`、非 Markdown）
+ * 时是 `null`（整份配置作废）。与 `path` 不同 —— 这两项本来就是可选的：概述目录里
+ * 全是普通 Markdown，标记只是「取大纲 / 写作风格时读哪个文件」。
+ */
+function overviewFileNameFrom(value: unknown): string | undefined | null {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string') return null
+
+  return normalizeOverviewFileName(value)
 }
 
 /** 逐项校验一份配置。任何一项不合格就返回 null —— **不做逐项回落**（理由见主进程的 loadProjectConfig） */
@@ -206,23 +278,37 @@ export function validateProjectConfig(value: unknown): ProjectConfig | null {
   )
   if (characters === null) return null
 
+  const overview = source.overview as { outline?: unknown; style?: unknown }
+  const outline = overviewFileNameFrom(overview.outline)
+  const style = overviewFileNameFrom(overview.style)
+  if (outline === null || style === null) return null
+  // 两份都标记时必须指向不同的文件：同一个文件不能同时是「大纲」和「写作风格」
+  if (outline !== undefined && style !== undefined && outline === style) return null
+
+  const overviewSection: OverviewSection = { path: paths.overview }
+  if (outline !== undefined) overviewSection.outline = outline
+  if (style !== undefined) overviewSection.style = style
+
   return {
     chapters: { path: paths.chapters },
     gallery: { path: paths.gallery, characters },
     foreshadowing: { path: paths.foreshadowing },
-    overview: { path: paths.overview }
+    overview: overviewSection
   }
 }
 
 /**
  * 一个分区的补丁：只放要改的那几项。
  *
- * `characters` 只有图鉴那一段用得上；别的分区即使给了也被当成未知项忽略 ——
- * 补丁是渲染进程给的，这一层不替它猜「这段是不是图鉴」。
+ * `characters` 只有图鉴那一段用得上，`outline` / `style` 只有概述那一段用得上；
+ * 别的分区即使给了也被当成未知项忽略 —— 补丁是渲染进程给的，这一层不替它猜
+ * 「这段是不是图鉴 / 概述」。
  */
 export interface ProjectSectionPatch {
   path?: string
   characters?: string
+  outline?: string
+  style?: string
 }
 
 /** 配置补丁：按分区给的那一份 */
@@ -232,8 +318,8 @@ export type ProjectConfigPatch = Partial<Record<ProjectConfigKey, ProjectSection
  * 把一份任意载荷收敛成「可用的配置补丁」。
  *
  * IPC 的载荷是渲染进程给的，形状完全不可信：只认 PROJECT_CONFIG_KEYS 里的分区、
- * 分区里只认 path 与 characters 两个键、只认字符串值，坏的那一项**整条丢掉**
- * （而不是回落成默认值）—— 悄悄替用户改成别的目录比拒绝这次改动更难解释。
+ * 分区里只认 path / characters / outline / style 这几个键、只认字符串值，坏的那一项
+ * **整条丢掉**（而不是回落成默认值）—— 悄悄替用户改成别的目录比拒绝这次改动更难解释。
  */
 export function sanitizeProjectConfigPatch(value: unknown): ProjectConfigPatch {
   if (!value || typeof value !== 'object') return {}
@@ -253,8 +339,23 @@ export function sanitizeProjectConfigPatch(value: unknown): ProjectConfigPatch {
     if (key === 'gallery' && typeof fields[PROJECT_SECTION_CHARACTERS_KEY] === 'string') {
       entry.characters = fields[PROJECT_SECTION_CHARACTERS_KEY] as string
     }
+    if (key === 'overview') {
+      if (typeof fields[PROJECT_SECTION_OUTLINE_KEY] === 'string') {
+        entry.outline = fields[PROJECT_SECTION_OUTLINE_KEY] as string
+      }
+      if (typeof fields[PROJECT_SECTION_STYLE_KEY] === 'string') {
+        entry.style = fields[PROJECT_SECTION_STYLE_KEY] as string
+      }
+    }
 
-    if (entry.path !== undefined || entry.characters !== undefined) patch[key] = entry
+    if (
+      entry.path !== undefined ||
+      entry.characters !== undefined ||
+      entry.outline !== undefined ||
+      entry.style !== undefined
+    ) {
+      patch[key] = entry
+    }
   }
 
   return patch
@@ -264,7 +365,7 @@ export function sanitizeProjectConfigPatch(value: unknown): ProjectConfigPatch {
 export interface ProjectConfigApplyResult {
   ok: boolean
   config: ProjectConfig
-  /** 被拒绝的分区：段里有值不是合法的相对目录路径（或角色图鉴名不是一段） */
+  /** 被拒绝的分区：段里有值不是合法的相对目录路径 / 角色图鉴名 / 概述文件名 */
   rejected: ProjectConfigKey[]
   /** 被拒绝的分区里，路径指向 `.nide` 内部的那些 */
   conflicts: ProjectConfigKey[]
@@ -319,6 +420,43 @@ export function applyProjectConfigPatch(
       }
 
       next.gallery = { path: directory, characters }
+      continue
+    }
+
+    if (key === 'overview') {
+      let outline = current.overview.outline
+      let style = current.overview.style
+
+      if (sectionPatch.outline !== undefined) {
+        const normalized = normalizeOverviewFileName(sectionPatch.outline)
+        if (normalized === null) {
+          rejected.push(key)
+          continue
+        }
+
+        outline = normalized
+      }
+
+      if (sectionPatch.style !== undefined) {
+        const normalized = normalizeOverviewFileName(sectionPatch.style)
+        if (normalized === null) {
+          rejected.push(key)
+          continue
+        }
+
+        style = normalized
+      }
+
+      // 两份都标记时必须指向不同的文件：同一个文件不能同时是「大纲」和「写作风格」
+      if (outline !== undefined && style !== undefined && outline === style) {
+        rejected.push(key)
+        continue
+      }
+
+      const overviewSection: OverviewSection = { path: directory }
+      if (outline !== undefined) overviewSection.outline = outline
+      if (style !== undefined) overviewSection.style = style
+      next.overview = overviewSection
       continue
     }
 
@@ -387,6 +525,14 @@ function sectionEntries(key: ProjectConfigKey, config: ProjectConfig): [string, 
   const entries: [string, string][] = [[PROJECT_SECTION_PATH_KEY, config[key].path]]
   if (key === 'gallery') {
     entries.push([PROJECT_SECTION_CHARACTERS_KEY, config.gallery.characters])
+  }
+  if (key === 'overview') {
+    if (config.overview.outline !== undefined) {
+      entries.push([PROJECT_SECTION_OUTLINE_KEY, config.overview.outline])
+    }
+    if (config.overview.style !== undefined) {
+      entries.push([PROJECT_SECTION_STYLE_KEY, config.overview.style])
+    }
   }
 
   return entries
@@ -488,11 +634,21 @@ export function parseProjectConfig(text: string): ProjectConfig | null {
   )
   if (characters === null) return null
 
+  const overview = sections.get('overview')
+  const outline = overviewFileNameFrom(overview?.[PROJECT_SECTION_OUTLINE_KEY])
+  const style = overviewFileNameFrom(overview?.[PROJECT_SECTION_STYLE_KEY])
+  if (outline === null || style === null) return null
+  if (outline !== undefined && style !== undefined && outline === style) return null
+
+  const overviewSection: OverviewSection = { path: paths.overview }
+  if (outline !== undefined) overviewSection.outline = outline
+  if (style !== undefined) overviewSection.style = style
+
   return {
     chapters: { path: paths.chapters },
     gallery: { path: paths.gallery, characters },
     foreshadowing: { path: paths.foreshadowing },
-    overview: { path: paths.overview }
+    overview: overviewSection
   }
 }
 

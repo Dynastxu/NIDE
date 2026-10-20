@@ -2,6 +2,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   DEFAULT_CHARACTER_GALLERY_FIELDS,
+  DEFAULT_OVERVIEW_OUTLINE_FILE,
+  DEFAULT_OVERVIEW_STYLE_FILE,
   DEFAULT_PROJECT_CONFIG,
   DEFAULT_PROJECT_META_IGNORE,
   GALLERY_CONFIG_FILE_NAME,
@@ -11,6 +13,9 @@ import {
   PROJECT_META_DIR_NAME,
   PROJECT_META_IGNORE_FILE_NAME,
   applyProjectConfigPatch,
+  filePathKey,
+  isInsideProject,
+  isMarkdownPath,
   normalizeGalleryName,
   parseLegacyGalleryRegistry,
   parseLegacyProjectConfig,
@@ -439,18 +444,187 @@ export async function updateProjectConfig(
 }
 
 /**
+ * 概述里的大纲 / 写作风格被改名之后，把 `.nide/config.yml` 里的映射跟着改过去。
+ *
+ * 为什么需要它：这两份文件的身份**只**记在项目配置的概述那一段里（见
+ * shared/project/overview）。用户在文件树里把 `outline.md` 改成 `主线.md` 之后，
+ * 配置仍然指着旧名字 —— 那一刻「大纲」就丢了，而磁盘上什么都没坏。改名本身是
+ * 一次用户显式动作，让它顺手维护这条映射比让用户再去菜单里点一次「设为大纲」更
+ * 接近「改个名字」的意思。
+ *
+ * 只处理**直接放在概述目录里的文件**：预设是平铺的两份 Markdown，子目录里的文件
+ * 不是大纲 / 写作风格，也不可能被登记。
+ *
+ * 读不出配置、写不回去时**只记一行日志**，不让改名失败：改名的结果已经落盘了，
+ * 把它报成失败会让用户以为文件还是旧名字。返回是否真的改了配置，供调用方（与测试）
+ * 判断。
+ */
+export async function remapOverviewRole(
+  root: string,
+  previousPath: string,
+  nextPath: string
+): Promise<boolean> {
+  const caseInsensitive = process.platform === 'win32'
+
+  let config: ProjectConfig
+  try {
+    config = await loadProjectConfig(root)
+  } catch (err) {
+    logger.warn('Failed to load the project configuration after a rename', { error: err })
+    return false
+  }
+
+  const overviewRoot = resolveConfigDirectory(root, config.overview.path)
+  if (
+    !isInsideProject(overviewRoot, previousPath, caseInsensitive) ||
+    !isInsideProject(overviewRoot, nextPath, caseInsensitive)
+  ) {
+    return false
+  }
+
+  // 只处理「直接放在概述目录里」这一层：子目录里的文件不是预设的一部分
+  if (
+    filePathKey(path.dirname(previousPath), caseInsensitive) !==
+    filePathKey(overviewRoot, caseInsensitive)
+  ) {
+    return false
+  }
+
+  // 新名字不是 Markdown：配置登记它就等于把自己写坏（见函数头）
+  if (!isMarkdownPath(nextPath)) return false
+
+  const previousName = path.basename(previousPath)
+  const nextName = path.basename(nextPath)
+  const sameName = (value: string): boolean =>
+    value === previousName ||
+    (caseInsensitive && value.toLowerCase() === previousName.toLowerCase())
+
+  const next: ProjectConfig = { ...config, overview: { ...config.overview } }
+  let changed = false
+
+  if (config.overview.outline !== undefined && sameName(config.overview.outline)) {
+    next.overview.outline = nextName
+    changed = true
+  }
+  if (config.overview.style !== undefined && sameName(config.overview.style)) {
+    next.overview.style = nextName
+    changed = true
+  }
+
+  if (!changed) return false
+
+  // 新名字可能让两个角色撞在一起（用户把大纲改名成了写作风格那份的名字）：
+  // 那样的配置自己就是坏的，不写
+  const text = serializeProjectConfig(next)
+  if (parseProjectConfig(text) === null) return false
+
+  try {
+    await fs.writeFile(projectConfigPath(root), text, 'utf-8')
+  } catch (err) {
+    logger.warn('Failed to update the project configuration after a rename', { error: err })
+    return false
+  }
+
+  logger.info('Project configuration followed an overview rename')
+  return true
+}
+
+/**
+ * `.nide/config.yml` 在不在。
+ *
+ * 用来区分「新建项目」与「重新初始化一个已有项目」：只有前者才该自带默认的概述预设。
+ */
+async function projectConfigFileExists(root: string): Promise<boolean> {
+  try {
+    await fs.lstat(projectConfigPath(root))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 新建项目时自带概述预设：两份默认 Markdown + 配置里的两个标记。
+ *
+ * 只在 `.nide/config.yml` **原本不存在**时调用（见 initializeProjectDirectory）：一个
+ * 已经有配置的项目被重新初始化时，不该被塞进两个默认标记，更不该覆盖用户自己的选择。
+ *
+ * 两份文件**只建不覆盖**；已经存在的一份原样保留。名字被目录 / 链接占着时整个动作
+ * 放弃（不写配置）—— 那种状态下标记一个同名的「文件」只会让界面继续说谎。
+ */
+async function ensureDefaultOverviewPreset(
+  root: string,
+  config: ProjectConfig
+): Promise<ProjectConfig> {
+  // 用户已经标记过任何一份：不拿默认值覆盖他的选择
+  if (config.overview.outline !== undefined || config.overview.style !== undefined) return config
+
+  const directory = resolveConfigDirectory(root, config.overview.path)
+  const files = [{ name: DEFAULT_OVERVIEW_OUTLINE_FILE }, { name: DEFAULT_OVERVIEW_STYLE_FILE }]
+
+  for (const file of files) {
+    const target = path.join(directory, file.name)
+
+    try {
+      const stats = await fs.lstat(target)
+      // 已经有一份普通文件：不覆盖，继续看下一份
+      if (!stats.isSymbolicLink() && stats.isFile()) continue
+
+      logger.warn('Refused to use a non-file as a default overview document', { file: file.name })
+      return config
+    } catch (err) {
+      if ((err as { code?: unknown } | null)?.code !== 'ENOENT') {
+        logger.warn('Failed to stat a default overview document', {
+          file: file.name,
+          error: err
+        })
+        return config
+      }
+    }
+
+    try {
+      await fs.writeFile(target, '', { encoding: 'utf-8', flag: 'wx' })
+    } catch (err) {
+      // 这中间有人抢先建了同名文件：不是错误，按「已存在」处理
+      if ((err as { code?: unknown } | null)?.code !== 'EEXIST') {
+        logger.warn('Failed to create a default overview document', {
+          file: file.name,
+          error: err
+        })
+        return config
+      }
+    }
+  }
+
+  const next: ProjectConfig = {
+    ...config,
+    overview: {
+      path: config.overview.path,
+      outline: DEFAULT_OVERVIEW_OUTLINE_FILE,
+      style: DEFAULT_OVERVIEW_STYLE_FILE
+    }
+  }
+
+  const written = await writeProjectConfig(root, next)
+  return written ? next : config
+}
+
+/**
  * 创建项目时的初始化：写默认配置与 `.gitignore`、按配置建内容目录，以及建出默认的
- * 角色图鉴。
+ * 角色图鉴与概述预设。
  *
  * **只在用户经「新建项目」选定目录时调用一次**，打开已有目录不走这里（见文件头）。
  * 已经存在的东西一律不覆盖：`.nide` 在（哪怕是别的工具建的）就沿用它的配置，
- * `.gitignore` 在就留着用户那份。所以对已有项目重复调用是安全的空操作。
+ * `.gitignore` 在就留着用户那份，概述里的两份默认文件也只建不覆盖。所以对已有项目
+ * 重复调用是安全的空操作。
  *
  * 读配置走 `loadProjectConfig`（它与「读一次配置」同一条路：缺失就重建、旧格式就
  * 合并），因此这里不必再自己解析一遍文件。
  */
 export async function initializeProjectDirectory(root: string): Promise<ProjectConfig> {
-  const config = await loadProjectConfig(root)
+  // 先看配置原本在不在：只有「新建项目」才自带默认的概述预设
+  const existed = await projectConfigFileExists(root)
+  let config = await loadProjectConfig(root)
 
   /**
    * 默认的角色图鉴要建在**配置里记着的那个名字**上：一个已经带着自己的配置
@@ -465,6 +639,9 @@ export async function initializeProjectDirectory(root: string): Promise<ProjectC
     config.gallery.characters,
     DEFAULT_CHARACTER_GALLERY_FIELDS
   )
+
+  // 新建项目才自带概述预设；重新初始化一个已有配置的项目不改用户的标记
+  if (!existed) config = await ensureDefaultOverviewPreset(root, config)
 
   logger.info('Project directory initialized', { dir: PROJECT_META_DIR_NAME })
   return config

@@ -311,6 +311,31 @@ export const zhCN = {
   'host.project.panel.gallery.failed.reserved-name': '「config.yml」是图鉴字段表的名字，换一个。',
   'host.project.panel.gallery.failed.unreadable': '操作失败：没有权限，或者磁盘不可写。',
 
+  // ---- 概述 ----
+  // 概述目录里全是普通 Markdown；大纲 / 写作风格只是 .nide/config.yml 里的两个标记
+  // （见 shared/project/overview）。没有标记的文件与该配置无关
+  'host.project.panel.overview.newDocument': '新建文档',
+  'host.project.panel.overview.empty': '这个目录里还没有概述文档。',
+  'host.project.panel.overview.outline': '大纲',
+  'host.project.panel.overview.style': '写作风格',
+  'host.project.panel.overview.no-dir': '读不到概述目录：项目配置不可用。',
+  'host.project.panel.overview.setOutline': '设为大纲',
+  'host.project.panel.overview.setStyle': '设为写作风格',
+  'host.project.panel.overview.alreadyOutline': '这个文件已经是大纲了。',
+  'host.project.panel.overview.alreadyStyle': '这个文件已经是写作风格了。',
+  'host.project.panel.overview.outline.isStyle': '这个文件已经是写作风格了，不能同时当大纲。',
+  'host.project.panel.overview.style.isOutline': '这个文件已经是大纲了，不能同时当写作风格。',
+  'host.project.panel.overview.failed.invalid-name': '名称不合法。',
+  'host.project.panel.overview.failed.already-exists':
+    '这个名字已经有了（新建不会覆盖它）。改个名字，或者先处理已有的那一个。',
+  'host.project.panel.overview.failed.not-a-directory': '概述目录不存在，或者那里不是一个文件夹。',
+  // 概述面板只列 Markdown：建一份 .txt 出来它不会出现在这个面板里，等于没建成
+  'host.project.panel.overview.failed.not-markdown': '概述里只列 Markdown 文档，请用 .md。',
+  'host.project.panel.overview.failed.unreadable': '操作失败：没有权限，或者磁盘不可写。',
+  'host.project.panel.overview.role.failed.invalid-name': '这个名字不能当这个角色。',
+  'host.project.panel.overview.role.failed.unknown-file': '这份文档已经不在了。',
+  'host.project.panel.overview.role.failed.unreadable': '操作失败：没有权限，或者磁盘不可写。',
+
   // 图鉴条目的表单：字段名与值都由这个图鉴的 config.yml 决定，所以界面不写死任何字段
   'host.editor.gallery.empty': '这个图鉴还没有字段。先在图鉴的 config.yml 里加上几个。',
   'host.editor.gallery.extra':

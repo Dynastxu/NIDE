@@ -18,6 +18,7 @@ import {
 import { loggerFor } from '@renderer/logger'
 import { useEditorStore } from './editor.store'
 import { useGalleryStore } from './gallery.store'
+import { useOverviewStore } from './overview.store'
 
 const logger = loggerFor('explorer')
 
@@ -103,6 +104,9 @@ interface ExplorerState {
   /** 正在读伏笔列表 */
   foreshadowingLoading: boolean
 
+  /** 概述目录的绝对路径；null 表示还没有配置（读不到目录） */
+  overviewDir: string | null
+
   /**
    * 补一次根目录：启动参数里有项目、而根还没定在它上面时才真正去读。
    *
@@ -126,6 +130,14 @@ interface ExplorerState {
    * 一次 IPC。要重新读就把它当「换项目」处理（setRoots 会清空这一份）。
    */
   loadConfig: () => Promise<void>
+  /**
+   * 重读项目配置，**绕开**「已经读过就不重读」那条缓存。
+   *
+   * 用在改名之后：主进程可能顺手把概述里的大纲 / 写作风格映射跟着改了（见
+   * project-config.service 的 remapOverviewRole），而界面手里那份配置还是旧的。
+   * 不重读的话，角色行会一直按旧文件名认，直到窗口重建。
+   */
+  reloadConfig: () => Promise<void>
   /** 读一次章节列表。目录未知时先读配置。失败记进 chaptersError，不抛 */
   loadChapters: () => Promise<void>
   /** 读一次伏笔列表。目录未知时先读配置。失败记进 foreshadowingError，不抛 */
@@ -141,6 +153,22 @@ interface ExplorerState {
    * `force` 是刷新：图鉴的增删改都发生在界面上，那些动作之后要重读一次。
    */
   loadGalleries: (force?: boolean) => Promise<void>
+  /**
+   * 读一次概述目录里的 Markdown 列表。
+   *
+   * 与 loadGalleries 同一条理由与同一个位置：概述也是「当前项目有哪些内容」，目录要从
+   * 配置里算出来，真正的读盘与缓存归 overview store —— 这里只负责把「项目根 + 配置」
+   * 翻译成绝对路径。
+   */
+  loadOverview: (force?: boolean) => Promise<void>
+  /**
+   * 用主进程刚写回的那份配置替换手里缓存。
+   *
+   * 概述的「哪份是大纲 / 写作风格」就在配置里：改完标记之后不换这一份，界面会一直
+   * 按旧标记认。内容目录的绝对路径也一并重算（改概述路径是另一条入口，但这一份
+   * 配置是同一个来源，分开算迟早会出现「配置换了、目录还指着旧的」）。
+   */
+  setConfig: (config: ProjectConfig) => void
   /** 重新读一个目录（新建条目之后用它把新节点显示出来） */
   refreshDir: (dirPath: string) => Promise<void>
   /** 展开 / 收起一个目录。首次展开时才去读它 */
@@ -181,6 +209,15 @@ const OPEN_FAILURE_KEYS = {
 
 /** 一次目录读取。in-flight 表按路径去重，重复点开同一个目录不会发两次 IPC */
 const inflight = new Map<string, Promise<void>>()
+
+/**
+ * 正在读配置的那一次。
+ *
+ * 并发的 `loadConfig` 必须**共用**这一个 Promise。以前第二个调用只看到
+ * `configLoading` 为真就空手返回，于是「在别处已经开始读配置」的调用方会以为读完了：
+ * 它接着去取 `config` / `content dir`，拿到的却还是 null，列表就永远停在「加载中」。
+ */
+let configInflight: Promise<void> | null = null
 
 /** 路径最后一段之前的部分；没有分隔符时返回空串 */
 function parentOf(target: string): string {
@@ -331,6 +368,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
     foreshadowing: null,
     foreshadowingError: null,
     foreshadowingLoading: false,
+    overviewDir: null,
 
     ensureRoots: async () => {
       const projectPath = window.__NIDE_BOOT__.projectPath
@@ -357,6 +395,8 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
        * 上一个项目的图鉴渲染一帧。
        */
       useGalleryStore.getState().forget()
+      // 概述那一份同理：换项目就是换一套概述目录里的文件
+      useOverviewStore.getState().forget()
 
       set({
         roots,
@@ -378,50 +418,66 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
         foreshadowingDir: null,
         foreshadowing: null,
         foreshadowingError: null,
-        foreshadowingLoading: false
+        foreshadowingLoading: false,
+        overviewDir: null
       })
 
       for (const root of roots) await readDir(root)
     },
 
-    loadConfig: async () => {
+    loadConfig: () => {
       // 已经读过就不重读：配置在一次会话里不会变（改配置要重建窗口）
-      if (get().config || get().configLoading) return
+      if (get().config) return Promise.resolve()
+      // 已经有人在读：把**同一个** Promise 交出去，调用方要等的是同一次读盘
+      if (configInflight) return configInflight
 
-      set({ configLoading: true })
-      try {
-        /*
-         * 内容目录是相对**项目根**算出来的，所以根必须先定下来。这一步不能假设文件树
-         * 已经做过它：「项目」是默认标签页，启动时文件树根本没挂载过，而挂载副作用是
-         * **子组件先于父组件**跑的 —— 谁先谁后由不得调用方。补根因此放在这里，而不是
-         * 放在某一个面板的挂载处（否则「项目」那一面读配置时根还是空的，列表一直空着，
-         * 切到「文件」再切回来才好）。
-         */
-        await get().ensureRoots()
+      const task = (async () => {
+        set({ configLoading: true })
+        try {
+          /*
+           * 内容目录是相对**项目根**算出来的，所以根必须先定下来。这一步不能假设文件树
+           * 已经做过它：「项目」是默认标签页，启动时文件树根本没挂载过，而挂载副作用是
+           * **子组件先于父组件**跑的 —— 谁先谁后由不得调用方。补根因此放在这里，而不是
+           * 放在某一个面板的挂载处（否则「项目」那一面读配置时根还是空的，列表一直空着，
+           * 切到「文件」再切回来才好）。
+           */
+          await get().ensureRoots()
 
-        const root = get().roots[0]
-        if (!root) return
+          const root = get().roots[0]
+          if (!root) return
 
-        const config = await window.hostAPI.projects.readConfig()
-        if (!config) {
-          logger.warn(
-            'The project configuration is unavailable, the content directories stay unknown'
-          )
-          return
+          const config = await window.hostAPI.projects.readConfig()
+          if (!config) {
+            logger.warn(
+              'The project configuration is unavailable, the content directories stay unknown'
+            )
+            return
+          }
+
+          set({
+            config,
+            // 内容目录是相对项目根的，绝对路径在这里一次算出来 —— 下游（章节列表、
+            // 图鉴、伏笔、概述）拿到的都该是能直接用的绝对路径
+            chaptersDir: joinProjectPath(root, config.chapters.path),
+            foreshadowingDir: joinProjectPath(root, config.foreshadowing.path),
+            overviewDir: joinProjectPath(root, config.overview.path)
+          })
+        } catch (err) {
+          logger.error('Reading the project configuration failed unexpectedly', { error: err })
+        } finally {
+          configInflight = null
+          set({ configLoading: false })
         }
+      })()
 
-        set({
-          config,
-          // 内容目录是相对项目根的，绝对路径在这里一次算出来 —— 下游（章节列表、
-          // 图鉴、伏笔）拿到的都该是能直接用的绝对路径
-          chaptersDir: joinProjectPath(root, config.chapters.path),
-          foreshadowingDir: joinProjectPath(root, config.foreshadowing.path)
-        })
-      } catch (err) {
-        logger.error('Reading the project configuration failed unexpectedly', { error: err })
-      } finally {
-        set({ configLoading: false })
-      }
+      configInflight = task
+      return task
+    },
+
+    reloadConfig: async () => {
+      // 先清掉缓存再走同一条读配置的路：那条路自己会补项目根、重算内容目录
+      set({ config: null, configLoading: false })
+      await get().loadConfig()
     },
 
     loadChapters: async () => {
@@ -491,6 +547,30 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
       await useGalleryStore.getState().load(joinProjectPath(root, config.gallery.path), force)
     },
 
+    loadOverview: async (force = false) => {
+      // 目录要从配置里算出来（与 loadGalleries 同一条路：配置自己会先补上项目根）
+      if (!get().config) await get().loadConfig()
+
+      const root = get().roots[0]
+      const config = get().config
+      if (!root || !config) return
+
+      await useOverviewStore.getState().load(joinProjectPath(root, config.overview.path), force)
+    },
+
+    setConfig: (config) =>
+      set((state) => {
+        const root = state.roots[0]
+        if (!root) return { config }
+
+        return {
+          config,
+          chaptersDir: joinProjectPath(root, config.chapters.path),
+          foreshadowingDir: joinProjectPath(root, config.foreshadowing.path),
+          overviewDir: joinProjectPath(root, config.overview.path)
+        }
+      }),
+
     toggle: async (dirPath) => {
       const open = get().expanded[dirPath] ?? false
       set((s) => ({ expanded: { ...s.expanded, [dirPath]: !open } }))
@@ -559,8 +639,8 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
  * 一个条目改动之后，那些**从磁盘读出来的缓存**该不该跟着刷新。
  *
  * 同一份内容在**几处**各有一份缓存：文件树的 `children`、「项目」标签页的 `chapters`
- * （读的是章节目录）与 `foreshadowing`（读的是伏笔目录）、以及图鉴列表（每个图鉴的
- * 条目与字段表）。一次新建 / 改名 / 删除
+ * （读的是章节目录）与 `foreshadowing`（读的是伏笔目录）、图鉴列表（每个图鉴的
+ * 条目与字段表），以及概述列表（目录里的 Markdown）。一次新建 / 改名 / 删除
  * 只发生在其中一个入口，不在这里一起刷的话，改完名之后另一处会一直显示旧名字 ——
  * 直到那个面板被重新挂载。以前只有文件树能发起这些动作，这一点不明显；现在条目菜单
  * 在章节列表与图鉴列表里也各有一份（见 renderer/src/entry），不刷就是当场看得见的错。
@@ -579,6 +659,9 @@ async function refreshContentCaches(paths: string[]): Promise<void> {
 
   const galleryRoot = useGalleryStore.getState().root
   if (galleryRoot !== null && touches(galleryRoot)) await store.loadGalleries(true)
+
+  const overviewRoot = useOverviewStore.getState().root
+  if (overviewRoot !== null && touches(overviewRoot)) await store.loadOverview(true)
 }
 
 /**
@@ -694,6 +777,16 @@ export async function renameProjectEntry(
 
   // 章节 / 图鉴列表里按旧名字排着的那一条要跟着换（见 refreshContentCaches）
   await refreshContentCaches([result.previousPath, result.path])
+
+  /**
+   * 概述里的大纲 / 写作风格是按文件名记在项目配置里的：主进程改名时可能已经把映射
+   * 跟着改了（见 remapOverviewRole）。这里重读一次，角色行才不会按旧名字认。
+   * 只在改的是概述目录里的文件时读一次，别处的改名不碰配置。
+   */
+  const overviewDir = store.overviewDir
+  if (overviewDir !== null && isInsideProject(overviewDir, result.path, true)) {
+    await store.reloadConfig()
+  }
 
   return result
 }

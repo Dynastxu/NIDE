@@ -98,7 +98,13 @@ describe('新建项目的图鉴骨架', () => {
   it('建出默认的角色图鉴（目录 + 字段表），并把它记进 config.yml', async () => {
     await initializeProjectDirectory(root)
 
-    expect(await readConfig()).toEqual(DEFAULT_PROJECT_CONFIG)
+    // 新建项目也自带概述预设的两份文件，并把它们标记好
+    expect(await readConfig()).toEqual({
+      ...DEFAULT_PROJECT_CONFIG,
+      overview: { path: 'overview', outline: 'outline.md', style: 'style.md' }
+    })
+    expect(await exists(path.join(root, 'overview', 'outline.md'))).toBe(true)
+    expect(await exists(path.join(root, 'overview', 'style.md'))).toBe(true)
 
     const parsed = parseGalleryConfig(await fs.readFile(characterConfigPath(), 'utf-8'))
     expect(parsed?.fields).toEqual([...DEFAULT_CHARACTER_GALLERY_FIELDS])
@@ -185,7 +191,8 @@ describe('改角色图鉴（设为角色图鉴）', () => {
     const config = await readConfig()
     expect(config).toEqual({
       ...DEFAULT_PROJECT_CONFIG,
-      gallery: { path: 'gallery', characters: '人物' }
+      gallery: { path: 'gallery', characters: '人物' },
+      overview: { path: 'overview', outline: 'outline.md', style: 'style.md' }
     })
   })
 

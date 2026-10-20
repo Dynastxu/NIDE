@@ -21,6 +21,7 @@ import {
   isInsideProject,
   isMarkdownPath,
   isSupportedTextPath,
+  normalizeOverviewFileName,
   parseChapterHeading,
   parseChapterNumber,
   parseGalleryConfig,
@@ -54,6 +55,8 @@ import type {
   GalleryEntryFile,
   GalleryFolder,
   GalleryFoldersResult,
+  OverviewDocument,
+  OverviewListResult,
   RenameEntryFailureReason,
   RenameEntryRequest,
   RenameEntryResult,
@@ -1168,4 +1171,72 @@ export async function createProjectGallery(
 
   logger.info('Project gallery created', { name: validation.name })
   return { ok: true, path: galleryPath, configPath }
+}
+
+// ============ 概述（内容目录里平铺的 Markdown） ============
+
+/**
+ * 读概述目录里的 Markdown。
+ *
+ * 概述是**平铺**的：大纲、写作风格与普通文档都直接放在内容目录里，没有子目录这一层
+ * （见 shared/project/overview）。三条刻意的行为：
+ *
+ * - **只列 Markdown**。概述里的文档是给人读、给编辑器打开的文稿；目录里的图片、
+ *   PDF 不参与这个面板（它们在文件树里照常可见）。
+ * - **不按内容 / 文件名筛角色**：`config.yml` 说哪份是大纲，它就是大纲；其余 Markdown
+ *   都是普通文档。用户在目录里放一份 README 是常态，它不该从列表里消失。
+ * - **读盘这一层不猜角色**：角色映射属于项目配置（见 IPC 层），列表只回答「这一层
+ *   有哪些 Markdown」。
+ */
+export async function readProjectOverview(
+  overviewRoot: string,
+  options: RootsOptions
+): Promise<OverviewListResult> {
+  const listing = await readProjectDir(overviewRoot, options)
+  if (!listing.ok) return { ok: false, reason: listing.reason }
+
+  const documents: OverviewDocument[] = listing.entries
+    .filter(
+      (entry): entry is Extract<FileTreeEntry, { kind: 'file' }> =>
+        entry.kind === 'file' && isMarkdownPath(entry.path)
+    )
+    .map((entry) => ({ path: entry.path, name: entry.name }))
+
+  return { ok: true, path: listing.path, documents }
+}
+
+/** 概述目录里的一份文档能不能被登记成大纲 / 写作风格 */
+export type OverviewDocumentCheck = 'ok' | 'unknown-file' | 'unreadable'
+
+/**
+ * 确认概述目录里确实有这份 Markdown。
+ *
+ * 角色映射改的是项目配置，但配置里写下一个名字之前要确认那份文件真的在概述目录里：
+ * 否则「大纲」会指向一个不存在的文件，而界面上根本看不出原因。范围、链接与格式三样
+ * 与读取同一套立场。
+ */
+export async function checkProjectOverviewDocument(
+  overviewRoot: string,
+  fileName: string,
+  options: RootsOptions
+): Promise<OverviewDocumentCheck> {
+  const name = normalizeOverviewFileName(fileName)
+  if (name === null) return 'unknown-file'
+
+  if (!isInsideAnyRoot(options.roots, overviewRoot, options.caseInsensitive)) {
+    return 'unreadable'
+  }
+
+  try {
+    const stats = await fs.lstat(path.join(overviewRoot, name))
+    // 链接能把「改概述里的映射」变成「改指向根外某处的一份文件」：拒绝
+    if (stats.isSymbolicLink() || !stats.isFile()) return 'unknown-file'
+  } catch (err) {
+    if ((err as { code?: unknown } | null)?.code === 'ENOENT') return 'unknown-file'
+
+    logger.warn('Failed to stat an overview document', { error: err })
+    return 'unreadable'
+  }
+
+  return 'ok'
 }

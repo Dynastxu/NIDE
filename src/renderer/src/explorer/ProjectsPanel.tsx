@@ -2,6 +2,7 @@ import { JSX, useEffect, useState } from 'react'
 import { useT } from '@renderer/stores/i18n.store'
 import { useExplorerStore } from '@renderer/stores/explorer.store'
 import { useGalleryStore } from '@renderer/stores/gallery.store'
+import { useOverviewStore } from '@renderer/stores/overview.store'
 import { openChapterFile } from '@renderer/explorer/chapter-actions'
 import { openForeshadowingFile } from '@renderer/explorer/foreshadowing-actions'
 import {
@@ -10,8 +11,15 @@ import {
   setCharacterGalleryAction
 } from '@renderer/explorer/gallery-actions'
 import {
+  isRoleDocument,
+  openOverviewFile,
+  roleOfDocument,
+  setOverviewRoleAction
+} from '@renderer/explorer/overview-actions'
+import {
   openCreateGalleryEntryPrompt,
-  openCreateGalleryPrompt
+  openCreateGalleryPrompt,
+  openCreateOverviewDocumentPrompt
 } from '@renderer/stores/entry-action.store'
 import { EntryMenu } from '@renderer/entry/EntryMenu'
 import { Disclosure } from '@renderer/ui/Disclosure'
@@ -22,6 +30,8 @@ import type {
   ForeshadowingFile,
   GalleryEntryFile,
   GalleryFolder,
+  OverviewDocument,
+  OverviewRole,
   ProjectConfigKey
 } from '@shared/project'
 import { GALLERY_CONFIG_FILE_NAME } from '@shared/project'
@@ -33,13 +43,13 @@ import type { HostMessageKey } from '@shared/i18n'
  * 目录名与绝对路径都由 `.nide/config.yml` 给 —— 界面不猜、也不写死 `chapters` 这样的
  * 字面量，用户在配置里把章节目录改成 `manuscript` 之后这里跟着变。
  *
- * **章节、伏笔与图鉴接了实现**，概述分类的「新建」是置灰的。置灰而不是隐藏，
- * 是因为这一项已经在计划里、位置也定了 —— 一个看得见但点不动的入口，比一个要等到
- * 功能上线才出现的入口更容易看懂现在处在哪一步。
+ * **四个分类都接了实现。** 章节、伏笔与概述是平铺的列表，图鉴多一层分区。概述里
+ * 那一堆普通 Markdown 中**最多两份**被 `.nide/config.yml` 的 `overview.outline / style`
+ * 标记成「大纲」与「写作风格」（见 shared/project/overview），其余都没有标记。
  *
  * 分类之间有一点结构上的差别，这里如实呈现：章节是一堆平铺的 Markdown，伏笔是一堆
- * 平铺的 yml，而**图鉴是分区的**（见 shared/project/gallery）—— 一个图鉴 = 内容目录
- * 下的一个子目录，所以图鉴那一块比章节多一层折叠。
+ * 平铺的 yml，概述也是一堆平铺的 Markdown（其中最多两份带标记），而**图鉴是分区的**
+ * —— 一个图鉴 = 内容目录下的一个子目录，所以图鉴那一块比别的多一层折叠。
  *
  * 列表刻意只显示**内容里真正写着的东西**：章节显示编号与标题、图鉴条目显示第一个字段
  * 的值。排序与拖拽都还没有，先不摆出一个做不到的样子。右键菜单倒是走的是**条目动作层**
@@ -73,7 +83,9 @@ export function ProjectsPanel({
         <ForeshadowingSection onCreate={onCreateForeshadowing} />
       </Disclosure>
 
-      <PlaceholderDisclosure configKey="overview" />
+      <Disclosure title={t(SECTION_TITLES.overview)}>
+        <OverviewSection />
+      </Disclosure>
     </div>
   )
 }
@@ -108,6 +120,20 @@ const GALLERY_ERROR_KEYS: Record<DirReadFailureReason, HostMessageKey> = {
   'outside-project': 'host.explorer.error.outside-project',
   'not-a-directory': 'host.project.panel.gallery.no-dir',
   unreadable: 'host.project.panel.gallery.failed.unreadable'
+}
+
+/** 读概述目录失败的原因 -> 词条 key。与上面三张表分开：说的是另一个目录 */
+const OVERVIEW_ERROR_KEYS: Record<DirReadFailureReason, HostMessageKey> = {
+  'invalid-path': 'host.explorer.error.invalid-path',
+  'outside-project': 'host.explorer.error.outside-project',
+  'not-a-directory': 'host.project.panel.overview.no-dir',
+  unreadable: 'host.project.panel.overview.failed.unreadable'
+}
+
+/** 角色 -> 显示名 */
+const OVERVIEW_ROLE_KEYS: Record<OverviewRole, HostMessageKey> = {
+  outline: 'host.project.panel.overview.outline',
+  style: 'host.project.panel.overview.style'
 }
 
 /** 章节列表里被右键的那一行 */
@@ -594,26 +620,192 @@ function GalleryEntryRow({
 }
 
 /**
- * 还没实现的分类。
+ * 概述：内容目录里平铺着一堆**普通 Markdown**，其中最多两份被标记成大纲 / 写作风格。
  *
- * 泛型参数用 Exclude 把已经实现的那两项排除掉：多实现一项时，这里会因为类型不匹配
- * 而**编译不过** —— 「占位页还挂着」这件事因此不会靠记性来保证。
+ * 标记只是 `.nide/config.yml` 里的两个文件名，不改变文件本身，也不影响其他文件；
+ * 所以这里就是一个普通文件列表，只在被标记的那一行加一个小标签。用户可以随时新建
+ * 更多文档，它们默认不带任何标记。
+ *
+ * 「标记为大纲 / 标记为写作风格」放在文档行的右键菜单里：标记只有两个，选择就发生在
+ * 文件本身那一行上，不另开一个「管理标记」的对话框。
  */
-function PlaceholderDisclosure({
-  configKey
+function OverviewSection(): JSX.Element {
+  const t = useT()
+  const overviewDir = useExplorerStore((s) => s.overviewDir)
+  const config = useExplorerStore((s) => s.config)
+  const documents = useOverviewStore((s) => s.documents)
+  const loading = useOverviewStore((s) => s.loading)
+  const error = useOverviewStore((s) => s.error)
+  const loadConfig = useExplorerStore((s) => s.loadConfig)
+  const loadOverview = useExplorerStore((s) => s.loadOverview)
+
+  const [documentMenu, setDocumentMenu] = useState<OverviewDocumentMenu | null>(null)
+
+  /*
+   * 读配置。与章节那一节同一条路：这一面是默认标签页，启动时文件树并不存在，根与
+   * 内容目录都由 loadConfig 自己补。
+   */
+  useEffect(() => {
+    void loadConfig()
+  }, [loadConfig])
+
+  /**
+   * 配置到手之后再读概述列表。
+   *
+   * **不能只靠挂载时那一句话**：`loadConfig` 正在别处读的时候会直接返回（它没有把
+   * 在途的 Promise 交出来），挂载时那一次 `loadOverview` 因此可能看见 `config` 还是
+   * null、什么都没读就结束。等 `config` 落地再读一次，列表才不会一直停在「加载中」。
+   * 已经读过时 `overview.store.load` 会直接复用缓存，重复触发没有代价。
+   */
+  useEffect(() => {
+    if (!config) return
+    void loadOverview()
+  }, [config, loadOverview])
+
+  const items = documents ?? []
+  /** 概述内容目录还没定下来时不给新建入口：敲完名字才被告知「不知道建到哪儿」是白费一次输入 */
+  const canCreate = overviewDir !== null
+
+  return (
+    <>
+      <CreateRow
+        label={t('host.project.panel.overview.newDocument')}
+        onClick={() => {
+          if (!overviewDir) return
+
+          openCreateOverviewDocumentPrompt({
+            path: overviewDir,
+            name: t(SECTION_TITLES.overview),
+            kind: 'directory'
+          })
+        }}
+        disabled={!canCreate}
+        reason={t('host.project.panel.overview.no-dir')}
+      />
+
+      {error ? (
+        <p className="px-3 py-1 text-xs text-red-400">{t(OVERVIEW_ERROR_KEYS[error])}</p>
+      ) : documents === null || loading ? (
+        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+      ) : items.length === 0 ? (
+        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.project.panel.overview.empty')}</p>
+      ) : (
+        items.map((file) => (
+          <OverviewDocumentRow
+            key={file.path}
+            file={file}
+            role={roleOfDocument(config, file)}
+            onContextMenu={(x, y) => setDocumentMenu({ file, x, y })}
+          />
+        ))
+      )}
+
+      {/*
+        列表里的每一行都是一份 Markdown，所以共用块那一份菜单（重命名 / 删除）正好够用；
+        这个面自己的两项排在共用块**之前**（见 EntryMenu 的说明）。
+      */}
+      {documentMenu && (
+        <EntryMenu
+          x={documentMenu.x}
+          y={documentMenu.y}
+          target={{
+            path: documentMenu.file.path,
+            name: documentMenu.file.name,
+            kind: 'file'
+          }}
+          onClose={() => setDocumentMenu(null)}
+          viewItems={[
+            {
+              id: 'setOverviewOutline',
+              label: t('host.project.panel.overview.setOutline'),
+              icon: 'check',
+              onSelect: () => void setOverviewRoleAction('outline', documentMenu.file),
+              ...(isRoleDocument(config, 'outline', documentMenu.file)
+                ? {
+                    disabled: true,
+                    disabledReason: t('host.project.panel.overview.alreadyOutline')
+                  }
+                : isRoleDocument(config, 'style', documentMenu.file)
+                  ? {
+                      disabled: true,
+                      disabledReason: t('host.project.panel.overview.outline.isStyle')
+                    }
+                  : {})
+            },
+            {
+              id: 'setOverviewStyle',
+              label: t('host.project.panel.overview.setStyle'),
+              icon: 'check',
+              onSelect: () => void setOverviewRoleAction('style', documentMenu.file),
+              ...(isRoleDocument(config, 'style', documentMenu.file)
+                ? {
+                    disabled: true,
+                    disabledReason: t('host.project.panel.overview.alreadyStyle')
+                  }
+                : isRoleDocument(config, 'outline', documentMenu.file)
+                  ? {
+                      disabled: true,
+                      disabledReason: t('host.project.panel.overview.style.isOutline')
+                    }
+                  : {})
+            }
+          ]}
+        />
+      )}
+    </>
+  )
+}
+
+/** 概述列表里被右键的那一份文档 */
+interface OverviewDocumentMenu {
+  file: OverviewDocument
+  x: number
+  y: number
+}
+
+/**
+ * 概述目录里的一篇 Markdown：显示文件名，被标记时在右侧加一个小标签。
+ *
+ * 标记只是标签，不是另一种文件；点它仍然是打开这个文件。
+ */
+function OverviewDocumentRow({
+  file,
+  role,
+  onContextMenu
 }: {
-  configKey: Exclude<ProjectConfigKey, 'chapters' | 'foreshadowing' | 'gallery'>
+  file: OverviewDocument
+  /** 这份文件被标记成了什么；没有标记时是 null */
+  role: OverviewRole | null
+  onContextMenu: (x: number, y: number) => void
 }): JSX.Element {
   const t = useT()
 
   return (
-    <Disclosure title={t(SECTION_TITLES[configKey])}>
-      <CreateRow
-        label={t('host.project.panel.new')}
-        disabled
-        reason={t('host.project.panel.section.notImplemented')}
-      />
-    </Disclosure>
+    <button
+      type="button"
+      title={file.path}
+      onClick={() => void openOverviewFile(file)}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        onContextMenu(event.clientX, event.clientY)
+      }}
+      className="flex w-full items-center gap-2 py-1 pr-1 pl-5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
+    >
+      <BuiltinIcon name="file" className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+      {/*
+        文件名与标记放在同一个弹性容器里：文件名短时标记**紧挨着**文件名（不是被
+        推到行尾），文件名长时先截断文件名、把标记留在它右边。外层 flex-1 占满剩余
+        宽度，里面才是「名字 + 标记」这一小段。
+      */}
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span className="min-w-0 truncate">{file.name}</span>
+        {role !== null && (
+          <span className="shrink-0 rounded bg-zinc-700 px-1 py-0.5 text-[10px] text-zinc-300">
+            {t(OVERVIEW_ROLE_KEYS[role])}
+          </span>
+        )}
+      </span>
+    </button>
   )
 }
 

@@ -7,6 +7,7 @@ import {
   useExplorerStore
 } from './explorer.store'
 import { createGalleryAction, createGalleryEntryAction } from '@renderer/explorer/gallery-actions'
+import { createOverviewDocumentAction } from '@renderer/explorer/overview-actions'
 import { createScopeOf, type CreateScope, type EntryActionTarget } from '@renderer/entry/entry-menu'
 import type { CreateEntryKind, DeleteEntryFailureReason } from '@shared/project'
 import type { HostMessageKey } from '@shared/i18n'
@@ -33,9 +34,9 @@ import type { HostMessageKey } from '@shared/i18n'
  * `key` 每次开框换一个：React 据此**重新挂载**对话框，否则「取消新建」之后紧接着
  * 「重命名」，输入框里会留着上一个人的文字。
  *
- * 四个模式里有三个都是「新建」，差别在**建什么**：普通条目（文件 / 文件夹）、一个图鉴
- * （目录 + 字段表）、一个图鉴条目（带骨架的 yml）。它们对用户是三个动作，所以各有一个
- * 自己的标题与确认逻辑（见 `submitPromptName`）。
+ * 几个「新建」的差别都在**建什么**：普通条目（文件 / 文件夹）、一个图鉴（目录 + 字段表）、
+ * 一个图鉴条目（带骨架的 yml）、一份概述文档（普通 Markdown）。它们对用户是几个动作，
+ * 所以各有一个自己的标题与确认逻辑（见 `submitPromptName`）。
  */
 export type PendingPrompt =
   | {
@@ -50,6 +51,8 @@ export type PendingPrompt =
   | { key: number; mode: 'createGallery'; target: EntryActionTarget }
   /** 新建一个图鉴条目：`target` 是那个图鉴的目录 */
   | { key: number; mode: 'createGalleryEntry'; target: EntryActionTarget }
+  /** 在概述目录里新建一份普通 Markdown：`target` 是概述内容目录 */
+  | { key: number; mode: 'createOverviewDocument'; target: EntryActionTarget }
 
 interface EntryActionState {
   /** 正在等用户输入名字的动作；null 表示没有对话框 */
@@ -105,6 +108,21 @@ export function openCreateGalleryEntryPrompt(target: EntryActionTarget): void {
   useEntryActionStore.getState().setPrompt({ key: promptSeq, mode: 'createGalleryEntry', target })
 }
 
+/**
+ * 开「新建概述文档」的输入框，落点是**概述内容目录**。
+ *
+ * 名字没有扩展名时会补 `.md`（见 NamePromptDialog 的 defaultExtension）：概述面板只列
+ * Markdown，而用户完全可以只敲「世界观」。补出来的名字会显示在输入框下面。
+ *
+ * 这份文档是普通文件，默认没有被标记成大纲 / 写作风格（要标记得另外右键）。
+ */
+export function openCreateOverviewDocumentPrompt(target: EntryActionTarget): void {
+  promptSeq += 1
+  useEntryActionStore
+    .getState()
+    .setPrompt({ key: promptSeq, mode: 'createOverviewDocument', target })
+}
+
 /** 关掉输入框（取消，或者提交成功之后） */
 export function closePrompt(): void {
   useEntryActionStore.getState().setPrompt(null)
@@ -123,18 +141,30 @@ export async function submitPromptName(
   request: PendingPrompt,
   name: string
 ): Promise<string | null> {
+  let message: string | null
+
   /*
-   * 三个「新建」各自走自己的动作：普通条目写一个空文件 / 空目录，图鉴连字段表一起写，
-   * 条目写一份骨架。它们的失败文案共用一套（都是「没建成」），差别只在建的是什么。
+   * 每个「新建」走自己的动作：普通条目写一个空文件 / 空目录，图鉴连字段表一起写，
+   * 条目写一份骨架，概述文档写一个空 Markdown。它们的失败文案共用一套（都是
+   * 「没建成」），差别只在建的是什么。
    */
-  const message =
-    request.mode === 'create'
-      ? await submitCreate(request, name)
-      : request.mode === 'createGallery'
-        ? await createGalleryAction(request.target, name)
-        : request.mode === 'createGalleryEntry'
-          ? await createGalleryEntryAction(request.target, name)
-          : await submitRename(request.target.path, name)
+  switch (request.mode) {
+    case 'create':
+      message = await submitCreate(request, name)
+      break
+    case 'createGallery':
+      message = await createGalleryAction(request.target, name)
+      break
+    case 'createGalleryEntry':
+      message = await createGalleryEntryAction(request.target, name)
+      break
+    case 'createOverviewDocument':
+      message = await createOverviewDocumentAction(request.target, name)
+      break
+    case 'rename':
+      message = await submitRename(request.target.path, name)
+      break
+  }
 
   if (message !== null) return message
 

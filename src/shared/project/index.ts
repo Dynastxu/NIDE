@@ -9,7 +9,8 @@
  * 文件树（目录条目、排序、支持哪些文本格式、新建时的名字校验）在 `./files`，
  * 同样只放纯逻辑；项目级配置（`.nide/config.yml` 的形状与文本读写）在 `./config`；
  * 章节 Markdown 的开头属性（frontmatter）在 `./chapters`，伏笔（固定四个字段的整份
- * yml）在 `./foreshadowing`，图鉴（分区的字段表与条目）在 `./gallery`，三者共用
+ * yml）在 `./foreshadowing`，图鉴（分区的字段表与条目）在 `./gallery`，概述（平铺的
+ * Markdown，其中两份被配置登记成大纲 / 写作风格）在 `./overview`；它们共用
  * `./frontmatter` 里那一份「属性块怎么读」。
  */
 
@@ -20,6 +21,7 @@ export * from './frontmatter'
 export * from './chapters'
 export * from './foreshadowing'
 export * from './gallery'
+export * from './overview'
 
 /**
  * 项目 = 一个文件夹。

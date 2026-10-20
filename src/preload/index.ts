@@ -22,7 +22,8 @@ import {
   PROJECT_CHANNELS,
   PROJECT_CONFIG_CHANNELS,
   PROJECT_FILE_CHANNELS,
-  PROJECT_GALLERY_CHANNELS
+  PROJECT_GALLERY_CHANNELS,
+  PROJECT_OVERVIEW_CHANNELS
 } from '@shared/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
@@ -52,6 +53,9 @@ import type {
   GalleryListResult,
   GalleryRegistryUpdateRequest,
   GalleryRegistryUpdateResult,
+  OverviewListResult,
+  OverviewRoleUpdateRequest,
+  OverviewRoleUpdateResult,
   ProjectConfig,
   ProjectConfigPatch,
   ProjectConfigUpdateResult,
@@ -384,6 +388,27 @@ const projectAPI = {
     request: GalleryRegistryUpdateRequest
   ): Promise<GalleryRegistryUpdateResult | null> =>
     ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.updateRegistry, request),
+
+  /**
+   * 读概述：内容目录里平铺的 Markdown。
+   *
+   * 「哪份是大纲 / 写作风格」不在这份结果里：那是项目配置里的标记，渲染进程手里
+   * 已经有 `config.overview`，照着它认即可。
+   *
+   * 传的是概述内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在主进程：
+   * 渲染进程只声明「我想读这个概述目录」，声明不了「哪个目录算概述目录」。
+   */
+  readOverview: (overviewRoot: string): Promise<OverviewListResult> =>
+    ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.readOverview, overviewRoot),
+
+  /**
+   * 把概述里的某份 Markdown 标记成大纲 / 写作风格。
+   *
+   * 改的是**项目配置**的概述那一段，不是那份文档本身。文件不在了、或者不是 Markdown
+   * 时主进程拒绝并给出原因。
+   */
+  setOverviewRole: (request: OverviewRoleUpdateRequest): Promise<OverviewRoleUpdateResult> =>
+    ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.setRole, request),
 
   /**
    * 读当前项目的配置（`.nide/config.yml`）。

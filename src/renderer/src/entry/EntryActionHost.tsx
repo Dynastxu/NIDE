@@ -83,6 +83,21 @@ export function EntryActionHost(): JSX.Element {
         />
       )}
 
+      {prompt && prompt.mode === 'createOverviewDocument' && (
+        <NamePromptDialog
+          key={prompt.key}
+          mode="create"
+          kind="file"
+          scope="inside"
+          target={prompt.target}
+          titleKey="host.project.panel.overview.newDocument"
+          // 概述面板只列 Markdown：没写扩展名时补 .md，并显示落盘的名字
+          defaultExtension=".md"
+          onCancel={closePrompt}
+          onSubmit={(name) => submitPromptName(prompt, name)}
+        />
+      )}
+
       {prompt && prompt.mode === 'rename' && (
         <NamePromptDialog
           key={prompt.key}

@@ -12,6 +12,7 @@ import {
   isProjectConfigKey,
   normalizeConfigDirectory,
   normalizeDirectorySegment,
+  normalizeOverviewFileName,
   parseLegacyGalleryRegistry,
   parseLegacyProjectConfig,
   parseProjectConfig,
@@ -116,8 +117,27 @@ describe('normalizeDirectorySegment（图鉴名只有一段）', () => {
   })
 })
 
+describe('normalizeOverviewFileName（大纲 / 写作风格只能是一份 Markdown）', () => {
+  it('收单段 Markdown 文件名，包括中文名与 .markdown', () => {
+    expect(normalizeOverviewFileName('outline.md')).toBe('outline.md')
+    expect(normalizeOverviewFileName('写作风格.md')).toBe('写作风格.md')
+    expect(normalizeOverviewFileName('style.markdown')).toBe('style.markdown')
+    expect(normalizeOverviewFileName('  outline.md  ')).toBe('outline.md')
+  })
+
+  it('拒绝多段、逃出目录、绝对路径与非 Markdown', () => {
+    for (const value of ['', '   ', '大纲/第一卷.md', '..', '../outline.md', '/outline.md']) {
+      expect(normalizeOverviewFileName(value)).toBeNull()
+    }
+
+    for (const value of ['outline.txt', 'style.yml', 'README', '.md', 'outline']) {
+      expect(normalizeOverviewFileName(value)).toBeNull()
+    }
+  })
+})
+
 describe('validateProjectConfig', () => {
-  it('四个分区齐全且合法时通过', () => {
+  it('四个分区齐全且合法时通过；概述不标记任何文件也是合法的', () => {
     const config = {
       chapters: { path: 'chapters' },
       gallery: { path: 'gallery', characters: 'characters' },
@@ -126,6 +146,33 @@ describe('validateProjectConfig', () => {
     }
 
     expect(validateProjectConfig(config)).toEqual(config)
+  })
+
+  it('概述的两个角色名可以显式给出，但必须是不重复的 Markdown 文件名', () => {
+    const base = {
+      chapters: { path: 'chapters' },
+      gallery: { path: 'gallery', characters: 'characters' },
+      foreshadowing: { path: 'foreshadowing' }
+    }
+
+    expect(
+      validateProjectConfig({
+        ...base,
+        overview: { path: 'overview', outline: '主线.md', style: '文风.markdown' }
+      })
+    ).toEqual({
+      ...base,
+      overview: { path: 'overview', outline: '主线.md', style: '文风.markdown' }
+    })
+
+    for (const overview of [
+      { path: 'overview', outline: 'outline.txt', style: 'style.md' },
+      { path: 'overview', outline: 'outline.md', style: 'outline.md' },
+      { path: 'overview', outline: '../outline.md', style: 'style.md' },
+      { path: 'overview', outline: 1, style: 'style.md' }
+    ]) {
+      expect(validateProjectConfig({ ...base, overview })).toBeNull()
+    }
   })
 
   it('缺一段、或一段里缺 path 就整份作废（不逐项回落）', () => {
@@ -195,17 +242,18 @@ describe('validateProjectConfig', () => {
 })
 
 describe('sanitizeProjectConfigPatch', () => {
-  it('只认已知的分区、分区里只认 path 与 characters、只认字符串值', () => {
+  it('只认已知的分区、分区里只认 path / characters / outline / style、只认字符串值', () => {
     expect(
       sanitizeProjectConfigPatch({
         chapters: { path: 'manuscript', characters: 'x' },
         unknown: { path: 'x' },
         gallery: { path: 42, characters: '人物' },
-        overview: null
+        overview: { path: 'notes', outline: '主线.md', style: 42, extra: 'x' }
       })
     ).toEqual({
       chapters: { path: 'manuscript' },
-      gallery: { characters: '人物' }
+      gallery: { characters: '人物' },
+      overview: { path: 'notes', outline: '主线.md' }
     })
   })
 
@@ -239,6 +287,29 @@ describe('applyProjectConfigPatch', () => {
 
     expect(result.ok).toBe(true)
     expect(result.config.gallery).toEqual({ path: 'gallery', characters: '人物' })
+  })
+
+  it('概述那一段可以只标记一个角色，未提到的角色保持未标记', () => {
+    const result = applyProjectConfigPatch(DEFAULT_PROJECT_CONFIG, {
+      overview: { style: '文风.md' }
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.config.overview).toEqual({ path: 'overview', style: '文风.md' })
+  })
+
+  it('概述的标记名非法或两个标记撞在一起时整段不改', () => {
+    for (const overview of [
+      { outline: 'outline.txt' },
+      { style: '../style.md' },
+      { outline: 'same.md', style: 'same.md' }
+    ]) {
+      const result = applyProjectConfigPatch(DEFAULT_PROJECT_CONFIG, { overview })
+
+      expect(result.ok).toBe(false)
+      expect(result.rejected).toEqual(['overview'])
+      expect(result.config).toEqual(DEFAULT_PROJECT_CONFIG)
+    }
   })
 
   it('有一项不合格就一项都不改', () => {
@@ -298,7 +369,7 @@ describe('config.yml 的文本', () => {
       chapters: { path: 'chapters/volume-1' },
       gallery: { path: 'a "quoted" name', characters: '人物' },
       foreshadowing: { path: 'foreshadowing' },
-      overview: { path: 'overview' }
+      overview: { path: 'overview', outline: '主线.md', style: '文风.md' }
     }
 
     const text = serializeProjectConfig(config)
@@ -345,6 +416,51 @@ describe('config.yml 的文本', () => {
       foreshadowing: { path: 'f' },
       overview: { path: 'o' }
     })
+  })
+
+  it('概述那一段显式写出的 outline / style 被读出来', () => {
+    const text = [
+      'chapters:',
+      '  path: chapters',
+      'gallery:',
+      '  path: gallery',
+      '  characters: characters',
+      'foreshadowing:',
+      '  path: foreshadowing',
+      'overview:',
+      '  path: overview',
+      '  outline: 主线.md',
+      '  style: "文风.md"'
+    ].join('\n')
+
+    expect(parseProjectConfig(text)?.overview).toEqual({
+      path: 'overview',
+      outline: '主线.md',
+      style: '文风.md'
+    })
+  })
+
+  it('概述的角色名写坏（非 Markdown、重复、多段）时整份配置作废', () => {
+    const base = [
+      'chapters:',
+      '  path: chapters',
+      'gallery:',
+      '  path: gallery',
+      '  characters: characters',
+      'foreshadowing:',
+      '  path: foreshadowing',
+      'overview:',
+      '  path: overview'
+    ]
+
+    for (const lines of [
+      ['  outline: outline.txt', '  style: style.md'],
+      ['  outline: outline.md', '  style: outline.md'],
+      ['  outline: ../outline.md', '  style: style.md'],
+      ['  outline: outline.md', '  style: 卷一/style.md']
+    ]) {
+      expect(parseProjectConfig([...base, ...lines].join('\n'))).toBeNull()
+    }
   })
 
   it('未知的分区连同它缩进的子键一起被忽略，BOM 与 CRLF 都能读', () => {

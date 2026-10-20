@@ -19,6 +19,9 @@ import type {
   GalleryListResult,
   GalleryRegistryUpdateRequest,
   GalleryRegistryUpdateResult,
+  OverviewListResult,
+  OverviewRoleUpdateRequest,
+  OverviewRoleUpdateResult,
   ProjectConfig,
   ProjectConfigPatch,
   ProjectConfigUpdateResult,
@@ -225,6 +228,22 @@ export interface ProjectAPI {
   updateGalleryRegistry: (
     request: GalleryRegistryUpdateRequest
   ) => Promise<GalleryRegistryUpdateResult | null>
+  /**
+   * 读概述：内容目录里平铺的 Markdown。
+   *
+   * 「哪份是大纲 / 写作风格」不在结果里：那是项目配置里的标记，渲染进程手里已经
+   * 有 `config.overview`，照着它认即可。
+   *
+   * 传的是概述内容目录的绝对路径，而它必须正是配置里那一个 —— 判据在主进程，渲染
+   * 进程声明不了「哪个目录算概述目录」。失败返回带原因的结果，不抛异常。
+   */
+  readOverview: (overviewRoot: string) => Promise<OverviewListResult>
+  /**
+   * 把概述里的某份 Markdown 标记成大纲 / 写作风格（改的是项目配置的概述那一段）。
+   *
+   * 文件不在了、或者不是 Markdown 时返回带原因的结果，不抛异常。
+   */
+  setOverviewRole: (request: OverviewRoleUpdateRequest) => Promise<OverviewRoleUpdateResult>
   /**
    * 读当前项目的配置（`.nide/config.yml`）。没有项目时为 null。
    *

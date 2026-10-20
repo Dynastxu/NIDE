@@ -5,6 +5,7 @@ import {
   PROJECT_CONFIG_CHANNELS,
   PROJECT_FILE_CHANNELS,
   PROJECT_GALLERY_CHANNELS,
+  PROJECT_OVERVIEW_CHANNELS,
   filePathKey,
   isProjectSwitch,
   projectNameFromPath,
@@ -21,6 +22,9 @@ import {
   type GalleryListResult,
   type GalleryRegistryUpdateRequest,
   type GalleryRegistryUpdateResult,
+  type OverviewListResult,
+  type OverviewRoleUpdateRequest,
+  type OverviewRoleUpdateResult,
   type ProjectConfig,
   type ProjectConfigUpdateResult,
   type ProjectOpenResult,
@@ -45,11 +49,13 @@ import {
   createProjectGallery,
   deleteProjectEntry,
   entryKindAt,
+  checkProjectOverviewDocument,
   readProjectChapters,
   readProjectDir,
   readProjectFile,
   readProjectForeshadowing,
   readProjectGalleries,
+  readProjectOverview,
   renameProjectEntry,
   writeProjectFile
 } from '../services/project-files.service'
@@ -57,6 +63,7 @@ import {
   initializeProjectDirectory,
   loadGalleryRegistry,
   loadProjectConfig,
+  remapOverviewRole,
   resolveConfigDirectory,
   updateGalleryRegistry,
   updateProjectConfig
@@ -455,6 +462,86 @@ export function registerProjectIPC(): void {
   )
 
   /**
+   * 概述：内容目录里平铺的 Markdown，其中两份被项目配置登记成大纲 / 写作风格
+   * （见 shared/project/overview）。
+   *
+   * 与图鉴同一套边界（根由主进程取当前项目，渲染进程只声明路径），另外多一条：
+   * **报上来的路径必须正是配置里那个概述内容目录**。不判的话，渲染进程就能借它
+   * 枚举项目里任意一层的 Markdown。
+   */
+  ipcMain.handle(
+    PROJECT_OVERVIEW_CHANNELS.readOverview,
+    async (_event, targetPath: unknown): Promise<OverviewListResult> => {
+      const roots = allowedRoots()
+      const root = roots[0]
+      if (!root) {
+        logger.warn('Rejected an overview read without an open project')
+        return { ok: false, reason: 'outside-project' }
+      }
+
+      const overview = await resolveOverviewContext(root)
+      if (overview === null || !samePath(overview.path, String(targetPath ?? ''))) {
+        logger.warn('Rejected an overview read outside the configured overview directory')
+        return { ok: false, reason: 'outside-project' }
+      }
+
+      return readProjectOverview(overview.path, {
+        roots,
+        caseInsensitive: caseInsensitivePaths()
+      })
+    }
+  )
+
+  /**
+   * 把概述里的某份 Markdown 标记成大纲 / 写作风格（改的是项目配置的概述那一段）。
+   *
+   * 只收「哪个角色 + 哪个文件」：概述目录由主进程从项目配置里取。写配置之前先确认
+   * 那份文件真的在概述目录里 —— 否则大纲会指向一个不存在的文件，而界面上根本看不出
+   * 原因（见 checkProjectOverviewDocument）。
+   */
+  ipcMain.handle(
+    PROJECT_OVERVIEW_CHANNELS.setRole,
+    async (_event, request: unknown): Promise<OverviewRoleUpdateResult> => {
+      const parsed = parseOverviewRoleRequest(request)
+      if (!parsed) {
+        logger.warn('Rejected a malformed overview role update request')
+        return { ok: false, reason: 'invalid-name' }
+      }
+
+      const roots = allowedRoots()
+      const root = roots[0]
+      if (!root) {
+        logger.warn('Rejected an overview role update without an open project')
+        return { ok: false, reason: 'unreadable' }
+      }
+
+      const overview = await resolveOverviewContext(root)
+      if (overview === null) {
+        logger.warn('Rejected an overview role update outside the configured overview directory')
+        return { ok: false, reason: 'unreadable' }
+      }
+
+      const options = { roots, caseInsensitive: caseInsensitivePaths() }
+      const check = await checkProjectOverviewDocument(overview.path, parsed.fileName, options)
+      if (check !== 'ok') return { ok: false, reason: check }
+
+      const updated = await updateProjectConfig(root, {
+        overview: { [parsed.role]: parsed.fileName }
+      })
+
+      if (!updated.ok) {
+        logger.warn('Refused an overview role update', {
+          rejected: updated.rejected,
+          conflicts: updated.conflicts
+        })
+        return { ok: false, reason: 'invalid-name' }
+      }
+
+      return { ok: true, config: updated.config }
+    }
+  )
+
+  /**
    * 新建文件 / 文件夹 —— 用户内容**唯一**的写入入口（宿主自己的 `.nide` 不算，
    * 那个由 project-config.service 管）。
    *
@@ -528,12 +615,27 @@ export function registerProjectIPC(): void {
       }
 
       const roots = allowedRoots()
-      if (roots.length === 0) {
+      const root = roots[0]
+      if (!root) {
         logger.warn('Rejected a rename request without an open project')
         return { ok: false, reason: 'unreadable' }
       }
 
-      return renameProjectEntry(parsed, { roots, caseInsensitive: caseInsensitivePaths() })
+      const result = await renameProjectEntry(parsed, {
+        roots,
+        caseInsensitive: caseInsensitivePaths()
+      })
+
+      /**
+       * 概述里的大纲 / 写作风格是按**文件名**记在 `.nide/config.yml` 里的：改名之后
+       * 不跟着改，那条映射就断了（见 project-config.service 的 remapOverviewRole）。
+       * 这一步只维护用户自己的配置，失败时也只记日志 —— 改名本身已经落盘了。
+       */
+      if (result.ok) {
+        await remapOverviewRole(root, result.previousPath, result.path)
+      }
+
+      return result
     }
   )
 
@@ -614,6 +716,27 @@ async function resolveGalleryRoot(root: string): Promise<string | null> {
     return resolveConfigDirectory(root, config.gallery.path)
   } catch (err) {
     logger.warn('Failed to resolve the gallery directory from the project configuration', {
+      error: err
+    })
+    return null
+  }
+}
+
+/**
+ * 当前项目的概述配置与内容目录的绝对路径；读不到配置时给 null。
+ *
+ * 概述的三个通道都要它，而且**三个都要 config 本身**：新建预设要用配置里的两个
+ * 文件名，改角色要读当前映射，读列表要核对目录。写成一处，才不会出现某一处拿
+ * 另一次读盘得到的旧结论去判。
+ */
+async function resolveOverviewContext(
+  root: string
+): Promise<{ config: ProjectConfig; path: string } | null> {
+  try {
+    const config = await loadProjectConfig(root)
+    return { config, path: resolveConfigDirectory(root, config.overview.path) }
+  } catch (err) {
+    logger.warn('Failed to resolve the overview directory from the project configuration', {
       error: err
     })
     return null
@@ -718,4 +841,15 @@ function parseGalleryRegistryRequest(request: unknown): string | null {
   if (typeof characters !== 'string' || characters.length === 0) return null
 
   return characters
+}
+
+/** 校验一个「设成大纲 / 写作风格」请求：一个角色 + 一个非空文件名 */
+function parseOverviewRoleRequest(request: unknown): OverviewRoleUpdateRequest | null {
+  if (!request || typeof request !== 'object') return null
+
+  const { role, fileName } = request as Partial<OverviewRoleUpdateRequest>
+  if (role !== 'outline' && role !== 'style') return null
+  if (typeof fileName !== 'string' || fileName.length === 0) return null
+
+  return { role, fileName }
 }
