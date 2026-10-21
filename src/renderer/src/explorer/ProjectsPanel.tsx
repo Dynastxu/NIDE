@@ -69,7 +69,7 @@ export function ProjectsPanel({
   const t = useT()
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div className="nide-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto">
       {/* 四个分类默认全部展开：这一页的全部内容就是这四项，收起任何一项都只是多一次点击 */}
       <Disclosure title={t(SECTION_TITLES.chapters)}>
         <ChapterSection onCreate={onCreateChapter} />

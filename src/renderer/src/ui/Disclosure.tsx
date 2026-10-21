@@ -45,7 +45,7 @@ export function Disclosure({
   }
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="flex flex-col">
       <button
         type="button"
         aria-expanded={expanded}
