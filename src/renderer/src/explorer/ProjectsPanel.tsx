@@ -98,6 +98,14 @@ const SECTION_TITLES: Record<ProjectConfigKey, HostMessageKey> = {
   overview: 'host.project.panel.section.overview'
 }
 
+/**
+ * 这个面板的右键菜单中需要排除的共用项 ID。
+ *
+ * 「项目」标签页只做内容管理（新建章节 / 编辑字段 / 设角色图鉴等），
+ * 通用的文件级操作（新建文件 / 重命名 / 删除）是文件树那一面的事。
+ */
+const CONTENT_MENU_EXCLUDE = ['new', 'rename', 'delete'] as const
+
 /** 读章节目录失败的原因 -> 词条 key */
 const CHAPTER_ERROR_KEYS: Record<DirReadFailureReason, HostMessageKey> = {
   'invalid-path': 'host.explorer.error.invalid-path',
@@ -206,12 +214,13 @@ function ChapterSection({ onCreate }: { onCreate: () => void }): JSX.Element {
           y={menu.y}
           // 列表里的每一行都是一个文件：章节就是 Markdown 文件，读的是同一份磁盘内容
           target={{ path: menu.file.path, name: menu.file.name, kind: 'file' }}
+          // 「项目」标签页只关心内容动作，通用的文件操作（新建 / 重命名 / 删除）不在此处显示
+          exclude={CONTENT_MENU_EXCLUDE}
           onClose={() => setMenu(null)}
           /*
-           * 这个面自己的那一项，排在共用项**前面**（见 EntryMenu 的说明）：共用块的
-           * 「删除」必须留在最后。
+           * 这个面自己的那一项，排在共用项**前面**（见 EntryMenu 的说明）。
            *
-           * 「新建章节」与共用块里的「新建 -> 文件」是**两个动作**，差的正是文件建出来
+           * 「新建章节」与「新建 -> 文件」是**两个动作**，差的正是文件建出来
            * 那一刻是不是完整的：那一项建的是空文件（先占个位置），这一项建的开头带着
            * 章节属性、建完还会打开它（见 chapter-actions.ts）。
            */
@@ -303,11 +312,9 @@ function ForeshadowingSection({ onCreate }: { onCreate: () => void }): JSX.Eleme
           y={menu.y}
           // 列表里的每一行都是一个文件：伏笔就是 yml 文件
           target={{ path: menu.file.path, name: menu.file.name, kind: 'file' }}
+          // 「项目」标签页只关心内容动作，通用的文件操作（新建 / 重命名 / 删除）不在此处显示
+          exclude={CONTENT_MENU_EXCLUDE}
           onClose={() => setMenu(null)}
-          /*
-           * 与章节列表同一条约定：这个面自己的「新建」排在共用项前面，共用块的
-           * 「删除」必须留在最后。
-           */
           viewItems={[
             {
               id: 'newForeshadowing',
@@ -513,12 +520,15 @@ function GallerySection(): JSX.Element {
         <EntryMenu
           x={galleryMenu.x}
           y={galleryMenu.y}
-          // 一个图鉴在磁盘上就是一个目录：能对它做的事与树里的一个目录完全相同
+          // 一个图鉴在磁盘上就是一个目录，但图鉴自己的动作（新建条目 / 编辑字段 /
+          // 设为角色）才应该是这个面的右键内容；通用的文件操作（新建 / 重命名 / 删除）
+          // 与图鉴的逻辑无关，排除。
           target={{
             path: galleryMenu.gallery.path,
             name: galleryMenu.gallery.name,
             kind: 'directory'
           }}
+          exclude={CONTENT_MENU_EXCLUDE}
           onClose={() => setGalleryMenu(null)}
           viewItems={[
             {
@@ -563,12 +573,13 @@ function GallerySection(): JSX.Element {
         />
       )}
 
-      {/* 列表里的每一行都是一个条目文件，所以共用块那一份菜单（重命名 / 删除）正好够用 */}
+      {/* 「项目」标签页只做内容管理，文件级的操作（新建 / 重命名 / 删除）留给文件树那一面 */}
       {entryMenu && (
         <EntryMenu
           x={entryMenu.x}
           y={entryMenu.y}
           target={{ path: entryMenu.entry.path, name: entryMenu.entry.name, kind: 'file' }}
+          exclude={CONTENT_MENU_EXCLUDE}
           onClose={() => setEntryMenu(null)}
         />
       )}
@@ -701,8 +712,8 @@ function OverviewSection(): JSX.Element {
       )}
 
       {/*
-        列表里的每一行都是一份 Markdown，所以共用块那一份菜单（重命名 / 删除）正好够用；
-        这个面自己的两项排在共用块**之前**（见 EntryMenu 的说明）。
+        这个面自己的两项排在共用块**之前**（见 EntryMenu 的说明）；
+        通用的文件操作（新建 / 重命名 / 删除）留给文件树那一面。
       */}
       {documentMenu && (
         <EntryMenu
@@ -713,6 +724,7 @@ function OverviewSection(): JSX.Element {
             name: documentMenu.file.name,
             kind: 'file'
           }}
+          exclude={CONTENT_MENU_EXCLUDE}
           onClose={() => setDocumentMenu(null)}
           viewItems={[
             {

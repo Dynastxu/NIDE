@@ -61,6 +61,14 @@ export interface EntryMenuContext {
   roots: readonly string[]
   t: Translator
   handlers: EntryActionHandlers
+  /**
+   * 需要从共用块里排除的菜单项 ID。
+   *
+   * 与 viewItems（加项）互补 —— 有些面只需要一部分共用项，比如图鉴只关心图鉴自己
+   * 的动作（新建条目 / 编辑字段 / 设为角色），不需要新建文件 / 重命名 / 删除这一类
+   * 通用的文件操作。
+   */
+  exclude?: readonly string[]
 }
 
 /** 新建落点：右键目录 -> 建在它内部；右键文件 -> 建在它的同级 */
@@ -96,10 +104,10 @@ export function buildEntryMenu(
   target: EntryActionTarget,
   context: EntryMenuContext
 ): ContextMenuEntry[] {
-  const { t, roots, handlers } = context
+  const { t, roots, handlers, exclude } = context
   const root = isProjectRoot(target, roots)
 
-  return [
+  const items: ContextMenuEntry[] = [
     {
       id: 'new',
       label: t('host.explorer.menu.new'),
@@ -140,6 +148,9 @@ export function buildEntryMenu(
         : {})
     }
   ]
+
+  if (!exclude || exclude.length === 0) return items
+  return items.filter((item) => !exclude.includes(item.id))
 }
 
 /**

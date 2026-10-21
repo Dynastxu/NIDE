@@ -54,6 +54,7 @@ export function Disclosure({
         className="flex w-full shrink-0 items-center gap-1.5 px-2 py-1.5 text-left text-[11px] font-medium tracking-wide text-zinc-400 uppercase transition-colors hover:bg-zinc-800/60 hover:text-zinc-200"
       >
         {/* 展开方向用旋转的箭头表示，不额外占一个图标位 */}
+        {/* TODO 不好，应该用一个图标表示 */}
         <span
           aria-hidden="true"
           className={[
