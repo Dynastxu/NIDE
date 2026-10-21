@@ -32,7 +32,23 @@ import type {
   RenameEntryResult,
   WriteFileRequest
 } from '@shared/project'
-import type { Disposable, PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
+import type {
+  Disposable,
+  PluginDescriptor,
+  PluginSettingsDescriptor,
+  PluginViewDescriptor
+} from '@shared/plugin-api'
+import type {
+  ChatOpenRequest,
+  ChatOpenResult,
+  ChatStreamEvent,
+  ProviderSummary,
+  RemoveProviderResult,
+  SaveProviderRequest,
+  SaveProviderResult,
+  TestProviderRequest,
+  TestProviderResult
+} from '@shared/ai-provider'
 import type { WindowAction, WindowState, WindowType } from '@shared/window'
 
 /**
@@ -259,8 +275,26 @@ export interface ProjectAPI {
   updateConfig: (patch: ProjectConfigPatch) => Promise<ProjectConfigUpdateResult | null>
 }
 
+/**
+ * AI 供应商的渲染侧端口。
+ *
+ * 设置页只用 list/save/remove/test；Agent 用 open/abort/onEvent。
+ * 任何返回值都不含 API Key，只有 `configured: boolean`。
+ */
+export interface AiProviderAPI {
+  list: () => Promise<ProviderSummary[]>
+  save: (request: SaveProviderRequest) => Promise<SaveProviderResult>
+  remove: (providerId: string) => Promise<RemoveProviderResult>
+  test: (request: TestProviderRequest) => Promise<TestProviderResult>
+  open: (request: ChatOpenRequest) => Promise<ChatOpenResult>
+  abort: (requestId: string) => Promise<void>
+  onEvent: (handler: (event: ChatStreamEvent) => void) => Disposable
+}
+
 export interface HostAPI {
   getPluginViews: () => Promise<PluginViewDescriptor[]>
+  /** 全局设置里的插件子设置页；被禁用插件贡献的页面不会出现在这里 */
+  getPluginSettings: () => Promise<PluginSettingsDescriptor[]>
   getPlugins: () => Promise<PluginDescriptor[]>
   setPluginEnabled: (pluginId: string, enabled: boolean) => Promise<void>
   getDisabledPlugins: () => Promise<string[]>
@@ -280,6 +314,8 @@ export interface HostAPI {
   projects: ProjectAPI
   /** 主题偏好（见 AppearanceAPI） */
   appearance: AppearanceAPI
+  /** AI 供应商：设置页读写 + Agent 的透明转发 */
+  aiProvider: AiProviderAPI
   /** 行为级二次确认的渲染侧端口（只有 ConfirmHost 用） */
   confirm: ConfirmAPI
   reloadPlugin: (pluginId: string) => Promise<void>

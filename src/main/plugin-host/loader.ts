@@ -3,6 +3,7 @@ import path from 'node:path'
 import { normalizeLocale } from '@shared/i18n'
 import { permissionManager } from './permission'
 import { uiRegistry } from './ui-registry'
+import { settingsRegistry } from './settings-registry'
 import { languagePackRegistry } from '../i18n'
 import {
   DEFAULT_NLS_FILE,
@@ -32,6 +33,9 @@ export function setPluginHostLogger(next: Logger): void {
 
 /** 视图入口的默认约定：插件目录下的 src/ui/index.tsx */
 export const DEFAULT_VIEW_ENTRY = 'src/ui/index.tsx'
+
+/** 设置页入口的默认约定：插件目录下的 src/settings/index.tsx */
+export const DEFAULT_SETTINGS_ENTRY = 'src/settings/index.tsx'
 
 /** 合法的挂载位置（与渲染进程的 6 个工具区 + 主编辑区一一对应） */
 const VALID_LOCATIONS: ReadonlySet<string> = new Set([
@@ -243,18 +247,19 @@ function readManifestNls(pluginDir: string): ManifestNlsTables | null {
  */
 function warnUnresolvableTitle(
   pluginId: string,
-  viewId: string,
+  targetId: string,
   titleSpec: string,
-  tables: ManifestNlsTables | null
+  tables: ManifestNlsTables | null,
+  what: 'View' | 'Settings page'
 ): void {
   const key = parsePlaceholder(titleSpec)
   if (key === null) return
 
   if (!tables) {
     logger.error(
-      `View title uses the placeholder "${titleSpec}" but the plugin ships no message file, ` +
+      `${what} title uses the placeholder "${titleSpec}" but the plugin ships no message file, ` +
         'the raw placeholder will be displayed',
-      { pluginId, viewId, key, file: DEFAULT_NLS_FILE }
+      { pluginId, targetId, key, file: DEFAULT_NLS_FILE }
     )
     return
   }
@@ -264,16 +269,16 @@ function warnUnresolvableTitle(
 
   if (!inDefault && !inAnyLocale) {
     logger.error(
-      `View title uses the placeholder "${titleSpec}" that no message file defines, ` +
+      `${what} title uses the placeholder "${titleSpec}" that no message file defines, ` +
         'the raw placeholder will be displayed',
-      { pluginId, viewId, key }
+      { pluginId, targetId, key }
     )
   }
 }
 
 export class PluginLoader {
   /**
-   * 读取 manifest.json，注册权限、UI 视图贡献点与语言包。
+   * 读取 manifest.json，注册权限、UI 视图贡献点、设置页与语言包。
    *
    * 只做「发现 + 注册」，不启动插件后端子进程。
    * 后端沙箱留给后续阶段，且必须改成
@@ -344,7 +349,7 @@ export class PluginLoader {
       const entry = toPosix(path.relative(pluginDir, entryAbs))
 
       const titleSpec = view.title ?? view.id
-      warnUnresolvableTitle(manifest.id, view.id, titleSpec, nlsTables)
+      warnUnresolvableTitle(manifest.id, view.id, titleSpec, nlsTables, 'View')
 
       const chrome = normalizeViewChrome(view.chrome, manifest.id, view.id)
 
@@ -363,6 +368,79 @@ export class PluginLoader {
       })
 
       logger.debug('View registered', { viewId: view.id, dir, entry })
+    }
+
+    /**
+     * manifest 是插件作者手写的 JSON，`settings` 不保证是数组、条目也不保证是对象。
+     * 这里逐项收敛，坏条目跳过而不是让整个插件加载失败。
+     */
+    const settingsContributions = Array.isArray(manifest.contributes?.settings)
+      ? manifest.contributes.settings
+      : []
+
+    for (const setting of settingsContributions) {
+      if (!setting || typeof setting !== 'object') continue
+
+      /**
+       * 设置页 id 同样不能占用宿主命名空间。它和视图 id 不在一张表里，但
+       * `host.*` 是宿主保留前缀这条规则是全局的 —— 以后宿主自己的设置页要
+       * 用这个命名空间时，不该被插件提前占掉。
+       */
+      if (
+        typeof setting.id !== 'string' ||
+        setting.id.length === 0 ||
+        isReservedHostId(setting.id)
+      ) {
+        logger.error('Settings page id claims the host namespace, the page is skipped', {
+          pluginId: manifest.id,
+          settingsId: setting.id,
+          dir
+        })
+        continue
+      }
+
+      const declaredEntry =
+        typeof setting.entry === 'string' && setting.entry.length > 0
+          ? setting.entry
+          : DEFAULT_SETTINGS_ENTRY
+
+      /**
+       * 入口路径必须落在插件目录内。视图入口目前只做 `path.resolve` + 相对化，
+       * 设置页这边多一道 `resolveInsidePlugin`：入口会直接进构建期的 glob 表，
+       * 一个 `../../` 就能让插件声明到别的插件目录里去。
+       */
+      const absolute = resolveInsidePlugin(
+        pluginDir,
+        declaredEntry,
+        `settings page ${manifest.id}/${setting.id}`
+      )
+      if (!absolute) continue
+
+      if (!fs.existsSync(absolute)) {
+        logger.error('Settings page entry not found', {
+          pluginId: manifest.id,
+          settingsId: setting.id,
+          file: absolute,
+          declared: declaredEntry
+        })
+        continue
+      }
+
+      const titleSpec =
+        typeof setting.title === 'string' && setting.title.length > 0 ? setting.title : setting.id
+      warnUnresolvableTitle(manifest.id, setting.id, titleSpec, nlsTables, 'Settings page')
+
+      settingsRegistry.register({
+        id: setting.id,
+        pluginId: manifest.id,
+        titleSpec,
+        dir,
+        entry: toPosix(path.relative(pluginDir, absolute)),
+        order:
+          typeof setting.order === 'number' && Number.isFinite(setting.order) ? setting.order : 0
+      })
+
+      logger.debug('Settings page registered', { settingsId: setting.id, dir })
     }
 
     for (const contribution of manifest.contributes?.locales ?? []) {
@@ -414,6 +492,7 @@ export class PluginLoader {
   unload(pluginId: string): void {
     permissionManager.unregister(pluginId)
     uiRegistry.unregisterByPlugin(pluginId)
+    settingsRegistry.unregisterByPlugin(pluginId)
     languagePackRegistry.unregisterByPlugin(pluginId)
     manifestNlsRegistry.unregisterByPlugin(pluginId)
   }

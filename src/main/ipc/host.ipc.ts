@@ -1,9 +1,11 @@
 import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
 import { WINDOW_CHANNELS } from '@shared/window'
 import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
+import { AI_PROVIDER_PLUGIN_ID } from '@shared/ai-provider'
 import { normalizeAppearancePreference } from '@shared/appearance'
 import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
 import { uiRegistry } from '../plugin-host/ui-registry'
+import { settingsRegistry } from '../plugin-host/settings-registry'
 import { HOST_VIEWS } from '../plugin-host/host-views'
 import { pluginRegistry } from '../plugin-host/plugin-registry'
 import { getDisabledPlugins, setPluginEnabled } from '../plugin-host/preference'
@@ -12,9 +14,14 @@ import { createMainTranslator, getCurrentLocale, getI18nPayload, switchLocale } 
 import { manifestNlsRegistry } from '../i18n/manifest-nls'
 import { loggerFor, toLogRecord } from '../logger'
 import { getMainWindow, recreateRootWindow } from '../window'
+import { shutdownAiProviderIPC } from './ai-provider.ipc'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type { ThemePayload } from '@shared/theme'
-import type { PluginDescriptor, PluginViewDescriptor } from '@shared/plugin-api'
+import type {
+  PluginDescriptor,
+  PluginSettingsDescriptor,
+  PluginViewDescriptor
+} from '@shared/plugin-api'
 
 const logger = loggerFor('host')
 const pluginLogger = loggerFor('plugin-host')
@@ -121,6 +128,28 @@ export function registerHostIPC(): void {
   })
 
   /**
+   * 全局设置里的插件子设置。
+   *
+   * 标题在这里按当前语言解析（和视图同一个理由：扫描早于 initI18n）。
+   * 被禁用的插件直接过滤掉：它的设置页由插件自己贡献，插件都不启用，
+   * 页面留在树上只会点开一个报错。启用状态变化后主进程会广播
+   * `plugin:enabled-changed`，设置窗口据此重拉这份列表。
+   */
+  ipcMain.handle(HOST_CHANNELS.getPluginSettings, (): PluginSettingsDescriptor[] => {
+    const locale = getCurrentLocale()
+    const disabled = new Set(getDisabledPlugins())
+
+    return settingsRegistry
+      .getAll()
+      .filter((page) => !disabled.has(page.pluginId))
+      .map(({ titleSpec, ...page }) => ({
+        ...page,
+        title: manifestNlsRegistry.resolve(page.pluginId, titleSpec, locale) ?? page.id
+      }))
+      .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, locale))
+  })
+
+  /**
    * 渲染进程启动时取词条表。
    *
    * 走 IPC 而不是让渲染进程自己读盘：渲染进程在 Chromium 沙箱里没有 fs，
@@ -167,6 +196,10 @@ export function registerHostIPC(): void {
     HOST_CHANNELS.setPluginEnabled,
     (_event, pluginId: string, enabled: boolean): void => {
       setPluginEnabled(pluginId, enabled)
+
+      // 供应商插件被禁用时，把它还在跑的 SSE 全部取消；否则用户以为停用了，
+      // 后台仍然在读流。
+      if (!enabled && pluginId === AI_PROVIDER_PLUGIN_ID) shutdownAiProviderIPC()
 
       pluginLogger.info(`Plugin ${enabled ? 'enabled' : 'disabled'}`, { pluginId })
 

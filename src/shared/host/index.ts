@@ -27,6 +27,14 @@ export const HOST_CHANNELS = {
    * 标题在**查询时**按当时语言解析，而不是扫描时 —— 扫描发生在 initI18n() 之前。
    */
   getPluginViews: 'host:get-plugin-views',
+  /**
+   * 全局设置里有哪些**插件贡献的设置页**。
+   *
+   * 和 getPluginViews 一样只返回纯数据（dir/entry 供渲染进程查构建期 glob 表）。
+   * 标题按当前语言解析；被禁用插件贡献的设置页**不返回** —— 设置树里直接不显示，
+   * 而不是显示一个点开就报错的页面。
+   */
+  getPluginSettings: 'host:get-plugin-settings',
   /** 取当前语言的词条表、可用语言列表和漏翻体检结果 */
   getI18n: 'host:get-i18n',
   /**

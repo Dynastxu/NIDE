@@ -16,6 +16,7 @@ describe('HOST_CHANNELS', () => {
   it('名字被钉住（改通道名必须同时改这里）', () => {
     expect(HOST_CHANNELS).toEqual({
       getPluginViews: 'host:get-plugin-views',
+      getPluginSettings: 'host:get-plugin-settings',
       getI18n: 'host:get-i18n',
       getPlugins: 'host:get-plugins',
       setPluginEnabled: 'host:set-plugin-enabled',

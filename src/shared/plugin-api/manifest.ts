@@ -17,8 +17,21 @@ export interface PluginManifest {
   /** 激活事件：何时加载此插件。例如 "onStartup" */
   activationEvents?: string[]
 
-  /** 权限声明：宿主据此拦截非法操作。例如 "fs:read", "fs:write", "network" */
+  /**
+   * 权限声明：当前用于插件详情展示，以及宿主代理 API（secrets / storage 等）的
+   * 准入判断。**它不是沙箱**：`network` / `fs` 这类能力不会被强制执行，插件
+   * 后端（尚未实现）仍然握有完整 Node 权限。别把它当安全边界宣传。
+   */
   permissions?: string[]
+
+  /**
+   * 这个插件依赖的其它插件 id。
+   *
+   * 当前只进了契约，**还没有**依赖解析或拓扑启动（插件后端尚未实现）。先放这个
+   * 字段，是为了让 agent 插件以后能声明它依赖供应商插件，而不是靠硬编码 id 去猜。
+   * 现阶段不要假设宿主会因为它拒绝加载插件。
+   */
+  dependencies?: string[]
 
   /**
    * 启用状态变化后是否需要重启宿主才能完全生效。
@@ -40,6 +53,14 @@ export interface PluginManifest {
     tools?: PluginToolContribution[]
     /** 注册命令（快捷键/菜单项） */
     commands?: PluginCommandContribution[]
+    /**
+     * 注册全局设置里的子设置页。
+     *
+     * 只负责「页面挂在哪、入口文件是谁」：页面组件仍由渲染进程在构建期用
+     * import.meta.glob 打包，和视图同一条链路。宿主不启动插件后端，所以设置页
+     * 也只能是纯 UI。
+     */
+    settings?: PluginSettingsContribution[]
     /**
      * 注册语言包。
      *
@@ -128,4 +149,41 @@ export interface PluginToolContribution {
 export interface PluginCommandContribution {
   id: string
   title: string
+}
+
+/**
+ * manifest 里的一个设置页声明。
+ *
+ * `title` 和视图标题共用同一套 `%key%` 解析链：package.nls.json ->
+ * package.nls.<locale>.json -> 原样占位符。解析发生在查询时，而不是扫描时，
+ * 因为扫描早于 initI18n()。
+ */
+export interface PluginSettingsContribution {
+  /** 设置页唯一 ID，例如 "ai-provider.providers" */
+  id: string
+  /** 设置树与默认页里显示的标题，支持 %key% */
+  title: string
+  /**
+   * 页面入口，**相对于插件目录**的 POSIX 路径。
+   * 省略时为 "src/settings/index.tsx"。
+   */
+  entry?: string
+  /** 同一父节点下的排序，小的在前；省略按标题排序 */
+  order?: number
+}
+
+/**
+ * 主进程 -> 渲染进程 传递的设置页元信息。
+ *
+ * 和 PluginViewDescriptor 一样只有数据：没有模块、没有函数、没有绝对路径。
+ * 渲染进程拿 dir/entry 去查构建期生成的 glob 映射表。
+ */
+export interface PluginSettingsDescriptor {
+  id: string
+  pluginId: string
+  /** 已按当前语言解析过的标题 */
+  title: string
+  dir: string
+  entry: string
+  order: number
 }

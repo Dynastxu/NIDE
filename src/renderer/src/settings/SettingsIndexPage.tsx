@@ -1,6 +1,6 @@
 import { JSX } from 'react'
 import { useT } from '@renderer/stores/i18n.store'
-import { PAGE_LABEL_KEYS, type SettingsNode } from '@renderer/settings/pages'
+import type { SettingsNode } from '@renderer/settings/pages'
 
 /**
  * 默认设置页 —— **没有定义页面的设置项**点开时显示的内容。
@@ -22,7 +22,7 @@ export function SettingsIndexPage({
 
   return (
     <section className="flex flex-col gap-3 p-6">
-      <h2 className="text-sm font-medium text-zinc-100">{t(node.labelKey)}</h2>
+      <h2 className="text-sm font-medium text-zinc-100">{node.label}</h2>
 
       {children.length === 0 ? (
         <p className="text-xs text-zinc-500">{t('host.settings.index.empty')}</p>
@@ -36,7 +36,7 @@ export function SettingsIndexPage({
                 className="flex w-full items-center justify-between rounded border border-zinc-700 px-3 py-2 text-left text-xs text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100"
               >
                 {/* 子设置自己的页面名（而不是它在树上的标签）—— 和树上看到的措辞一致 */}
-                <span>{t(child.page ? PAGE_LABEL_KEYS[child.page] : child.labelKey)}</span>
+                <span>{child.label}</span>
                 <span aria-hidden="true" className="text-zinc-500">
                   ›
                 </span>

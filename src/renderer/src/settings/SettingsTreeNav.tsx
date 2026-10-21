@@ -1,6 +1,6 @@
 import { JSX, useState } from 'react'
 import { useT } from '@renderer/stores/i18n.store'
-import { SETTINGS_TREE, type SettingsNode } from '@renderer/settings/pages'
+import type { SettingsNode } from '@renderer/settings/pages'
 
 /**
  * 左侧设置选项树。
@@ -15,9 +15,11 @@ import { SETTINGS_TREE, type SettingsNode } from '@renderer/settings/pages'
  * 这类联动。
  */
 export function SettingsTreeNav({
+  tree,
   selectedId,
   onSelect
 }: {
+  tree: SettingsNode[]
   selectedId: string
   onSelect: (nodeId: string) => void
 }): JSX.Element {
@@ -40,7 +42,7 @@ export function SettingsTreeNav({
       className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-zinc-800 bg-zinc-950/40 py-2"
     >
       <ul role="tree" className="flex flex-col">
-        {SETTINGS_TREE.map((node) => (
+        {tree.map((node) => (
           <TreeItem
             key={node.id}
             node={node}
@@ -120,7 +122,7 @@ function TreeItem({
           style={{ paddingLeft: depth * 12 }}
           className="min-w-0 flex-1 truncate py-1.5 pr-2 text-left text-xs"
         >
-          {t(node.labelKey)}
+          {node.label}
         </button>
       </div>
 

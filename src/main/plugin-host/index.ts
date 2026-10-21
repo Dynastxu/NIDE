@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 import { uiRegistry } from './ui-registry'
+import { settingsRegistry } from './settings-registry'
 import { pluginRegistry } from './plugin-registry'
 import { PluginLoader } from './loader'
 import { languagePackRegistry } from '../i18n'
@@ -88,6 +89,7 @@ export function initPluginHost(): void {
 
   logger.info('Plugin host initialization completed', {
     views: uiRegistry.getAll().length,
+    settingsPages: settingsRegistry.getAll().length,
     languagePacks: languagePackRegistry.getAll().length
   })
 }

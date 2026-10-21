@@ -7,6 +7,7 @@ import { installQuitGate } from './lifecycle'
 import { registerHostIPC, pushEventToRenderer } from './ipc/host.ipc'
 import { registerProjectIPC } from './ipc/project.ipc'
 import { registerWindowIPC, registerWindowActions } from './ipc/window.ipc'
+import { registerAiProviderIPC, shutdownAiProviderIPC } from './ipc/ai-provider.ipc'
 import { initPluginHost } from './plugin-host'
 import { initI18n } from './i18n'
 import { initAppearance, registerAppearanceBroadcast } from './appearance'
@@ -41,6 +42,9 @@ app.whenReady().then(() => {
   registerHostIPC()
   registerProjectIPC()
   registerWindowIPC()
+  // AI 供应商：设置页的读写与 Agent 的透明转发。放在窗口创建之前注册，
+  // 因为设置窗口一挂载就会拉列表。
+  registerAiProviderIPC()
   /**
    * 行为级二次确认：回答通道要尽早注册（渲染进程一挂载就可能回答），退出确认的
    * 关口也在这里装上 —— 它管的是后面每一次 `app.quit()`，包括最后一个窗口关掉
@@ -98,5 +102,7 @@ app.on('window-all-closed', () => {
  * 拿它当「应用结束」的信号会漏记。这里只写日志，不干预退出流程。
  */
 app.on('will-quit', () => {
+  // SSE 是长连接，退出时主动取消，别让 fetch 把进程拖在后台
+  shutdownAiProviderIPC()
   loggerFor('app').info('Application is quitting')
 })

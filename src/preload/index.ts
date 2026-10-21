@@ -17,6 +17,7 @@ import {
 } from '@shared/appearance'
 import { CONFIRM_CHANNELS } from '@shared/confirm'
 import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
+import { AI_PROVIDER_CHANNELS } from '@shared/ai-provider'
 import {
   PROJECT_ARG_PREFIX,
   PROJECT_CHANNELS,
@@ -35,6 +36,17 @@ import {
   type WindowType
 } from '@shared/window'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
+import type {
+  ChatOpenRequest,
+  ChatOpenResult,
+  ChatStreamEvent,
+  ProviderSummary,
+  RemoveProviderResult,
+  SaveProviderRequest,
+  SaveProviderResult,
+  TestProviderRequest,
+  TestProviderResult
+} from '@shared/ai-provider'
 import type { AppearancePreference } from '@shared/appearance'
 import type { ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
 import type { ConfirmOptions, ConfirmRequest } from '@shared/confirm'
@@ -512,12 +524,46 @@ const confirmAPI = {
   }
 }
 
+/**
+ * AI 供应商的渲染侧端口。
+ *
+ * - `list/save/remove/test` 只碰非密配置与“是否已配置”；
+ * - `open/abort/onEvent` 是 Agent 用的透明转发：分片按 requestId 回到**发起窗口**，
+ *   不广播。key 永远不出现在任何返回值里。
+ */
+const aiProviderAPI = {
+  list: (): Promise<ProviderSummary[]> => ipcRenderer.invoke(AI_PROVIDER_CHANNELS.list),
+
+  save: (request: SaveProviderRequest): Promise<SaveProviderResult> =>
+    ipcRenderer.invoke(AI_PROVIDER_CHANNELS.save, request),
+
+  remove: (providerId: string): Promise<RemoveProviderResult> =>
+    ipcRenderer.invoke(AI_PROVIDER_CHANNELS.remove, providerId),
+
+  test: (request: TestProviderRequest): Promise<TestProviderResult> =>
+    ipcRenderer.invoke(AI_PROVIDER_CHANNELS.test, request),
+
+  open: (request: ChatOpenRequest): Promise<ChatOpenResult> =>
+    ipcRenderer.invoke(AI_PROVIDER_CHANNELS.open, request),
+
+  abort: (requestId: string): Promise<void> =>
+    ipcRenderer.invoke(AI_PROVIDER_CHANNELS.abort, requestId),
+
+  onEvent: (handler: (event: ChatStreamEvent) => void): Disposable => {
+    const wrapped = (_event: unknown, payload: ChatStreamEvent): void => handler(payload)
+    ipcRenderer.on(AI_PROVIDER_CHANNELS.event, wrapped)
+    return { dispose: () => ipcRenderer.off(AI_PROVIDER_CHANNELS.event, wrapped) }
+  }
+}
+
 const api = {
   /**
    * 获取所有插件注册的 UI 视图元信息。
    * 返回 [{ id, title, location, pluginId, dir, entry }] —— 纯数据。
    */
   getPluginViews: () => ipcRenderer.invoke(HOST_CHANNELS.getPluginViews),
+  /** 全局设置里的插件子设置页（已按当前语言解析标题，被禁用插件的不返回） */
+  getPluginSettings: () => ipcRenderer.invoke(HOST_CHANNELS.getPluginSettings),
   /** 获取当前语言的词条表、可用语言列表和漏翻体检结果。
    *
    * 渲染进程没有 fs，也不该知道语言包文件在哪 —— 它只消费主进程算好的结果。
@@ -641,6 +687,9 @@ const api = {
 
   /** 主题偏好（见 appearanceAPI 的说明） */
   appearance: appearanceAPI,
+
+  /** AI 供应商：设置页读写 + Agent 的透明转发（见 aiProviderAPI） */
+  aiProvider: aiProviderAPI,
 
   /**
    * 行为级二次确认在渲染进程这一侧的端口。
