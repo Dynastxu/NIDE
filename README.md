@@ -1,6 +1,4 @@
-<div align="center">
-  <h1>NIDE</h1>
-</div>
+<h1 align="center">NIDE</h1>
 
 <p align="center">
   <a href="LICENSE">
