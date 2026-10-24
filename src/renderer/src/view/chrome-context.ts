@@ -51,8 +51,9 @@ export function useViewChrome(input?: ViewChromeInput): ViewChromeConfig {
 
   return useMemo(
     () => buildChromeConfig(options, descriptor?.title ?? '', input),
-    // input 每次渲染都是新对象，真正的依赖是它的内容指纹（describeChromeInput）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // 依赖刻意用内容指纹而不是对象本身：input 每次渲染都是新对象，直接放进依赖等于每帧
+    // 都重算；标题已含在 viewKey 里（describeViewChrome）。
+    // eslint-disable-next-line @eslint-react/exhaustive-deps
     [options, viewKey, inputFingerprint]
   )
 }

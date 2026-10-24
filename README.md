@@ -64,7 +64,7 @@ AI 辅助的**小说工程化** IDE 编辑器。
 ## 环境要求
 
 - **Node**：仓库的工具链（install / typecheck / lint）只在 **Node 24.21.0** 上跑过。
-- npm
+- pnpm
 
 应用**运行时不受系统 Node 影响** —— Electron 自带 Node 与 V8，系统 Node 只服务于构建和
 测试工具（Vite / Vitest / ESLint / tsc）。所以换 Node 版本出问题，坏的是工具链，不是应用
@@ -74,24 +74,11 @@ AI 辅助的**小说工程化** IDE 编辑器。
 ## 快速开始
 
 ```bash
-npm install
-npm run dev          # 开发（HMR）
-npm run check        # 门禁：类型检查 + lint + 测试
-npm run build:win    # 打包（另有 build:mac / build:linux）
+pnpm install
+pnpm run dev          # 开发（HMR）
+pnpm run check        # 门禁：类型检查 + lint + 测试
+pnpm run build:win    # 打包（另有 build:mac / build:linux）
 ```
-
-## 命令
-
-| 命令                                    | 作用                                                          |
-| --------------------------------------- | ------------------------------------------------------------- |
-| `npm run dev`                           | 启动开发环境（HMR）                                           |
-| `npm run check`                         | `typecheck` + `lint` + `test`；`build` 与 CI 都走它           |
-| `npm test` / `test:watch`               | 跑测试 / 监听模式                                             |
-| `npm run typecheck`                     | 分别检查 node 侧与 web 侧两个 TS 工程                         |
-| `npm run lint` / `format`               | ESLint / Prettier                                             |
-| `npm run build`                         | 跑门禁后构建主进程 / 预加载 / 渲染三份 bundle，**不出安装包** |
-| `npm run build:win` / `:mac` / `:linux` | 在 `build` 基础上用 electron-builder 出对应平台安装包         |
-| `npm run build:unpack`                  | 只出解包目录（`--dir`），调试用                               |
 
 ## 文档
 
