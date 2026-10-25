@@ -13,6 +13,14 @@
     "src/renderer/src/**/*.tsx",
     "src/preload/*.d.ts",
     "src/shared/**/*",
+    "packages/client-runtime/src/**/*",
+    "packages/client-modules/src/**/*",
+    "packages/client-ui-slots/src/**/*",
+    "packages/client-ui-main/src/**/*",
+    "packages/client-ui-layout/src/**/*",
+    "packages/client-ui-settings/src/**/*",
+    "packages/client-ui-welcome/src/**/*",
+    "packages/client-ui-renderer/src/**/*",
     "plugins/builtin/*/src/ui/**/*",
     "plugins/builtin/*/src/settings/**/*",
     "test/renderer/**/*"
@@ -25,7 +33,15 @@
       "@renderer/*": [
         "src/renderer/src/*"
       ],
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["src/shared/*"],
+      "@nide/client-runtime": ["packages/client-runtime/src/index.ts"],
+      "@nide/client-modules": ["packages/client-modules/src/index.ts"],
+      "@nide/client-ui-slots": ["packages/client-ui-slots/src/index.ts"],
+      "@nide/client-ui-main": ["packages/client-ui-main/src/index.ts"],
+      "@nide/client-ui-layout": ["packages/client-ui-layout/src/index.tsx"],
+      "@nide/client-ui-settings": ["packages/client-ui-settings/src/index.ts"],
+      "@nide/client-ui-welcome": ["packages/client-ui-welcome/src/index.ts"],
+      "@nide/client-ui-renderer": ["packages/client-ui-renderer/src/index.tsx"]
     }
   }
 }

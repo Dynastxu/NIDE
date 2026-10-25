@@ -1,0 +1,4 @@
+{
+  "//": "纯数据模型目录：全部 ESM 语法；host（Node ESM）会直接 import 这里的 store.ts。",
+  "type": "module"
+}

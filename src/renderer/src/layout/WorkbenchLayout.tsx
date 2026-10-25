@@ -1,4 +1,5 @@
 import { JSX } from 'react'
+import { Slot } from '@nide/client-ui-renderer'
 import { EditorTabs } from '@renderer/editor/EditorTabs'
 import { MonacoDiffView } from '@renderer/editor/MonacoDiffView'
 import { Resizer } from '@renderer/layout/Resizer'
@@ -118,7 +119,7 @@ export function WorkbenchLayout(): JSX.Element {
                     className={bottomRightOn ? 'min-h-0 shrink-0' : 'min-h-0 min-w-0 flex-1'}
                     style={bottomRightOn ? { width: bottomLeftWidth, maxWidth: '80%' } : undefined}
                   >
-                    <ToolZone id="bottomLeft" />
+                    <Slot name="zone.bottomLeft" fallback={<ToolZone id="bottomLeft" />} />
                   </div>
                   {bottomRightOn && (
                     <Resizer
@@ -131,7 +132,7 @@ export function WorkbenchLayout(): JSX.Element {
               )}
               {bottomRightOn && (
                 <div className="min-h-0 min-w-0 flex-1">
-                  <ToolZone id="bottomRight" />
+                  <Slot name="zone.bottomRight" fallback={<ToolZone id="bottomRight" />} />
                 </div>
               )}
             </div>
@@ -160,18 +161,19 @@ function ToolColumn({ side }: { side: 'left' | 'right' }): JSX.Element | null {
 
   // 只有一块可见时占满整列，并且不留分隔条：
   // 否则用户能把唯一可见的那块拖到 0 高，整个工具区就「消失」了。
-  if (topOn && !bottomOn) return <ToolZone id={topId} />
-  if (!topOn && bottomOn) return <ToolZone id={bottomId} />
+  if (topOn && !bottomOn) return <Slot name={`zone.${topId}`} fallback={<ToolZone id={topId} />} />
+  if (!topOn && bottomOn)
+    return <Slot name={`zone.${bottomId}`} fallback={<ToolZone id={bottomId} />} />
   if (!topOn && !bottomOn) return null
 
   return (
     <>
       <div className="min-h-0 shrink-0" style={{ height: topHeight, maxHeight: '70%' }}>
-        <ToolZone id={topId} />
+        <Slot name={`zone.${topId}`} fallback={<ToolZone id={topId} />} />
       </div>
       <Resizer axis="y" onDelta={(d) => grow(heightKey, d)} onReset={() => resetSize(heightKey)} />
       <div className="min-h-0 flex-1">
-        <ToolZone id={bottomId} />
+        <Slot name={`zone.${bottomId}`} fallback={<ToolZone id={bottomId} />} />
       </div>
     </>
   )

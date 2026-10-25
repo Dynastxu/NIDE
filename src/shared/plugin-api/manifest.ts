@@ -14,6 +14,21 @@ export interface PluginManifest {
    */
   main?: string
 
+  /**
+   * 插件「浏览器半」的运行时声明。
+   *
+   * 构建产物必须是 IIFE：加载时通过 `window.__NIDE_REGISTER__(viewId, Component)`
+   * 把视图组件注册进客户端模块表。React / ReactDOM 由宿主以全局变量提供，
+   * 插件 bundle 里不打包它们（见 scripts/build-plugin-client.mjs）。
+   *
+   * 只声明「有没有、在哪儿」，具体视图仍由 contributes.views 声明。
+   */
+  client?: {
+    platform: 'web'
+    /** 相对插件目录的 bundle 路径，例如 "dist/client.js" */
+    bundle: string
+  }
+
   /** 激活事件：何时加载此插件。例如 "onStartup" */
   activationEvents?: string[]
 

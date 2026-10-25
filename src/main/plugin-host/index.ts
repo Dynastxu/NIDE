@@ -51,7 +51,7 @@ function scanDir(loader: PluginLoader, dir: string, source: LocaleSourceTier): n
       // 这样「设置 -> 插件」能列出**全部**插件，包括没有任何视图的语言包。
       // 从 uiRegistry 反推插件列表是不行的，那类插件会整个不可见。
       const manifest = loader.loadContributions(manifestPath, source)
-      if (manifest) pluginRegistry.register(manifest, source, name)
+      if (manifest) pluginRegistry.register(manifest, source, name, path.join(dir, name))
       loaded += 1
     } catch (err) {
       logger.error('Failed to load plugin', { name, error: err })

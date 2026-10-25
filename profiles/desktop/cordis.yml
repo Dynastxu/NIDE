@@ -1,0 +1,15 @@
+# NIDE desktop profile root config（MVP）。
+#
+# `{{NIDE_ROOT}}` 由 @nide/boot 在解析前替换成仓库根目录，仅用于本地开发：
+# 正式形态里这里应该是包标识符（例如 '@nide/client-ui-layout'），由 runtime
+# resolution 从 profile 的 node_modules 解析。
+#
+# TODO:
+# - bundle 层（nide.profile.bundles 里的 patch 文件）
+# - profile / home 的 cordis.patch.yml 覆盖
+# - `!!js` 表达式与 disabled 求值
+# - 每行的 required / inject 语义
+- id: hello
+  name: '{{NIDE_ROOT}}/packages/hello/src/index.ts'
+  config:
+    greeting: 'nide host skeleton is alive'

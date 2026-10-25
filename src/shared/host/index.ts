@@ -44,6 +44,12 @@ export const HOST_CHANNELS = {
    * 哪些插件」。纯数据插件（语言包）只有后者认得。
    */
   getPlugins: 'host:get-plugins',
+  /**
+   * 已启用插件的浏览器半 bundle 清单（纯数据：pluginId / platform / 绝对路径）。
+   *
+   * 开发期绝对路径由渲染进程转成 Vite `/@fs/` URL；生产环境会换成 app 协议。
+   */
+  getClientBundles: 'host:get-client-bundles',
   /** 启用 / 禁用插件。禁用后它的视图从工具区消失，状态由宿主落盘 */
   setPluginEnabled: 'host:set-plugin-enabled',
   /** 当前被禁用的插件 id（宿主持久化过的那份） */

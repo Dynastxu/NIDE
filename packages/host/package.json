@@ -1,0 +1,8 @@
+{
+  "name": "@nide/host",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "nide-host": "src/index.ts"
+  }
+}

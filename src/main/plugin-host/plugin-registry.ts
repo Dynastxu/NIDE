@@ -24,9 +24,13 @@ export interface RegisteredPlugin {
   source: LocaleSourceTier
   /** 插件目录名（不是全路径 —— 渲染进程不需要知道用户的磁盘布局） */
   dir: string
+  /** 插件目录的绝对路径；只在主进程内用来解析 client bundle，不跨 IPC */
+  dirPath: string
   permissions: string[]
   /** 这个插件贡献的视图 id，供设置界面展示 */
   views: string[]
+  /** manifest 声明的浏览器半；没有就是纯后端 / 纯数据插件 */
+  client?: { platform: 'web'; bundle: string }
   /** manifest 声明的重启需求，见 PluginDescriptor.requiresRestart */
   requiresRestart: boolean
   /** 插件自述，用于详情页。manifest 目前还没有这个字段，先留空 */
@@ -36,15 +40,22 @@ export interface RegisteredPlugin {
 export class PluginRegistry {
   private plugins = new Map<string, RegisteredPlugin>()
 
-  register(manifest: PluginManifest, source: LocaleSourceTier, dir: string): void {
+  register(
+    manifest: PluginManifest,
+    source: LocaleSourceTier,
+    dir: string,
+    dirPath: string
+  ): void {
     this.plugins.set(manifest.id, {
       id: manifest.id,
       name: manifest.name,
       version: manifest.version,
       source,
       dir,
+      dirPath,
       permissions: manifest.permissions ?? [],
       views: (manifest.contributes?.views ?? []).map((view) => view.id),
+      ...(manifest.client ? { client: manifest.client } : {}),
       requiresRestart: manifest.requiresRestart === true
     })
   }

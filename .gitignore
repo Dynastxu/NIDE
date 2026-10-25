@@ -13,3 +13,9 @@ out
 
 # Github Wiki
 /docs/wiki/
+
+# 本地开发用的 NIDE_HOME（profile / patch / 插件）
+/.nide-dev/
+
+# 插件浏览器半的构建产物
+/plugins/builtin/*/dist/

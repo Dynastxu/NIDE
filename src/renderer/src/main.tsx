@@ -6,6 +6,8 @@ import './assets/index.css'
 import type { JSX } from 'react'
 import { systemWindowTitle, type WindowType } from '@shared/window'
 import { ConfirmHost } from './ui/ConfirmHost'
+import type { ProjectListItem } from '@shared/project'
+import type { ClientRuntime } from '@nide/client-runtime'
 
 /**
  * 启动序列。顺序**都有理由，不能调换**：
@@ -27,6 +29,10 @@ import { ConfirmHost } from './ui/ConfirmHost'
  * i18n store 的 load 失败时会保留中文基础表。
  */
 installRendererLogger()
+
+// 插件 IIFE bundle 通过全局拿 React / ReactDOM；必须在任何 bundle 注入之前挂好。
+;(window as unknown as { React?: typeof React }).React = React
+;(window as unknown as { ReactDOM?: typeof ReactDOM }).ReactDOM = ReactDOM
 
 const logger = loggerFor('renderer')
 
@@ -92,7 +98,37 @@ async function boot(): Promise<void> {
     initMonacoTheme()
   }
 
-  const { default: Root } = await ROOTS[windowType]()
+  /**
+   * 根组件。
+   *
+   * main / welcome 走 slot：对应 root 插件由客户端 Cordis 树注册，渲染的还是
+   * 现有 `App` / `WelcomeApp`（组件一行没改）。settings 仍走旧路径。
+   */
+  let Root: () => JSX.Element
+  const slotName =
+    windowType === 'main'
+      ? 'main.root'
+      : windowType === 'welcome'
+        ? 'welcome.root'
+        : 'settings.root'
+
+  if (slotName) {
+    const slot = slotName
+    const runtime = await loadClientRuntime()
+    if (runtime) {
+      const { Slot, SlotProvider } = await import('@nide/client-ui-renderer')
+      logger.info('Window slot ready', { slot, occupants: runtime.slots.count(slot) })
+      Root = () => (
+        <SlotProvider registry={runtime.slots}>
+          <Slot name={slot} />
+        </SlotProvider>
+      )
+    } else {
+      Root = (await ROOTS[windowType]()).default
+    }
+  } else {
+    Root = (await ROOTS[windowType]()).default
+  }
 
   logger.info('Renderer boot completed', { windowType, locale })
 
@@ -112,4 +148,78 @@ async function boot(): Promise<void> {
   )
 }
 
+/**
+ * 启动客户端 Cordis 树（MVP），并缓存同一个 Promise。
+ *
+ * 欢迎窗口要等它注册好 `welcome.root` 才能渲染；主窗口只是并行启动，不阻塞。
+ */
+let clientRuntimePromise: Promise<ClientRuntime | null> | null = null
+
+function loadClientRuntime(): Promise<ClientRuntime | null> {
+  if (!clientRuntimePromise) {
+    clientRuntimePromise = import('@nide/client-runtime')
+      .then(({ createClientRuntime }) =>
+        createClientRuntime({ windowType: window.__NIDE_BOOT__.windowType })
+      )
+      .then((runtime) => {
+        ;(window as unknown as { __NIDE_CLIENT__?: unknown }).__NIDE_CLIENT__ = runtime
+        logger.info('Client Cordis runtime ready')
+        return runtime
+      })
+      .catch((error: unknown) => {
+        logger.warn('Client Cordis runtime failed', { error })
+        return null
+      })
+  }
+  return clientRuntimePromise
+}
+
+function bootClientRuntime(): void {
+  void loadClientRuntime()
+}
+
+/**
+ * 临时诊断：确认 renderer -> host 的通用 RPC 通了，并对照旧 IPC 的结果。
+ *
+ * 主进程在 `did-finish-load` 后才送 port，而 boot() 可能先跑完，所以这里
+ * 最多等 2 秒。阶段 2 接入真正的业务 namespace 后删除。
+ */
+async function probeHost(): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (window.nideHost?.available()) {
+      try {
+        const [hostProjects, legacyProjects] = await Promise.all([
+          window.nideHost.invoke<ProjectListItem[]>('project', 'list'),
+          window.hostAPI.projects.list()
+        ])
+        logger.info('Host project.list ok', {
+          host: hostProjects.length,
+          legacy: legacyProjects.length,
+          same: JSON.stringify(hostProjects) === JSON.stringify(legacyProjects)
+        })
+
+        const root = window.__NIDE_BOOT__.projectPath
+        if (root) {
+          const dir = await window.hostAPI.projects.readDir(root)
+          logger.info('Host files.readDir ok', {
+            ok: dir.ok,
+            entries: dir.ok ? dir.entries.length : 0,
+            ...(dir.ok ? {} : { reason: dir.reason })
+          })
+        }
+      } catch (error) {
+        logger.warn('Host project.list failed', { error })
+      }
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  logger.warn('Host port was not attached')
+}
+
+if (window.__NIDE_BOOT__.windowType === 'main') {
+  void probeHost()
+}
+
+void bootClientRuntime()
 void boot()

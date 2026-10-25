@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "activationEvents": ["onStartup"],
   "permissions": [],
+  "client": {
+    "platform": "web",
+    "bundle": "dist/client.js"
+  },
   "contributes": {
     "views": [
       {

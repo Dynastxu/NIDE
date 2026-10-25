@@ -16,6 +16,7 @@ import {
   normalizeAppearancePreference
 } from '@shared/appearance'
 import { CONFIRM_CHANNELS } from '@shared/confirm'
+import { HOST_PORT_CHANNEL, isRpcResponse } from '@shared/host-rpc'
 import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
 import { AI_PROVIDER_CHANNELS } from '@shared/ai-provider'
 import {
@@ -78,7 +79,7 @@ import type {
   RenameEntryResult,
   WriteFileRequest
 } from '@shared/project'
-import type { Disposable, PluginDescriptor } from '@shared/plugin-api'
+import type { Disposable, PluginDescriptor, ClientBundleDescriptor } from '@shared/plugin-api'
 
 // 通用事件总线（渲染进程侧）
 const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
@@ -261,9 +262,33 @@ const windowAPI = {
  * 能力（欢迎窗口与「欢迎 -> 主窗口」的切换都靠它）。所有判断都在主进程 ——
  * 目录存不存在这类事实只有主进程看得到。
  */
+/**
+ * host 侧 `project.list` 的延迟绑定。
+ *
+ * port 到达前为 null —— 此时走旧 IPC，host 未启用或尚未连接都不影响界面。
+ * 这是阶段 2 的绞杀者接缝：调用方（projectAPI.list）不认识 host，只认这个函数。
+ */
+let hostProjectList: (() => Promise<ProjectListItem[]>) | null = null
+
+/** host 侧文件读取的延迟绑定；port 未到 / host 未启用时为 null。 */
+let hostReadDir: ((dirPath: string) => Promise<DirReadResult>) | null = null
+let hostReadFile: ((filePath: string) => Promise<FileReadResult>) | null = null
+let hostWriteFile: ((request: WriteFileRequest) => Promise<FileWriteResult>) | null = null
+
 const projectAPI = {
   /** 「打开过的项目」列表，最近打开的在前 */
-  list: (): Promise<ProjectListItem[]> => ipcRenderer.invoke(PROJECT_CHANNELS.list),
+  list: async (): Promise<ProjectListItem[]> => {
+    if (hostProjectList) {
+      try {
+        const projects = await hostProjectList()
+        preloadLogger.info('project.list served by host', { count: projects.length })
+        return projects
+      } catch (error) {
+        preloadLogger.warn('host project.list failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_CHANNELS.list)
+  },
 
   /**
    * 打开列表里的某一条。目录已经不在时返回带原因的结果，不抛异常。
@@ -302,12 +327,28 @@ const projectAPI = {
    * 失败不抛异常，返回带原因的结果 —— 目录被删、没权限都是常见状态，
    * 界面要按原因说话，而不是接到一个 rejected promise。
    */
-  readDir: (dirPath: string): Promise<DirReadResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readDir, dirPath),
+  readDir: async (dirPath: string): Promise<DirReadResult> => {
+    if (hostReadDir) {
+      try {
+        return await hostReadDir(dirPath)
+      } catch (error) {
+        preloadLogger.warn('host files.readDir failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readDir, dirPath)
+  },
 
   /** 读项目里的一个纯文本 / Markdown 文件。失败同样返回带原因的结果 */
-  readFile: (filePath: string): Promise<FileReadResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readFile, filePath),
+  readFile: async (filePath: string): Promise<FileReadResult> => {
+    if (hostReadFile) {
+      try {
+        return await hostReadFile(filePath)
+      } catch (error) {
+        preloadLogger.warn('host files.readFile failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readFile, filePath)
+  },
 
   /**
    * 读一个内容目录里的章节列表（含每一章的编号）。
@@ -347,8 +388,16 @@ const projectAPI = {
    * 失败不抛异常，返回带原因的结果：磁盘满、文件被别的程序独占都是常见状态，
    * 界面要按原因说话（保存对话框据此留在原地）。
    */
-  writeFile: (request: WriteFileRequest): Promise<FileWriteResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.writeFile, request),
+  writeFile: async (request: WriteFileRequest): Promise<FileWriteResult> => {
+    if (hostWriteFile) {
+      try {
+        return await hostWriteFile(request)
+      } catch (error) {
+        preloadLogger.warn('host files.writeFile failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.writeFile, request)
+  },
 
   /**
    * 给一个文件 / 文件夹改名。
@@ -573,6 +622,10 @@ const api = {
   /** 「设置 -> 插件」用的插件清单。和 getPluginViews 是两件事：那个是视图，这个是插件本体 */
   getPlugins: (): Promise<PluginDescriptor[]> => ipcRenderer.invoke(HOST_CHANNELS.getPlugins),
 
+  /** 已启用插件的浏览器半 bundle 清单（开发期是绝对路径，生产环境换 app 协议） */
+  getClientBundles: (): Promise<ClientBundleDescriptor[]> =>
+    ipcRenderer.invoke(HOST_CHANNELS.getClientBundles),
+
   /** 启用 / 禁用插件。禁用后它的视图会从工具区消失；状态由宿主落盘，重启后仍然有效 */
   setPluginEnabled: (pluginId: string, enabled: boolean): Promise<void> =>
     ipcRenderer.invoke(HOST_CHANNELS.setPluginEnabled, pluginId, enabled),
@@ -743,10 +796,102 @@ function sendRaw(level: LogMessage['level'], data: unknown[]): void {
   })
 }
 
+/**
+ * renderer ↔ host 直连 port（MVP）。
+ *
+ * 主进程在 `did-finish-load` 后通过 `webContents.postMessage(HOST_PORT_CHANNEL)`
+ * 送来一个 MessagePort；renderer 直接与 host 通信，不经过 shell 转发。
+ *
+ * 协议：`{ type: 'rpc', id, namespace, method, args }`，
+ * host 回 `{ type: 'rpc-result', id, ok, result | error }`。
+ * TODO: 事件推送、取消、超时策略、schema 校验。
+ */
+let hostPort: MessagePort | null = null
+let hostRequestSeq = 0
+const hostPending = new Map<
+  string,
+  {
+    resolve: (value: unknown) => void
+    reject: (error: Error) => void
+    timer: ReturnType<typeof setTimeout>
+  }
+>()
+
+ipcRenderer.on(HOST_PORT_CHANNEL, (event) => {
+  const port = event.ports[0]
+  if (!port) return
+
+  hostPort = port
+  hostProjectList = () => hostInvoke('project', 'list') as Promise<ProjectListItem[]>
+  hostReadDir = (dirPath) => hostInvoke('files', 'readDir', [dirPath]) as Promise<DirReadResult>
+  hostReadFile = (filePath) =>
+    hostInvoke('files', 'readFile', [filePath]) as Promise<FileReadResult>
+  hostWriteFile = (request) =>
+    hostInvoke('files', 'writeFile', [request]) as Promise<FileWriteResult>
+
+  // 窗口知道自己绑定的是哪个项目；换项目后 host 需要跟着切。
+  const bootProject = readBootProjectPath()
+  if (bootProject) {
+    void hostInvoke('project', 'setCurrent', [bootProject]).catch((error: unknown) => {
+      preloadLogger.warn('failed to sync the host current project', { error })
+    })
+  }
+
+  port.onmessage = (message) => {
+    const data = message.data
+    if (!isRpcResponse(data)) return
+
+    const pending = hostPending.get(data.id)
+    if (!pending) return
+
+    clearTimeout(pending.timer)
+    hostPending.delete(data.id)
+
+    if (data.ok) {
+      pending.resolve(data.result)
+      return
+    }
+
+    const error = new Error(data.error.message) as Error & { code?: string }
+    error.code = data.error.code
+    pending.reject(error)
+  }
+  port.start()
+  preloadLogger.info('Host port attached')
+})
+
+function hostInvoke(
+  namespace: string,
+  method: string,
+  args: unknown[] = [],
+  timeoutMs = 5000
+): Promise<unknown> {
+  const port = hostPort
+  if (!port) return Promise.reject(new Error('host port is not attached'))
+
+  const id = `renderer-${++hostRequestSeq}`
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      hostPending.delete(id)
+      reject(new Error(`${namespace}.${method} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+    hostPending.set(id, { resolve, reject, timer })
+    port.postMessage({ type: 'rpc', id, namespace, method, args })
+  })
+}
+
+const nideHost = {
+  available: (): boolean => hostPort !== null,
+  invoke: <T = unknown>(namespace: string, method: string, ...args: unknown[]): Promise<T> =>
+    hostInvoke(namespace, method, args) as Promise<T>,
+  ping: (): Promise<unknown> => hostInvoke('host', 'ping', [])
+}
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('hostAPI', api)
+    contextBridge.exposeInMainWorld('nideHost', nideHost)
     contextBridge.exposeInMainWorld('__NIDE_BOOT__', {
       locale: readBootLocale(),
       appearance: readBootAppearance(),
@@ -767,6 +912,8 @@ if (process.contextIsolated) {
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.hostAPI = api
+  // @ts-ignore (define in dts)
+  window.nideHost = nideHost
   // @ts-ignore (define in dts)
   window.__NIDE_BOOT__ = {
     locale: readBootLocale(),

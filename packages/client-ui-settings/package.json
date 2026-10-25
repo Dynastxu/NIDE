@@ -1,0 +1,8 @@
+{
+  "name": "@nide/client-ui-settings",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

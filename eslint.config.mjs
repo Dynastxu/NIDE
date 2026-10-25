@@ -5,7 +5,7 @@ import eslintReact from '@eslint-react/eslint-plugin'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
 export default defineConfig(
-  { ignores: ['**/node_modules', '**/dist', '**/out'] },
+  { ignores: ['**/node_modules', '**/dist', '**/out', '**/.nide-dev'] },
   tseslint.configs.recommended,
   eslintReact.configs.recommended,
   {

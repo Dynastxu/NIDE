@@ -20,7 +20,15 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': shared,
-        '@renderer': resolve('src/renderer/src')
+        '@renderer': resolve('src/renderer/src'),
+        '@nide/client-runtime': resolve('packages/client-runtime/src/index.ts'),
+        '@nide/client-modules': resolve('packages/client-modules/src/index.ts'),
+        '@nide/client-ui-slots': resolve('packages/client-ui-slots/src/index.ts'),
+        '@nide/client-ui-main': resolve('packages/client-ui-main/src/index.ts'),
+        '@nide/client-ui-layout': resolve('packages/client-ui-layout/src/index.tsx'),
+        '@nide/client-ui-settings': resolve('packages/client-ui-settings/src/index.ts'),
+        '@nide/client-ui-welcome': resolve('packages/client-ui-welcome/src/index.ts'),
+        '@nide/client-ui-renderer': resolve('packages/client-ui-renderer/src/index.tsx')
       }
     },
     plugins: [tailwindcss(), react(), reactClickToComponent()],

@@ -1,0 +1,11 @@
+{
+  "name": "nide-profile-desktop",
+  "private": true,
+  "type": "module",
+  "description": "NIDE desktop profile. MVP: no bundle layers yet.",
+  "nide": {
+    "profile": {
+      "bundles": []
+    }
+  }
+}

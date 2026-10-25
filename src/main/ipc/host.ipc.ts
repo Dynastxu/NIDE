@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
 import { WINDOW_CHANNELS } from '@shared/window'
 import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
@@ -18,6 +19,7 @@ import { shutdownAiProviderIPC } from './ai-provider.ipc'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type { ThemePayload } from '@shared/theme'
 import type {
+  ClientBundleDescriptor,
   PluginDescriptor,
   PluginSettingsDescriptor,
   PluginViewDescriptor
@@ -179,6 +181,26 @@ export function registerHostIPC(): void {
         ...(plugin.description ? { description: plugin.description } : {})
       }))
       .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+  })
+
+  /**
+   * 已启用插件的浏览器半 bundle。
+   *
+   * 只返回纯数据；绝对路径仅用于开发期的 Vite `/@fs/`，生产环境会换成
+   * app 协议（见 docs/architecture/plugin-ui-bundles.md）。
+   */
+  ipcMain.handle(HOST_CHANNELS.getClientBundles, (): ClientBundleDescriptor[] => {
+    const disabled = new Set(getDisabledPlugins())
+    return pluginRegistry.getAll().flatMap((plugin) => {
+      if (!plugin.client || disabled.has(plugin.id)) return []
+      return [
+        {
+          pluginId: plugin.id,
+          platform: plugin.client.platform,
+          bundlePath: path.join(plugin.dirPath, plugin.client.bundle)
+        }
+      ]
+    })
   })
 
   /**

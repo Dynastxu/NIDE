@@ -34,6 +34,7 @@ import type {
 } from '@shared/project'
 import type {
   Disposable,
+  ClientBundleDescriptor,
   PluginDescriptor,
   PluginSettingsDescriptor,
   PluginViewDescriptor
@@ -94,6 +95,18 @@ export interface RendererLoggerAPI {
   warn: (text: string, fields?: Record<string, unknown>) => void
   info: (text: string, fields?: Record<string, unknown>) => void
   debug: (text: string, fields?: Record<string, unknown>) => void
+}
+
+/**
+ * renderer ↔ host 直连通道（MVP）。
+ *
+ * 由主进程在窗口 `did-finish-load` 后送入一个 MessagePort；
+ * `available()` 在 port 到达前是 false。阶段 2 会换成通用 RPC。
+ */
+export interface NideHostAPI {
+  available: () => boolean
+  invoke: <T = unknown>(namespace: string, method: string, ...args: unknown[]) => Promise<T>
+  ping: () => Promise<unknown>
 }
 
 /**
@@ -296,6 +309,8 @@ export interface HostAPI {
   /** 全局设置里的插件子设置页；被禁用插件贡献的页面不会出现在这里 */
   getPluginSettings: () => Promise<PluginSettingsDescriptor[]>
   getPlugins: () => Promise<PluginDescriptor[]>
+  /** 已启用插件的浏览器半 bundle（开发期绝对路径） */
+  getClientBundles: () => Promise<ClientBundleDescriptor[]>
   setPluginEnabled: (pluginId: string, enabled: boolean) => Promise<void>
   getDisabledPlugins: () => Promise<string[]>
   onPluginEnabledChanged: (handler: (pluginId: string, enabled: boolean) => void) => Disposable
@@ -325,6 +340,7 @@ declare global {
   interface Window {
     electron: ElectronAPI
     hostAPI: HostAPI
+    nideHost: NideHostAPI
     __NIDE_BOOT__: NideBootInfo
   }
 }
