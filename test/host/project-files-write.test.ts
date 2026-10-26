@@ -7,7 +7,7 @@ import {
   readProjectFile,
   writeProjectFile,
   type RootsOptions
-} from '../../packages/host/src/services/project-files.ts'
+} from '../../packages/services/content/src/project-files.ts'
 import {
   HOST_TEMP_FILE_PREFIX,
   MAX_TEXT_FILE_BYTES

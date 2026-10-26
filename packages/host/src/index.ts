@@ -13,30 +13,14 @@ import {
 import { attachHostIpc } from '../../kernel/src/ipc.ts'
 import { RpcRegistry } from '../../kernel/src/rpc.ts'
 import { installNideContext, type HostEnvironment } from '../../kernel/src/context.ts'
-import { HostProjectStore } from './services/project-store.ts'
-import {
-  checkProjectOverviewDocument,
-  createProjectEntry,
-  createProjectGallery,
-  deleteProjectEntry,
-  readProjectChapters,
-  readProjectDir,
-  readProjectForeshadowing,
-  readProjectFile,
-  readProjectGalleries,
-  readProjectOverview,
-  renameProjectEntry,
-  writeProjectFile
-} from './services/project-files.ts'
+import { projectService } from '../../services/project/src/index.ts'
+import type { HostProjectStore } from '../../services/project/src/host-project-store.ts'
 import {
   initializeProjectDirectory,
-  loadGalleryRegistry,
   loadProjectConfig,
-  remapOverviewRole,
-  resolveConfigDirectory,
-  updateGalleryRegistry,
   updateProjectConfig
-} from './services/project-config.ts'
+} from '../../services/config/src/project-config.ts'
+import { contentService } from '../../services/content/src/index.ts'
 import { PluginManager, pluginPreferencePath } from './services/plugins.ts'
 import { builtinViews } from './services/builtin-views.ts'
 import { HostI18n } from './services/i18n.ts'
@@ -63,15 +47,7 @@ function toProviderError(error: unknown): ProviderError {
     message: error instanceof Error ? error.message : 'AI 供应商操作失败'
   }
 }
-import { filePathKey } from '../../../packages/contracts/src/project/files.ts'
 import type {
-  CreateEntryRequest,
-  DeleteEntryRequest,
-  RenameEntryRequest
-} from '../../../packages/contracts/src/project/files.ts'
-import type {
-  GalleryCreateRequest,
-  OverviewRoleUpdateRequest,
   ProjectConfig,
   ProjectConfigUpdateResult
 } from '../../../packages/contracts/src/project/index.ts'
@@ -211,9 +187,6 @@ const userDataDir = options.userData
   : path.join(paths.home, 'user-data')
 fs.mkdirSync(userDataDir, { recursive: true })
 
-const projects = new HostProjectStore(userDataDir)
-projects.resolveStartup()
-
 /**
  * 插件目录。
  *
@@ -274,16 +247,6 @@ function syncLanguagePacks(): void {
 const resolveTitle: TitleResolver = (pluginId, titleSpec, fallback) =>
   i18n.resolveTitle(plugins.manifestNls(pluginId), titleSpec) || fallback
 
-/** 文件读取的允许根：MVP 只有当前项目一个。 */
-function allowedRoots(): string[] {
-  const root = projects.getCurrent()?.path
-  return root ? [root] : []
-}
-
-function caseInsensitivePaths(): boolean {
-  return process.platform === 'win32'
-}
-
 /**
  * 第一批 namespace。
  *
@@ -312,6 +275,24 @@ const hostCtx = installNideContext(host.ctx, {
   env
 })
 
+/**
+ * 服务装配。
+ *
+ * 直接调 `apply` 而不是 `ctx.plugin(...)`：Cordis 的 plugin 是异步挂载的，
+ * 而这里需要「装配完立刻能用」（下面的 `require` 就在同一个 tick）。服务对象本身
+ * 仍是 `{ name, apply(ctx) }` 的形状 —— 以后 loader 支持包标识符时，同一个对象
+ * 可以原样交给 `ctx.plugin`。
+ *
+ * 顺序只对「谁先 provide」有影响；服务之间一律在**调用时**用
+ * `ctx.services.require(...)` 取，所以顺序不构成依赖。
+ */
+for (const service of [projectService, contentService]) {
+  service.apply(hostCtx)
+}
+
+/** 项目生命周期服务（`provide('project', …)` 在它的 apply 里做过） */
+const projects = hostCtx.services.require<HostProjectStore>('project')
+
 // 第一个走 ctx.rpc 的命名空间：服务包照这个形状注册自己的 namespace
 hostCtx.rpc.register('host', {
   ping: () => ({ pong: Date.now() }),
@@ -339,126 +320,7 @@ hostCtx.rpc.register('host', {
  * 只认**列表里已有**的记录这一点只在 `setCurrent` 里：`open` 是唯一会新增记录的方法，
  * 其余入口都不该凭空造出一个项目。
  */
-rpc.register('project', {
-  list: () => projects.list(),
-  current: () => projects.getCurrent(),
-  startup: () => projects.resolveStartup(),
-  setCurrent: (dirPath) => projects.setCurrent(String(dirPath ?? '')),
-
-  open: (dirPath) => projects.open(String(dirPath ?? '')),
-  forget: (dirPath) => {
-    projects.forget(String(dirPath ?? ''))
-    return projects.list()
-  },
-  close: () => {
-    projects.close()
-    return null
-  }
-})
-
 /**
- * 请求形状校验：host 收到的是渲染进程经 MessagePort 发来的 JSON，形状完全不可信。
- * 名字的合法性仍由 service 用 `validateEntryName` 判，这一层只确认类型。
- */
-function parseCreateEntryRequest(value: unknown): CreateEntryRequest | null {
-  if (!value || typeof value !== 'object') return null
-
-  const { kind, targetPath, name, content } = value as Partial<CreateEntryRequest>
-  if (kind !== 'file' && kind !== 'directory') return null
-  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
-  if (typeof name !== 'string') return null
-  // 初始内容可以不给；给了就必须是字符串（null / 数字不能被悄悄写成 "null" / "42"）
-  if (content !== undefined && typeof content !== 'string') return null
-
-  return { kind, targetPath, name, ...(content === undefined ? {} : { content }) }
-}
-
-function parseRenameEntryRequest(value: unknown): RenameEntryRequest | null {
-  if (!value || typeof value !== 'object') return null
-
-  const { targetPath, name } = value as Partial<RenameEntryRequest>
-  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
-  if (typeof name !== 'string') return null
-
-  return { targetPath, name }
-}
-
-function parseDeleteEntryRequest(value: unknown): DeleteEntryRequest | null {
-  if (!value || typeof value !== 'object') return null
-
-  const { targetPath } = value as Partial<DeleteEntryRequest>
-  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
-
-  return { targetPath }
-}
-
-/** 图鉴 / 概述通道的请求形状校验（与主进程的 parse* 一一对应） */
-function parseGalleryCreateRequest(value: unknown): GalleryCreateRequest | null {
-  if (!value || typeof value !== 'object') return null
-
-  const { targetPath, name } = value as Partial<GalleryCreateRequest>
-  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
-  if (typeof name !== 'string') return null
-
-  return { targetPath, name }
-}
-
-function parseGalleryRegistryRequest(value: unknown): string | null {
-  if (!value || typeof value !== 'object') return null
-
-  const { characters } = value as { characters?: unknown }
-  if (typeof characters !== 'string' || characters.length === 0) return null
-
-  return characters
-}
-
-function parseOverviewRoleRequest(value: unknown): OverviewRoleUpdateRequest | null {
-  if (!value || typeof value !== 'object') return null
-
-  const { role, fileName } = value as Partial<OverviewRoleUpdateRequest>
-  if (role !== 'outline' && role !== 'style') return null
-  if (typeof fileName !== 'string' || fileName.length === 0) return null
-
-  return { role, fileName }
-}
-
-/**
- * 配置里那个图鉴内容目录的绝对路径；读不到配置时给 null。
- *
- * 图鉴的三个通道都要它：渲染进程报上来的路径必须**正是**这一个，否则拒绝 —— 不判的
- * 话，「读图鉴」就成了一条枚举项目里任意一层子目录的通道。
- */
-async function resolveGalleryRoot(root: string): Promise<string | null> {
-  try {
-    const config = await loadProjectConfig(root)
-    return resolveConfigDirectory(root, config.gallery.path)
-  } catch (error) {
-    console.warn('[nide-host] failed to resolve the gallery directory', { error })
-    return null
-  }
-}
-
-/** 当前项目的概述配置与内容目录绝对路径；读不到配置时给 null */
-async function resolveOverviewContext(
-  root: string
-): Promise<{ config: ProjectConfig; path: string } | null> {
-  try {
-    const config = await loadProjectConfig(root)
-    return { config, path: resolveConfigDirectory(root, config.overview.path) }
-  } catch (error) {
-    console.warn('[nide-host] failed to resolve the overview directory', { error })
-    return null
-  }
-}
-
-/** 两个路径是不是同一个位置。大小写按平台语义折叠（与范围校验同一条约定） */
-function samePath(left: string, right: string): boolean {
-  if (right.length === 0) return false
-
-  const caseInsensitive = caseInsensitivePaths()
-  return filePathKey(left, caseInsensitive) === filePathKey(right, caseInsensitive)
-}
-
 /**
  * 项目文件读写。
  *
@@ -466,202 +328,6 @@ function samePath(left: string, right: string): boolean {
  * `writeFile` / `createEntry` / `renameEntry` / `deleteEntry`。范围 / 链接 / 覆盖
  * 语义与主进程那份一致。删除的二次确认**不在这里**：host 没有窗口，preload 先问
  * shell 再调本方法；改名之后的概述映射在 host 内部补（配置服务已经在这里）。
- */
-rpc.register('files', {
-  readDir: (dirPath) =>
-    readProjectDir(String(dirPath ?? ''), {
-      roots: allowedRoots(),
-      caseInsensitive: caseInsensitivePaths()
-    }),
-  readFile: (filePath) =>
-    readProjectFile(String(filePath ?? ''), {
-      roots: allowedRoots(),
-      caseInsensitive: caseInsensitivePaths()
-    }),
-  readChapters: (dirPath) =>
-    readProjectChapters(String(dirPath ?? ''), {
-      roots: allowedRoots(),
-      caseInsensitive: caseInsensitivePaths()
-    }),
-  readForeshadowing: (dirPath) =>
-    readProjectForeshadowing(String(dirPath ?? ''), {
-      roots: allowedRoots(),
-      caseInsensitive: caseInsensitivePaths()
-    }),
-  writeFile: (request) => {
-    const payload = (request ?? {}) as { filePath?: unknown; content?: unknown }
-    return writeProjectFile(
-      {
-        filePath: String(payload.filePath ?? ''),
-        content: payload.content as string
-      },
-      {
-        roots: allowedRoots(),
-        caseInsensitive: caseInsensitivePaths()
-      }
-    )
-  },
-  createEntry: (request) => {
-    const parsed = parseCreateEntryRequest(request)
-    if (!parsed) return { ok: false, reason: 'invalid-name' }
-
-    return createProjectEntry(parsed, {
-      roots: allowedRoots(),
-      caseInsensitive: caseInsensitivePaths()
-    })
-  },
-  renameEntry: async (request) => {
-    const parsed = parseRenameEntryRequest(request)
-    if (!parsed) return { ok: false, reason: 'invalid-name' }
-
-    const result = await renameProjectEntry(parsed, {
-      roots: allowedRoots(),
-      caseInsensitive: caseInsensitivePaths()
-    })
-
-    /**
-     * 概述里的大纲 / 写作风格是按**文件名**记在 `.nide/config.yml` 里的：改名之后
-     * 不跟着改，那条映射就断了。配置服务已经在 host，这一步直接在这里做。
-     * 失败只记日志：改名本身已经落盘，不能把它报成失败。
-     */
-    if (result.ok) {
-      const root = projects.getCurrent()?.path
-      if (root) {
-        try {
-          await remapOverviewRole(root, result.previousPath, result.path)
-        } catch (error) {
-          console.warn('[nide-host] failed to remap the overview role after a rename', { error })
-        }
-      }
-    }
-
-    return result
-  },
-  deleteEntry: (request) => {
-    const parsed = parseDeleteEntryRequest(request)
-    if (!parsed) return { ok: false, reason: 'unreadable' }
-
-    return deleteProjectEntry(parsed, {
-      roots: allowedRoots(),
-      caseInsensitive: caseInsensitivePaths()
-    })
-  }
-})
-
-/**
- * 图鉴：内容目录下每个子目录一个图鉴。
- *
- * 与文件树同一套边界（根由 host 取当前项目，渲染进程只声明路径），另外多一条：
- * 报上来的路径必须**正是配置里那个图鉴内容目录**。注册表与列表在同一个结果里，
- * 因为界面上总是一起用。
- */
-rpc.register('gallery', {
-  read: async (targetPath) => {
-    const roots = allowedRoots()
-    const root = roots[0]
-    if (!root) return { ok: false, reason: 'outside-project' }
-
-    const galleryRoot = await resolveGalleryRoot(root)
-    if (galleryRoot === null || !samePath(galleryRoot, String(targetPath ?? ''))) {
-      return { ok: false, reason: 'outside-project' }
-    }
-
-    const listing = await readProjectGalleries(galleryRoot, {
-      roots,
-      caseInsensitive: caseInsensitivePaths()
-    })
-    if (!listing.ok) return listing
-
-    return {
-      ok: true,
-      path: listing.path,
-      registry: await loadGalleryRegistry(root),
-      galleries: listing.galleries
-    }
-  },
-
-  create: async (request) => {
-    const parsed = parseGalleryCreateRequest(request)
-    if (!parsed) return { ok: false, reason: 'invalid-name' }
-
-    const roots = allowedRoots()
-    const root = roots[0]
-    if (!root) return { ok: false, reason: 'unreadable' }
-
-    const galleryRoot = await resolveGalleryRoot(root)
-    if (galleryRoot === null || !samePath(galleryRoot, parsed.targetPath)) {
-      return { ok: false, reason: 'not-a-directory' }
-    }
-
-    return createProjectGallery(parsed, {
-      roots,
-      caseInsensitive: caseInsensitivePaths()
-    })
-  },
-
-  updateRegistry: async (request) => {
-    const root = projects.getCurrent()?.path
-    if (!root) return null
-
-    const characters = parseGalleryRegistryRequest(request)
-    if (characters === null) return { ok: false, reason: 'invalid-name' }
-
-    return updateGalleryRegistry(root, characters)
-  }
-})
-
-/**
- * 概述：内容目录里平铺的 Markdown，其中两份被项目配置登记成大纲 / 写作风格。
- *
- * 与图鉴同一套边界，另外多一条：报上来的路径必须正是配置里那个概述内容目录。
- */
-rpc.register('overview', {
-  read: async (targetPath) => {
-    const roots = allowedRoots()
-    const root = roots[0]
-    if (!root) return { ok: false, reason: 'outside-project' }
-
-    const overview = await resolveOverviewContext(root)
-    if (overview === null || !samePath(overview.path, String(targetPath ?? ''))) {
-      return { ok: false, reason: 'outside-project' }
-    }
-
-    return readProjectOverview(overview.path, {
-      roots,
-      caseInsensitive: caseInsensitivePaths()
-    })
-  },
-
-  setRole: async (request) => {
-    const parsed = parseOverviewRoleRequest(request)
-    if (!parsed) return { ok: false, reason: 'invalid-name' }
-
-    const roots = allowedRoots()
-    const root = roots[0]
-    if (!root) return { ok: false, reason: 'unreadable' }
-
-    const overview = await resolveOverviewContext(root)
-    if (overview === null) return { ok: false, reason: 'unreadable' }
-
-    const options = { roots, caseInsensitive: caseInsensitivePaths() }
-    const check = await checkProjectOverviewDocument(overview.path, parsed.fileName, options)
-    if (check !== 'ok') return { ok: false, reason: check }
-
-    const updated = await updateProjectConfig(root, {
-      overview: { [parsed.role]: parsed.fileName }
-    })
-
-    if (!updated.ok) return { ok: false, reason: 'invalid-name' }
-    return { ok: true, config: updated.config }
-  }
-})
-
-/**
- * 项目配置（`.nide/config.yml`）。
- *
- * 项目根由 host 取当前项目，渲染进程只声明「我要配置」—— 它指定不了读谁、更指定
- * 不了写到哪儿。服务会在 `.nide` 缺失或坏掉时静默重建默认配置，所以调用方永远拿得到
- * 一份可用的配置。
  */
 rpc.register('config', {
   read: async (): Promise<ProjectConfig | null> => {

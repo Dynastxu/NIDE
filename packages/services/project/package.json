@@ -1,0 +1,7 @@
+{
+  "name": "@nide/service-project",
+  "private": true,
+  "type": "module",
+  "//": "项目生命周期：projects.json 的唯一实现。导出 Cordis 服务（apply(ctx)），",
+  "//2": "自己注册 `project.*` RPC；其它服务通过 ctx.services.require('project') 取用。"
+}

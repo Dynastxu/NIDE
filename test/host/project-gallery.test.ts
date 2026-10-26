@@ -6,7 +6,7 @@ import {
   createProjectGallery,
   readProjectGalleries,
   type RootsOptions
-} from '../../packages/host/src/services/project-files.ts'
+} from '../../packages/services/content/src/project-files.ts'
 import {
   DEFAULT_GALLERY_FIELDS,
   DEFAULT_CHARACTER_GALLERY_FIELDS,

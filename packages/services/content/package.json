@@ -1,0 +1,6 @@
+{
+  "name": "@nide/service-content",
+  "private": true,
+  "type": "module",
+  "//": "内容读写：文件树 / 图鉴 / 概述。三个 RPC 命名空间共用同一批实现。"
+}
