@@ -8,9 +8,9 @@
    * 那种包内 import 会报 TS6307（详见 tsconfig.node.json 的说明）。
    */
   "include": [
-    "src/renderer/src/env.d.ts",
-    "src/renderer/src/**/*",
-    "src/renderer/src/**/*.tsx",
+    "apps/desktop/renderer/src/env.d.ts",
+    "apps/desktop/renderer/src/**/*",
+    "apps/desktop/renderer/src/**/*.tsx",
     "packages/shell/src/preload/*.d.ts",
     "packages/contracts/src/**/*",
     "packages/client-runtime/src/**/*",

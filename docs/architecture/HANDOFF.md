@@ -11,7 +11,7 @@ Cordis/DSH 架构的**迁移已完成**：Electron shell → 独立 host 进程 
 的实现只有一份，在 **host**；窗口 UI 全部在 `packages/client-ui-*`，渲染进程只剩
 引导壳。现有界面外观未改。
 
-**没有留回退路径**：`src/main/plugin-host/` 与 `src/main/services/` 已删除，shell
+**没有留回退路径**：`packages/shell/src/main/plugin-host/` 与 `.../services/` 已删除，shell
 只保留「按 D7 本来就该在 shell 里」的东西（窗口 / 菜单 / dialog / 确认框 / 日志落盘）。
 打包版跑编译后的 host（`out/host`），asar 已恢复。逐项见 §4.1。
 
@@ -37,7 +37,7 @@ Cordis/DSH 架构的**迁移已完成**：Electron shell → 独立 host 进程 
 ## 2. 目标进程与代码结构
 
 ```
-Electron shell（src/main）
+Electron shell（packages/shell/src/main）
 ├─ 窗口 / 菜单 / dialog / tray / update / preload
 ├─ utilityProcess.fork(packages/host/src/index.ts)   ← 必需（启动时无条件拉起）
 └─ 建窗时 MessageChannelMain：一个 port 给 host，一个给 renderer
@@ -63,7 +63,7 @@ Host（packages/host，纯 Node ESM）
    （`nativeTheme` / `safeStorage`，见 §3「ctx.shell」）
 
 Client（renderer，HTTP 页面里的第二棵 Cordis 树）
-├─ src/renderer/src/main.tsx：引导壳（按窗口种类 import 三个包、挂 slot）
+├─ apps/desktop/renderer/src/main.tsx：引导壳（按窗口种类 import 三个包、挂 slot）
 ├─ packages/client-runtime：Context + slots + modules + bundle loader
 ├─ packages/client-kit：共享层（stores / ui / 窗口外壳 / 插件视图管线）
 ├─ packages/client-ui-main / client-ui-welcome / client-ui-settings：窗口 UI 本体
@@ -94,7 +94,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 ## 3. 已完成（可运行、已验证）
 
 ### 宿主进程
-- 启动时 `src/main/host/process.ts` 用 `utilityProcess.fork` 拉起 host（不再是开关）；
+- 启动时 `packages/shell/src/main/host/process.ts` 用 `utilityProcess.fork` 拉起 host（不再是开关）；
 - 等 `{type:'ready'}`，支持 ping/pong、shutdown、超时 kill；host 退出后下一次调用会重新拉起；
 - host 入口 `packages/host/src/index.ts`：Cordis `Context` + loader + 插件；
 - 生命周期日志：`host process is ready`、`host ready ... ipc=true`。
@@ -107,7 +107,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   `config.read/update/initialize`；
 - preload 暴露 `window.nideHost.invoke(ns, method, ...args)`；
 - preload 的上面这些 `projects.*` 方法全部 host 优先；旧 IPC 通道保留为回退，但
-  **只是转发**——主进程里不再有第二份实现（`src/main/services/project-*.service.ts` 已删）；
+  **只是转发**——主进程里不再有第二份实现（`packages/shell/src/main/services/project-*.service.ts` 已删）；
 - shell → host 也有一条父端口 RPC（`invokeHost`）：新建项目时的
   `config.initialize` 由主进程直接发起，那时窗口可能还没建出来；旧 IPC 的转发器也走它；
 - 图鉴 / 概述的「报上来的路径必须正是配置里那个目录」在 host 判：配置服务已经搬过去；
@@ -117,9 +117,9 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - `project.setCurrent` 在每个窗口 port 建立后按 `--nide-project=` 同步，换项目时 host 跟着切。
 
 ### 项目生命周期（host）
-- `src/main/services/project-store.ts` 已删除；`projects.json` 只剩下
+- `packages/shell/src/main/services/project-store.ts` 已删除；`projects.json` 只剩下
   [packages/host/src/services/project-store.ts](packages/host/src/services/project-store.ts)
-  这一份实现，shell 通过新增的 [src/main/host/project.ts](src/main/host/project.ts)
+  这一份实现，shell 通过新增的 [packages/shell/src/main/host/project.ts](packages/shell/src/main/host/project.ts)
   （`listProjects` / `startupProject` / `openProject` / `forgetProject` / `closeProject`）
   经父端口调用它；
 - `project.open/forget/close` 是这一次新接的写路径：打开 = 记进列表 + 落盘 + 记为当前，
@@ -127,7 +127,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - **建窗要等 host**：`openStartupWindow()` 已经变成 async —— 开主窗口还是欢迎窗口取决于
   host 读出来的 `projects.json`。代价是首窗要等 host ready（约 0.4s），
   host 起不来则回落成欢迎窗口；
-- shell 只保留一个 `boundProjectPath`（[src/main/window.ts](src/main/window.ts)）：这是
+- shell 只保留一个 `boundProjectPath`（[packages/shell/src/main/window.ts](packages/shell/src/main/window.ts)）：这是
   **主窗口绑定的项目**，不是第二份 store —— 项目路径经 `additionalArguments` 在建窗时
   固定，重建窗口（切语言 / 重启）时只能原样再用一次。写入点是
   `createMainWindow()` / `activateMainWindow()`，两个都吃 host 给的记录；
@@ -143,12 +143,12 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - 贡献点的读取（读 manifest、路径守卫、chrome / location 收敛、语言包与
   `package.nls*.json`）在
   [plugin-contributions.ts](packages/host/src/services/plugin-contributions.ts)；
-  搬迁期间的 `src/main/plugin-host/*`（loader / registry / permission / sandbox /
+  搬迁期间的 `packages/shell/src/main/plugin-host/*`（loader / registry / permission / sandbox /
   errors / host-views / preference）已全部删除；
 - RPC：`plugins.list` / `disabled` / `setEnabled` / `clientBundles` / `views` / `settings` /
   `install` / `remove` / `rescan`；`contributions` 不再是 RPC（shell 不需要了），
   只作为 host 内部聚合点与语言包来源；
-- shell 侧**没有任何缓存表 / 镜像了**：`src/main/plugin-host/` 已整个删除。
+- shell 侧**没有任何缓存表 / 镜像了**：`packages/shell/src/main/plugin-host/` 已整个删除。
   三条内建视图（文件树 / 版本控制 / 提交）也搬进 host
   （[packages/host/src/services/builtin-views.ts](packages/host/src/services/builtin-views.ts)）——
   它们的标题是宿主词条，词条表与当前语言都在 host，放在 shell 拼会让一次查询跨两份翻译；
@@ -176,7 +176,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   **系统语言候选由 shell 传**（`app.getPreferredSystemLanguages()` 只有 Electron 知道）；
 - 中文基础表直接用 `src/shared/i18n/locales/zh-CN.ts`（那个文件没有任何 import，
   host 能当纯 ESM 加载）；
-- shell 侧 [src/main/i18n/index.ts](src/main/i18n/index.ts) 只缓存一份 `I18nPayload`：
+- shell 侧 [packages/shell/src/main/i18n/index.ts](packages/shell/src/main/i18n/index.ts) 只缓存一份 `I18nPayload`：
   窗口标题 / 原生菜单 / 对话框 / `--nide-locale=` 启动参数都要**同步**取文案，
   那一步跑不了 IPC。切语言 = 问 host 要新载荷 + 重建窗口（重建仍在 shell）；
 - shell 的 `language-packs.ts` / `preference.ts` / `manifest-nls.ts` 全部删除；
@@ -188,7 +188,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   （`shell.call('nativeTheme.setSource')`）；
 - RPC：`appearance.init` / `appearance.payload` / `appearance.setTheme`
   （返回 `{ payload, preference }`，主题不存在时回 `null`）；
-- shell 侧 [src/main/appearance/index.ts](src/main/appearance/index.ts) 只缓存 `AppearanceState`：
+- shell 侧 [packages/shell/src/main/appearance/index.ts](packages/shell/src/main/appearance/index.ts) 只缓存 `AppearanceState`：
   窗口底色（`backgroundColor`）与 `--nide-appearance=` / `--nide-theme-palette=`
   启动参数都在建窗那一刻定死，跑不了 IPC；`nativeTheme.on('updated')` 仍挂在 shell
   （Electron 事件），只用来让 host 重算一次、变了再广播；
@@ -205,7 +205,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - host 侧 [packages/host/src/shell.ts](packages/host/src/shell.ts) 的 `ShellBridge`：
   `call(method, args, timeoutMs)`，没挂在 shell 下时直接 reject（独立运行不假装成功），
   shell 退出时 `detach()` 把挂着的调用全部拒掉；
-- shell 侧 [src/main/host/capabilities.ts](src/main/host/capabilities.ts)：
+- shell 侧 [packages/shell/src/main/host/capabilities.ts](packages/shell/src/main/host/capabilities.ts)：
   `handleShellCall` 按白名单执行并回包，参数逐个校验；`attachShellCapabilities(proc)`
   在 `process.ts` 启 host 时挂上；
 - 使用者：`services/appearance.ts`（主题）与 `services/secrets.ts`（密钥仓）。
@@ -221,7 +221,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - **流式事件**：`ai.open` 返回 `requestId`，之后的分片走 host → shell 的
   `stream-event`（[host-rpc](../../src/shared/host-rpc/index.ts) 的 `HostStreamEvent`），
   shell 的 `subscribeHostStream` 按 requestId 找到发起窗口再转给渲染进程；
-- shell 的 [ai-provider.ipc.ts](src/main/ipc/ai-provider.ipc.ts) 只剩三件事：
+- shell 的 [ai-provider.ipc.ts](packages/shell/src/main/ipc/ai-provider.ipc.ts) 只剩三件事：
   插件启用检查、窗口归属（分片只回发起者、窗口销毁即取消）、载荷形状校验。
   领域错误码以 `{ ok:false, error }` 的形式跨进程（RPC 的错误包装只剩 message）。
 
@@ -234,7 +234,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   （tsconfig.web / electron.vite.config / vitest.config 三处一致）；Vite 的 alias
   按前缀匹配，所以子路径直接可用；
 - **依赖方向**：kit 不许 import `@renderer/*`。`entry-action.store` 与
-  `window/MainMenu` 因为依赖 explorer / editor 的功能代码，留在 `src/renderer/src`
+  `window/MainMenu` 因为依赖 explorer / editor 的功能代码，留在 `apps/desktop/renderer/src`
   等主窗口整体搬走；
 - Tailwind 的 `@source` 加了 `packages`（类名在包里的文件也要被扫到，否则样式会丢）。
 
@@ -249,7 +249,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - **main**：`packages/client-ui-main/src` 里是 `App`（启动编排）/ `MainApp`（窗口外观）
   / `layout` / `editor` / `explorer` / `entry` / `git` / `host-view` / `view` /
   `plugins/HostSlot` / `window/MainMenu` / `stores/entry-action.store`；
-- **`src/renderer/src` 只剩引导壳**：`main.tsx` + `assets/`（Tailwind 入口与浅色表）
+- **`apps/desktop/renderer/src` 只剩引导壳**：`main.tsx` + `assets/`（Tailwind 入口与浅色表）
   + `env.d.ts`。引导壳按 `windowType` 动态 import 三个包里的窗口组件，然后挂
   client-runtime 的 slot；
 - 别名：`@nide/client-ui-*` / `@nide/client-kit` 的子路径是**正则**别名，必须排在
@@ -270,7 +270,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - bundle 调 `window.__NIDE_REGISTER__(viewId, Component)` 注册；
 - demo 的 bundle 已构建：`plugins/builtin/demo/dist/client.js`（71 KB）；
 - **打包后走 `nide-plugin://plugin/<pluginId>/client.js`**：shell 注册的自定义协议
-  （[src/main/protocol/plugin-bundles.ts](src/main/protocol/plugin-bundles.ts)），
+  （[packages/shell/src/main/protocol/plugin-bundles.ts](packages/shell/src/main/protocol/plugin-bundles.ts)），
   处理器只用 URL 里的 pluginId 去 host 的清单里查绝对路径，读出来以
   `text/javascript` 返回；CSP 的 `script-src` 里加了 `nide-plugin:`；
 - `clientBundles` 不返回指向不存在文件的条目（声明了 `client` 但没构建 / 打包漏了
@@ -333,7 +333,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   manifest 标题解析全部进 host（`services/i18n.ts` + `i18n.*` RPC），
   `plugins.views` / `plugins.settings` 直接下发已解析标题的描述符；
   shell 删掉 `language-packs` / `preference` / `manifest-nls` 与四张缓存表，
-  `src/main/i18n` 只留一份载荷缓存。`test/host/i18n.test.ts` 新增。
+  `packages/shell/src/main/i18n` 只留一份载荷缓存。`test/host/i18n.test.ts` 新增。
 - 第十批 `68fac0e`：`ctx.shell` 反向能力桥 —— `shell-call` / `shell-result` 协议、
   host 的 `ShellBridge`、shell 的 `capabilities.ts`（`nativeTheme` / `safeStorage`
   白名单）；`test/host/shell-bridge.test.ts`。
@@ -357,7 +357,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - 第十五批 `7f877d9`：D1 收尾 —— 主窗口的 `App` / `MainApp` / editor / explorer /
   entry / git / host-view / layout / view / `HostSlot` / `MainMenu` /
   `entry-action.store` 全部进 `client-ui-main`，`monaco-env` 进 kit；
-  `src/renderer/src` 只剩 `main.tsx` + `assets` + `env.d.ts`；
+  `apps/desktop/renderer/src` 只剩 `main.tsx` + `assets` + `env.d.ts`；
   **`@renderer` 别名已从 tsconfig.node / tsconfig.web / vite / vitest / bundle 脚本里全部删除**。
 - 第十六批 `1c34ec3` + `582ceab`：发布化 —— `pnpm build:host` 把 host 编到 `out/host`
   （ESM 统一发射 + 产物根 `{"type":"module"}` + `#project/*` 映射改写 + profile 模板
@@ -366,9 +366,9 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   `electron-builder.yml` 只打 `out/**` + `plugins/**` + `package.json`；
   签名走 `CSC_LINK` / `CSC_KEY_PASSWORD`。**编译产物实跑验证过**，`build:unpack`
   仍需在用户终端跑。
-- 第十七批（未提交）：删掉 shell 的最后两块旧实现 —— `src/main/plugin-host/`
+- 第十七批（未提交）：删掉 shell 的最后两块旧实现 —— `packages/shell/src/main/plugin-host/`
   （`preference.ts` 禁用集合镜像、`host-views.ts` 内建视图表）与
-  `src/main/services/file.service.ts` 整个删除；内建视图搬进 host
+  `packages/shell/src/main/services/file.service.ts` 整个删除；内建视图搬进 host
   （`services/builtin-views.ts`，标题与插件视图同一个解析器）；
   shell 的视图 / 设置 / 禁用集合 / 启停全部改成直通 host（启停失败不再假装成功）；
   `reloadPlugin` 占位链路（channel / handler / preload / d.ts）一并删掉；
@@ -388,14 +388,14 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 4. ~~**生产 bundle 协议**~~ —— 已完成（第八批，`nide-plugin://` + 批量构建）。
    仍剩：CSS 约定、HMR。
 5. ~~**i18n 服务化**~~ —— 已完成（第九批）。语言包瀑布 / 偏好 / 标题解析都在 host，
-   shell 只缓存一份载荷；`src/main/plugin-host` 的四张表随之删除。
+   shell 只缓存一份载荷；`packages/shell/src/main/plugin-host` 的四张表随之删除。
    仍剩 D10（每包 `locale/*.json`，让插件自带 locale 目录而不是 manifest 里声明文件）。
 6. ~~**发布化**~~ —— 编译 host（第十六批）、asar + `asarUnpack`（第十六批后半）。
    剩下：`build:win` 实跑验收、签名证书（`CSC_LINK` / `CSC_KEY_PASSWORD`）。
 7. ~~**theme / appearance 服务化**~~ —— 已完成（第十一批）。
 8. ~~**AI / secrets 服务化**~~ —— 已完成（第十二批，含 `stream-event` 流式通道）。
 9. ~~**核心 UI 插件化（D1）**~~ —— 已完成（第十三 / 十四 / 十五批）：共享层
-   `@nide/client-kit`、三个窗口的组件都在各自包里，`src/renderer/src` 只剩引导壳。
+   `@nide/client-kit`、三个窗口的组件都在各自包里，`apps/desktop/renderer/src` 只剩引导壳。
    仍剩的可选优化：把主窗口内部拆成 `zone.*` / `editor.*` 子 slot（现在是一个根组件）。
 10. ~~**删掉 shell 的回退路径**~~ —— 已完成（第十七批）：禁用集合镜像、
     `host-views` 表、`reloadPlugin` 占位都删了，内建视图搬进 host。
@@ -412,7 +412,7 @@ nativeTheme 走反向桥）**；**AI 供应商 / 密钥仓**；通用 RPC；host
 **仍在 shell**（按 D7 本来就该在 shell 的那部分）：
 - logger（日志文件归 shell，host 的 stdout 由它接管，不打算搬）；
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell）；
-- 核心 UI 组件：**已全部进包**（`client-kit` + 三个窗口包），`src/renderer/src`
+- 核心 UI 组件：**已全部进包**（`client-kit` + 三个窗口包），`apps/desktop/renderer/src`
   只剩 `main.tsx` / `assets` / `env.d.ts`；
 - asar（要解决 `utilityProcess.fork` 的 asar 入口与 profile 包标识符）、
   `build:win` 实跑、签名证书、视觉回归、D10。
@@ -441,7 +441,7 @@ host 现在是启动必需的，不再需要 `NIDE_HOST`。日志里应能看到
   英文界面都不该退化；
 - 本地化：启动日志里有 host 的 `Locale resolved {"locale":"zh-CN",...}`；设置 → 语言
   切到 English 后重建窗口，视图标题 / 设置树 / 原生对话框都应变成英文
-  （`src/main/plugin-host` 那条 `Message providers` 日志也在 host 里）。
+  （`packages/shell/src/main/plugin-host` 那条 `Message providers` 日志也在 host 里）。
 - 设置窗口：菜单打开，期望 `settings.root registered`；
 - Demo：启用 Demo Plugin，打开 `demo.hello`，应出现
   `view served by client modules`；
@@ -479,13 +479,13 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | 文件 | 说明 |
 | --- | --- |
 | `electron-builder.yml` | 打包：`asar: false`，显式带上 host 源码 / boot / hello / shared / profiles / plugins |
-| `src/main/host/process.ts` | spawn host、ready、attach port、`invokeHost`（shell→host RPC）、stop |
-| `src/main/host/project.ts` | shell 侧的项目客户端：list / startup / open / forget / close（都走 `invokeHost`） |
-| `src/main/window.ts` | 建窗；`boundProjectPath`（主窗口绑定的项目）；`openStartupWindow()` 等 host 的启动结论 |
-| `src/main/index.ts` | 启动时拉起 host；`browser-window-created` 挂 port；`will-quit` 停 host |
-| `src/main/ipc/project.ipc.ts` | 目录对话框 / 窗口切换 / 二次确认 + 转发到 host |
-| `src/main/ipc/host.ipc.ts` | 其余宿主 IPC（插件、主题、i18n、`host:get-client-bundles`） |
-| `src/preload/index.ts` | `nideHost` 桥、host 优先回退、`__NIDE_BOOT__` |
+| `packages/shell/src/main/host/process.ts` | spawn host、ready、attach port、`invokeHost`（shell→host RPC）、stop |
+| `packages/shell/src/main/host/project.ts` | shell 侧的项目客户端：list / startup / open / forget / close（都走 `invokeHost`） |
+| `packages/shell/src/main/window.ts` | 建窗；`boundProjectPath`（主窗口绑定的项目）；`openStartupWindow()` 等 host 的启动结论 |
+| `packages/shell/src/main/index.ts` | 启动时拉起 host；`browser-window-created` 挂 port；`will-quit` 停 host |
+| `packages/shell/src/main/ipc/project.ipc.ts` | 目录对话框 / 窗口切换 / 二次确认 + 转发到 host |
+| `packages/shell/src/main/ipc/host.ipc.ts` | 其余宿主 IPC（插件、主题、i18n、`host:get-client-bundles`） |
+| `packages/shell/src/preload/index.ts` | `nideHost` 桥、host 优先回退、`__NIDE_BOOT__` |
 | `src/shared/host-rpc/index.ts` | RPC 协议 |
 | `packages/host/src/rpc.ts` | RpcRegistry（renderer port 与 shell 父端口共用） |
 | `packages/host/src/ipc.ts` | 父端口 / renderer port 的 transport 与 RPC 分发 |
@@ -499,11 +499,11 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/appearance.ts` | host 侧主题 / 外观：`appearance.json` 偏好 + 主题解析（nativeTheme 走反向桥） |
 | `packages/host/src/services/ai-provider.ts` | host 侧 AI 供应商：配置 / 测试连接 / SSE 转发 |
 | `packages/host/src/services/secrets.ts` | host 侧密钥仓（密文落盘；加解密走 `safeStorage` 反向桥） |
-| `src/main/ipc/ai-provider.ipc.ts` | shell 边界：启用检查 + 把分片转给发起窗口（`subscribeHostStream`） |
-| `src/main/appearance/index.ts` | shell 的 `AppearanceState` 缓存（窗口底色 / 启动参数要同步） |
+| `packages/shell/src/main/ipc/ai-provider.ipc.ts` | shell 边界：启用检查 + 把分片转给发起窗口（`subscribeHostStream`） |
+| `packages/shell/src/main/appearance/index.ts` | shell 的 `AppearanceState` 缓存（窗口底色 / 启动参数要同步） |
 | `packages/host/src/services/builtin-views.ts` | 三条内建视图（文件树 / 版本控制 / 提交），标题由 host 按当前语言解析 |
-| `src/main/i18n/index.ts` | shell 的载荷缓存 + `t()` + 切语言入口（语言与词条都在 host） |
-| `src/main/protocol/plugin-bundles.ts` | `nide-plugin://` 协议：打包后按 pluginId 从 host 清单取 bundle 文件 |
+| `packages/shell/src/main/i18n/index.ts` | shell 的载荷缓存 + `t()` + 切语言入口（语言与词条都在 host） |
+| `packages/shell/src/main/protocol/plugin-bundles.ts` | `nide-plugin://` 协议：打包后按 pluginId 从 host 清单取 bundle 文件 |
 | `src/shared/plugin-api/contributions.ts` | 贡献点的纯数据契约（未解析的 `titleSpec`、插件目录内相对路径） |
 | `src/shared/i18n/locale-tag.ts` | 语言标签规范化 + 候选链（自包含，host 也能直接加载） |
 | `packages/client-runtime/src/index.ts` | 客户端树、slots/modules、bundle 加载 |
@@ -511,7 +511,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/client-ui-slots/src/index.ts` | `SlotRegistry` / `slotsOf` |
 | `packages/client-modules/src/index.ts` | `ClientModuleRegistry` / `modulesOf` |
 | `packages/client-ui-renderer/src/index.tsx` | `<SlotProvider>` / `<Slot>` |
-| `src/renderer/src/plugins/PluginSlot.tsx` | 先查注册表，再回退 glob |
+| `apps/desktop/renderer/src/plugins/PluginSlot.tsx` | 先查注册表，再回退 glob |
 | `plugins/builtin/demo/src/ui/client-entry.tsx` | bundle 入口 |
 | `scripts/build-plugin-client.mjs` | IIFE 构建 |
 | `scripts/build-host.mts` | 编译 host 到 `out/host`（TS Node API，不 spawn） |
@@ -587,7 +587,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     launch failed` 之后 `gpu_data_manager_impl_private.cc: GPU process isn't usable.
     Goodbye.`，浏览器进程 0.2 秒就退出（host 握手要 ~0.4 秒，所以日志里连
     `host process is ready` 都没有）。某些机器/杀软环境下即使签名与否无关也会这样，
-    手动 `--disable-gpu` 可绕过。现在的兜底见 `src/main/compat.ts`：连续两次
+    手动 `--disable-gpu` 可绕过。现在的兜底见 `packages/shell/src/main/compat.ts`：连续两次
     `launch-failed` 写 `<userData>/compat/disable-gpu` 标记并带 `--disable-gpu` 重启，
     之后一直软件渲染；删掉标记恢复。`NIDE_DISABLE_GPU=1` 立即生效、`=0` 临时压过标记；
     Chromium 沙箱**不自动关**（`--no-sandbox` / `NIDE_NO_SANDBOX=1` 仅手动）。
@@ -599,7 +599,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 15. **`app.isPackaged` 不等于「打包布局」**：用 `electron.exe app.asar` 调试时它是
     `false`，如果拿它当判据就会去源码树找 `packages/host/src/index.ts`（包里没有），
     host 直接 `launch-failed (code=63)`。判据是 `app.getAppPath().endsWith('.asar')`
-    或 `app.isPackaged`（见 `src/main/host/process.ts` 的 `isPackagedLayout()`）。
+    或 `app.isPackaged`（见 `packages/shell/src/main/host/process.ts` 的 `isPackagedLayout()`）。
 16. **首窗现在要等 host（约 0.4s）**：`openStartupWindow()` 依赖 host 读
     `projects.json`。看不到窗口时先看日志里有没有 `host process is ready` —— 没有就是
     host 没起来，15s 后会回落成欢迎窗口（同时日志里有 `Failed to resolve the startup
@@ -607,7 +607,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     那正是上一轮删掉的东西。
 17. **自定义协议 + CSP 是两处，缺一不可**：`nide-plugin://` 的 scheme 权限必须在
     `app.whenReady()` **之前**登记（ready 之后登记无效），而页面里的 `<script>` 要能
-    加载它，`src/renderer/index.html` 的 `script-src` 里必须有 `nide-plugin:`。
+    加载它，`apps/desktop/renderer/index.html` 的 `script-src` 里必须有 `nide-plugin:`。
     少任何一处，症状都是「打包后插件视图一片白、Console 里 CSP 或 net::ERR_UNKNOWN_URL_SCHEME」。
 18. **`host.*` 词条不要走 `resolveTitle`**：那个函数解析的是插件 manifest 的
     `%key%` 占位符，拿不到 `%` 就把字符串原样返回 —— 内建视图的标题因此在界面上
@@ -639,7 +639,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 > `plugin-first-layout.md`（后者说明「一切皆插件」的目标目录与阶段计划）。
 > 当前状态：**迁移已完成**。项目数据 / 插件清单与贡献点 / 本地化 / 主题 /
 > AI 与密钥仓的**实现只有一份**，在 host；窗口 UI 全部在 `packages/client-ui-*`，
-> `src/renderer/src` 只剩引导壳。客户端 slots 与运行时 bundle 在 **dev 与打包后都
+> `apps/desktop/renderer/src` 只剩引导壳。客户端 slots 与运行时 bundle 在 **dev 与打包后都
 > 可用**（后者走 `nide-plugin://`），UI 未变。打包版跑编译后的 host（`out/host`），
 > asar 已恢复：host 需要的真实文件在 `resources/app.asar.unpacked/` 下
 > （launch 用 `nide.exe` 或 `electron.exe .../resources/app.asar`）。

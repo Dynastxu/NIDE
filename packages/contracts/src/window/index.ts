@@ -14,7 +14,7 @@ import type { HostMessageKey, Translator } from '../i18n'
  *
  * 每多一种窗口，就要在三个地方同时登记。漏掉任何一处都是编译期可见的：
  * - `WINDOW_SPECS`（src/main/window.ts）：默认尺寸与最小尺寸
- * - `ROOTS`（`src/renderer/src/main.tsx`）：挂载哪个根组件（组件本体在 `client-ui-*` 包里）
+ * - `ROOTS`（`apps/desktop/renderer/src/main.tsx`）：挂载哪个根组件（组件本体在 `client-ui-*` 包里）
  * - 主进程里对应的 create* 入口
  *
  * `main` 与 `welcome` 是**互斥的两个根窗口**：有可用的项目进主窗口，否则进欢迎

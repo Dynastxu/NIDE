@@ -18,7 +18,7 @@
 
 1. `profiles/desktop/cordis.yml` 里只有 `hello` 一行 —— 真正的装配写在 TypeScript 里；
 2. 新增一个 host 能力要改 `packages/host/src/index.ts`；
-3. 新增一个窗口/功能区要改 `src/renderer/src/main.tsx` 的 `ROOTS` 与 `client-runtime` 的分支。
+3. 新增一个窗口/功能区要改 `apps/desktop/renderer/src/main.tsx` 的 `ROOTS` 与 `client-runtime` 的分支。
 
 ## 2. 目标分层
 
@@ -36,7 +36,7 @@ packages/
   boot/ hello/ host/     # host 运行时（host 只剩装配）
 plugins/builtin/<name>/   # 第三方扩展，只能依赖 sdk
 profiles/desktop/cordis.yml  # 唯一的装配点（阶段 6 列全）
-src/renderer/            # 阶段 6 之前：渲染进程引导壳（main.tsx + assets）
+apps/desktop/renderer/            # 阶段 6 之前：渲染进程引导壳（main.tsx + assets）
 ```
 
 三条规则，读懂全仓只需要这三条：
@@ -62,7 +62,7 @@ src/renderer/            # 阶段 6 之前：渲染进程引导壳（main.tsx + 
 | 3 | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配 | 中 | 完成 |
 | 4 | `src/main` → `packages/shell`：窗口 / 菜单 / 对话框 / 日志 / 协议收进一个包（尚未拆成 `ctx.shell.*` 服务） | 中 | 完成（包已搬） |
 | 5 | `client-kit` 拆成 `sdk` + `ui/*`；`client-runtime` 按声明装配窗口 | 中高 | 待做 |
-| 6 | `apps/desktop` 只剩 bootstrap；`cordis.yml` 列全所有包 | 低 | 待做 |
+| 6 | `src/renderer` → `apps/desktop/renderer`（`src/` 消失）；`cordis.yml` 列全所有包 | 低 | 部分完成 |
 
 ### 阶段 1 的实际改动（已提交）
 
@@ -142,7 +142,7 @@ packages/host/src/index.ts     363 行：参数 → profile → boot → kernel 
 
 - `packages/shell/src/{main,preload}`：Electron 外壳整体搬出 `src/`；
   `electron.vite.config.ts` 的 main / preload 入口与 `tsconfig.node.json` 的 include
-  跟着改，`src/` 现在只剩 `src/renderer`（引导壳，阶段 6 处理）；
+  跟着改，`src/` 现在只剩 `apps/desktop/renderer`（引导壳，阶段 6 处理）；
 - `packages/kernel/src/{rpc,ipc,context}.ts`：RPC 注册表与 transport 从
   `packages/host/src/` 搬进来；`installNideContext` 新增；
 - `host/src/index.ts` 里 `host` 命名空间改走 `hostCtx.rpc.register(...)`，

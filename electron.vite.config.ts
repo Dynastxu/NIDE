@@ -24,6 +24,13 @@ export default defineConfig({
     }
   },
   renderer: {
+    /**
+     * 渲染进程的根是 `apps/desktop/renderer`（index.html 与 src 都在里面）。
+     *
+     * electron-vite 默认去 `src/renderer` 找；搬走之后必须显式指出来，否则它
+     * 会打不开 index.html。
+     */
+    root: resolve('apps/desktop/renderer'),
     resolve: {
       /*
        * 数组形式：子路径的正则别名要排在精确别名**前面**。
@@ -85,7 +92,7 @@ export default defineConfig({
     },
     plugins: [tailwindcss(), react(), reactClickToComponent()],
     server: {
-      // 插件 UI 在 plugins/builtin/<dir>/src/ui/ 下，位于 renderer root(src/renderer) 之外，
+      // 插件 UI 在 plugins/builtin/<dir>/src/ui/ 下，位于 renderer root(apps/desktop/renderer) 之外，
       // 显式放进 dev 文件白名单，避免 /@fs/ 请求被 Vite 拦截。
       //
       // 用户安装的第三方插件在 userData 下（更在 projectRoot 之外），它们的 client

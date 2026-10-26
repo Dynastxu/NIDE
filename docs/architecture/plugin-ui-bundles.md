@@ -121,7 +121,7 @@ pnpm build:plugin-demo             # 只构建 demo（--only demo，迭代时用
   id 去 host 的 `plugins.clientBundles` 里查绝对路径，读到文件后以
   `text/javascript` 返回；
 - 所以「允许清单」就是 host 那份清单，渲染进程拼不出一个能读到别处的 URL；
-- CSP（`src/renderer/index.html`）里 `script-src` 加了 `nide-plugin:`，否则
+- CSP（`apps/desktop/renderer/index.html`）里 `script-src` 加了 `nide-plugin:`，否则
   Chromium 会拦掉这个来源的脚本。
 
 `loaded` 集合按 URL 去重：dev 是绝对路径、打包后是 pluginId，两种形态都成立。

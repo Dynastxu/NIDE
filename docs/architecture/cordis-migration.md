@@ -13,7 +13,7 @@
   - 新增 [profiles/desktop](../../profiles/desktop)：profile 模板（`package.json` / `cordis.yml` / `cordis.patch.yml`）。
   - 命令：`pnpm host:dump`、`pnpm host:smoke`、`pnpm typecheck:host`。
   - 依赖已 pin：`@deepseek-ai/cordis@4.0.5`、`cordis-plugin-loader@1.0.6`、`include@1.0.10`、`group@1.0.5`、`timer@1.1.7`、`js-yaml@4.3.2`；npm 走 npmmirror。
-  - **shell ↔ host 握手已接上**：[src/main/host/process.ts](../../src/main/host/process.ts) 用 `utilityProcess.fork` 拉起 host，等 `ready`，支持 `ping/pong` 与 `shutdown`。**host 现在是启动必需**：文件 / 配置的实现全在它里面；另有 `invokeHost` 走父端口做 shell → host RPC（新建项目时的 `config.initialize`）。
+  - **shell ↔ host 握手已接上**：[src/main/host/process.ts](../../packages/shell/src/main/host/process.ts) 用 `utilityProcess.fork` 拉起 host，等 `ready`，支持 `ping/pong` 与 `shutdown`。**host 现在是启动必需**：文件 / 配置的实现全在它里面；另有 `invokeHost` 走父端口做 shell → host RPC（新建项目时的 `config.initialize`）。
   - [packages/host/src/ipc.ts](../../packages/host/src/ipc.ts) 同时支持 Electron `process.parentPort` 与 Node `child_process.fork` 的 IPC 载体。
   - 冒烟脚本：[scripts/host-ipc-node-smoke.mjs](../../scripts/host-ipc-node-smoke.mjs)（纯 Node；已通过）。真实 Electron 启动用 `pnpm dev` 验证，日志里能看到 `host process is ready`、`ipc=true` 与 `Host port attached`。
   - **renderer ↔ host 直连 port 已接**：主进程在 `did-finish-load` 后用 `MessageChannelMain` 把 port 分给 host 与 renderer；preload 暴露 `window.nideHost.invoke(namespace, method, ...args)`。
@@ -46,7 +46,7 @@
   - **AI 供应商与密钥仓也搬到 host 了**：[services/ai-provider.ts](../../packages/host/src/services/ai-provider.ts) + [secrets.ts](../../packages/host/src/services/secrets.ts)（密文落盘，加解密走 `safeStorage` 反向桥，测试注入假后端）。RPC 因此多了 `stream-event` 流式通道（`ai.open` 返回 requestId，分片由 host 推给 shell 再转给发起窗口）；shell 的 `ai-provider.ipc.ts` 只剩启用检查、窗口归属与形状校验。
   - **客户端共享层已抽出**：[packages/client-kit](../../packages/client-kit/src)（stores / ui / window 外壳 / logger / icons / palette / 插件视图渲染管线），别名 `@nide/client-kit/*`；渲染进程的窗口级代码改为 import 它，kit 不反向依赖渲染进程。
   - **欢迎 / 设置两个窗口已进包**：`client-ui-welcome` 与 `client-ui-settings` 里现在是真的组件（不再包一层 `@renderer/*`），引导壳按包名动态 import。
-  - **D1 完成**：主窗口的 `App` / `MainApp` / 编辑器 / 文件树 / 布局 / 内建视图表 / 文件菜单也进了 `client-ui-main`，`monaco-env` 进 kit；`src/renderer/src` 只剩 `main.tsx`（引导壳）+ `assets` + `env.d.ts`。旧的 `@renderer` 别名已从所有配置里删除。仍可选的后续优化是把主窗口内部拆成 `zone.*` / `editor.*` 子 slot。
+  - **D1 完成**：主窗口的 `App` / `MainApp` / 编辑器 / 文件树 / 布局 / 内建视图表 / 文件菜单也进了 `client-ui-main`，`monaco-env` 进 kit；`apps/desktop/renderer/src` 只剩 `main.tsx`（引导壳）+ `assets` + `env.d.ts`。旧的 `@renderer` 别名已从所有配置里删除。仍可选的后续优化是把主窗口内部拆成 `zone.*` / `editor.*` 子 slot。
   - **host 有了编译产物，asar 也回来了**：`pnpm build:host` 把 host / boot / hello / 共享层编到 `out/host`（统一 ESM、产物根 `{"type":"module"}`、`#project/*` 映射与 profile 模板一并改写），打包版跑 `out/host/.../index.js` 并由 shell 传 `--dist-root`；源码形式的 `packages/*` 不再进包。asar 开启后，host 需要的真实文件（`out/host/**`、`plugins/**`）通过 `asarUnpack` 落在 `app.asar.unpacked/`，shell 负责换根。代码签名仍未配（走 `CSC_LINK` / `CSC_KEY_PASSWORD`）。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
   - **shell 的回退路径删完了**：`src/main/plugin-host/`（禁用集合镜像、内建视图表）与死掉的 `file.service.ts` 整个删除；内建视图搬进 host，视图 / 设置 / 禁用集合 / 启停全部直通 host，`reloadPlugin` 占位链路也删了。壳只剩「按 D7 本来就该在壳里」的东西：窗口 / 菜单 / 对话框 / 日志落盘。
@@ -100,8 +100,8 @@ Client（apps/client，浏览器 Cordis 树）
 ```
 NIDE/
 ├─ apps/
-│  ├─ shell/                 # 原 src/main + src/preload
-│  └─ client/                # 原 src/renderer 的入口与 boot
+│  ├─ shell/                 # Electron 外壳（原 src/main + src/preload）
+│  └─ client/                # 原 apps/desktop/renderer 的入口与 boot
 ├─ packages/
 │  ├─ boot/                  # profile 解析、loader 启动、patch 合成
 │  ├─ host/                  # @nide/host 进程入口
