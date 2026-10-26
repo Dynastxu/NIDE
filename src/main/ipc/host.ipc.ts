@@ -4,8 +4,6 @@ import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
 import { AI_PROVIDER_PLUGIN_ID } from '@shared/ai-provider'
 import { normalizeAppearancePreference } from '@shared/appearance'
 import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
-import { uiRegistry } from '../plugin-host/ui-registry'
-import { settingsRegistry } from '../plugin-host/settings-registry'
 import { HOST_VIEWS } from '../plugin-host/host-views'
 import {
   getDisabledPlugins,
@@ -13,13 +11,11 @@ import {
   setPluginEnabled
 } from '../plugin-host/preference'
 import { getAppearancePreference, getThemePayload, setThemePreference } from '../appearance'
-import { createMainTranslator, getCurrentLocale, getI18nPayload, switchLocale } from '../i18n'
-import { manifestNlsRegistry } from '../i18n/manifest-nls'
+import { createMainTranslator, getI18nPayload, switchLocale } from '../i18n'
 import { loggerFor, toLogRecord } from '../logger'
 import { getMainWindow, recreateRootWindow } from '../window'
 import { invokeHost } from '../host/process'
 import { CONFIRM_SPECS, isActionConfirmed } from '../confirm'
-import { rescanPluginHost } from '../plugin-host'
 import { shutdownAiProviderIPC } from './ai-provider.ipc'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type { ThemePayload } from '@shared/theme'
@@ -88,7 +84,7 @@ async function applyLocaleSwitch(locale: LocaleId): Promise<void> {
 
   if (response !== CONFIRM) return
 
-  if (!switchLocale(locale)) {
+  if (!(await switchLocale(locale))) {
     const failed = { type: 'error' as const, message: t('host.locale.switch.failed', { locale }) }
     if (parent) await dialog.showMessageBox(parent, failed)
     else await dialog.showMessageBox(failed)
@@ -103,18 +99,14 @@ export function registerHostIPC(): void {
    * 渲染进程拿到的只是「有哪些视图」这份纯数据，
    * 组件怎么加载由渲染进程自己决定（构建期 import.meta.glob）。
    *
-   * manifest 的标题在这里**按当前语言解析**，而不是在插件扫描时。
-   * 原因是时序：扫描 manifest 发生在 initI18n() 之前，那时还不知道用哪个语言。
-   * 放到查询时解析还有个附带好处 —— 切语言重建窗口后渲染进程重新取一次
-   * 视图列表，标题就跟着变了，不需要任何重载逻辑。
+   * 插件视图的标题由 **host 按当前语言解析好**（语言与词条表都在那边）；
+   * 宿主内建视图（文件树 / 版本控制 / 提交）的标题是宿主自己的词条，只能在 shell
+   * 用缓存的载荷翻 —— 所以这里拼在**前面**。
    *
-   * 宿主内建视图（文件树）接在同一张表的**前面**：它们不走 manifest，
-   * 但必须和插件视图一起参与「一个区展示谁」的既有机制（见 host-views.ts）。
-   * 排在前面是为了让它们成为各自区的**第一个视图**，也就是该区 activeViewId
+   * 顺序有实际意义：排在前面的视图是各自区的**第一个**，也就是该区 activeViewId
    * 为 null 时默认展示的那一个 —— 打开工作台就该看见文件树，而不是演示面板。
    */
-  ipcMain.handle(HOST_CHANNELS.getPluginViews, (): PluginViewDescriptor[] => {
-    const locale = getCurrentLocale()
+  ipcMain.handle(HOST_CHANNELS.getPluginViews, async (): Promise<PluginViewDescriptor[]> => {
     const t = createMainTranslator()
 
     const hostViews: PluginViewDescriptor[] = HOST_VIEWS.map((view) => ({
@@ -128,34 +120,29 @@ export function registerHostIPC(): void {
       entry: ''
     }))
 
-    const pluginViews = uiRegistry.getAll().map(({ titleSpec, ...view }) => ({
-      ...view,
-      title: manifestNlsRegistry.resolve(view.pluginId, titleSpec, locale) ?? view.id
-    }))
-
-    return [...hostViews, ...pluginViews]
+    try {
+      const pluginViews = await invokeHost<PluginViewDescriptor[]>('plugins', 'views', [])
+      return [...hostViews, ...pluginViews]
+    } catch (error) {
+      // 读不到插件视图时至少保住内建视图：界面还能用，只是少了插件那一批
+      logger.error('Failed to read the plugin views through host', { error })
+      return hostViews
+    }
   })
 
   /**
    * 全局设置里的插件子设置。
    *
-   * 标题在这里按当前语言解析（和视图同一个理由：扫描早于 initI18n）。
-   * 被禁用的插件直接过滤掉：它的设置页由插件自己贡献，插件都不启用，
-   * 页面留在树上只会点开一个报错。启用状态变化后主进程会广播
-   * `plugin:enabled-changed`，设置窗口据此重拉这份列表。
+   * host 只回**已启用**插件的页，并按 order / 标题排好；这里不再筛、不再排。
+   * 启用状态变化后 shell 会广播 `plugin:enabled-changed`，设置窗口据此重拉。
    */
-  ipcMain.handle(HOST_CHANNELS.getPluginSettings, (): PluginSettingsDescriptor[] => {
-    const locale = getCurrentLocale()
-    const disabled = new Set(getDisabledPlugins())
-
-    return settingsRegistry
-      .getAll()
-      .filter((page) => !disabled.has(page.pluginId))
-      .map(({ titleSpec, ...page }) => ({
-        ...page,
-        title: manifestNlsRegistry.resolve(page.pluginId, titleSpec, locale) ?? page.id
-      }))
-      .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, locale))
+  ipcMain.handle(HOST_CHANNELS.getPluginSettings, async (): Promise<PluginSettingsDescriptor[]> => {
+    try {
+      return await invokeHost<PluginSettingsDescriptor[]>('plugins', 'settings', [])
+    } catch (error) {
+      logger.error('Failed to read the plugin settings pages through host', { error })
+      return []
+    }
   })
 
   /**
@@ -303,7 +290,7 @@ export function registerHostIPC(): void {
 
     try {
       const result = await invokeHost<PluginInstallResult>('plugins', 'install', [source])
-      if (result.ok) await notifyPluginCatalogChanged()
+      if (result.ok) notifyPluginCatalogChanged()
       return result
     } catch (error) {
       logger.warn('host plugins.install failed', { error })
@@ -334,7 +321,7 @@ export function registerHostIPC(): void {
 
       try {
         const result = await invokeHost<PluginRemoveResult>('plugins', 'remove', [id])
-        if (result.ok) await notifyPluginCatalogChanged()
+        if (result.ok) notifyPluginCatalogChanged()
         return result
       } catch (error) {
         logger.warn('host plugins.remove failed', { error })
@@ -451,13 +438,13 @@ export function registerHostIPC(): void {
 /**
  * 插件目录变了（安装 / 卸载）之后的通知。
  *
- * 先重拉 shell 的贡献点缓存（视图 / 设置页 / 语言包 / manifest 词条都来自 host 的
- * 同一份数据），再用既有的 `plugin:enabled-changed` 广播叫所有窗口重拉一次 ——
- * 主窗口重拉视图，设置窗口重拉设置树。它只是「该刷新了」的信号，不携带语义。
+ * host 在 install / remove 里已经重扫过目录（视图、设置页、语言包都在那边），所以
+ * 这里只需要做两件事：刷新 shell 自己的禁用集合镜像（装进来的插件默认禁用），
+ * 再用既有的 `plugin:enabled-changed` 广播叫所有窗口重拉一次 —— 主窗口重拉视图，
+ * 设置窗口重拉设置树。它只是「该刷新了」的信号，不携带语义。
  */
-async function notifyPluginCatalogChanged(): Promise<void> {
+function notifyPluginCatalogChanged(): void {
   reloadPluginPreference()
-  await rescanPluginHost()
   pushEventToRenderer(HOST_EVENT_CHANNELS.pluginEnabledChanged, '', false)
 }
 

@@ -1,5 +1,6 @@
-import type { LocaleContribution } from '@shared/i18n'
-import type { ViewChromeOptions, ViewLocation } from './view'
+// host 也要用这里的类型：NodeNext 要求显式扩展名（`.js` 映射到 `.ts`），纯类型导入运行时会被擦除
+import type { LocaleContribution } from '../i18n/types.js'
+import type { ViewChromeOptions, ViewLocation } from './view.js'
 
 export interface PluginManifest {
   /** 插件唯一标识，例如 "builtin.demo" */
@@ -170,8 +171,8 @@ export interface PluginCommandContribution {
  * manifest 里的一个设置页声明。
  *
  * `title` 和视图标题共用同一套 `%key%` 解析链：package.nls.json ->
- * package.nls.<locale>.json -> 原样占位符。解析发生在查询时，而不是扫描时，
- * 因为扫描早于 initI18n()。
+ * package.nls.<locale>.json -> 原样占位符。解析发生在**查询时**、由 host 做
+ * （扫描时还不知道当前语言；语言与词条表都在 host 手里）。
  */
 export interface PluginSettingsContribution {
   /** 设置页唯一 ID，例如 "ai-provider.providers" */

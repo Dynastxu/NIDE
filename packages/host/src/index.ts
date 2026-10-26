@@ -37,6 +37,8 @@ import {
   updateProjectConfig
 } from './services/project-config.ts'
 import { PluginManager, pluginPreferencePath } from './services/plugins.ts'
+import { HostI18n } from './services/i18n.ts'
+import type { TitleResolver } from './services/plugins.ts'
 import { filePathKey } from '../../../src/shared/project/files.ts'
 import type {
   CreateEntryRequest,
@@ -183,6 +185,23 @@ const plugins = new PluginManager({
   thirdPartyDir: path.join(userDataDir, 'plugins'),
   preferencePath: pluginPreferencePath(userDataDir)
 })
+
+/**
+ * 本地化。
+ *
+ * 语言包来自插件目录（`plugins.contributions().locales`），偏好文件也在 userData —
+ * 所以「用哪个语言」这件事完全在 host 里决定，shell 只传系统语言候选（那只有
+ * Electron 知道）。每次 i18n 调用前重灌一遍语言包：安装 / 卸载插件之后集合会变。
+ */
+const i18n = new HostI18n({ userDataDir })
+
+function syncLanguagePacks(): void {
+  i18n.setPacks(plugins.contributions().locales)
+}
+
+/** 贡献点的标题解析器：交给 `HostI18n`，它知道当前语言与 manifest 词条 */
+const resolveTitle: TitleResolver = (pluginId, titleSpec, fallback) =>
+  i18n.resolveTitle(plugins.manifestNls(pluginId), titleSpec) || fallback
 
 /** 文件读取的允许根：MVP 只有当前项目一个。 */
 function allowedRoots(): string[] {
@@ -583,11 +602,11 @@ rpc.register('config', {
 })
 
 /**
- * 插件：装了哪些、哪些被禁用、浏览器半在哪。
+ * 插件：装了哪些、哪些被禁用、浏览器半在哪、界面里有哪些视图与设置页。
  *
- * 视图 / 设置页 / 语言包的注册仍在 shell —— 它们依赖 i18n 与渲染进程的构建期
- * glob 表，不是「纯数据 + 一个文件路径」能表达的。这一层先把**清单与启用状态**
- * 收到 host，安装 / 卸载才能在同一个地方落地。
+ * 读盘、收敛、**标题解析**都在 host：视图 / 设置页描述符直接给已解析的 `title`，
+ * 语言来自上面的 `i18n`。shell 只做两件事：把内建视图拼在视图表前面（那几条标题是
+ * 宿主的词条，用 shell 缓存的载荷翻），以及按需转发。
  */
 rpc.register('plugins', {
   list: () => plugins.list(),
@@ -598,23 +617,49 @@ rpc.register('plugins', {
   },
   clientBundles: () => plugins.clientBundles(),
 
-  /**
-   * 视图 / 设置页 / 语言包 / manifest 词条。
-   *
-   * 这一份数据此前由 shell 自己扫目录得到（`src/main/plugin-host/loader.ts`），
-   * 与 host 的清单扫描各读一遍 manifest。现在读盘只在这里，shell 只消费 ——
-   * 标题的 `%key%` 解析仍留在 shell（要用当前语言）。
-   */
-  contributions: () => plugins.contributions(),
+  /** 视图表（协议视图之外的插件视图），标题已按当前语言解析 */
+  views: () => plugins.views(resolveTitle),
 
-  install: (sourceDir) => plugins.install(String(sourceDir ?? '')),
-  remove: (pluginId) => plugins.remove(String(pluginId ?? '')),
+  /** 设置页，已滤掉被禁用插件的页，标题已解析 */
+  settings: () => plugins.settings(resolveTitle),
+
+  install: (sourceDir) => {
+    const result = plugins.install(String(sourceDir ?? ''))
+    syncLanguagePacks()
+    return result
+  },
+  remove: (pluginId) => {
+    const result = plugins.remove(String(pluginId ?? ''))
+    syncLanguagePacks()
+    return result
+  },
 
   /** 重新扫描目录（安装 / 卸载之后由 shell 调用） */
   rescan: () => {
     plugins.scan()
+    syncLanguagePacks()
     return plugins.list()
   }
+})
+
+/**
+ * 本地化。
+ *
+ * `init` 由 shell 在启动时调用一次（它把 Electron 才知道的系统语言候选传进来），
+ * `setLocale` 是设置页切语言走的路 —— 落盘与重建载荷在 host，重建窗口在 shell。
+ * `payload` 给渲染进程与 shell 的 `t()` 用（shell 缓存一份，见 `src/main/i18n`）。
+ */
+rpc.register('i18n', {
+  init: (request) => {
+    syncLanguagePacks()
+    const system = (request as { system?: unknown } | undefined)?.system
+    return i18n.init(Array.isArray(system) ? system.map((tag) => String(tag)) : [])
+  },
+  setLocale: (locale) => {
+    syncLanguagePacks()
+    return i18n.setLocale(String(locale ?? ''))
+  },
+  payload: () => i18n.payload()
 })
 
 /**

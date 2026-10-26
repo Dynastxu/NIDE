@@ -40,11 +40,12 @@
   - **项目生命周期已全部搬到 host**：`project.open/forget/close` 接上 RPC，shell 的 `src/main/services/project-store.ts` 删除；建窗要等 host 的启动结论（`openStartupWindow()` 变 async，首窗晚约 0.4s），shell 只留 `boundProjectPath`（主窗口**绑定**的项目，重建窗口时复用）。host 不可达时开项目返回 `unreadable`，不再谎称「目录不存在」。`test/host/project-store.test.ts` 覆盖这套语义。
   - **插件贡献点也搬到 host 了**：唯一读插件目录的是 [plugin-contributions.ts](../../packages/host/src/services/plugin-contributions.ts)（manifest、路径守卫、chrome/location 收敛、语言包、`package.nls*.json`），经 `plugins.contributions` 下发；shell 的 loader / plugin-registry / permission / sandbox / errors 全删，只剩四张缓存表 + 「按当前语言解析 `%key%`」。[src/shared/plugin-api/contributions.ts](../../src/shared/plugin-api/contributions.ts) 是这条跨进程契约（`titleSpec` 不解析、路径只用插件目录内相对 POSIX）。语言标签规范化拆到自包含的 [locale-tag.ts](../../src/shared/i18n/locale-tag.ts)，host 才能直接加载。
   - **生产 bundle 协议已接**：`nide-plugin://` 自定义协议（standard + secure，ready 前登记 scheme、ready 后挂处理器），渲染进程只给 pluginId，路径由 host 清单回答；`clientBundles` 同时过滤掉声明了 `client` 但文件不存在的条目，让渲染进程安静回退 glob。
+  - **本地化也搬到 host 了**：[services/i18n.ts](../../packages/host/src/services/i18n.ts) 持有语言包注册表（逐 key 瀑布：第三方 -> 内置 -> 中文基础表）、语言偏好（`<userData>/locale.json`）与 manifest 标题解析；RPC 是 `i18n.init({system})` / `setLocale` / `payload`。`plugins.views` / `plugins.settings` 直接下发**已解析标题**的描述符，shell 的 `language-packs` / `preference` / `manifest-nls` 与四张缓存表全删，只剩一份 `I18nPayload` 缓存（窗口标题、菜单、对话框要同步取文案）。`test/host/i18n.test.ts` 覆盖瀑布与偏好。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
-- 下一步：**继续搬旧实现**。① i18n 服务化（D10，把词条表构建真正搬进 host）；
-  ② 发布化（编译 host + 恢复 asar + 签名）；③ theme / appearance / AI / secrets
-  与 `ctx.shell`。npm 安装来源用户已明确跳过。打包内容已验证（`asar: false` + host
-  跑源码），签名与「编译 host + 恢复 asar」留到发布前。
+- 下一步：**继续搬旧实现**。① 发布化（编译 host + 恢复 asar + 签名）；② theme /
+  appearance / AI / secrets 与 `ctx.shell`；③ 核心 UI 插件化与 D10（每包
+  `locale/*.json`）。npm 安装来源用户已明确跳过。打包内容已验证（`asar: false` +
+  host 跑源码），签名与「编译 host + 恢复 asar」留到发布前。
 
 ## 0. 已锁定决策
 

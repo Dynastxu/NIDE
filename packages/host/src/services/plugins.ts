@@ -12,12 +12,25 @@ import { readPluginContributions } from './plugin-contributions.ts'
 import type { PluginContributionSet } from './plugin-contributions.ts'
 import type { PluginPreference } from '../../../../src/shared/plugin-api/preference.ts'
 import type { ClientBundleDescriptor } from '../../../../src/shared/plugin-api/client-bundle.ts'
-import type { PluginContributions } from '../../../../src/shared/plugin-api/contributions.ts'
+import type {
+  PluginContributions,
+  PluginManifestNls
+} from '../../../../src/shared/plugin-api/contributions.ts'
+import type { PluginSettingsDescriptor } from '../../../../src/shared/plugin-api/manifest.ts'
+import type { PluginViewDescriptor } from '../../../../src/shared/plugin-api/view.ts'
 import type {
   PluginDescriptor,
   PluginInstallResult,
   PluginRemoveResult
 } from '../../../../src/shared/plugin-api/plugin.ts'
+
+/**
+ * 把一个贡献点的标题解析成当前语言的文案。
+ *
+ * 由 host 的入口注入（它持有 `HostI18n` 与当前 locale）—— `PluginManager` 不认识
+ * 语言，只认识「有个函数能把这个 `%key%` 变成人话」。
+ */
+export type TitleResolver = (pluginId: string, titleSpec: string, fallback: string) => string
 
 /**
  * 插件目录的发现、清单、启用状态与**贡献点**（host 侧）。
@@ -393,9 +406,8 @@ export class PluginManager {
   /**
    * 全部插件的贡献点，按扫描顺序拼接（内置在前、第三方在后）。
    *
-   * 启用状态**不在这里过滤**：视图列表由渲染进程按禁用集合过滤，设置页由 shell
-   * 过滤 —— 那一侧的现有行为就是「先拿全量、再按需筛」，这里跟着它，免得同一条
-   * 规则在两个地方各写一遍。
+   * shell 已经不再消费它（视图 / 设置页改为由下面两个方法直接给**已解析标题**的
+   * 描述符），留着是因为它是语言包集合的来源（`HostI18n.setPacks`）与内部聚合点。
    */
   contributions(): PluginContributions {
     const result = emptyPluginContributions()
@@ -409,6 +421,56 @@ export class PluginManager {
     }
 
     return result
+  }
+
+  /** 某个插件的 manifest 词条表；没有就是没做本地化 */
+  manifestNls(pluginId: string): PluginManifestNls | undefined {
+    return this.entries.get(pluginId)?.contributions.manifestNls
+  }
+
+  /**
+   * 视图表：给渲染进程的**纯数据**，标题已按当前语言解析。
+   *
+   * 内建视图（文件树等）不在这里 —— 它们的标题是宿主的词条，只有 shell 有 `t()`
+   * （词条表在 shell 缓存着），所以由 shell 拼在前面，顺序仍是「内建在前」。
+   */
+  views(resolve: TitleResolver): PluginViewDescriptor[] {
+    return Array.from(this.entries.values()).flatMap((entry) =>
+      entry.contributions.views.map((view) => ({
+        id: view.id,
+        title: resolve(view.pluginId, view.titleSpec, view.id),
+        location: view.location,
+        ...(view.icon ? { icon: view.icon } : {}),
+        ...(view.chrome ? { chrome: view.chrome } : {}),
+        pluginId: view.pluginId,
+        dir: view.dir,
+        entry: view.entry
+      }))
+    )
+  }
+
+  /**
+   * 设置页：同样已解析标题，并且**滤掉被禁用插件**的页。
+   *
+   * 过滤放在这里而不是 shell：禁用集合就存在 host（与 `plugins.disabled` 同一份），
+   * 让消费方再筛一遍只会多一条会走样的规则。
+   */
+  settings(resolve: TitleResolver): PluginSettingsDescriptor[] {
+    const disabled = new Set(this.preference.disabled)
+
+    return Array.from(this.entries.values())
+      .filter((entry) => !disabled.has(entry.descriptor.id))
+      .flatMap((entry) =>
+        entry.contributions.settings.map((page) => ({
+          id: page.id,
+          pluginId: page.pluginId,
+          title: resolve(page.pluginId, page.titleSpec, page.id),
+          dir: page.dir,
+          entry: page.entry,
+          order: page.order
+        }))
+      )
+      .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title))
   }
 }
 

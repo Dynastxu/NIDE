@@ -8,7 +8,6 @@ import { registerHostIPC, pushEventToRenderer } from './ipc/host.ipc'
 import { registerProjectIPC } from './ipc/project.ipc'
 import { registerWindowIPC, registerWindowActions } from './ipc/window.ipc'
 import { registerAiProviderIPC, shutdownAiProviderIPC } from './ipc/ai-provider.ipc'
-import { initPluginHost } from './plugin-host'
 import { startHost, stopHost, attachHostPort } from './host/process'
 import { initI18n } from './i18n'
 import { initAppearance, registerAppearanceBroadcast } from './appearance'
@@ -79,12 +78,12 @@ app.whenReady().then(async () => {
   /**
    * 宿主进程 —— 从这里开始，启动**串行**了。
    *
-   * 项目文件 / 配置 / 插件目录的实现全部在 host，所以它不再是开关：启动时无条件
-   * 拉起。而且后面两步都要等它：插件贡献点（视图 / 设置页 / 语言包）由 host 读盘
-   * 下发，开哪个根窗口又取决于 host 读出来的 `projects.json`。
+   * 项目文件 / 配置 / 插件目录 / 本地化的实现全部在 host，所以它不再是开关：启动时
+   * 无条件拉起。而且后面两步都要等它：语言载荷（语言包在插件目录里）与「开哪个
+   * 根窗口」（`projects.json`）都只有 host 知道。
    *
-   * host 起不来时**不阻塞启动**：`initPluginHost` 会降级成空贡献点、`openStartupWindow`
-   * 会回落成欢迎窗口，日志里有原因。窗口照常出现，只是什么都读不了。
+   * host 起不来时**不阻塞启动**：i18n 保持中文兜底、`openStartupWindow` 回落成
+   * 欢迎窗口，日志里有原因。窗口照常出现，只是什么都读不了。
    */
   try {
     await startHost()
@@ -93,15 +92,8 @@ app.whenReady().then(async () => {
     logger.error('host process failed', { error })
   }
 
-  /**
-   * 2) 插件贡献点：拉一次，灌进 shell 的注册表。
-   *
-   * 语言包是随贡献点一起下发的，所以 i18n 必须排在它后面，否则词条表还是空的，
-   * 所有 locale 都会回落成中文。
-   */
-  await initPluginHost()
-  // 3) 定下语言：窗口标题、原生菜单、以及要传给渲染进程的启动参数都依赖它
-  initI18n()
+  // 2) 定下语言：窗口标题、原生菜单、以及要传给渲染进程的启动参数都依赖它
+  await initI18n()
   /**
    * 3.5) 定下主题：必须在开窗**之前**（窗口底色与启动参数都用得到），
    * 且广播出口在这里注入 —— appearance 模块不直接依赖 IPC 模块，

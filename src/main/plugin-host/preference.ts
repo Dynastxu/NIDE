@@ -13,12 +13,13 @@ import type { PluginPreference } from '@shared/plugin-api'
 const logger = loggerFor('plugin-host')
 
 /**
- * 插件启用状态的持久化。
+ * 插件启用状态的持久化（shell 侧的**镜像**）。
  *
- * 落盘位置和语言偏好（`src/main/i18n/preference.ts`）一样选 userData：禁用状态要在
- * 窗口出现时就能读到（主窗口一挂载就按它过滤视图列表），而渲染进程的 localStorage
- * 在另一个进程里，主进程读不到。
+ * 真正的写入方是 host（`plugins.setEnabled`）—— 它和清单、启用集合在同一处维护。
+ * 这里保留一份是因为有两条路需要同步读：窗口刚挂载时按它过滤视图列表，以及 host
+ * 不可达时的兜底。两份写同一个文件、同一个值，移植期间刻意留着这个冗余。
  *
+ * 落盘位置和语言偏好（host 的 `services/i18n.ts`）一样选 userData。
  * 文件里只有插件 id，没有任何插件数据 —— 宿主不因为一次勾选就去动插件目录。
  */
 

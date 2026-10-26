@@ -8,12 +8,11 @@
 Cordis/DSH 架构的**核心竖切已经跑通**：Electron shell → 独立 host 进程 → 通用 RPC →
 客户端 Cordis 树 → slot → 运行时插件 UI bundle。项目文件 / 章节 / 图鉴 / 概述 /
 项目配置 / **项目生命周期（列表 / 打开 / 移除 / 关闭）** / **插件的视图 / 设置页 /
-语言包 / manifest 词条** 的实现只有一份，在 host；插件清单 / 启停 / 本地安装 /
-卸载 / 信任确认也在 host。现有界面外观未改。
+语言包 / manifest 词条** / **本地化（语言包瀑布、语言偏好、标题解析）** 的实现只有
+一份，在 host；插件清单 / 启停 / 本地安装 / 卸载 / 信任确认也在 host。现有界面外观未改。
 
-**但旧实现没有全部迁完**：`src/main/plugin-host/` 剩下的四张缓存表、`src/main/i18n`、
-theme / AI / secrets、核心 UI 组件仍在 shell 或旧路径（逐项见 §4.1）。下一步不是继续
-加新功能，而是在 §4 里挑一条搬完。
+**但旧实现没有全部迁完**：theme / appearance / AI / secrets、核心 UI 组件仍在 shell
+或旧路径（逐项见 §4.1）。下一步不是继续加新功能，而是在 §4 里挑一条搬完。
 
 ## 1. 目标与已锁定决策
 
@@ -52,9 +51,11 @@ Host（packages/host，纯 Node ESM）
 ├─ 项目配置（services/project-config.ts）：load / update / initialize / registry /
 │  resolve / remapOverviewRole
 ├─ 插件清单（services/plugins.ts）：list / disabled / setEnabled / clientBundles /
-│  contributions / install / remove / rescan
-└─ 插件贡献点（services/plugin-contributions.ts）：唯一的插件目录读取方
-   （视图 / 设置页 / 语言包 / manifest 词条）
+│  contributions / install / remove / rescan / views / settings
+├─ 插件贡献点（services/plugin-contributions.ts）：唯一的插件目录读取方
+│  （视图 / 设置页 / 语言包 / manifest 词条）
+└─ 本地化（services/i18n.ts）：语言包注册表 + 逐 key 瀑布 + 语言偏好
+   （`<userData>/locale.json`）+ manifest 标题解析
 
 Client（renderer，HTTP 页面里的第二棵 Cordis 树）
 ├─ packages/client-runtime：Context + slots + modules + bundle loader
@@ -131,25 +132,41 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   [plugin-contributions.ts](packages/host/src/services/plugin-contributions.ts)；
   `src/main/plugin-host/loader.ts`、`plugin-registry.ts`、`permission.ts`、
   `sandbox.ts`、`errors.ts` 全部删除；
-- RPC：`plugins.list` / `disabled` / `setEnabled` / `clientBundles` / **`contributions`** /
-  `install` / `remove` / `rescan`；
-- shell 侧 [src/main/plugin-host/index.ts](src/main/plugin-host/index.ts) 只做缓存：
-  `initPluginHost()`（启动时拉一次）与 `rescanPluginHost()`（安装 / 卸载后重拉）把
-  `views / settings / locales / manifestNls` 灌进 `ui-registry` / `settings-registry` /
-  `language-pack` / `manifest-nls` 四张表。**标题的 `%key%` 解析仍在 shell**（要用当前
-  语言），所以这四张表还留着，而不是每次查询都隔着进程问一次；
-- `getPlugins` / `getClientBundles` 读 host，失败时给空列表（不再有 shell 镜像兜底）；
+- RPC：`plugins.list` / `disabled` / `setEnabled` / `clientBundles` / `views` / `settings` /
+  `install` / `remove` / `rescan`；`contributions` 不再是 RPC（shell 不需要了），
+  只作为 host 内部聚合点与语言包来源；
+- shell 侧**没有缓存表了**：[src/main/plugin-host](src/main/plugin-host) 只剩两件事 ——
+  `host-views.ts`（三条内建视图，标题用 shell 缓存的载荷翻）与 `preference.ts`
+  （禁用集合的镜像，host 不可达时兜底）；
+- `getPluginViews` = 内建视图（shell）+ `plugins.views`（host，标题已解析）；
+  `getPluginSettings` 直接转发 `plugins.settings`（host 已滤掉禁用插件、已排序）；
+- `getPlugins` / `getClientBundles` 读 host，失败时给空列表；
   判断「是不是第三方」也问 host 的清单（`findPlugin`）；
 - **安装 / 卸载**：`plugins.install(sourceDir)` 复制到 `<userData>/plugins`、默认禁用；
   `plugins.remove(id)` 只删第三方。shell 负责选目录（`host:install-plugin`）与卸载
-  确认（`host:remove-plugin`），成功后 `await rescanPluginHost()` 重拉贡献点，并用
-  `plugin:enabled-changed` 广播让所有窗口重拉；
+  确认（`host:remove-plugin`），成功后只刷新禁用镜像并用 `plugin:enabled-changed`
+  广播 —— host 自己已经重扫过，视图 / 设置页下次查询就是新的；
 - **信任确认**：启用第三方插件时走 `CONFIRM_SPECS.enableThirdPartyPlugin`（内置插件
   不问），用户取消则 `setPluginEnabled` 返回 false，界面回滚到宿主的真实禁用集合；
 - **浏览器半补加载**：`plugin:enabled-changed` 到达主窗口时先
   `reloadClientBundles()` 再重拉视图列表，所以新装 / 启用的 UI 插件**不用重启**
   就会出现；dev 下 Vite 的 `server.fs.strict` 已关掉，`/@fs/` 也能读 userData 里的
-  第三方 bundle。生产环境仍走 app 协议（TODO），非 dev 会跳过 bundle。
+  第三方 bundle；打包后走 `nide-plugin://`（见下一节）。
+
+### 本地化（host）
+- [packages/host/src/services/i18n.ts](packages/host/src/services/i18n.ts)：
+  `LanguagePackRegistry`（逐 key 瀑布：第三方 -> 内置 -> 中文基础表）、语言偏好
+  （`<userData>/locale.json`）、`HostI18n`（`init` / `setLocale` / `payload`）、
+  `resolvePluginTitle`（manifest 的 `%key%` 解析）；
+- RPC：`i18n.init({ system })` / `i18n.setLocale(locale)` / `i18n.payload()`。
+  **系统语言候选由 shell 传**（`app.getPreferredSystemLanguages()` 只有 Electron 知道）；
+- 中文基础表直接用 `src/shared/i18n/locales/zh-CN.ts`（那个文件没有任何 import，
+  host 能当纯 ESM 加载）；
+- shell 侧 [src/main/i18n/index.ts](src/main/i18n/index.ts) 只缓存一份 `I18nPayload`：
+  窗口标题 / 原生菜单 / 对话框 / `--nide-locale=` 启动参数都要**同步**取文案，
+  那一步跑不了 IPC。切语言 = 问 host 要新载荷 + 重建窗口（重建仍在 shell）；
+- shell 的 `language-packs.ts` / `preference.ts` / `manifest-nls.ts` 全部删除；
+  语言偏好文件从 shell 挪到 host 后**路径不变**（同一个 userData），老用户的偏好照常生效。
 
 ### 客户端 Cordis / slots
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；
@@ -194,8 +211,13 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - 第六批 `8ceb257`：项目生命周期统一到 host；`test/host/project-store.test.ts`。
 - 第七批 `874940e`：插件 loader / 视图 / 设置页 / 语言包迁 host；
   `test/host/plugin-contributions.test.ts`。
-- 第八批（未提交）：生产 bundle 协议 —— `nide-plugin://` 自定义协议 + CSP +
+- 第八批 `3334478`：生产 bundle 协议 —— `nide-plugin://` 自定义协议 + CSP +
   `clientBundles` 过滤缺文件的条目；`test/shared/plugin-api/plugin-bundle-url.test.ts`。
+- 第九批（未提交）：i18n 服务化 —— 语言包注册表 / 逐 key 瀑布 / 语言偏好 /
+  manifest 标题解析全部进 host（`services/i18n.ts` + `i18n.*` RPC），
+  `plugins.views` / `plugins.settings` 直接下发已解析标题的描述符；
+  shell 删掉 `language-packs` / `preference` / `manifest-nls` 与四张缓存表，
+  `src/main/i18n` 只留一份载荷缓存。`test/host/i18n.test.ts` 新增。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -204,32 +226,31 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 
 1. ~~**项目生命周期统一到 host**~~ —— 已完成（第六批）。
 2. ~~**插件 loader / 视图 / 设置页 / 语言包迁 host**~~ —— 已完成（第七批）。
-   注意当时的决定：host 下发**未解析的贡献点**（含 manifest 词条表），标题解析仍在
-   shell —— 没有把整个 i18n 搬进 host。真要搬的话是 D10 那一步。
 3. **npm 安装来源**（D6）—— 用户当前明确**跳过**
    - 先定 pnpm 运行时；推荐自带 registry tarball 安装（需加 `tar` 依赖，v1 不做
      传递依赖），替换 `plugins.install` 的 sourceDir 输入，UI 加包名输入；
    - 插件市场标签页暂不做。
 4. ~~**生产 bundle 协议**~~ —— 已完成（第八批，`nide-plugin://` + 批量构建）。
    仍剩：CSS 约定、HMR。
-5. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
-6. **剩余迁移**：i18n / theme / appearance / AI / secrets 服务化；核心 UI 组件搬进
-   `client-ui-*`；D10 per-package locale；视觉回归；最后删 `src/main/plugin-host`
-   剩下的四张表与 `PluginSlot` 的 glob 兜底。
+5. ~~**i18n 服务化**~~ —— 已完成（第九批）。语言包瀑布 / 偏好 / 标题解析都在 host，
+   shell 只缓存一份载荷；`src/main/plugin-host` 的四张表随之删除。
+   仍剩 D10（每包 `locale/*.json`，让插件自带 locale 目录而不是 manifest 里声明文件）。
+6. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
+7. **剩余迁移**：theme / appearance / AI / secrets 服务化；核心 UI 组件搬进
+   `client-ui-*`；D10；视觉回归；`ctx.shell` 桥（D7）。
 
 ### 4.1 迁移完成度（哪些还在旧实现）
 
 **已迁到 host**：项目文件 / 章节 / 伏笔 / 图鉴 / 概述 / 配置；新建项目初始化；
 项目生命周期（列表 / 打开 / 移除 / 关闭 / 启动恢复）；插件清单 / 启停 / 本地安装 /
-卸载 / 信任确认 / **视图 / 设置页 / 语言包 / manifest 词条的读取**；通用 RPC；
-host 启动必需。
+卸载 / 信任确认 / **视图 / 设置页 / 语言包 / manifest 词条的读取**；
+**本地化（语言包瀑布 / 语言偏好 / 标题解析）**；通用 RPC；host 启动必需。
 
 **仍在 shell / 旧实现**：
-- `src/main/plugin-host/` 剩下的部分：`ui-registry` / `settings-registry` / `preference`
-  （四张表 + 禁用集合的镜像）与 `host-views`（内建视图表）；`src/main/i18n/`
-  整个模块（语言包瀑布、manifest 词条解析、locale 偏好）；
-- theme / appearance / logger；
-- AI provider / secrets；
+- `src/main/plugin-host/` 只剩 `host-views`（三条内建视图）与 `preference`
+  （禁用集合的镜像，host 不可达时兜底）—— 前者因为标题要用 shell 缓存的载荷翻；
+- theme / appearance / logger（appearance 的偏好文件在 shell，不依赖 host）；
+- AI provider / secrets（`secrets/vault.ts` 若绑 `safeStorage`，要等 `ctx.shell`）；
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell，但 `ctx.shell`
   桥接尚未实现）；
 - 核心 UI 组件（`client-ui-*` 目前只是把 `@renderer/App` 等包一层 slot）；
@@ -254,9 +275,12 @@ host 现在是启动必需的，不再需要 `NIDE_HOST`。日志里应能看到
 - 欢迎窗口：临时把 `%APPDATA%\NIDE\projects.json` 改名，测完恢复；
 - 项目生命周期：换项目（标题栏下拉）、「文件 -> 关闭项目」、列表右键移除；日志里应有
   `project opened` / `project closed` / `project removed from the list`（来自 host）；
-- 插件贡献点：启动日志里应有 `Plugin host initialization completed {"views":7,...}`
-  （来自 shell）与 host 的 `Plugin directories scanned`；视图标题、设置树的子页、
+- 插件贡献点：启动日志里应有 host 的 `Plugin directories scanned`（**不再有** shell 的
+  `Plugin host initialization completed`，那张表已经删了）；视图标题、设置树的子页、
   英文界面都不该退化；
+- 本地化：启动日志里有 host 的 `Locale resolved {"locale":"zh-CN",...}`；设置 → 语言
+  切到 English 后重建窗口，视图标题 / 设置树 / 原生对话框都应变成英文
+  （`src/main/plugin-host` 那条 `Message providers` 日志也在 host 里）。
 - 设置窗口：菜单打开，期望 `settings.root registered`；
 - Demo：启用 Demo Plugin，打开 `demo.hello`，应出现
   `view served by client modules`；
@@ -309,7 +333,10 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/project-config.ts` | host 项目配置（load / update / initialize / registry / remap） |
 | `packages/host/src/services/plugins.ts` | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做） |
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
-| `src/main/plugin-host/index.ts` | shell 侧缓存：从 host 拉贡献点灌进四张表，安装 / 卸载后重拉 |
+| `packages/host/src/services/i18n.ts` | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析 |
+| `src/main/plugin-host/host-views.ts` | 三条内建视图（文件树 / 版本控制 / 提交），标题用 shell 缓存的载荷翻 |
+| `src/main/plugin-host/preference.ts` | 禁用集合的 shell 镜像（host 是写入方，这里兜底） |
+| `src/main/i18n/index.ts` | shell 的载荷缓存 + `t()` + 切语言入口（语言与词条都在 host） |
 | `src/main/protocol/plugin-bundles.ts` | `nide-plugin://` 协议：打包后按 pluginId 从 host 清单取 bundle 文件 |
 | `src/shared/plugin-api/contributions.ts` | 贡献点的纯数据契约（未解析的 `titleSpec`、插件目录内相对路径） |
 | `src/shared/i18n/locale-tag.ts` | 语言标签规范化 + 候选链（自包含，host 也能直接加载） |
@@ -349,13 +376,16 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     取决于 host 读出来的 `projects.json`）。新增「启动时开窗」的入口时别忘了 await
     或 `void`，否则会拿到一个 Promise 而不是窗口。
 13. **插件目录只由 host 读**：shell 不要再扫 `plugins/**`、不要再读 `manifest.json`
-    或 `package.nls*.json`。要什么就调 `plugins.contributions`（缓存由
-    `initPluginHost` / `rescanPluginHost` 负责换）。标题的 `%key%` 仍然在 shell
-    解析 —— 那要用当前语言。
-14. **`src/shared` 里能被 host 加载的文件必须自包含**：要么没有任何 import（如
-    `plugin-api/view.ts`、`i18n/locale-tag.ts`），要么 import 的是同类自包含文件。
-    跨目录引用 `@shared/*` 在 host 里解析不了；共享目录内的相对导入在 NodeNext 下
-    要写 `./x.js`（见 `plugin-api/contributions.ts`）—— 纯类型导入会被擦除，安全。
+    或 `package.nls*.json`。视图 / 设置页 / 语言包全部走 `plugins.views` /
+    `plugins.settings` / `i18n.*` —— 标题也由 host 解析，shell 不要自己拼 `%key%`。
+14. **语言与词条表只住在 host**：shell 只缓存 `I18nPayload`（窗口标题、原生菜单、
+    对话框要同步取文案）。新增「需要翻译的 shell 代码」时用 `createMainTranslator()`
+    读缓存，不要自己 import 语言包或读 `locale.json`。
+15. **`src/shared` 里能被 host 加载的文件必须自包含**：要么没有任何 import（如
+    `plugin-api/view.ts`、`i18n/locale-tag.ts`、`i18n/locales/zh-CN.ts`），要么
+    import 的是同类自包含文件。跨目录引用 `@shared/*` 在 host 里解析不了；共享目录
+    内的相对导入在 NodeNext 下要写 `./x.js`（见 `plugin-api/contributions.ts`）——
+    纯类型导入会被擦除，安全。
 
 ## 8. 踩过的坑（别再踩）
 
@@ -395,6 +425,12 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     `app.whenReady()` **之前**登记（ready 之后登记无效），而页面里的 `<script>` 要能
     加载它，`src/renderer/index.html` 的 `script-src` 里必须有 `nide-plugin:`。
     少任何一处，症状都是「打包后插件视图一片白、Console 里 CSP 或 net::ERR_UNKNOWN_URL_SCHEME」。
+15. **`HostI18n` 在 `i18n.init` 之前是中文**：它构造时的 payload 只是中文兜底
+    （`locale = zh-CN`）。启动顺序写错（比如先取视图标题、后初始化语言）不会报错，
+    只会让第一屏用中文标题 —— shell 那边 `await initI18n()` 必须在开窗之前。
+16. **`plugins.views` / `plugins.settings` 的标题依赖当前语言**：切语言后**必须**重建
+    窗口（渲染进程会重新拉一次），否则视图标题停在旧语言。切语言那条路已经在
+    `recreateRootWindow()` 里，别在别处缓存视图列表。
 
 ## 9. 待定的设计问题
 
@@ -412,31 +448,32 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
 > 当前状态：项目文件 / 章节 / 伏笔 / 图鉴 / 概述 / 配置 / **项目生命周期（列表 /
-> 打开 / 移除 / 关闭）** / **插件的视图 / 设置页 / 语言包 / manifest 词条** 的
-> **实现只有一份**，在 host。客户端 slots 与运行时 bundle 在 **dev 与打包后都可用**
-> （后者走 `nide-plugin://`），UI 未变。打包 `asar: false` + 源码 host 已用
-> `electron.exe <resources/app>` 验证过；`nide.exe` 未签名会被 SmartScreen 拦。
-> **旧实现没有全部迁完**：`src/main/plugin-host/` 剩下的四张表、`src/main/i18n/`、
-> theme/AI/secrets、核心 UI 组件仍在 shell（见 §4.1）。
-> 下一步按 §4：① i18n 服务化（D10，能顺手收掉四张表）；② 发布化（编译 host +
-> asar + 签名）；③ theme/AI/secrets 与 `ctx.shell`。npm 安装来源已明确跳过。
-> 第八批可能还没 commit，先看 `git status`。
+> 打开 / 移除 / 关闭）** / **插件的视图 / 设置页 / 语言包 / manifest 词条** /
+> **本地化（语言包瀑布 / 偏好 / 标题解析）** 的 **实现只有一份**，在 host。
+> 客户端 slots 与运行时 bundle 在 **dev 与打包后都可用**（后者走 `nide-plugin://`），
+> UI 未变。打包 `asar: false` + 源码 host 已用 `electron.exe <resources/app>` 验证过；
+> `nide.exe` 未签名会被 SmartScreen 拦。
+> **旧实现没有全部迁完**：theme/appearance、AI/secrets、核心 UI 组件仍在 shell
+> （见 §4.1）。
+> 下一步按 §4：① 发布化（编译 host + asar + 签名）；② theme/AI/secrets 与
+> `ctx.shell`；③ 核心 UI 插件化 + D10。npm 安装来源已明确跳过。
+> 第九批可能还没 commit，先看 `git status`。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
 
 - [x] `pnpm typecheck` / `pnpm typecheck:host` 绿（host 工程现在包含
-      [test/host](../../test/host) 的 11 份用例）
-- [ ] `pnpm test` 重跑：608 个用例是第七批之后的数；第八批新增
-      `test/shared/plugin-api/plugin-bundle-url.test.ts`（11 个用例）与
-      `clientBundles` 缺文件过滤的用例还没在用户终端跑过
+      [test/host](../../test/host) 的 12 份用例）
+- [ ] `pnpm test` 重跑：第八批之后是 35 文件 / 619 用例（其中 1 个当时失败，
+      已修）；第九批新增 `test/host/i18n.test.ts`、删掉 shell 侧语言包用例，
+      还没在用户终端跑过
 - [x] `pnpm dev` 手工验证：从文件夹安装 → 默认禁用 → 启用信任确认 → 卸载；
       视图 / 设置树同步更新，UI 插件启用后不重启即可显示
 - [x] `pnpm dev`：启动自动拉起 host；新建项目生成 `.nide` + 默认图鉴 / 概述预设
 - [x] `pnpm dev` 复验第六批（项目生命周期）：启动进主窗口、换项目、关闭项目回欢迎窗口、
       从列表移除、关掉主窗口后重开（不该再问「切换项目」）
-- [ ] `pnpm dev` 复验第七批（插件贡献点）：视图标题 / 设置树 / 英文界面不退化，
-      安装一个带语言包的插件后语言列表里能看到它
+- [ ] `pnpm dev` 复验第七 / 九批（插件贡献点 + 本地化）：视图标题、设置树子页、
+      语言切换（中文 <-> English）都正常，英文下没有裸 key
 - [x] **打包后插件 UI**：`pnpm build:unpack` 产物用 `electron.exe
       resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
       `nide-plugin://plugin/builtin.demo/client.js`，随后 `view served by client modules`
@@ -452,5 +489,5 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第八批改动未提交**（生产 bundle 协议），先 commit 再开工
+- [ ] **第九批改动未提交**（i18n 服务化），先 commit 再开工
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

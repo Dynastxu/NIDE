@@ -10,7 +10,7 @@ const logger = loggerFor('appearance')
 /**
  * 主题偏好的持久化。
  *
- * 和语言偏好（i18n/preference.ts）同一个理由、同一个位置：**主进程在开窗之前就要
+ * 和语言偏好（host 的 `services/i18n.ts`）同一个理由、同一个位置：**主进程在开窗之前就要
  * 知道用什么主题**（窗口底色、原生菜单与对话框的明暗），而 localStorage 在渲染进程里，
  * 主进程读不到。放在 userData 下，两端都能等到同一个答案。
  *

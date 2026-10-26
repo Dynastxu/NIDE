@@ -1,29 +1,24 @@
 import { app } from 'electron'
 import { BASE_MESSAGES, DEFAULT_LOCALE, createTranslator, normalizeLocale } from '@shared/i18n'
-import type {
-  I18nPayload,
-  LocaleDescriptor,
-  LocaleId,
-  LocaleProviderRef,
-  Translator
-} from '@shared/i18n'
-import { languagePackRegistry } from './language-packs'
-import { readPreferredLocale, writePreferredLocale } from './preference'
+import type { I18nPayload, LocaleId, Translator } from '@shared/i18n'
+import { invokeHost } from '../host/process'
 import { loggerFor } from '../logger'
+
+/**
+ * shell 侧的本地化缓存。
+ *
+ * 语言包、逐 key 瀑布、语言偏好、manifest 词条解析**全都在 host**
+ * （[i18n.ts](../../packages/host/src/services/i18n.ts)）：语言包是插件目录里的数据，
+ * 而读插件目录只有 host 一家。
+ *
+ * 这里保留一份 `I18nPayload` 是因为它必须能**同步**取到：窗口标题、原生菜单、
+ * 对话框、`--nide-locale=` 启动参数都在建窗那一刻要文案，而那一步跑不了 IPC。
+ * 所以启动时拉一次，切语言时再拉一次 —— 别的地方不要自己存词条。
+ */
 
 const logger = loggerFor('i18n')
 
-export { languagePackRegistry } from './language-packs'
-export type { LanguagePackEntry } from './language-packs'
-
-/**
- * 中文在语言选择列表里的名字。
- *
- * 刻意写成中文而不是查词条表 —— 语言的**自称**不参与翻译体系，
- * 否则就会出现「翻译『语言』这个词本身」的循环。同理，英文包自称 "English"。
- */
-const DEFAULT_LOCALE_LABEL = '简体中文'
-
+/** 中文兜底：host 还没回话（或起不来）时至少不裸露 key */
 let currentLocale: LocaleId = DEFAULT_LOCALE
 
 let currentPayload: I18nPayload = {
@@ -33,7 +28,12 @@ let currentPayload: I18nPayload = {
   diagnostics: { locale: DEFAULT_LOCALE, missing: [], extra: [], conflicts: [], providers: {} }
 }
 
-/** 系统可能给出多个候选（['zh-Hans-CN', 'zh', 'en-US']），按顺序试 */
+/**
+ * 系统可能给出多个候选（['zh-Hans-CN', 'zh', 'en-US']），按顺序试。
+ *
+ * 这一份**只能在 shell 拿**：`app.getPreferredSystemLanguages()` / `app.getLocale()`
+ * 是 Electron 的 API。所以启动时把候选链交给 host，由它挑一个装了语言包的。
+ */
 function systemLanguageCandidates(): LocaleId[] {
   const raw: string[] = []
   try {
@@ -49,152 +49,26 @@ function systemLanguageCandidates(): LocaleId[] {
 }
 
 /**
- * 从候选链里挑一个**确实装了语言包**的 locale。
+ * 初始化本地化：问 host 要一份载荷并缓存。
  *
- * 三个刻意的选择：
- * - 中文直接接受，不需要语言包（它是宿主内建的兜底地板）。
- * - 命中的是「实际生效的 locale」，可能比请求的更宽泛（请求 en-GB、装了 en 包
- *   就返回 en）。界面按这个值勾选，用户看到的就是真正在用的那份。
- * - 一个候选都没命中时，把「本来想要但没包」的那个 locale 报成 fallbackFrom，
- *   让界面能给出可见提示，而不是静默变回中文。
+ * **必须在开窗之前完成**（窗口标题与启动参数都要它）。host 不可达时保持中文兜底
+ * 并记日志 —— 界面会是中文，但不会出现裸 key。
  */
-function resolveLocale(candidates: LocaleId[]): { locale: LocaleId; fallbackFrom?: LocaleId } {
-  for (const tag of candidates) {
-    const normalized = normalizeLocale(tag)
-    if (normalized === DEFAULT_LOCALE) return { locale: DEFAULT_LOCALE }
-
-    const matched = languagePackRegistry.matchLocale(normalized)
-    if (matched) return { locale: matched }
+export async function initI18n(): Promise<void> {
+  try {
+    const payload = await invokeHost<I18nPayload>('i18n', 'init', [
+      { system: systemLanguageCandidates() }
+    ])
+    currentLocale = payload.locale
+    currentPayload = payload
+  } catch (error) {
+    logger.error('Failed to resolve the locale through host; keeping Chinese', { error })
+    return
   }
 
-  const wanted = candidates.map(normalizeLocale).find((tag) => tag !== DEFAULT_LOCALE)
-  return wanted ? { locale: DEFAULT_LOCALE, fallbackFrom: wanted } : { locale: DEFAULT_LOCALE }
-}
-
-/** 中文永远可选：它是内建的，不依赖任何语言包存在 */
-function availableLocales(): LocaleDescriptor[] {
-  const fromPacks = languagePackRegistry.descriptors()
-  const list = fromPacks.some((d) => d.locale === DEFAULT_LOCALE)
-    ? fromPacks
-    : [
-        {
-          locale: DEFAULT_LOCALE,
-          label: DEFAULT_LOCALE_LABEL,
-          source: 'builtin' as const,
-          pluginId: '<host>',
-          dir: ''
-        },
-        ...fromPacks
-      ]
-
-  return list.sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
-}
-
-function buildPayload(locale: LocaleId, fallbackFrom?: LocaleId): I18nPayload {
-  const resolved = languagePackRegistry.buildMessages(locale)
-  return {
-    locale: resolved.locale,
-    messages: resolved.messages,
-    available: availableLocales(),
-    ...(fallbackFrom ? { fallbackFrom } : {}),
-    diagnostics: resolved.diagnostics
-  }
-}
-
-/** 日志里怎么称呼一个包：带 locale，因为瀑布会跨 locale 取词 */
-function describeRef(ref: LocaleProviderRef): string {
-  return `${ref.pluginId}[${ref.locale}/${ref.source}]`
-}
-
-/**
- * 漏翻体检的出口。
- *
- * 语言包是运行时从磁盘读的，TypeScript 管不到它的 key —— 所以唯一能发现
- * 「翻漏了」的办法就是启动时比对 key 集合，并大声说出来。静默回落成中文
- * 是这个方案最大的隐患，这里就是它的对策。
- */
-function reportDiagnostics(payload: I18nPayload): void {
-  const { locale, diagnostics } = payload
-
-  if (payload.fallbackFrom) {
-    logger.warn('Language pack not found, falling back', {
-      requested: payload.fallbackFrom,
-      fallback: locale
-    })
-  }
-
-  // 逐 key 瀑布下这个数字的含义要说清：链上所有语言包都没翻的 key，
-  // 不是「某一个包漏翻的 key」—— 漏翻的包会被后面的包接住，不报在这里。
-  if (diagnostics.missing.length > 0) {
-    logger.warn('Missing messages', { locale, count: diagnostics.missing.length })
-    for (const key of diagnostics.missing) logger.debug('Missing message', { key })
-  }
-
-  if (diagnostics.extra.length > 0) {
-    logger.warn('Extra messages not present in the host table', {
-      locale,
-      count: diagnostics.extra.length
-    })
-    for (const key of diagnostics.extra) logger.debug('Extra message', { key })
-  }
-
-  if (diagnostics.conflicts.length > 0) {
-    logger.warn('Message conflicts', { locale, count: diagnostics.conflicts.length })
-    for (const conflict of diagnostics.conflicts) {
-      logger.debug('Message conflict', {
-        key: conflict.key,
-        winner: describeRef(conflict.winner),
-        loser: describeRef(conflict.loser)
-      })
-    }
-  }
-
-  // 一个 locale 由多个包共同供给是常态（第三方翻一半、内置补另一半），
-  // 所以把「每个 key 实际是谁给的」也报出来 —— 漏翻排查全靠它。
-  // 逐条供给关系是 debug，按包汇总的那一行是 info。
-  const served = Object.entries(diagnostics.providers)
-  if (served.length > 0) {
-    const byPlugin = new Map<string, string[]>()
-    for (const [key, ref] of served) {
-      const bucket = byPlugin.get(describeRef(ref)) ?? []
-      bucket.push(key)
-      byPlugin.set(describeRef(ref), bucket)
-    }
-
-    for (const [plugin, keys] of byPlugin) {
-      for (const key of keys) logger.debug('Message provider', { locale, key, provider: plugin })
-    }
-
-    logger.info('Message providers', {
-      locale,
-      total: served.length,
-      packs: Object.fromEntries(
-        Array.from(byPlugin.entries()).map(([plugin, keys]) => [plugin, keys.length])
-      )
-    })
-  }
-}
-
-/**
- * 初始化本地化。
- *
- * **必须在 initPluginHost() 之后调用** —— 语言包是随插件 manifest 一起注册的，
- * 注册表空着的话所有 locale 都会回落成中文。
- */
-export function initI18n(): void {
-  const preferred = readPreferredLocale()
-  const candidates = preferred
-    ? [preferred, ...systemLanguageCandidates()]
-    : systemLanguageCandidates()
-
-  const { locale, fallbackFrom } = resolveLocale(candidates)
-  currentLocale = locale
-  currentPayload = buildPayload(locale, fallbackFrom)
-
-  reportDiagnostics(currentPayload)
   logger.info('Locale resolved', {
     locale: currentLocale,
-    available: currentPayload.available.map((d) => d.locale)
+    available: currentPayload.available.map((descriptor) => descriptor.locale)
   })
 }
 
@@ -206,30 +80,30 @@ export function getI18nPayload(): I18nPayload {
   return currentPayload
 }
 
-/** 主进程侧的 t()：原生菜单、对话框、窗口标题用它 */
+/** shell 侧的 t()：原生菜单、对话框、窗口标题用它 */
 export function createMainTranslator(): Translator {
   return createTranslator(currentPayload.messages)
 }
 
 /**
- * 切换语言：落盘 + 重建载荷。
+ * 切换语言：落盘与重建载荷在 host，这里只刷新缓存。
  *
- * **刻意不在这里重建窗口** —— 那样 i18n 就得反向依赖窗口模块，形成循环。
- * 调用方（IPC / 菜单）负责在自己合适的时机调 recreateRootWindow()。
+ * **刻意不重建窗口** —— 那样 i18n 就要反向依赖窗口模块，形成循环。调用方
+ * （IPC / 菜单）负责在自己合适的时机调 `recreateRootWindow()`。
  *
- * 返回 false 表示这个 locale 没有语言包，什么都没改。
+ * 返回 false 表示这个 locale 没有语言包（host 那边什么都没改）。
  */
-export function switchLocale(locale: LocaleId): boolean {
-  const normalized = normalizeLocale(locale)
+export async function switchLocale(locale: LocaleId): Promise<boolean> {
+  try {
+    const payload = await invokeHost<I18nPayload | null>('i18n', 'setLocale', [locale])
+    if (!payload) return false
 
-  if (normalized !== DEFAULT_LOCALE && !languagePackRegistry.matchLocale(normalized)) {
-    logger.error('Refusing to switch to a locale with no language pack', { locale: normalized })
+    currentLocale = payload.locale
+    currentPayload = payload
+    logger.info('Locale switched', { locale: currentLocale })
+    return true
+  } catch (error) {
+    logger.error('Failed to switch the locale through host', { error })
     return false
   }
-
-  writePreferredLocale(normalized)
-  currentLocale = normalized
-  currentPayload = buildPayload(normalized)
-  reportDiagnostics(currentPayload)
-  return true
 }
