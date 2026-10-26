@@ -54,8 +54,10 @@ Host（packages/host，纯 Node ESM）
 │  contributions / install / remove / rescan / views / settings
 ├─ 插件贡献点（services/plugin-contributions.ts）：唯一的插件目录读取方
 │  （视图 / 设置页 / 语言包 / manifest 词条）
-└─ 本地化（services/i18n.ts）：语言包注册表 + 逐 key 瀑布 + 语言偏好
-   （`<userData>/locale.json`）+ manifest 标题解析
+├─ 本地化（services/i18n.ts）：语言包注册表 + 逐 key 瀑布 + 语言偏好
+│  （`<userData>/locale.json`）+ manifest 标题解析
+└─ `shell` 反向桥（shell.ts）：host 需要 Electron 能力时反向调 shell
+   （`nativeTheme` / `safeStorage`，见 §3「ctx.shell」）
 
 Client（renderer，HTTP 页面里的第二棵 Cordis 树）
 ├─ packages/client-runtime：Context + slots + modules + bundle loader
@@ -168,6 +170,20 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - shell 的 `language-packs.ts` / `preference.ts` / `manifest-nls.ts` 全部删除；
   语言偏好文件从 shell 挪到 host 后**路径不变**（同一个 userData），老用户的偏好照常生效。
 
+### ctx.shell（host → shell 的反向能力桥）
+- 协议在 [src/shared/host-rpc/index.ts](src/shared/host-rpc/index.ts)：
+  `shell-call` / `shell-result`，方法名是白名单 `ShellMethod`
+  （`nativeTheme.setSource` / `nativeTheme.shouldUseDarkColors` /
+  `safeStorage.isAvailable|encrypt|decrypt`）；
+- host 侧 [packages/host/src/shell.ts](packages/host/src/shell.ts) 的 `ShellBridge`：
+  `call(method, args, timeoutMs)`，没挂在 shell 下时直接 reject（独立运行不假装成功），
+  shell 退出时 `detach()` 把挂着的调用全部拒掉；
+- shell 侧 [src/main/host/capabilities.ts](src/main/host/capabilities.ts)：
+  `handleShellCall` 按白名单执行并回包，参数逐个校验；`attachShellCapabilities(proc)`
+  在 `process.ts` 启 host 时挂上；
+- 这套东西是给 **theme / appearance 与 secrets 搬进 host** 铺路的：业务在 host，
+  `nativeTheme` / `safeStorage` 只有 Electron 有。
+
 ### 客户端 Cordis / slots
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；
 - `main.root` / `welcome.root` / `settings.root` 都已接入；
@@ -213,11 +229,15 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   `test/host/plugin-contributions.test.ts`。
 - 第八批 `3334478`：生产 bundle 协议 —— `nide-plugin://` 自定义协议 + CSP +
   `clientBundles` 过滤缺文件的条目；`test/shared/plugin-api/plugin-bundle-url.test.ts`。
-- 第九批（未提交）：i18n 服务化 —— 语言包注册表 / 逐 key 瀑布 / 语言偏好 /
+- 第九批 `1517f9b`：i18n 服务化 —— 语言包注册表 / 逐 key 瀑布 / 语言偏好 /
   manifest 标题解析全部进 host（`services/i18n.ts` + `i18n.*` RPC），
   `plugins.views` / `plugins.settings` 直接下发已解析标题的描述符；
   shell 删掉 `language-packs` / `preference` / `manifest-nls` 与四张缓存表，
   `src/main/i18n` 只留一份载荷缓存。`test/host/i18n.test.ts` 新增。
+- 第十批（未提交）：`ctx.shell` 反向能力桥 —— `shell-call` / `shell-result` 协议、
+  host 的 `ShellBridge`、shell 的 `capabilities.ts`（`nativeTheme` / `safeStorage`
+  白名单）；`test/host/shell-bridge.test.ts`。这是 theme/appearance 与 secrets
+  搬进 host 的前置。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级

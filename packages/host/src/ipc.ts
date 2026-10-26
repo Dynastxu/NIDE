@@ -1,5 +1,10 @@
 import process from 'node:process'
-import type { RpcRequest, RpcResponse } from '../../../src/shared/host-rpc/index.ts'
+import { isShellCallResult } from '../../../src/shared/host-rpc/index.ts'
+import type {
+  RpcRequest,
+  RpcResponse,
+  ShellCallResult
+} from '../../../src/shared/host-rpc/index.ts'
 
 /**
  * Host 与「父进程 / renderer」之间的最小 IPC 通道（MVP）。
@@ -46,6 +51,8 @@ export interface HostIpcOptions {
   onShutdown: () => void
   /** renderer 发来的 RPC 请求；返回结果会被原样送回同一个 port。 */
   onRpc?: (request: RpcRequest) => Promise<RpcResponse>
+  /** shell 对 `shell-call` 的回包（反向 RPC 的结果）。 */
+  onShellResult?: (message: ShellCallResult) => void
 }
 
 export interface HostIpcHandle {
@@ -189,6 +196,17 @@ export function attachHostIpc(options: HostIpcOptions): HostIpcHandle {
      */
     if (type === 'rpc') {
       dispatchRpc(message as RpcRequest, (response) => transport.postMessage(response))
+      return
+    }
+
+    /**
+     * shell 对反向调用（`shell-call`）的回包。
+     *
+     * 和 `rpc-result` 分开两个 type：那个是「我们问出去、对方回」，这个是「对方
+     * 执行完我们请它做的事」。合在一起会让回包的归属变得含糊。
+     */
+    if (type === 'shell-result') {
+      if (isShellCallResult(message)) options.onShellResult?.(message)
       return
     }
 

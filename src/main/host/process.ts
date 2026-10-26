@@ -8,6 +8,7 @@ import {
   type WebContents
 } from 'electron'
 import { loggerFor } from '../logger'
+import { attachShellCapabilities } from './capabilities'
 
 /**
  * Electron shell 侧的 host 进程管理（MVP）。
@@ -154,6 +155,8 @@ export function startHost(options: StartHostOptions = {}): Promise<void> {
 
   // 父端口的回包：ready/pong 之外的 rpc-result 交给 invokeHost 的等待表
   proc.on('message', settleHostMessage)
+  // 反向能力调用（shell-call）：host 请 shell 做 Electron 才有的那几件事
+  attachShellCapabilities(proc)
 
   proc.stdout?.on('data', (chunk: Buffer) => {
     const text = chunk.toString().trim()

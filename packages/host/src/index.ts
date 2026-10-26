@@ -38,6 +38,7 @@ import {
 } from './services/project-config.ts'
 import { PluginManager, pluginPreferencePath } from './services/plugins.ts'
 import { HostI18n } from './services/i18n.ts'
+import { shell } from './shell.ts'
 import type { TitleResolver } from './services/plugins.ts'
 import { filePathKey } from '../../../src/shared/project/files.ts'
 import type {
@@ -678,8 +679,20 @@ const ipc = attachHostIpc({
     logger.info('shutdown requested by shell')
     void shutdown(host).finally(() => process.exit(0))
   },
-  onRpc: (request) => rpc.invoke(request)
+  onRpc: (request) => rpc.invoke(request),
+  onShellResult: (message) => {
+    if (!shell.settle(message)) logger.warn('shell result arrived after its call settled')
+  }
 })
+
+/**
+ * 反向能力桥（D7 的 `ctx.shell`）：主题 / `safeStorage` 这类只有 Electron 有的
+ * 能力。独立运行时（`--once` / `pnpm host:dev`）不接，调用方会拿到明确的错误。
+ */
+if (ipc.attached) {
+  shell.attach((message) => ipc.send(message))
+  logger.info('shell capabilities attached')
+}
 
 logger.info(
   `host ready: profile=${paths.profileName} entries=${host.entryIds.length} home=${paths.home} ipc=${ipc.attached}`
