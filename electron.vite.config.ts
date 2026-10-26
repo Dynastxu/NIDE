@@ -51,6 +51,7 @@ export default defineConfig({
        */
       alias: [
         { find: /^@nide\/client-kit\//, replacement: `${resolve('packages/client-kit/src')}/` },
+        { find: /^@nide\/sdk\//, replacement: `${resolve('packages/sdk/src')}/` },
         {
           find: /^@nide\/client-ui-main\//,
           replacement: `${resolve('packages/client-ui-main/src')}/`

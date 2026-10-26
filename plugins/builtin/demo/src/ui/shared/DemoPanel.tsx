@@ -1,5 +1,5 @@
 import { useState, type JSX } from 'react'
-import { usePluginTranslator } from '@nide/client-kit/plugin-views/host-context'
+import { usePluginTranslator } from '@nide/sdk/plugin-views/host-context'
 import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
 import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'

@@ -16,6 +16,7 @@
     "packages/client-runtime/src/**/*",
     "packages/client-modules/src/**/*",
     "packages/client-kit/src/**/*",
+    "packages/sdk/src/**/*",
     "packages/client-ui-slots/src/**/*",
     "packages/client-ui-main/src/**/*",
     "packages/client-ui-layout/src/**/*",
@@ -32,6 +33,7 @@
     "baseUrl": ".",
     "paths": {
       "@nide/client-kit/*": ["packages/client-kit/src/*"],
+      "@nide/sdk/*": ["packages/sdk/src/*"],
       "@nide/client-ui-main/*": ["packages/client-ui-main/src/*"],
       "@nide/client-ui-settings/*": ["packages/client-ui-settings/src/*"],
       "@nide/client-ui-welcome/*": ["packages/client-ui-welcome/src/*"],

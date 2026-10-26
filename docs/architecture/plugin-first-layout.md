@@ -28,11 +28,10 @@ packages/
   kernel/                # Cordis 树 + RPC 注册表 + transport + ctx.shell 反桥
   shell/                 # Electron 外壳：main（窗口/菜单/对话框/日志/协议）+ preload
   services/              # host 业务，一包一个（project content config plugins i18n appearance secrets ai）
-  client-runtime/        # 客户端 Cordis 树 + slot + bundle loader
-  client-kit/            # 客户端共享层（阶段 5 会拆成 sdk + ui/*）
-  client-ui-*/           # 三个窗口的界面
-  ui/                    # 阶段 5：客户端功能区
-  sdk/                   # 阶段 5：插件开发者 API
+  client-runtime/        # 客户端 Cordis 树 + slot + bundle loader（按包声明装配窗口）
+  client-kit/            # 客户端平台层：stores / ui 基础组件 / 窗口外壳 / logger / monaco
+  sdk/                   # 插件开发者 API：视图渲染管线（PluginSlot / host-context）
+  client-ui-*/           # 三个窗口的界面（各自声明 windowTypes）
   boot/ hello/ host/     # host 运行时（host 只剩装配）
 plugins/builtin/<name>/   # 第三方扩展，只能依赖 sdk
 profiles/desktop/cordis.yml  # 唯一的装配点（阶段 6 列全）
@@ -61,7 +60,7 @@ apps/desktop/renderer/            # 阶段 6 之前：渲染进程引导壳（ma
 | 2 | 别名 `@shared` → `@nide/contracts`，删掉旧名字 | 低（机械替换） | 完成 |
 | 3 | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配 | 中 | 完成 |
 | 4 | `src/main` → `packages/shell`：窗口 / 菜单 / 对话框 / 日志 / 协议收进一个包（尚未拆成 `ctx.shell.*` 服务） | 中 | 完成（包已搬） |
-| 5 | `client-kit` 拆成 `sdk` + `ui/*`；`client-runtime` 按声明装配窗口 | 中高 | 待做 |
+| 5 | `client-kit` 拆出 `sdk`（插件视图管线）；`client-runtime` 按声明装配窗口，引导壳去掉 `ROOTS` 兜底 | 中高 | 完成 |
 | 6 | `src/renderer` → `apps/desktop/renderer`（`src/` 消失）；`cordis.yml` 列全所有包 | 低 | 部分完成 |
 
 ### 阶段 1 的实际改动（已提交）

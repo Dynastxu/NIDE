@@ -451,6 +451,7 @@ export const zhCN = {
 
   'host.locale.fallback.notice': '没有找到「{locale}」对应的语言包，已回落到中文。',
   'host.locale.diagnostics.missing': '「{locale}」有 {count} 条文案未翻译，已回落成中文。',
+  'host.startup.clientRuntimeFailed': '客户端运行时没能启动，窗口无法显示。请查看日志后重启应用。',
   'host.locale.diagnostics.conflict':
     '「{locale}」的 {count} 条文案被多个语言包同时提供，已按第三方优先取用。'
 } as const

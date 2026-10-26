@@ -4,7 +4,7 @@ import { initMonacoNls } from '@nide/client-kit/monaco-env'
 import { installRendererLogger, loggerFor } from '@nide/client-kit/logger'
 import './assets/index.css'
 import type { JSX } from 'react'
-import { systemWindowTitle, type WindowType } from '@nide/contracts/window'
+import { systemWindowTitle } from '@nide/contracts/window'
 import { ConfirmHost } from '@nide/client-kit/ui/ConfirmHost'
 import type { ClientRuntime } from '@nide/client-runtime'
 
@@ -34,21 +34,6 @@ installRendererLogger()
 ;(window as unknown as { ReactDOM?: typeof ReactDOM }).ReactDOM = ReactDOM
 
 const logger = loggerFor('renderer')
-
-/**
- * 每一种窗口挂载哪个根组件。
- *
- * 统一用动态 import，哪怕主窗口每次都必然要加载：静态 import 会让**所有**窗口
- * 都吃下整张模块图（设置窗口平白加载 Monaco），而且以后加一个「关于」这类
- * 轻量窗口时，必然要改回动态 —— 不如现在就只有一种写法，加窗口时不必判断。
- *
- * 注意：加窗口种类时这里要补一条，而**不是**在下面 boot() 里加 if。
- */
-const ROOTS: Record<WindowType, () => Promise<{ default: () => JSX.Element }>> = {
-  main: () => import('@nide/client-ui-main/App'),
-  welcome: () => import('@nide/client-ui-welcome').then((m) => ({ default: m.WelcomeApp })),
-  settings: () => import('@nide/client-ui-settings').then((m) => ({ default: m.SettingsApp }))
-}
 
 async function boot(): Promise<void> {
   await initMonacoNls()
@@ -98,36 +83,34 @@ async function boot(): Promise<void> {
   }
 
   /**
-   * 根组件。
+   * 根组件：**只有一个来源** —— 客户端 Cordis 树里 `<windowType>.root` 那个 slot。
    *
-   * main / welcome 走 slot：对应 root 插件由客户端 Cordis 树注册，渲染的还是
-   * 现有 `App` / `WelcomeApp`（组件一行没改）。settings 仍走旧路径。
+   * 窗口种类到组件的映射在各包自己的 `windowTypes` 与 `index.ts` 里（谁注册了
+   * `main.root` 谁就画主窗口）。这里不再有 `ROOTS` 表，也没有「runtime 起不来时
+   * 就用另一条路」的兜底 —— 那条路只会让两套装配同时存在。
    */
-  let Root: () => JSX.Element
-  const slotName =
-    windowType === 'main'
-      ? 'main.root'
-      : windowType === 'welcome'
-        ? 'welcome.root'
-        : 'settings.root'
+  const slot = `${windowType}.root`
+  const runtime = await loadClientRuntime()
 
-  if (slotName) {
-    const slot = slotName
-    const runtime = await loadClientRuntime()
-    if (runtime) {
-      const { Slot, SlotProvider } = await import('@nide/client-ui-renderer')
-      logger.info('Window slot ready', { slot, occupants: runtime.slots.count(slot) })
-      Root = () => (
-        <SlotProvider registry={runtime.slots}>
-          <Slot name={slot} />
-        </SlotProvider>
-      )
-    } else {
-      Root = (await ROOTS[windowType]()).default
-    }
-  } else {
-    Root = (await ROOTS[windowType]()).default
+  if (!runtime) {
+    // 客户端树没起来：给一句能读的提示，而不是白屏
+    logger.error('Client runtime unavailable; the window cannot mount', { windowType })
+    ReactDOM.createRoot(document.getElementById('root')!).render(
+      <ConfirmHost>
+        <p className="p-6 text-sm text-zinc-400">{getT()('host.startup.clientRuntimeFailed')}</p>
+      </ConfirmHost>
+    )
+    return
   }
+
+  const { Slot, SlotProvider } = await import('@nide/client-ui-renderer')
+  logger.info('Window slot ready', { slot, occupants: runtime.slots.count(slot) })
+
+  const Root = (): JSX.Element => (
+    <SlotProvider registry={runtime.slots}>
+      <Slot name={slot} />
+    </SlotProvider>
+  )
 
   logger.info('Renderer boot completed', { windowType, locale })
 

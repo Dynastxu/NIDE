@@ -83,7 +83,8 @@ packages/
   contracts/         # 跨进程契约（原 src/shared）：类型 + 纯函数 + 词条基础表
   boot/ host/ hello/ # host 运行时与业务（host/src/services/*）
   client-runtime/ client-modules/
-  client-kit/        # 客户端共享层：stores / ui / window 外壳 / 插件视图管线
+  client-kit/        # 客户端平台层：stores / ui / window 外壳 / logger / monaco
+  sdk/               # 插件开发者 API：插件视图渲染管线（PluginSlot / host-context）
   client-ui-slots/ client-ui-renderer/
   client-ui-main/ client-ui-layout/ client-ui-welcome/ client-ui-settings/
 plugins/builtin/     # 第三方扩展形态的插件包（demo / ai-provider / lang-en）

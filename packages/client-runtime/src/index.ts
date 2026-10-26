@@ -78,27 +78,56 @@ interface DisposableFiber {
   dispose: () => Promise<void>
 }
 
+/**
+ * 窗口 → 插件包的装配表。
+ *
+ * **每个包自己声明 `windowTypes`**（见各包 `src/index.ts`），这里只负责把它们
+ * 列出来并按当前窗口过滤 —— 不再有 `if (windowType === 'main') …` 的分支。
+ * 加一个窗口种类 = 新增一个包 + 在表里加一行，运行时不认识任何具体窗口。
+ *
+ * `load` 用动态 import：每个窗口只下载它自己的界面（设置窗口不该吃下 Monaco）。
+ */
+interface WindowEntry {
+  load: () => Promise<{ windowTypes: readonly WindowType[]; plugins: unknown[] }>
+}
+
+const WINDOW_ENTRIES: WindowEntry[] = [
+  {
+    load: async () => {
+      const [main, layout] = await Promise.all([
+        import('@nide/client-ui-main'),
+        import('@nide/client-ui-layout')
+      ])
+      return { windowTypes: main.windowTypes, plugins: [main.mainPlugin, layout.layoutPlugin] }
+    }
+  },
+  {
+    load: async () => {
+      const welcome = await import('@nide/client-ui-welcome')
+      return { windowTypes: welcome.windowTypes, plugins: [welcome.welcomePlugin] }
+    }
+  },
+  {
+    load: async () => {
+      const settings = await import('@nide/client-ui-settings')
+      return { windowTypes: settings.windowTypes, plugins: [settings.settingsPlugin] }
+    }
+  }
+]
+
 async function loadWindowPlugin(ctx: Context, windowType: WindowType): Promise<DisposableFiber[]> {
-  if (windowType === 'main') {
-    const [{ mainPlugin }, { layoutPlugin }] = await Promise.all([
-      import('@nide/client-ui-main'),
-      import('@nide/client-ui-layout')
-    ])
+  const fibers: DisposableFiber[] = []
 
-    return [await ctx.plugin(mainPlugin), await ctx.plugin(layoutPlugin)]
+  for (const entry of WINDOW_ENTRIES) {
+    const { windowTypes, plugins } = await entry.load()
+    if (!windowTypes.includes(windowType)) continue
+
+    for (const plugin of plugins) {
+      fibers.push(await ctx.plugin(plugin as Parameters<Context['plugin']>[0]))
+    }
   }
 
-  if (windowType === 'welcome') {
-    const { welcomePlugin } = await import('@nide/client-ui-welcome')
-    return [await ctx.plugin(welcomePlugin)]
-  }
-
-  if (windowType === 'settings') {
-    const { settingsPlugin } = await import('@nide/client-ui-settings')
-    return [await ctx.plugin(settingsPlugin)]
-  }
-
-  return []
+  return fibers
 }
 
 export async function createClientRuntime(options: ClientRuntimeOptions): Promise<ClientRuntime> {

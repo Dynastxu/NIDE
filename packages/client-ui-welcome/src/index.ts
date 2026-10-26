@@ -13,6 +13,9 @@ export { default as WelcomeApp } from './WelcomeApp'
 export { ProjectsPanel } from './ProjectsPanel'
 export { SettingsButton } from './SettingsButton'
 
+/** 这个包负责的窗口种类（client-runtime 按它装配，不再用 switch） */
+export const windowTypes = ['welcome'] as const
+
 export const welcomePlugin = {
   name: 'nide-client-ui-welcome',
   inject: ['slots'],
