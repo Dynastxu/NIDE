@@ -16,9 +16,11 @@
 
 三个信号说明「装配点不在配置里」：
 
-1. `profiles/desktop/cordis.yml` 里只有 `hello` 一行 —— 真正的装配写在 TypeScript 里；
-2. 新增一个 host 能力要改 `packages/host/src/index.ts`；
-3. 新增一个窗口/功能区要改 `apps/desktop/renderer/src/main.tsx` 的 `ROOTS` 与 `client-runtime` 的分支。
+1. `profiles/desktop/cordis.yml` 只列了 `hello` —— 真正的装配写在 TypeScript 里
+   （**这一条已经解决**：现在服务与插件都由 profile 列）；
+2. 新增一个 host 能力要改 `packages/host/src/index.ts`（**已解决**：加一行 profile）；
+3. 新增一个窗口要改 `apps/desktop/renderer/src/main.tsx` 的 `ROOTS` 与
+   `client-runtime` 的分支（**已解决**：包自己声明 `windowTypes`；`ROOTS` 已删除）。
 
 ## 2. 目标分层
 
@@ -34,7 +36,7 @@ packages/
   client-ui-*/           # 三个窗口的界面（各自声明 windowTypes）
   boot/ hello/ host/     # host 运行时（host 只剩装配）
 plugins/builtin/<name>/   # 第三方扩展，只能依赖 sdk
-profiles/desktop/cordis.yml  # 唯一的装配点（阶段 6 列全）
+profiles/desktop/cordis.yml  # 唯一的装配点（服务 + 插件）
 apps/desktop/renderer/            # 阶段 6 之前：渲染进程引导壳（main.tsx + assets）
 ```
 
@@ -61,7 +63,7 @@ apps/desktop/renderer/            # 阶段 6 之前：渲染进程引导壳（ma
 | 3 | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配 | 中 | 完成 |
 | 4 | `src/main` → `packages/shell`：窗口 / 菜单 / 对话框 / 日志 / 协议收进一个包（尚未拆成 `ctx.shell.*` 服务） | 中 | 完成（包已搬） |
 | 5 | `client-kit` 拆出 `sdk`（插件视图管线）；`client-runtime` 按声明装配窗口，引导壳去掉 `ROOTS` 兜底 | 中高 | 完成 |
-| 6 | `src/renderer` → `apps/desktop/renderer`（`src/` 消失）；`cordis.yml` 列全所有包 | 低 | 部分完成 |
+| 6 | `src/renderer` → `apps/desktop/renderer`（`src/` 消失）；`cordis.yml` 列全所有包 | 低 | 完成 |
 
 ### 阶段 1 的实际改动（已提交）
 
@@ -149,22 +151,30 @@ packages/host/src/index.ts     363 行：参数 → profile → boot → kernel 
 - `test/host/kernel-context.test.ts` 钉住：三样都在、注册真的落到同一张表、
   重复 provide / 缺失 require 抛错、扩展属性只读且不可枚举。
 
-## 4. 阶段 3 之后 `cordis.yml` 的样子（示意）
+## 4. `cordis.yml` 现在就是装配点
 
 ```yaml
-- id: kernel
-  name: '@nide/kernel'
-- id: shell
-  name: '@nide/shell'
-- id: project
-  name: '@nide/service-project'
-  inject: [kernel, shell]
-- id: files
-  name: '@nide/service-files'
-  inject: [project]
-- id: ui-main
-  name: '@nide/ui-main'
-  inject: [sdk]
+- id: hello                                   # 普通 Cordis 插件（kind 省略 = plugin）
+  name: '{{NIDE_ROOT}}/packages/hello/src/index.ts'
+
+- id: project                                 # 宿主服务（kind: service）
+  name: '{{NIDE_ROOT}}/packages/services/project/src/index.ts'
+  kind: service
+- id: content
+  name: '{{NIDE_ROOT}}/packages/services/content/src/index.ts'
+  kind: service
+# … config / plugins / i18n / appearance / secrets / ai
 ```
 
-到那时「这个功能在哪」的答案是：**一个包 + `cordis.yml` 的一行**，而不是三处代码。
+两类的区别只有「谁来 apply」：
+
+| kind | 谁装 | 语义 |
+| --- | --- | --- |
+| `plugin`（默认） | Cordis loader（`ctx.loader.create`） | 并行激活，适合互不依赖的插件 |
+| `service` | 宿主入口按行顺序 `import + apply` | 顺序即依赖顺序（先 provide 后 require） |
+
+加一个宿主服务 = 一个包 + profile 里一行，`packages/host/src/index.ts` 不再改。
+
+**profile 会随模板升级**：`profiles/desktop/profile.json` 带 `version`；宿主发现模板
+版本更新时覆盖 `cordis.yml`（旧的存成 `cordis.yml.bak`），只动这一个文件。
+加 / 删 profile 行时必须把 `version` +1，否则老用户机器上不会生效。
