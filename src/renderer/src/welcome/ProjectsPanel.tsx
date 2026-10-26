@@ -27,7 +27,8 @@ const logger = loggerFor('welcome')
 /** 失败原因 -> 提示词条。cancelled 不在表里：用户取消不是错误，什么都不该显示 */
 const FAILURE_KEYS: Record<Exclude<ProjectFailureReason, 'cancelled'>, HostMessageKey> = {
   missing: 'host.welcome.projects.error.missing',
-  'not-a-directory': 'host.welcome.projects.error.not-a-directory'
+  'not-a-directory': 'host.welcome.projects.error.not-a-directory',
+  unreadable: 'host.welcome.projects.error.unreadable'
 }
 
 export function ProjectsPanel(): JSX.Element {

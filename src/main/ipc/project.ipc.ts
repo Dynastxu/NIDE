@@ -13,21 +13,16 @@ import {
 import type {
   DeleteEntryRequest,
   DeleteEntryResult,
+  ProjectListItem,
   ProjectOpenResult,
   ProjectPickMode
 } from '@shared/project'
 import { CONFIRM_SPECS, isActionConfirmed, type ConfirmSpec } from '../confirm'
 import { createMainTranslator } from '../i18n'
 import { loggerFor } from '../logger'
+import { closeProject, forgetProject, listProjects, openProject } from '../host/project'
 import { invokeHost } from '../host/process'
-import {
-  closeProject,
-  forgetProject,
-  getCurrentProject,
-  getProjectList,
-  openProject
-} from '../services/project-store'
-import { activateMainWindow, returnToWelcomeWindow } from '../window'
+import { activateMainWindow, getBoundProjectPath, returnToWelcomeWindow } from '../window'
 
 const logger = loggerFor('project')
 
@@ -36,14 +31,15 @@ const logger = loggerFor('project')
  *
  * 这一层现在只剩三件事：
  *
- * 1. **项目列表 / 打开 / 关闭**：目录对话框与窗口切换只有 shell 能做；
- * 2. **二次确认**：host 没有窗口，删除那一问仍然问在 shell；
- * 3. **转发**：文件 / 章节 / 图鉴 / 概述 / 配置的实现都在 host。这里保留同一批
- *    IPC 通道，是为了 preload 的 host 直连 port 失败时仍有一条路可走 —— 两条
- *    通道最终都进 host 的同一张 `RpcRegistry`，不存在第二份实现。
+ * 1. **目录对话框与窗口切换**：只有 shell 能做（host 没有窗口）；
+ * 2. **二次确认**：删除、换项目、关闭项目那几问仍然问在 shell；
+ * 3. **转发**：`projects.json` 的唯一实现在 host（见 host/project.ts），文件 / 章节 /
+ *    图鉴 / 概述 / 配置也一样。这里保留同一批 IPC 通道，是为了 preload 的 host 直连
+ *    port 失败时仍有一条路可走 —— 两条通道最终都进 host 的同一张 `RpcRegistry`，
+ *    不存在第二份实现。
  *
- * 「打开哪个窗口」在这里：project-store 刻意不认识窗口，而这样切窗口的副作用只有
- * 一处，好审。
+ * 换项目的顺序是「先问、后写、最后切窗」：确认 → `project.open`（host 落盘并把当前
+ * 项目定下来）→ `activateMainWindow()`（新窗口带着这条记录建出来）。
  */
 
 /**
@@ -65,7 +61,13 @@ async function pickDirectory(
 
   // 起始目录取「最近打开且目录还在」的那个项目：连续开几个同级的项目时，
   // 每次都从同一个地方开始，而系统对话框自己会记住上次的位置
-  const recent = getProjectList().find((project) => !project.missing)
+  let recent: ProjectListItem | undefined
+  try {
+    recent = (await listProjects()).find((project) => !project.missing)
+  } catch (error) {
+    // 列表读不到只影响对话框从哪儿开始，不该让「选个目录」这件事整个失败
+    logger.warn('Failed to read the project list for the dialog default path', { error })
+  }
   const defaultPath =
     mode === 'new' ? (recent ? path.dirname(recent.path) : app.getPath('documents')) : recent?.path
 
@@ -125,6 +127,9 @@ async function initializeProject(root: string): Promise<void> {
  * 一切跟着归零：打开的文件标签页、编辑器里未保存的改动、文件树的展开状态。所以
  * 离开一个**已经打开的项目**之前先过行为级二次确认。
  *
+ * 判据用的是**主窗口绑定的那个项目**（`getBoundProjectPath()`），不是再问一次 host：
+ * 这个窗口就是即将被重建的那一个，它绑着谁才是「要丢掉哪些东西」的答案。
+ *
  * @param dirPath 要打开的项目目录路径
  * @param create 是否为新建项目。为真时会让 host 初始化 `.nide` 目录结构
  * @param initiator 发起这次打开的渲染进程。确认框问到它那个窗口上
@@ -136,8 +141,7 @@ async function activate(
   initiator: WebContents,
   options: unknown
 ): Promise<ProjectOpenResult> {
-  const current = getCurrentProject()?.path ?? null
-  if (isProjectSwitch(current, dirPath, caseInsensitivePaths())) {
+  if (isProjectSwitch(getBoundProjectPath(), dirPath, caseInsensitivePaths())) {
     const spec: ConfirmSpec = {
       ...CONFIRM_SPECS.switchProject,
       // 目标项目的显示名由路径推导，与标题栏、项目下拉用的是同一个函数
@@ -150,7 +154,14 @@ async function activate(
     }
   }
 
-  const result = openProject(dirPath)
+  let result: ProjectOpenResult
+  try {
+    result = await openProject(dirPath)
+  } catch (error) {
+    // host 不可达。这里不能装作「目录不存在」—— 用户看到的原因必须是真的那一个
+    logger.error('Failed to open a project through host', { error })
+    return { ok: false, reason: 'unreadable', path: dirPath }
+  }
 
   if (!result.ok) {
     logger.warn('Failed to open a project', { reason: result.reason })
@@ -159,12 +170,29 @@ async function activate(
 
   if (create) await initializeProject(result.project.path)
 
-  activateMainWindow()
+  activateMainWindow(result.project)
   return result
 }
 
+/**
+ * 读项目列表；host 不可达时回落成空列表。
+ *
+ * 为什么不抛：这几条通道是 preload 直连 host 失败后的**回退**，走到这里通常意味着
+ * host 本身有问题。空列表会让界面说「还没有打开过任何文件夹」，但一个 rejected
+ * promise 在欢迎窗口里是没人接的（列表会永远停在「加载中」），那比一句不准确的话
+ * 更难解释。真因记在日志里。
+ */
+async function listProjectsOrEmpty(): Promise<ProjectListItem[]> {
+  try {
+    return await listProjects()
+  } catch (error) {
+    logger.error('Failed to read the project list through host', { error })
+    return []
+  }
+}
+
 export function registerProjectIPC(): void {
-  ipcMain.handle(PROJECT_CHANNELS.list, () => getProjectList())
+  ipcMain.handle(PROJECT_CHANNELS.list, listProjectsOrEmpty)
 
   ipcMain.handle(
     PROJECT_CHANNELS.open,
@@ -193,11 +221,28 @@ export function registerProjectIPC(): void {
     }
   )
 
-  ipcMain.handle(PROJECT_CHANNELS.remove, (_event, dirPath: unknown) => {
-    if (typeof dirPath === 'string' && dirPath.length > 0) forgetProject(dirPath)
-    // 直接回新列表：界面不必再发一次 list，也就不会出现「删了但界面还是旧的」那一帧
-    return getProjectList()
-  })
+  /**
+   * 从列表里移除一条记录。
+   *
+   * host 直接回**移除之后**的列表：界面不必再发一次 list，也就不会出现「删了但界面
+   * 还是旧的」那一帧。host 不可达时把同样的空列表兜底交给界面（原因进日志）。
+   */
+  ipcMain.handle(
+    PROJECT_CHANNELS.remove,
+    async (_event, dirPath: unknown): Promise<ProjectListItem[]> => {
+      if (typeof dirPath !== 'string' || dirPath.length === 0) {
+        logger.warn('Received an invalid project path to remove')
+        return listProjectsOrEmpty()
+      }
+
+      try {
+        return await forgetProject(dirPath)
+      } catch (error) {
+        logger.error('Failed to remove a project through host', { error })
+        return []
+      }
+    }
+  )
 
   /**
    * 关闭项目（标题栏「文件 -> 关闭项目」）—— 回退到欢迎窗口。
@@ -212,7 +257,15 @@ export function registerProjectIPC(): void {
     void (async () => {
       if (!(await isActionConfirmed(event.sender, options, CONFIRM_SPECS.closeProject))) return
 
-      closeProject()
+      try {
+        await closeProject()
+      } catch (error) {
+        // host 那边没关成就别换窗口：换过去之后 host 仍认为有个项目开着，之后所有
+        // 「当前项目」的判断都是错的。停在这儿，让用户再点一次。
+        logger.error('Failed to close the project through host', { error })
+        return
+      }
+
       returnToWelcomeWindow()
     })()
   })

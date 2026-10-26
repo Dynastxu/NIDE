@@ -81,7 +81,9 @@ export function ProjectSelector(): JSX.Element {
         t(
           result.reason === 'not-a-directory'
             ? 'host.welcome.projects.error.not-a-directory'
-            : 'host.welcome.projects.error.missing',
+            : result.reason === 'unreadable'
+              ? 'host.welcome.projects.error.unreadable'
+              : 'host.welcome.projects.error.missing',
           { path: result.path ?? project.path }
         )
       )

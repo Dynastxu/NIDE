@@ -17,18 +17,14 @@ import type {
 } from '../../../../src/shared/project/store.ts'
 
 /**
- * Host 侧的「打开过的项目」服务。
+ * 「打开过的项目」的**唯一**实现。
  *
- * 和 Electron 主进程里的 `src/main/services/project-store.ts` 是同一份语义，
- * 但**不依赖 electron**：userData 目录由 shell 在 spawn 时传进来。
+ * 原本 Electron 主进程里还有一份（`src/main/services/project-store.ts`），两份各读
+ * 一份 `projects.json`；现在只剩这一份，shell 通过 `project.*` RPC 调用它，自己不再
+ * 落盘、也不再记「当前项目」。userData 目录由 shell 在 spawn 时传进来，所以这里
+ * **不依赖 electron**。
  *
- * 现在只实现读路径（list / current / startup）+ 为后续写路径留好方法；
- * RPC 层先只暴露只读方法。
- *
- * TODO:
- * - 把主进程那份实现删掉，统一走这里（阶段 2 收尾）
- * - 写路径（open / forget / close）接 RPC
- * - 日志接到 ctx.logger，而不是静默
+ * 日志暂时走 console：host 的日志出口还没有收到 ctx.logger 上。
  */
 
 export type HostProjectOpenResult =
@@ -176,6 +172,8 @@ export class HostProjectStore {
     })
     this.persist(next)
     this.current = next.projects[0]
+    // 只记名字，不记完整路径：路径里常常带用户名与项目名，日志没有理由抄一份
+    console.info('[nide-host] project opened', projectNameFromPath(this.current.path))
     return { ok: true, project: this.current }
   }
 
@@ -194,10 +192,15 @@ export class HostProjectStore {
     ) {
       this.current = null
     }
+
+    console.info('[nide-host] project removed from the list', projectNameFromPath(dirPath))
   }
 
   /** 关闭当前项目：回到「没有项目」的状态，不动列表与 lastOpened。 */
   close(): void {
+    if (!this.current) return
+
+    console.info('[nide-host] project closed', projectNameFromPath(this.current.path))
     this.current = null
   }
 }

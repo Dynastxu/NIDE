@@ -105,6 +105,7 @@ export const zhCN = {
   'host.welcome.projects.dialog.button': '选择此文件夹',
   'host.welcome.projects.error.missing': '目录不存在：{path}',
   'host.welcome.projects.error.not-a-directory': '这不是一个文件夹：{path}',
+  'host.welcome.projects.error.unreadable': '宿主进程没有响应，读不到这个项目：{path}',
 
   // ---- 设置 ----
   'host.settings.button': '设置',

@@ -67,6 +67,7 @@
   "host.welcome.projects.dialog.button": "Select this folder",
   "host.welcome.projects.error.missing": "The folder does not exist: {path}",
   "host.welcome.projects.error.not-a-directory": "This is not a folder: {path}",
+  "host.welcome.projects.error.unreadable": "The host process is not responding, so this project cannot be read: {path}",
 
   "host.settings.button": "Settings",
   "host.settings.menu.global": "Global Settings",

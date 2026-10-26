@@ -217,16 +217,33 @@ rpc.register('host', {
 })
 
 /**
- * 第一个业务 namespace：只读的项目列表。
+ * 「打开过的项目」。
  *
- * 先只读，等和旧 IPC（`hostAPI.projects.list`）的返回逐条对齐后，
- * 再加 open / forget / close。
+ * 这份 `projects.json` 的**唯一**实现：读、写、当前项目都在这里。shell 不再碰这个
+ * 文件，它只负责目录对话框、二次确认与窗口；窗口要的「当前项目」由本 namespace 给。
+ *
+ * - `startup`：启动时该默认打开哪个（它同时把「当前项目」定下来）
+ * - `open` / `forget` / `close`：打开 / 从列表移除 / 结束这次会话
+ * - `setCurrent`：窗口绑定同步（端口建立后 preload 把建窗时的 `--nide-project=` 送上来）
+ *
+ * 只认**列表里已有**的记录这一点只在 `setCurrent` 里：`open` 是唯一会新增记录的方法，
+ * 其余入口都不该凭空造出一个项目。
  */
 rpc.register('project', {
   list: () => projects.list(),
   current: () => projects.getCurrent(),
   startup: () => projects.resolveStartup(),
-  setCurrent: (dirPath) => projects.setCurrent(String(dirPath ?? ''))
+  setCurrent: (dirPath) => projects.setCurrent(String(dirPath ?? '')),
+
+  open: (dirPath) => projects.open(String(dirPath ?? '')),
+  forget: (dirPath) => {
+    projects.forget(String(dirPath ?? ''))
+    return projects.list()
+  },
+  close: () => {
+    projects.close()
+    return null
+  }
 })
 
 /**

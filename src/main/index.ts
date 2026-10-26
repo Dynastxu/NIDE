@@ -23,7 +23,7 @@ import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './w
  */
 const logger = installLogger()
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // 必须和 electron-builder.yml 的 appId 保持一致：Windows 靠 AppUserModelID
   // 归组任务栏图标、关联通知，两边不一致时通知会挂到别的应用名下。
   // Electron 没有在运行时读 appId 的 API，所以只能硬编码，改动时两处一起改。
@@ -67,19 +67,29 @@ app.whenReady().then(() => {
     restart: recreateRootWindow
   })
   /**
-   * 宿主进程。
+   * 宿主进程 —— 从这里开始，启动**串行**了。
    *
-   * 项目文件 / 配置的实现已经全部搬进 host，所以它不再是开关：启动时无条件拉起。
-   * 启动是并行的：host 慢慢起，窗口照常先开；第一次文件请求会等它 ready
-   * （`attachHostPort` / `invokeHost` 都先 await `startHost()`）。
+   * 项目文件 / 配置 / 插件目录的实现全部在 host，所以它不再是开关：启动时无条件
+   * 拉起。而且后面两步都要等它：插件贡献点（视图 / 设置页 / 语言包）由 host 读盘
+   * 下发，开哪个根窗口又取决于 host 读出来的 `projects.json`。
+   *
+   * host 起不来时**不阻塞启动**：`initPluginHost` 会降级成空贡献点、`openStartupWindow`
+   * 会回落成欢迎窗口，日志里有原因。窗口照常出现，只是什么都读不了。
    */
-  void startHost()
-    .then(() => logger.info('host process is ready'))
-    .catch((error) => logger.error('host process failed', { error }))
-  // 2) 插件宿主只扫描 manifest、同步执行；语言包是随 manifest 一起注册进
-  //    languagePackRegistry 的，所以 i18n 必须排在它后面，否则注册表还是空的，
-  //    所有 locale 都会回落成中文
-  initPluginHost()
+  try {
+    await startHost()
+    logger.info('host process is ready')
+  } catch (error) {
+    logger.error('host process failed', { error })
+  }
+
+  /**
+   * 2) 插件贡献点：拉一次，灌进 shell 的注册表。
+   *
+   * 语言包是随贡献点一起下发的，所以 i18n 必须排在它后面，否则词条表还是空的，
+   * 所有 locale 都会回落成中文。
+   */
+  await initPluginHost()
   // 3) 定下语言：窗口标题、原生菜单、以及要传给渲染进程的启动参数都依赖它
   initI18n()
   /**
@@ -93,14 +103,15 @@ app.whenReady().then(() => {
   initAppearance()
   registerAppearanceBroadcast((payload) => pushEventToRenderer(APPEARANCE_CHANNEL, payload))
   // 4) 最后开窗：窗口一打开，渲染进程就能拿到完整的视图列表和词条表。
-  //    开哪个窗口由「打开过的项目」决定：有可用的上次项目就进主窗口，
-  //    否则进欢迎窗口（见 window.ts 的 openStartupWindow）
-  openStartupWindow()
-
-  logger.info('Startup sequence completed')
+  //    开哪个窗口由「打开过的项目」决定 —— 那份记录现在只有 host 在读，
+  //    所以这一步是异步的：host ready 之后才知道该进主窗口还是欢迎窗口
+  //    （见 window.ts 的 openStartupWindow）
+  void openStartupWindow()
+    .then(() => logger.info('Startup sequence completed'))
+    .catch((error) => logger.error('Failed to open the startup window', { error }))
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) openStartupWindow()
+    if (BrowserWindow.getAllWindows().length === 0) void openStartupWindow()
   })
 })
 

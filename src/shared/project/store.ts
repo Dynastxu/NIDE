@@ -1,9 +1,10 @@
 /**
  * 「打开过的项目」的纯数据模型与归一化规则。
  *
- * 单独从 `index.ts` 抽出来，是因为它要同时被两个运行时使用：
- * - Electron 主进程（`src/main/services/project-store.ts`，负责落盘）；
- * - 独立 host 进程（`packages/host/src/services/project-store.ts`）。
+ * 单独从 `index.ts` 抽出来，是因为它要同时被几个运行时使用：
+ * - host 进程（`packages/host/src/services/project-store.ts`，唯一负责落盘的一方）；
+ * - 渲染进程（列表项的显示与「目录还在不在」的措辞）；
+ * - Electron 主进程（只做类型与路径比较，不再碰这个文件）。
  *
  * 因此这个文件**不能** import electron / fs / DOM，也不能用 `@shared/*` 别名 ——
  * host 是纯 Node ESM，没有构建期的路径映射。类型与纯函数之外的东西一律留在

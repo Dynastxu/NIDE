@@ -63,6 +63,14 @@ export type ProjectFailureReason =
   | 'missing'
   /** 路径存在，但不是目录 */
   | 'not-a-directory'
+  /**
+   * 宿主没给出结论（host 不可达 / 超时）。
+   *
+   * 单列一条而不是并到 `missing`：这两件事对用户的含义完全不同 —— 一个是「这个文件夹
+   * 没了，去别处找」，一个是「宿主进程出问题了」。混在一句「目录不存在」里，用户会
+   * 把时间花在错误的方向上。
+   */
+  | 'unreadable'
 
 export type ProjectOpenResult =
   { ok: true; project: ProjectRecord } | { ok: false; reason: ProjectFailureReason; path?: string }
