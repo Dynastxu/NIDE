@@ -11,6 +11,8 @@ import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
  * 和 PluginSlot 用同一条链路：渲染进程在 Chromium 沙箱里没有 fs，也不能 import
  * 任意磁盘路径；它能加载的只有构建期打包进来的模块。设置页因此也只能是内置插件
  * 的（第三方插件目前没有 UI 加载路径）。
+ *
+ * 路径层数与 `PluginSlot` 同一约定：四层 ../../../../ 到仓库根，改了目录要一起改。
  */
 const settingsModules = import.meta.glob(
   '../../../../plugins/builtin/*/src/settings/*.tsx'

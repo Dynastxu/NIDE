@@ -219,7 +219,7 @@ export const zhCN = {
 
   // 条目右键菜单：一项「新建」，展开是两个名词。落点由被右键的条目决定
   // （目录 -> 内部，文件 -> 同级），所以菜单上不必写位置。
-  // 这一块由条目动作层装配，文件树与章节列表共用（见 renderer/src/entry/entry-menu.ts）
+  // 这一块由条目动作层装配，文件树与章节列表共用（见 client-ui-main 的 entry/entry-menu.ts）
   'host.explorer.menu.new': '新建',
   'host.explorer.menu.newFolder': '文件夹',
   'host.explorer.menu.newFile': '文件',

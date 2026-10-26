@@ -13,8 +13,9 @@ import type { PluginViewDescriptor } from '@shared/plugin-api'
  * 这是渲染进程加载插件 UI 的唯一途径：渲染进程在 Chromium 沙箱里没有 fs，
  * 也无法 import 任意磁盘路径；它能加载的只有「它自己的构建系统打包进来的模块」。
  *
- * 路径层数：本文件在 src/renderer/src/plugins/，renderer 的 root 是 src/renderer，
- * 所以要 4 层 ../../../../ 才到项目根。
+ * 路径层数：本文件在 packages/client-kit/src/plugin-views/，四层 ../../../../ 到仓库根。
+ * 换成别的目录时必须一起改 —— `import.meta.glob` 的 key 是**相对本文件**的字符串，
+ * 改错不会报错，只会得到一张空表（视图全部打不开）。
  */
 const viewModules = import.meta.glob('../../../../plugins/builtin/*/src/ui/*.tsx') as Record<
   string,
