@@ -1,4 +1,4 @@
-import { JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { JSX, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import * as monaco from 'monaco-editor'
 import { monacoLoader } from '@renderer/monaco-env'
 import { ChapterForm } from '@renderer/editor/ChapterForm'
@@ -349,9 +349,9 @@ const CHAPTER_BODY_EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOp
  * 盯的是窗口尺寸，它量到的是这一格当时的大小（含被上一条规则撑出来的那一层），而这里
  * 量出来的（`getContentHeight`）才是这一篇真正需要的地方。
  *
- * 视图高度由调用方量好传进来（见 viewportHeightOf）：那样「什么时候重算」就落在受控的
- * 那一次渲染上，而不是在 `ResizeObserver` 的回调里改尺寸 —— 在回调里改被观察元素的尺寸
- * 会让浏览器报一条「ResizeObserver loop」。
+ * 调用方必须**推迟到下一帧**再调它（见 scheduleFitBody）：它改的正是被
+ * `ResizeObserver` 观察的容器高度，在 observer 回调或由它触发的 layout effect 里同步
+ * 改写，浏览器会持续报「ResizeObserver loop completed with undelivered notifications」。
  */
 function fitBodyHeight(
   container: HTMLElement,
@@ -424,6 +424,39 @@ function MonacoHost({
    * 不是 CSS 给的），而它的下限跟着视图高度走。
    */
   const [viewport, setViewport] = useState(0)
+  /** 已经排进下一帧的那次 fit；0 表示没有 */
+  const fitFrameRef = useRef(0)
+
+  /**
+   * 把一次「按内容重算高度」推迟到下一帧，并且同一帧只排一次。
+   *
+   * `fitBodyHeight` 改的是**被 ResizeObserver 观察的容器高度**。在 observer 的回调
+   * 触发的 layout effect 里同步改它，浏览器会把这一轮当成「observer 自己改了被观察
+   * 元素」—— 表现就是控制台持续刷 `ResizeObserver loop completed with undelivered
+   * notifications`。推迟一帧、合并同一帧的多次请求，反馈环就断在这里。
+   */
+  const scheduleFitBody = useCallback((): void => {
+    if (fitFrameRef.current !== 0) return
+
+    fitFrameRef.current = requestAnimationFrame(() => {
+      fitFrameRef.current = 0
+
+      const container = containerRef.current
+      const editor = editorRef.current
+      if (!container || !editor) return
+
+      fitBodyHeight(container, editor, viewportHeightOf(container))
+    })
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (fitFrameRef.current !== 0) {
+        cancelAnimationFrame(fitFrameRef.current)
+        fitFrameRef.current = 0
+      }
+    }
+  }, [])
 
   /**
    * 尺寸变了要重新布局。
@@ -445,12 +478,13 @@ function MonacoHost({
 
     const container = containerRef.current
     if (content === 'chapter-body' && container) {
-      fitBodyHeight(container, editor, viewport)
+      // 不在这一帧里同步改高度：见 scheduleFitBody 的说明
+      scheduleFitBody()
       return
     }
 
     editor.layout()
-  }, [measured, viewport, ready, content])
+  }, [measured, viewport, ready, content, scheduleFitBody])
 
   useEffect(() => {
     const container = containerRef.current
@@ -469,13 +503,22 @@ function MonacoHost({
       const { width, height } = container.getBoundingClientRect()
 
       // 尺寸没变时不重复写 state：否则每次布局都会绕成一轮重渲染
-      setMeasured((current) =>
-        width <= 0 || height <= 0
-          ? null
-          : current && current.width === width && current.height === height
-            ? current
-            : { width, height }
-      )
+      setMeasured((current) => {
+        if (width <= 0 || height <= 0) return null
+        if (!current) return { width, height }
+
+        /**
+         * `chapter-body` 的高度是 `fitBodyHeight` **自己写进去的**。把它当成「尺寸变了」
+         * 再触发一次布局，就正好绕成 observer → state → 改高度 → observer 的环。
+         * 这一格真正需要跟着重排的只有宽度（分隔条、视图模式、窗口变化）。
+         * 1px 容差挡的是亚像素抖动。
+         */
+        if (content === 'chapter-body') {
+          return Math.abs(current.width - width) < 1 ? current : { width, height }
+        }
+
+        return current.width === width && current.height === height ? current : { width, height }
+      })
 
       // 高度按内容长的那一格连视图那一层也要盯：见上面那条 state 的说明
       if (content === 'chapter-body') setViewport(viewportHeightOf(container))
@@ -584,14 +627,12 @@ function MonacoHost({
          * 走到这里，而它们**都不改容器自己的尺寸**：没有它，换到一个短篇时那一格还撑着
          * 上一篇的高度，换到一个长篇时正文会被压在一条内部滚动的小窗口里。
          *
-         * 视图高度在这里现量（不取 state）：这一条活在编辑器的生命周期里，拿到的 state
-         * 是建出来那一刻的那一份，而窗口之后可能已经变过。在这里量也不会绕圈 —— 它改的
-         * 是被观察元素的尺寸，而这条通知来自**内容**变化，不是尺寸变化。
+         * 视图高度在真正重算那一刻现量（见 scheduleFitBody 里的 viewportHeightOf）：
+         * 这条通知来自**内容**变化，而重算会改被观察元素的尺寸 —— 所以只把它排进下一帧，
+         * 且同一帧只排一次，避免 layout 反过来又触发这条通知时在同一帧里绕圈。
          */
         if (content === 'chapter-body') {
-          editor.onDidContentSizeChange(() =>
-            fitBodyHeight(container, editor, viewportHeightOf(container))
-          )
+          editor.onDidContentSizeChange(scheduleFitBody)
         }
 
         /**
@@ -619,7 +660,7 @@ function MonacoHost({
     return () => {
       cancelled = true
     }
-  }, [measured, tab.path, syncing, content])
+  }, [measured, tab.path, syncing, content, scheduleFitBody])
 
   /**
    * 卸载时销毁编辑器。
