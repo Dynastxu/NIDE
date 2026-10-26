@@ -1,5 +1,5 @@
 import { JSX } from 'react'
-import { MenuItemRow, type MenuItem } from '@renderer/ui/MenuItem'
+import { MenuItemRow, type MenuItem } from '@nide/client-kit/ui/MenuItem'
 
 /**
  * 下拉菜单面板：一列菜单行 + 统一的浮层外观（边框、底色、阴影、圆角）。

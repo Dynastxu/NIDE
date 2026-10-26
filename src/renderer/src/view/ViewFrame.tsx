@@ -1,13 +1,13 @@
 import { JSX, useEffect, useRef, useState, type ReactNode } from 'react'
-import { isZoneId, useLayoutStore, type ZoneId } from '@renderer/stores/layout.store'
-import { useT } from '@renderer/stores/i18n.store'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { DropdownMenu } from '@renderer/ui/DropdownMenu'
+import { isZoneId, useLayoutStore, type ZoneId } from '@nide/client-kit/stores/layout.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
+import { DropdownMenu } from '@nide/client-kit/ui/DropdownMenu'
 import { useViewDescriptor } from '@renderer/view/view-descriptor'
 import { ChromeSlot, ViewTabStripView } from '@renderer/view/ViewTabStrip'
 import type { ViewChromeConfig } from '@renderer/view/chrome-context'
 import type { ViewChromeSlots, ViewMoreItem } from '@shared/plugin-api'
-import type { MenuItem } from '@renderer/ui/MenuItem'
+import type { MenuItem } from '@nide/client-kit/ui/MenuItem'
 
 /**
  * 视图外壳：标题栏 + 视图正文。

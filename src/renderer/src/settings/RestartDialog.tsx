@@ -1,11 +1,11 @@
 import { JSX } from 'react'
-import { useT } from '@renderer/stores/i18n.store'
-import { ConfirmDialog } from '@renderer/ui/ConfirmDialog'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { ConfirmDialog } from '@nide/client-kit/ui/ConfirmDialog'
 
 /**
  * 「更改需要重启 IDE，是否现在就重启？」
  *
- * 只是把词条接到通用确认框（`@renderer/ui/ConfirmDialog`）上 —— 浮层、Esc、
+ * 只是把词条接到通用确认框（`@nide/client-kit/ui/ConfirmDialog`）上 —— 浮层、Esc、
  * 焦点这些事在那一层，这里只负责「问什么、按钮叫什么」。
  *
  * 它**不是**破坏性操作：重启丢的是未保存的编辑器内容，而那是切语言等既有一切重启

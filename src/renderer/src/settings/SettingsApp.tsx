@@ -18,9 +18,9 @@ import {
   type HostSettingsPageId,
   type SettingsPageProps
 } from '@renderer/settings/pages'
-import { useT } from '@renderer/stores/i18n.store'
-import { WindowFrame } from '@renderer/window/WindowFrame'
-import { useWindowTitle } from '@renderer/window/useWindowTitle'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { WindowFrame } from '@nide/client-kit/window/WindowFrame'
+import { useWindowTitle } from '@nide/client-kit/window/useWindowTitle'
 
 /**
  * 「全局设置」窗口。

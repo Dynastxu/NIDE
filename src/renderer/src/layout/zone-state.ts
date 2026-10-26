@@ -1,5 +1,5 @@
-import { useLayoutStore, type ZoneId } from '@renderer/stores/layout.store'
-import { usePluginStore } from '@renderer/stores/plugin.store'
+import { useLayoutStore, type ZoneId } from '@nide/client-kit/stores/layout.store'
+import { usePluginStore } from '@nide/client-kit/stores/plugin.store'
 import type { PluginViewDescriptor } from '@shared/plugin-api'
 
 /**

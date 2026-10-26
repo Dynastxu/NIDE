@@ -6,6 +6,7 @@
 
 /* 插件 UI 在项目根的 plugins/ 下（renderer root 之外），显式声明扫描范围 */
 @source '../../../../src';
+@source '../../../../packages';
 @source '../../../../plugins';
 
 html,

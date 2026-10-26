@@ -1,7 +1,7 @@
 import { JSX, useEffect } from 'react'
 import { MainApp } from '@renderer/MainApp'
 import { reloadClientBundles } from '@nide/client-runtime'
-import { usePluginStore } from '@renderer/stores/plugin.store'
+import { usePluginStore } from '@nide/client-kit/stores/plugin.store'
 
 /**
  * 主窗口的启动编排层。

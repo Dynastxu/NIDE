@@ -1,12 +1,12 @@
 import { JSX } from 'react'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import type { MenuItem } from '@renderer/ui/menu-items'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
+import type { MenuItem } from '@nide/client-kit/ui/menu-items'
 
 /**
  * 菜单里的一行的**渲染** —— 下拉菜单（`DropdownMenu`）与右键菜单（`ContextMenu`）
  * 共用同一份样式。
  *
- * 内容（有哪些字段、各自什么意思）定义在 `@renderer/ui/menu-items`：类型单独放一层，
+ * 内容（有哪些字段、各自什么意思）定义在 `@nide/client-kit/ui/menu-items`：类型单独放一层，
  * 只想要类型的模块才不会顺着组件链把整个界面图拉进来。
  *
  * **左侧固定一个图标位**：没给图标时留一个等宽空位，而不是让文字顶到最左边 ——

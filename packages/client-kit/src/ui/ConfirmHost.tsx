@@ -1,5 +1,5 @@
 import { JSX, useCallback, useEffect, useState, type ReactNode } from 'react'
-import { ConfirmDialog } from '@renderer/ui/ConfirmDialog'
+import { ConfirmDialog } from '@nide/client-kit/ui/ConfirmDialog'
 import type { ConfirmRequest } from '@shared/confirm'
 
 /**

@@ -1,5 +1,5 @@
 import { JSX } from 'react'
-import type { ZoneId } from '@renderer/stores/layout.store'
+import type { ZoneId } from '@nide/client-kit/stores/layout.store'
 
 /**
  * 按钮图标：一张「工作台示意图」，外框是整窗，实心块是这块按钮负责的区域。

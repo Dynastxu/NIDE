@@ -15,7 +15,7 @@ import {
   type ProjectConfig,
   type RenameEntryResult
 } from '@shared/project'
-import { loggerFor } from '@renderer/logger'
+import { loggerFor } from '@nide/client-kit/logger'
 import { useEditorStore } from './editor.store'
 import { useGalleryStore } from './gallery.store'
 import { useOverviewStore } from './overview.store'

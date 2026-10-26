@@ -1,6 +1,6 @@
 import { JSX, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useT } from '@renderer/stores/i18n.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
 import {
   extensionOf,
   validateEntryName,

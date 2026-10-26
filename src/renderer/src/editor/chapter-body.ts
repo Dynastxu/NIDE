@@ -1,6 +1,6 @@
 import { writeChapterBody } from '@shared/project'
 import { modelFor, writeModelSilently } from '@renderer/editor/model-registry'
-import { useEditorStore } from '@renderer/stores/editor.store'
+import { useEditorStore } from '@nide/client-kit/stores/editor.store'
 
 /**
  * 把**正文**的改动写回正在编辑的那一篇。

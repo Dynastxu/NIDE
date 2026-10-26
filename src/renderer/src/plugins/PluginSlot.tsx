@@ -1,8 +1,8 @@
 import { createElement, useEffect, useMemo, useState, type ComponentType, type JSX } from 'react'
 import { getClientRuntime } from '@nide/client-runtime'
-import { loggerFor } from '@renderer/logger'
-import { usePluginStore } from '../stores/plugin.store'
-import { useI18nStore, useT } from '../stores/i18n.store'
+import { loggerFor } from '@nide/client-kit/logger'
+import { usePluginStore } from '@nide/client-kit/stores/plugin.store'
+import { useI18nStore, useT } from '@nide/client-kit/stores/i18n.store'
 import { PluginHostProvider } from './PluginHostProvider'
 import type { PluginViewDescriptor } from '@shared/plugin-api'
 

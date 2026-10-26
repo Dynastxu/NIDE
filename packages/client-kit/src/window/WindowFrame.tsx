@@ -1,5 +1,5 @@
 import { JSX, ReactNode } from 'react'
-import { WindowControls } from '@renderer/window/WindowControls'
+import { WindowControls } from '@nide/client-kit/window/WindowControls'
 import iconUrl from '../../../../resources/icon.png?url'
 
 /**

@@ -1,8 +1,8 @@
-import { getT } from '@renderer/stores/i18n.store'
-import { useEditorStore } from '@renderer/stores/editor.store'
-import { useExplorerStore } from '@renderer/stores/explorer.store'
-import { characterGalleryOf, useGalleryStore } from '@renderer/stores/gallery.store'
-import { loggerFor } from '@renderer/logger'
+import { getT } from '@nide/client-kit/stores/i18n.store'
+import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
+import { characterGalleryOf, useGalleryStore } from '@nide/client-kit/stores/gallery.store'
+import { loggerFor } from '@nide/client-kit/logger'
 import {
   composeGalleryEntry,
   galleryEntryFileName,

@@ -1,12 +1,12 @@
 import { JSX, useCallback, useState } from 'react'
 import { PluginsBrowser } from '@renderer/plugins/PluginsBrowser'
 import { RestartDialog } from '@renderer/settings/RestartDialog'
-import { useT } from '@renderer/stores/i18n.store'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { ProjectsPanel } from '@renderer/welcome/ProjectsPanel'
 import { SettingsButton } from '@renderer/welcome/SettingsButton'
-import { WindowFrame } from '@renderer/window/WindowFrame'
-import { useWindowTitle } from '@renderer/window/useWindowTitle'
+import { WindowFrame } from '@nide/client-kit/window/WindowFrame'
+import { useWindowTitle } from '@nide/client-kit/window/useWindowTitle'
 import type { HostMessageKey } from '@shared/i18n'
 
 /**

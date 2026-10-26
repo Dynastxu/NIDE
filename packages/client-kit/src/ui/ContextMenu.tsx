@@ -1,6 +1,6 @@
 import { JSX, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { MenuItemRow, SubmenuRow } from '@renderer/ui/MenuItem'
-import type { ContextMenuEntry, ContextSubmenuItem } from '@renderer/ui/menu-items'
+import { MenuItemRow, SubmenuRow } from '@nide/client-kit/ui/MenuItem'
+import type { ContextMenuEntry, ContextSubmenuItem } from '@nide/client-kit/ui/menu-items'
 
 /**
  * 通用右键菜单。
@@ -9,17 +9,21 @@ import type { ContextMenuEntry, ContextSubmenuItem } from '@renderer/ui/menu-ite
  * 边缘翻转这一套逻辑和「菜单里有什么」完全无关 —— 目前的使用方是文件树、章节列表、
  * 欢迎窗口的项目列表与插件列表。
  *
- * **菜单行与下拉菜单共用同一个组件**（`@renderer/ui/MenuItem`），所以图标位、置灰、
+ * **菜单行与下拉菜单共用同一个组件**（`@nide/client-kit/ui/MenuItem`），所以图标位、置灰、
  * danger 配色、内边距这些只有一份定义。
  *
  * 定位用**测量后翻转**而不是猜一个高度：菜单项数量是可变的，猜错就会顶出窗口
  * （正是之前设置窗口跑到屏幕外那类问题的同一个根源 —— 拿一个假定的尺寸去算位置）。
  * 先渲染在请求的位置、量到真实尺寸、超出边界再翻到反方向。
  *
- * 菜单项的**内容**（有哪些字段）定义在 `@renderer/ui/menu-items`，这里只 re-export
+ * 菜单项的**内容**（有哪些字段）定义在 `@nide/client-kit/ui/menu-items`，这里只 re-export
  * 给使用方，好让 `ContextMenu` 的调用点不必再多认一个模块。
  */
-export type { ContextMenuEntry, ContextMenuItem, ContextSubmenuItem } from '@renderer/ui/menu-items'
+export type {
+  ContextMenuEntry,
+  ContextMenuItem,
+  ContextSubmenuItem
+} from '@nide/client-kit/ui/menu-items'
 
 function isSubmenu(entry: ContextMenuEntry): entry is ContextSubmenuItem {
   return 'items' in entry

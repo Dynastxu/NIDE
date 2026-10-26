@@ -1,8 +1,8 @@
 import { JSX, type ReactNode } from 'react'
 import { ZoneIcon } from '@renderer/layout/ZoneIcon'
-import { builtinIconNames, getBuiltinIcon } from '@renderer/layout/icons'
-import { loggerFor } from '@renderer/logger'
-import { isZoneId } from '@renderer/stores/layout.store'
+import { builtinIconNames, getBuiltinIcon } from '@nide/client-kit/icons'
+import { loggerFor } from '@nide/client-kit/logger'
+import { isZoneId } from '@nide/client-kit/stores/layout.store'
 import type { PluginViewDescriptor } from '@shared/plugin-api'
 
 const logger = loggerFor('layout')

@@ -103,10 +103,10 @@ function installWindow(projectPath: string | null): Host {
  * 读取也重来一遍。
  */
 async function loadStore(): Promise<
-  (typeof import('@renderer/stores/explorer.store'))['useExplorerStore']
+  (typeof import('@nide/client-kit/stores/explorer.store'))['useExplorerStore']
 > {
   vi.resetModules()
-  const module = await import('@renderer/stores/explorer.store')
+  const module = await import('@nide/client-kit/stores/explorer.store')
   return module.useExplorerStore
 }
 

@@ -15,6 +15,7 @@
     "src/shared/**/*",
     "packages/client-runtime/src/**/*",
     "packages/client-modules/src/**/*",
+    "packages/client-kit/src/**/*",
     "packages/client-ui-slots/src/**/*",
     "packages/client-ui-main/src/**/*",
     "packages/client-ui-layout/src/**/*",
@@ -33,6 +34,7 @@
       "@renderer/*": [
         "src/renderer/src/*"
       ],
+      "@nide/client-kit/*": ["packages/client-kit/src/*"],
       "@shared/*": ["src/shared/*"],
       "@nide/client-runtime": ["packages/client-runtime/src/index.ts"],
       "@nide/client-modules": ["packages/client-modules/src/index.ts"],

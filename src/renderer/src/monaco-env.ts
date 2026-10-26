@@ -2,7 +2,7 @@ import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
 import loader from '@monaco-editor/loader'
 import * as monaco from 'monaco-editor'
 import { toMonacoLocale } from '@shared/i18n'
-import { loggerFor } from './logger'
+import { loggerFor } from '@nide/client-kit/logger'
 
 const logger = loggerFor('i18n')
 

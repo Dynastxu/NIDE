@@ -1,12 +1,12 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import { saveActiveTab } from '@renderer/editor/editor-save'
-import { useT } from '@renderer/stores/i18n.store'
-import { useEditorStore } from '@renderer/stores/editor.store'
-import { useLayoutStore } from '@renderer/stores/layout.store'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { DropdownMenu } from '@renderer/ui/DropdownMenu'
-import type { MenuItem } from '@renderer/ui/MenuItem'
-import { ProjectSelector } from '@renderer/window/ProjectSelector'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { useLayoutStore } from '@nide/client-kit/stores/layout.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
+import { DropdownMenu } from '@nide/client-kit/ui/DropdownMenu'
+import type { MenuItem } from '@nide/client-kit/ui/MenuItem'
+import { ProjectSelector } from '@nide/client-kit/window/ProjectSelector'
 import type { HostMessageKey } from '@shared/i18n'
 import { HOST_COMMIT_VIEW_ID } from '@shared/plugin-api'
 
@@ -30,7 +30,7 @@ import { HOST_COMMIT_VIEW_ID } from '@shared/plugin-api'
  *   之后同样收回。
  * - **鼠标移上去自动展开**子菜单（同时保留点击，键盘 / 触控板用户点得到）；展开
  *   「文件」时把鼠标移到「编辑」上，前者跟着收起来。
- * - 子菜单是 `@renderer/ui/DropdownMenu`：和标题栏右侧的设置下拉、列表的右键菜单
+ * - 子菜单是 `@nide/client-kit/ui/DropdownMenu`：和标题栏右侧的设置下拉、列表的右键菜单
  *   共用同一套菜单行（左侧图标位，允许为空）。
  *
  * ## 为什么不用 Electron 的原生菜单
@@ -47,7 +47,7 @@ import { HOST_COMMIT_VIEW_ID } from '@shared/plugin-api'
  * 插件、以后加进来的快捷键问的必须是同一句话。这里只负责把动作发出去，
  * 并且把菜单栏收起来。
  *
- * 浮层本身仍然是 `@renderer/ui/ConfirmDialog`（portal 到 body，因此不会被这条
+ * 浮层本身仍然是 `@nide/client-kit/ui/ConfirmDialog`（portal 到 body，因此不会被这条
  * 32px 高的标题栏裁掉），只是现在由 `ui/ConfirmHost` 按主进程的请求摆出来。
  */
 

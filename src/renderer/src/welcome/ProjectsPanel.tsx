@@ -1,8 +1,8 @@
 import { JSX, useEffect, useState } from 'react'
-import { loggerFor } from '@renderer/logger'
-import { useT } from '@renderer/stores/i18n.store'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { ContextMenu, type ContextMenuItem } from '@renderer/ui/ContextMenu'
+import { loggerFor } from '@nide/client-kit/logger'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
+import { ContextMenu, type ContextMenuItem } from '@nide/client-kit/ui/ContextMenu'
 import type { HostMessageKey, Translator } from '@shared/i18n'
 import {
   projectNameFromPath,
@@ -155,7 +155,7 @@ export function ProjectsPanel(): JSX.Element {
  * 列表项右键菜单的项：打开 / 从列表移除。
  *
  * 「打开」给图标，「从列表移除」不给 —— 菜单行左侧的图标位是**等宽**的（见
- * `@renderer/ui/MenuItem`），所以空着的那一行文字左边缘仍然对齐。
+ * `@nide/client-kit/ui/MenuItem`），所以空着的那一行文字左边缘仍然对齐。
  */
 function buildContextMenu(
   t: Translator,

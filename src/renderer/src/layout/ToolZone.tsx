@@ -4,7 +4,7 @@ import { PluginSlot } from '@renderer/plugins/PluginSlot'
 import { useActiveView } from '@renderer/layout/zone-state'
 import { ViewDescriptorContext } from '@renderer/view/view-descriptor'
 import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
-import type { ZoneId } from '@renderer/stores/layout.store'
+import type { ZoneId } from '@nide/client-kit/stores/layout.store'
 
 /**
  * 单个工具区：一个视图，外壳与正文都由视图自己给。

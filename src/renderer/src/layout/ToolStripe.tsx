@@ -1,9 +1,9 @@
 import { Fragment, JSX, type MouseEvent } from 'react'
 import { ViewIcon } from '@renderer/layout/ViewIcon'
-import { loggerFor } from '@renderer/logger'
-import { useLayoutStore, type ZoneId } from '@renderer/stores/layout.store'
-import { usePluginStore } from '@renderer/stores/plugin.store'
-import { useT } from '@renderer/stores/i18n.store'
+import { loggerFor } from '@nide/client-kit/logger'
+import { useLayoutStore, type ZoneId } from '@nide/client-kit/stores/layout.store'
+import { usePluginStore } from '@nide/client-kit/stores/plugin.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
 import type { PluginViewDescriptor } from '@shared/plugin-api'
 
 const logger = loggerFor('layout')

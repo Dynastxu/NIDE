@@ -1,9 +1,9 @@
 import { JSX, useEffect, useRef, useState } from 'react'
-import { loggerFor } from '@renderer/logger'
-import { useT } from '@renderer/stores/i18n.store'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { DropdownMenu } from '@renderer/ui/DropdownMenu'
-import type { MenuItem } from '@renderer/ui/MenuItem'
+import { loggerFor } from '@nide/client-kit/logger'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
+import { DropdownMenu } from '@nide/client-kit/ui/DropdownMenu'
+import type { MenuItem } from '@nide/client-kit/ui/MenuItem'
 
 const logger = loggerFor('window')
 
@@ -14,7 +14,7 @@ const logger = loggerFor('window')
  * 左侧（三点按钮的语义已经被系统固定了，往那一侧插一颗会让人误以为「设置」也是个
  * 窗口操作）；而「设置」属于当前窗口，放在右侧、贴着窗口按钮更合适。
  *
- * 下拉栏**不是**原生菜单，而是渲染进程自己画的浮层（`@renderer/ui/DropdownMenu`，
+ * 下拉栏**不是**原生菜单，而是渲染进程自己画的浮层（`@nide/client-kit/ui/DropdownMenu`，
  * 与菜单栏的子菜单、右键菜单共用同一套行）。原生菜单在这里有三个问题：三个平台的
  * 样式完全不同、窗口一失焦就消失（和「点开一个独立设置窗口」这个用途天然冲突）、
  * 而且它在标题栏上的位置由系统决定。代价是「点外面关闭」「Esc 关闭」得自己实现 ——

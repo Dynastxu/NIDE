@@ -1,8 +1,8 @@
 import { JSX, useEffect, useState } from 'react'
-import { useT } from '@renderer/stores/i18n.store'
-import { useExplorerStore } from '@renderer/stores/explorer.store'
-import { useGalleryStore } from '@renderer/stores/gallery.store'
-import { useOverviewStore } from '@renderer/stores/overview.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
+import { useGalleryStore } from '@nide/client-kit/stores/gallery.store'
+import { useOverviewStore } from '@nide/client-kit/stores/overview.store'
 import { openChapterFile } from '@renderer/explorer/chapter-actions'
 import { openForeshadowingFile } from '@renderer/explorer/foreshadowing-actions'
 import {
@@ -22,8 +22,8 @@ import {
   openCreateOverviewDocumentPrompt
 } from '@renderer/stores/entry-action.store'
 import { EntryMenu } from '@renderer/entry/EntryMenu'
-import { Disclosure } from '@renderer/ui/Disclosure'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
+import { Disclosure } from '@nide/client-kit/ui/Disclosure'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import type {
   ChapterFile,
   DirReadFailureReason,

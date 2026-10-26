@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { DEFAULT_APPEARANCE } from '@shared/appearance'
 import { DEFAULT_THEME } from '@shared/theme'
-import { applyPalette as applyPaletteToDom } from '@renderer/appearance/palette'
+import { applyPalette as applyPaletteToDom } from '../appearance/palette'
 import { loggerFor } from '../logger'
 import type { AppearancePreference } from '@shared/appearance'
 import type { ThemeDescriptor, ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
@@ -121,7 +121,7 @@ export function applyPalette(palette: ThemePalette): void {
  * 3. 接上主进程的广播（用户换了、别的窗口换了都走它）；
  * 4. 拉一次可选主题列表 —— 广播只讲"现在用哪套"，列表是另一件事。
  *
- * 真正"挂类名 + 通知订阅者"那一步在 `@renderer/appearance/palette`，因为 Monaco
+ * 真正"挂类名 + 通知订阅者"那一步在 `../appearance/palette`，因为 Monaco
  * 也要消费这个值，而它不该被拖进设置窗口（见那个文件的说明）。
  */
 export function initAppearance(): void {

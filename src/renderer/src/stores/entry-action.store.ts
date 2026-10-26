@@ -1,11 +1,11 @@
 import { create } from 'zustand'
-import { getT } from './i18n.store'
+import { getT } from '@nide/client-kit/stores/i18n.store'
 import {
   createProjectEntry,
   deleteProjectEntry,
   renameProjectEntry,
   useExplorerStore
-} from './explorer.store'
+} from '@nide/client-kit/stores/explorer.store'
 import { createGalleryAction, createGalleryEntryAction } from '@renderer/explorer/gallery-actions'
 import { createOverviewDocumentAction } from '@renderer/explorer/overview-actions'
 import { createScopeOf, type CreateScope, type EntryActionTarget } from '@renderer/entry/entry-menu'

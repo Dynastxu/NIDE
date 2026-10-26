@@ -18,11 +18,11 @@ import {
   writeModelSilently
 } from '@renderer/editor/model-registry'
 import { saveActiveTab } from '@renderer/editor/editor-save'
-import { loggerFor } from '@renderer/logger'
-import { useEditorStore, type EditorTab } from '@renderer/stores/editor.store'
+import { loggerFor } from '@nide/client-kit/logger'
+import { useEditorStore, type EditorTab } from '@nide/client-kit/stores/editor.store'
 import { chapterBodyOf, splitFrontmatter } from '@shared/project'
 import type { DocumentView } from '@renderer/editor/document-mode'
-import type { DocumentViewMode } from '@renderer/stores/document-view.store'
+import type { DocumentViewMode } from '@nide/client-kit/stores/document-view.store'
 
 const logger = loggerFor('editor')
 

@@ -1,6 +1,6 @@
 import * as monaco from 'monaco-editor'
-import { getPalette, onPaletteChange } from '@renderer/appearance/palette'
-import { loggerFor } from '@renderer/logger'
+import { getPalette, onPaletteChange } from '@nide/client-kit/appearance/palette'
+import { loggerFor } from '@nide/client-kit/logger'
 import type { ThemePalette } from '@shared/theme'
 
 const logger = loggerFor('editor')

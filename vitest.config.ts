@@ -17,7 +17,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@shared': resolve('src/shared'),
-      '@renderer': resolve('src/renderer/src')
+      '@renderer': resolve('src/renderer/src'),
+      '@nide/client-kit': resolve('packages/client-kit/src')
     }
   },
   test: {

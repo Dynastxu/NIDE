@@ -1,7 +1,7 @@
 import { JSX } from 'react'
-import { ContextMenu, type ContextMenuEntry } from '@renderer/ui/ContextMenu'
-import { useT } from '@renderer/stores/i18n.store'
-import { useExplorerStore } from '@renderer/stores/explorer.store'
+import { ContextMenu, type ContextMenuEntry } from '@nide/client-kit/ui/ContextMenu'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
 import {
   openCreatePrompt,
   openRenamePrompt,

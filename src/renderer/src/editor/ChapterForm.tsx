@@ -1,10 +1,10 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import { formatChapterNumber, type ChapterMetadata } from '@shared/project'
 import { FormField, FormTextArea } from '@renderer/editor/form-controls'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { useExplorerStore } from '@renderer/stores/explorer.store'
-import { characterGalleryOf, useGalleryStore } from '@renderer/stores/gallery.store'
-import { useT } from '@renderer/stores/i18n.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
+import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
+import { characterGalleryOf, useGalleryStore } from '@nide/client-kit/stores/gallery.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
 
 /**
  * 章节表单：把 frontmatter 里的那几项元数据摆成一组字段。

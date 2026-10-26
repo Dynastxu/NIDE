@@ -1,7 +1,7 @@
 import { JSX } from 'react'
-import { loggerFor } from '@renderer/logger'
-import { useT } from '@renderer/stores/i18n.store'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
+import { loggerFor } from '@nide/client-kit/logger'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 
 const logger = loggerFor('welcome')
 

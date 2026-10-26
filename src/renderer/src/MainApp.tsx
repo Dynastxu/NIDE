@@ -1,9 +1,9 @@
 import { JSX } from 'react'
 import { WorkbenchLayout } from '@renderer/layout/WorkbenchLayout'
 import { MainMenu } from '@renderer/window/MainMenu'
-import { SettingsMenu } from '@renderer/window/SettingsMenu'
-import { WindowFrame } from '@renderer/window/WindowFrame'
-import { useWindowTitle } from '@renderer/window/useWindowTitle'
+import { SettingsMenu } from '@nide/client-kit/window/SettingsMenu'
+import { WindowFrame } from '@nide/client-kit/window/WindowFrame'
+import { useWindowTitle } from '@nide/client-kit/window/useWindowTitle'
 import { EntryActionHost } from '@renderer/entry/EntryActionHost'
 
 /**

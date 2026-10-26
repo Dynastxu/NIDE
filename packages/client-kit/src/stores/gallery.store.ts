@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { isInsideProject } from '@shared/project'
-import { loggerFor } from '@renderer/logger'
+import { loggerFor } from '@nide/client-kit/logger'
 import type { DirReadFailureReason, GalleryFolder, GalleryRegistry } from '@shared/project'
 
 const logger = loggerFor('gallery')

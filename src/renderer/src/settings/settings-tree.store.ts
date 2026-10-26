@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { getT } from '@renderer/stores/i18n.store'
-import { loggerFor } from '@renderer/logger'
+import { getT } from '@nide/client-kit/stores/i18n.store'
+import { loggerFor } from '@nide/client-kit/logger'
 import { buildSettingsTree, type SettingsNode } from '@renderer/settings/pages'
 
 const logger = loggerFor('settings')

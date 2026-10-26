@@ -2,10 +2,10 @@ import { JSX, useEffect } from 'react'
 import { galleryEntryFields } from '@shared/project'
 import { FormField, FormTextArea } from '@renderer/editor/form-controls'
 import { applyGalleryEntryValues, syncGalleryForm } from '@renderer/editor/gallery-metadata'
-import { useExplorerStore } from '@renderer/stores/explorer.store'
-import { galleryOfPath, useGalleryStore } from '@renderer/stores/gallery.store'
-import { useT } from '@renderer/stores/i18n.store'
-import type { EditorTab } from '@renderer/stores/editor.store'
+import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
+import { galleryOfPath, useGalleryStore } from '@nide/client-kit/stores/gallery.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import type { EditorTab } from '@nide/client-kit/stores/editor.store'
 
 /**
  * 图鉴条目的表单：把一个图鉴的字段摆成一组输入框。

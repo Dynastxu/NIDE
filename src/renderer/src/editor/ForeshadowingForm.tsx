@@ -4,8 +4,8 @@ import {
   syncForeshadowingForm
 } from '@renderer/editor/foreshadowing-metadata'
 import { FormField, FormTextArea } from '@renderer/editor/form-controls'
-import { useT } from '@renderer/stores/i18n.store'
-import type { EditorTab } from '@renderer/stores/editor.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import type { EditorTab } from '@nide/client-kit/stores/editor.store'
 
 /**
  * 伏笔表单：四个**固定**字段。

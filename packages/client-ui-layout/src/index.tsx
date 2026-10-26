@@ -2,7 +2,7 @@ import { createElement, type JSX } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import { slotsOf } from '@nide/client-ui-slots'
 import { ToolZone } from '@renderer/layout/ToolZone'
-import type { ZoneId } from '@renderer/stores/layout.store'
+import type { ZoneId } from '@nide/client-kit/stores/layout.store'
 
 /**
  * 六个工具区的 slot 插件（MVP）。

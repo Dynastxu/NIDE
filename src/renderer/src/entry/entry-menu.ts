@@ -1,6 +1,6 @@
 import { filePathKey, type CreateEntryKind } from '@shared/project'
 import type { Translator } from '@shared/i18n'
-import type { ContextMenuEntry } from '@renderer/ui/menu-items'
+import type { ContextMenuEntry } from '@nide/client-kit/ui/menu-items'
 
 /**
  * 条目动作集的**词汇**与共用菜单项的装配。

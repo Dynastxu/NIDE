@@ -6,7 +6,7 @@ import { Resizer } from '@renderer/layout/Resizer'
 import { ToolStripe } from '@renderer/layout/ToolStripe'
 import { ToolZone } from '@renderer/layout/ToolZone'
 import { useZoneActive } from '@renderer/layout/zone-state'
-import { useLayoutStore, type SizeKey, type ZoneId } from '@renderer/stores/layout.store'
+import { useLayoutStore, type SizeKey, type ZoneId } from '@nide/client-kit/stores/layout.store'
 
 /**
  * 工作台骨架（IDEA 式七分区）。

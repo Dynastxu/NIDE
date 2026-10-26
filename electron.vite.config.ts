@@ -21,6 +21,8 @@ export default defineConfig({
       alias: {
         '@shared': shared,
         '@renderer': resolve('src/renderer/src'),
+        // 客户端共享层：用前缀别名，`@nide/client-kit/stores/i18n.store` 直接落到 src 下
+        '@nide/client-kit': resolve('packages/client-kit/src'),
         '@nide/client-runtime': resolve('packages/client-runtime/src/index.ts'),
         '@nide/client-modules': resolve('packages/client-modules/src/index.ts'),
         '@nide/client-ui-slots': resolve('packages/client-ui-slots/src/index.ts'),

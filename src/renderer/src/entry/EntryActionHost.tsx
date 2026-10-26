@@ -1,7 +1,7 @@
 import { JSX } from 'react'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { useT } from '@renderer/stores/i18n.store'
-import { useExplorerStore } from '@renderer/stores/explorer.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
 import {
   closePrompt,
   submitPromptName,

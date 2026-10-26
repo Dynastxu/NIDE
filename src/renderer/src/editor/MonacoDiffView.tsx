@@ -1,8 +1,8 @@
 import { JSX, useEffect, useRef } from 'react'
 import * as monaco from 'monaco-editor'
 import { monacoLoader } from '@renderer/monaco-env'
-import { useEditorStore } from '../stores/editor.store'
-import { useT } from '../stores/i18n.store'
+import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
 
 export function MonacoDiffView(): JSX.Element | null {
   const containerRef = useRef<HTMLDivElement>(null)

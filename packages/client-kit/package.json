@@ -1,0 +1,7 @@
+{
+  "name": "@nide/client-kit",
+  "private": true,
+  "type": "module",
+  "//": "客户端 UI 的共享层：三个窗口的插件都从这里取 store / 基础组件 / 窗口外壳。",
+  "//2": "没有构建产物：Vite 通过 `@nide/client-kit/*` 别名直接解析 src（见 electron.vite.config.ts）。"
+}

@@ -1,5 +1,5 @@
 import { JSX } from 'react'
-import { useT } from '@renderer/stores/i18n.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
 import type { SettingsNode } from '@renderer/settings/pages'
 
 /**

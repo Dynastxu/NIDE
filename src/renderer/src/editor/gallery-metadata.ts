@@ -1,6 +1,6 @@
 import { formatGalleryEntry, serializeGalleryConfig } from '@shared/project'
 import { ensureModel, modelFor, writeModelSilently } from '@renderer/editor/model-registry'
-import { useEditorStore } from '@renderer/stores/editor.store'
+import { useEditorStore } from '@nide/client-kit/stores/editor.store'
 
 /**
  * 图鉴表单与文件之间的那一步：把表单里的改动写回正在编辑的那份 yml。

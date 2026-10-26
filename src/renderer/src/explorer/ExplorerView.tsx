@@ -1,5 +1,5 @@
 import { JSX, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useT } from '@renderer/stores/i18n.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
 import { useViewChrome } from '@renderer/view/chrome-context'
 import { ViewFrame } from '@renderer/view/ViewFrame'
 import { ProjectsPanel } from '@renderer/explorer/ProjectsPanel'
@@ -8,9 +8,9 @@ import {
   createForeshadowing,
   suggestNextForeshadowing
 } from '@renderer/explorer/foreshadowing-actions'
-import { openProjectFile, useExplorerStore } from '@renderer/stores/explorer.store'
-import { useEditorStore } from '@renderer/stores/editor.store'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
+import { openProjectFile, useExplorerStore } from '@nide/client-kit/stores/explorer.store'
+import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { EntryMenu } from '@renderer/entry/EntryMenu'
 import { NamePromptDialog } from '@renderer/entry/NamePromptDialog'
 import {

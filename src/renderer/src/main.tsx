@@ -1,11 +1,11 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { initMonacoNls } from './monaco-env'
-import { installRendererLogger, loggerFor } from './logger'
+import { installRendererLogger, loggerFor } from '@nide/client-kit/logger'
 import './assets/index.css'
 import type { JSX } from 'react'
 import { systemWindowTitle, type WindowType } from '@shared/window'
-import { ConfirmHost } from './ui/ConfirmHost'
+import { ConfirmHost } from '@nide/client-kit/ui/ConfirmHost'
 import type { ProjectListItem } from '@shared/project'
 import type { ClientRuntime } from '@nide/client-runtime'
 
@@ -54,7 +54,7 @@ const ROOTS: Record<WindowType, () => Promise<{ default: () => JSX.Element }>> =
 async function boot(): Promise<void> {
   await initMonacoNls()
 
-  const { useI18nStore, getT } = await import('./stores/i18n.store')
+  const { useI18nStore, getT } = await import('@nide/client-kit/stores/i18n.store')
   await useI18nStore.getState().load()
 
   const { locale } = useI18nStore.getState()
@@ -81,7 +81,7 @@ async function boot(): Promise<void> {
    *
    * 界面拉进来之前完成，保证首帧颜色就是对的。
    */
-  const { initAppearance } = await import('./stores/appearance.store')
+  const { initAppearance } = await import('@nide/client-kit/stores/appearance.store')
   initAppearance()
 
   /**

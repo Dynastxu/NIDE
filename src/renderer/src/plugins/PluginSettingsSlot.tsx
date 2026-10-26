@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ComponentType, type JSX } from 'react'
 import { PluginHostProvider } from './PluginHostProvider'
-import { useI18nStore, useT } from '../stores/i18n.store'
+import { useI18nStore, useT } from '@nide/client-kit/stores/i18n.store'
 import type { PluginSettingsDescriptor } from '@shared/plugin-api'
 import type { SettingsPageProps } from '@renderer/settings/pages'
 

@@ -1,6 +1,11 @@
 import { JSX, useEffect, useState } from 'react'
-import { CloseIcon, MaximizeIcon, MinimizeIcon, RestoreIcon } from '@renderer/window/chrome-icons'
-import { useT } from '@renderer/stores/i18n.store'
+import {
+  CloseIcon,
+  MaximizeIcon,
+  MinimizeIcon,
+  RestoreIcon
+} from '@nide/client-kit/window/chrome-icons'
+import { useT } from '@nide/client-kit/stores/i18n.store'
 import type { WindowState } from '@shared/window'
 
 /**

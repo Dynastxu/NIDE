@@ -1,6 +1,6 @@
 import { JSX, useMemo } from 'react'
 import { renderMarkdown } from '@renderer/editor/markdown'
-import { useT } from '@renderer/stores/i18n.store'
+import { useT } from '@nide/client-kit/stores/i18n.store'
 import { chapterBodyOf } from '@shared/project'
 
 /**

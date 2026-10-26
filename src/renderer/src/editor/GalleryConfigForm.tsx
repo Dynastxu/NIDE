@@ -5,9 +5,9 @@ import {
   type InvalidGalleryFieldReason
 } from '@shared/project'
 import { applyGalleryConfig, syncGalleryForm } from '@renderer/editor/gallery-metadata'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
-import { useT } from '@renderer/stores/i18n.store'
-import type { EditorTab } from '@renderer/stores/editor.store'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
+import { useT } from '@nide/client-kit/stores/i18n.store'
+import type { EditorTab } from '@nide/client-kit/stores/editor.store'
 import type { HostMessageKey } from '@shared/i18n'
 
 /**

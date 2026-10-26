@@ -13,7 +13,7 @@ import type {
   GalleryConfig,
   GalleryEntryDocument
 } from '@shared/project'
-import type { DocumentViewMode } from '@renderer/stores/document-view.store'
+import type { DocumentViewMode } from '@nide/client-kit/stores/document-view.store'
 
 /**
  * 「这一篇在编辑器里能怎么看」的判据。

@@ -1,6 +1,6 @@
 import { JSX } from 'react'
-import { getBuiltinIcon } from '@renderer/layout/icons'
-import { loggerFor } from '@renderer/logger'
+import { getBuiltinIcon } from '@nide/client-kit/icons'
+import { loggerFor } from '@nide/client-kit/logger'
 
 const logger = loggerFor('ui')
 

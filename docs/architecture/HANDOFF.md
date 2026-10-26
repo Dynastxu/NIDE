@@ -74,6 +74,7 @@ apps/            # 计划中，尚未创建
 packages/
   boot/ host/ hello/
   client-runtime/ client-modules/
+  client-kit/                  # 客户端共享层：stores / ui / window 外壳 / logger
   client-ui-slots/ client-ui-renderer/
   client-ui-main/ client-ui-layout/ client-ui-welcome/ client-ui-settings/
 profiles/desktop/   # package.json + cordis.yml + cordis.patch.yml
@@ -214,6 +215,18 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   插件启用检查、窗口归属（分片只回发起者、窗口销毁即取消）、载荷形状校验。
   领域错误码以 `{ ok:false, error }` 的形式跨进程（RPC 的错误包装只剩 message）。
 
+### 客户端共享层（@nide/client-kit）
+- [packages/client-kit/src](packages/client-kit/src)：`stores/`（zustand 的十张表）、
+  `ui/`（基础组件）、`window/`（窗口外壳：`WindowFrame` / `WindowControls` /
+  `useWindowTitle`）、`logger`、`icons.tsx`、`appearance/palette.ts`；
+- 别名 `@nide/client-kit/*` → `packages/client-kit/src/*`
+  （tsconfig.web / electron.vite.config / vitest.config 三处一致）；Vite 的 alias
+  按前缀匹配，所以子路径直接可用；
+- **依赖方向**：kit 不许 import `@renderer/*`（渲染进程的窗口级代码）。唯一例外是
+  反向：渲染进程的窗口插件 import kit。`entry-action.store` 与 `window/MainMenu`
+  因为依赖 explorer / editor 的功能代码，留在 `src/renderer/src` 等主窗口整体搬走；
+- Tailwind 的 `@source` 加了 `packages`（类名在包里的文件也要被扫到，否则样式会丢）。
+
 ### 客户端 Cordis / slots
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；
 - `main.root` / `welcome.root` / `settings.root` 都已接入；
@@ -271,11 +284,15 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   持有偏好与解析，`nativeTheme` 走反向桥；shell 只缓存 `AppearanceState`（窗口底色 /
   启动参数要同步）。共享层 `theme/builtin.ts` 改成纯数据、`appearance/preference.ts`
   独立，host 才能加载。`test/host/appearance.test.ts`、`test/shared/theme/theme-data.test.ts`。
-- 第十二批（未提交）：AI 供应商 + 密钥仓搬进 host —— `services/ai-provider*.ts`、
+- 第十二批 `1408324`：AI 供应商 + 密钥仓搬进 host —— `services/ai-provider*.ts`、
   `services/secrets.ts`（`safeStorage` 反向桥，测试注入假后端）；RPC 增加
   `stream-event` 流式通道与 `subscribeHostStream`；shell 的 `ai-provider.ipc.ts`
   只剩启用检查 / 窗口归属 / 形状校验。`test/host/ai-provider.test.ts`、
   `test/host/secrets.test.ts`。
+- 第十三批（未提交）：D1 第一步 —— 抽出 `packages/client-kit`（stores / ui /
+  window 外壳 / logger / icons / palette），别名 `@nide/client-kit/*`，Tailwind
+  `@source` 覆盖 packages；渲染进程的窗口级代码改 import kit，kit 不反向依赖渲染进程。
+  这一步只是**搬运**，组件与 class 一行没改。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -296,8 +313,12 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 6. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
 7. ~~**theme / appearance 服务化**~~ —— 已完成（第十一批）。
 8. ~~**AI / secrets 服务化**~~ —— 已完成（第十二批，含 `stream-event` 流式通道）。
-9. **剩余迁移**：核心 UI 组件搬进 `client-ui-*`（D1）；D10（每包 `locale/*.json`）；
-   视觉回归；最后删掉 shell 的 IPC 转发回退、禁用集合镜像、`host-views` 表。
+9. **核心 UI 插件化（D1）** —— 进行中：共享层已抽成 `@nide/client-kit`（第十三批）。
+   剩下：`client-ui-welcome` / `client-ui-settings` / `client-ui-main` 三个包各自
+   接管自己的窗口组件（现在还是 `@renderer/*` 的包装），最后 `src/renderer/src`
+   只留 `main.tsx` 这个引导壳。
+10. **D10**（每包 `locale/*.json`）、视觉回归；
+    最后删掉 shell 的 IPC 转发回退、禁用集合镜像、`host-views` 表。
 
 ### 4.1 迁移完成度（哪些还在旧实现）
 
@@ -312,7 +333,8 @@ nativeTheme 走反向桥）**；**AI 供应商 / 密钥仓**；通用 RPC；host
   （禁用集合的镜像，host 不可达时兜底）—— 前者因为标题要用 shell 缓存的载荷翻；
 - logger（日志文件归 shell，host 的 stdout 由它接管，不打算搬）；
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell）；
-- 核心 UI 组件（`client-ui-*` 目前只是把 `@renderer/App` 等包一层 slot）；
+- 核心 UI 组件（`client-ui-*` 目前只是把 `@renderer/App` 等包一层 slot；共享层已
+  抽成 `@nide/client-kit`，但三个窗口的组件本体还在 `src/renderer/src`）；
 - 编译 host / asar / 签名、视觉回归、D10。
 
 **旧实现里也没有的**：插件后端（`manifest.main`）、依赖解析、profile bundle /
@@ -393,6 +415,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/plugins.ts` | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做） |
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
 | `packages/host/src/services/i18n.ts` | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析 |
+| `packages/client-kit/src` | 客户端共享层：stores / ui / window 外壳 / logger / icons（`@nide/client-kit/*`） |
 | `packages/host/src/services/appearance.ts` | host 侧主题 / 外观：`appearance.json` 偏好 + 主题解析（nativeTheme 走反向桥） |
 | `packages/host/src/services/ai-provider.ts` | host 侧 AI 供应商：配置 / 测试连接 / SSE 转发 |
 | `packages/host/src/services/secrets.ts` | host 侧密钥仓（密文落盘；加解密走 `safeStorage` 反向桥） |
@@ -555,5 +578,5 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第十二批改动未提交**（AI 供应商 / 密钥仓搬 host），先 commit 再开工
+- [ ] **第十三批改动未提交**（`@nide/client-kit` 抽取），先 commit 再开工
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

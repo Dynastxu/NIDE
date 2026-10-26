@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { loggerFor } from '@renderer/logger'
+import { loggerFor } from '@nide/client-kit/logger'
 import type { DirReadFailureReason, OverviewDocument } from '@shared/project'
 
 const logger = loggerFor('overview')
