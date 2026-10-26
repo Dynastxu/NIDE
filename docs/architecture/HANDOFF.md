@@ -5,14 +5,16 @@
 
 ## 0. 一句话状态
 
-Cordis/DSH 架构的**核心竖切已经跑通**：Electron shell → 独立 host 进程 → 通用 RPC →
+Cordis/DSH 架构的**迁移已完成**：Electron shell → 独立 host 进程 → 通用 RPC →
 客户端 Cordis 树 → slot → 运行时插件 UI bundle。项目文件 / 章节 / 图鉴 / 概述 /
-项目配置 / **项目生命周期（列表 / 打开 / 移除 / 关闭）** / **插件的视图 / 设置页 /
-语言包 / manifest 词条** / **本地化（语言包瀑布、语言偏好、标题解析）** 的实现只有
-一份，在 host；插件清单 / 启停 / 本地安装 / 卸载 / 信任确认也在 host。现有界面外观未改。
+项目配置 / 项目生命周期 / 插件清单与贡献点 / 本地化 / 主题 / AI 供应商与密钥仓
+的实现只有一份，在 **host**；窗口 UI 全部在 `packages/client-ui-*`，渲染进程只剩
+引导壳。现有界面外观未改。
 
-**但旧实现没有全部迁完**：核心 UI 组件仍在 shell（D1），theme/AI/secrets 已迁完
-（逐项见 §4.1）。下一步不是继续加新功能，而是在 §4 里挑一条搬完。
+**没有留回退路径**：`src/main/plugin-host/` 与 `src/main/services/` 已删除，shell
+只保留「按 D7 本来就该在 shell 里」的东西（窗口 / 菜单 / dialog / 确认框 / 日志落盘）。
+打包版跑编译后的 host（`out/host`），asar 已恢复。逐项见 §4.1。
+
 
 ## 1. 目标与已锁定决策
 
@@ -440,7 +442,7 @@ host 现在是启动必需的，不再需要 `NIDE_HOST`。日志里应能看到
 - Demo：启用 Demo Plugin，打开 `demo.hello`，应出现
   `view served by client modules`；
 - 打包后的插件 UI：`pnpm build:plugin-clients && pnpm build:unpack`，用
-  `electron.exe dist\win-unpacked\resources\app` 起，`client bundle loaded` 的 `url`
+  `electron.exe dist/win-unpacked/resources/app.asar` 起，`client bundle loaded` 的 `url`
   应是 `nide-plugin://plugin/builtin.demo/client.js`。
 
 常用命令：
@@ -579,8 +581,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     重算排进下一帧、同一帧只排一次，`chapter-body` 只把宽度变化当重新布局的信号。
 13. **未签名的打包 exe 会被 Windows 拦掉**：表现是双击/命令行启动后立刻返回，
     `%APPDATA%\NIDE\logs` 没有任何新行（进程根本没起来）。验证打包内容时用
-    `node_modules\electron\dist\electron.exe dist\win-unpacked\resources\app`，
-    它加载的是同一份 `resources/app`；发布前再解决签名。
+    `node_modules/electron/dist/electron.exe dist/win-unpacked/resources/app.asar`；
+    asar 之后**没有 `resources/app` 目录**，传它会报 "Unable to find Electron app"。
+    发布前再解决签名。
 14. **首窗现在要等 host（约 0.4s）**：`openStartupWindow()` 依赖 host 读
     `projects.json`。看不到窗口时先看日志里有没有 `host process is ready` —— 没有就是
     host 没起来，15s 后会回落成欢迎窗口（同时日志里有 `Failed to resolve the startup
@@ -607,22 +610,21 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 - `nide.client` 的正式字段（`views` 映射？`external`？）现在只用了 `bundle`。
 - **代码签名**：打包产物未签名，Windows 会直接拦 `nide.exe`。发布前需要证书
   （electron-builder `win.certificateFile` / `certificateSubjectName` + 时间戳）；
-  在此之前用 `electron.exe <resources/app>` 验证打包内容。
+  在此之前用 `electron.exe dist/win-unpacked/resources/app.asar` 验证打包内容
+  （**asar 之后没有 `resources/app` 这个目录**，传目录会报 "Unable to find Electron app"）。
 
 ## 10. 建议的下一会话起手式
 
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
-> 当前状态：项目文件 / 章节 / 伏笔 / 图鉴 / 概述 / 配置 / **项目生命周期（列表 /
-> 打开 / 移除 / 关闭）** / **插件的视图 / 设置页 / 语言包 / manifest 词条** /
-> **本地化（语言包瀑布 / 偏好 / 标题解析）** / **主题 / 外观** / **AI 供应商与
-> 密钥仓** 的 **实现只有一份**，在 host。客户端 slots 与运行时 bundle 在
-> **dev 与打包后都可用**（后者走 `nide-plugin://`），UI 未变。打包 `asar: false` +
-> 源码 host 已用 `electron.exe <resources/app>` 验证过；`nide.exe` 未签名会被
-> SmartScreen 拦。
-> **旧实现没有全部迁完**：核心 UI 组件仍在 shell（D1），见 §4.1。
-> 下一步按 §4：① 核心 UI 插件化（D1）+ D10；② 发布化（编译 host + asar + 签名）；
-> ③ 收尾删掉 shell 的回退路径。npm 安装来源已明确跳过。
-> 第十二批可能还没 commit，先看 `git status`。
+> 当前状态：**迁移已完成**。项目数据 / 插件清单与贡献点 / 本地化 / 主题 /
+> AI 与密钥仓的**实现只有一份**，在 host；窗口 UI 全部在 `packages/client-ui-*`，
+> `src/renderer/src` 只剩引导壳。客户端 slots 与运行时 bundle 在 **dev 与打包后都
+> 可用**（后者走 `nide-plugin://`），UI 未变。打包版跑编译后的 host（`out/host`），
+> asar 已恢复：host 需要的真实文件在 `resources/app.asar.unpacked/` 下
+> （launch 用 `nide.exe` 或 `electron.exe .../resources/app.asar`）。
+> 剩下的都是「验证 + 发布」：`pnpm test` / `pnpm dev` 的用户复验、`build:win` 实跑、
+> 代码签名（`CSC_LINK` / `CSC_KEY_PASSWORD`）、D10（每包 `locale/*.json`）、视觉回归。
+> npm 安装来源已明确跳过。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
@@ -678,9 +680,13 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       **用户说了先不合并，验证通过再决定。**
 - [x] 编译产物实跑：`node out/host/packages/host/src/index.js --dist-root out/host --once`
       通过（profile 从产物里取、hello 插件加载、内建插件扫描到 3 个）
-- [ ] `pnpm build:unpack` 复跑（asar 已开）：`resources/app.asar` 存在，
-      `resources/app.asar.unpacked/out/host/...` 与 `.../plugins/builtin/...` 存在；
-      用 `electron.exe` 起（不能再直接 `electron.exe resources/app`，asar 要走
-      `resources/app.asar`），日志里的 host 入口是 unpacked 里的
-      `out/host/packages/host/src/index.js`
+- [x] `pnpm build:unpack` 产物结构已核对（asar 已开）：
+      `resources/app.asar` 里是 `out/{main,preload,renderer,host}` + `plugins` +
+      `package.json`；`resources/app.asar.unpacked/` 下是真实的
+      `out/host/packages/host/src/index.js` 与 `plugins/builtin/*`；
+      `dist/win-unpacked/nide.exe` 存在。**启动必须用 `nide.exe` 或
+      `electron.exe dist/win-unpacked/resources/app.asar`** —— 传
+      `resources/app`（asar 之前的老命令）会报 "Unable to find Electron app"
+- [ ] 用 `nide.exe` 实跑一次打包产物：日志里的 host 入口应是
+      `resources/app.asar.unpacked/out/host/packages/host/src/index.js`
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库
