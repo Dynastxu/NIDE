@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { CORE_PACKAGES, type CorePackage } from '../../../contracts/src/plugin-api/core-packages.ts'
 import type { NideContext } from '../../../kernel/src/context.ts'
 import type { I18nService } from '../../i18n/src/index.ts'
 import { builtinViews } from './builtin-views.ts'
@@ -29,6 +30,30 @@ export const pluginsService = {
 
     const i18n = (): I18nService => ctx.services.require<I18nService>('i18n')
 
+    /**
+     * 「核心包」清单：设置里的插件页单独一栏展示。
+     *
+     * 宿主服务**从 profile 读**（加一个服务只改 profile，这里不用抄）；客户端平台包
+     * 宿主看不到，来自 `CORE_PACKAGES` 静态表。它们都不可启停 —— 禁掉内核等于把
+     * 应用关掉，所以只读展示。
+     */
+    const corePackages = (): CorePackage[] => {
+      const services: CorePackage[] = ctx.env.profileRows
+        .filter((row) => row.kind === 'service')
+        .map((row) => ({
+          id: row.id,
+          name: row.id,
+          kind: 'service',
+          path: row.name,
+          description: row.description ?? ''
+        }))
+
+      return [
+        ...services,
+        ...CORE_PACKAGES.map((entry) => ({ ...entry, kind: 'package' as const }))
+      ]
+    }
+
     const resolveTitle: TitleResolver = (pluginId, spec, fallback) =>
       i18n().host.resolveTitle(manager.manifestNls(pluginId), spec) || fallback
 
@@ -42,6 +67,9 @@ export const pluginsService = {
         return manager.disabled()
       },
       clientBundles: () => manager.clientBundles(),
+
+      /** 核心包（只读）：宿主服务 + 客户端平台包 */
+      core: () => corePackages(),
 
       /** 视图表：内建视图（文件树 / 版本控制 / 提交）在前，插件视图在后，标题都已解析 */
       views: () => [

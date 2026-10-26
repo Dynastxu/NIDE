@@ -1,21 +1,17 @@
 {
   "host.app.title": "NIDE",
-
   "host.stripe.tooltip": "Right-click: show/hide titles",
   "host.stripe.menu.showTitles": "Show tool window names",
-
   "host.view.more": "More",
   "host.view.collapse": "Collapse view",
   "host.view.tabs": "Tabs",
   "host.view.tab.close": "Close",
   "host.view.tab.status": "Close (this tab has unsaved changes)",
   "host.editor.title": "Editor",
-
   "host.window.minimize": "Minimize",
   "host.window.maximize": "Maximize",
   "host.window.restore": "Restore Down",
   "host.window.close": "Close",
-
   "host.menu.button": "Menu",
   "host.menu.file": "File",
   "host.menu.file.save": "Save",
@@ -31,9 +27,7 @@
   "host.menu.edit.undo": "Undo",
   "host.menu.edit.redo": "Redo",
   "host.menu.edit.notImplemented": "Not implemented yet",
-
   "host.dialog.cancel": "Cancel",
-
   "host.window.close.confirm.title": "Close window",
   "host.window.close.confirm.message": "Close this window? Unsaved editor content will be lost. On Windows and Linux the app exits once the last window is closed.",
   "host.window.close.confirm.action": "Close window",
@@ -43,11 +37,9 @@
   "host.restart.confirm.title": "Restart NIDE",
   "host.restart.confirm.message": "Restarting rebuilds the window, and unsaved editor content will be lost. Continue?",
   "host.restart.confirm.action": "Restart",
-
   "host.project.selector.label": "Project",
   "host.project.selector.none": "No project open",
   "host.project.selector.empty": "No project has been opened yet",
-
   "host.welcome.title": "Welcome",
   "host.welcome.nav.title": "Welcome options",
   "host.welcome.nav.projects": "Projects",
@@ -68,7 +60,6 @@
   "host.welcome.projects.error.missing": "The folder does not exist: {path}",
   "host.welcome.projects.error.not-a-directory": "This is not a folder: {path}",
   "host.welcome.projects.error.unreadable": "The host process is not responding, so this project cannot be read: {path}",
-
   "host.settings.button": "Settings",
   "host.settings.menu.global": "Global Settings",
   "host.settings.menu.project": "Project Settings",
@@ -85,22 +76,18 @@
   "host.settings.apply.ok": "OK",
   "host.settings.apply.cancel": "Cancel",
   "host.settings.apply.apply": "Apply",
-
   "host.settings.restart.title": "Restart required",
   "host.settings.restart.message": "The change needs an IDE restart to take full effect. Restarting discards unsaved editor content. Restart now?",
   "host.settings.restart.now": "Restart now",
   "host.settings.restart.later": "Later",
-
   "host.settings.language.description": "Choose the interface language. Switching requires rebuilding the window to take full effect, and unsaved editor content will be lost.",
   "host.settings.language.current": "Current language",
   "host.settings.language.restartHint": "The window is rebuilt automatically after switching; it takes a moment.",
-
   "host.settings.appearance.description": "Choose the interface colors. The host ships a dark and a light theme. Click Apply or OK to take effect; no restart is needed.",
   "host.settings.appearance.theme": "Theme",
   "host.settings.appearance.followSystem.label": "Sync with operating system",
   "host.settings.appearance.followSystem.hint": "Switch automatically with the system's dark / light appearance",
   "host.settings.appearance.followSystem.unavailable": "Following the system is not implemented yet, so this item cannot be selected.",
-
   "host.settings.plugins.tab.marketplace": "Marketplace",
   "host.settings.plugins.tab.installed": "Installed",
   "host.settings.plugins.marketplace.placeholder": "Plugin marketplace: not implemented yet.",
@@ -131,7 +118,6 @@
   "host.settings.plugins.install.failed": "Install failed: the folder has no usable manifest.json, or a plugin with the same id already exists.",
   "host.settings.plugins.disabledWarning": "This plugin is disabled: its views will not appear in the workbench.",
   "host.settings.plugins.note": "The enabled state is saved to the user configuration directory and survives a restart; uninstalling removes the user-installed plugin directory, built-in plugins cannot be uninstalled.",
-
   "host.plugins.install.title": "Select a plugin folder",
   "host.plugins.trust.title": "Enable third-party plugin",
   "host.plugins.trust.message": "The plugin \"{name}\" has full Node permissions and can read/write your files and network. Only enable plugins you trust.",
@@ -139,15 +125,12 @@
   "host.plugins.uninstall.title": "Uninstall plugin",
   "host.plugins.uninstall.message": "Uninstalling \"{name}\" will delete its plugin directory; you can install it again later.",
   "host.plugins.uninstall.confirm": "Uninstall",
-
   "host.diff.title": "Diff comparison",
   "host.diff.close": "Close",
-
   "host.git.title": "Source Control",
   "host.git.placeholder": "The source control panel is not implemented yet.",
   "host.commit.title": "Commit",
   "host.commit.placeholder": "The commit page is not implemented yet.",
-
   "host.explorer.title": "Files",
   "host.explorer.tab.files": "Files",
   "host.explorer.tab.projects": "Project",
@@ -163,7 +146,6 @@
   "host.explorer.open.failed.outside-project": "Only files inside the current project can be opened.",
   "host.explorer.open.failed.not-a-file": "That is not a file.",
   "host.explorer.open.failed.unreadable": "This file cannot be read: it may have been deleted, or you may not have permission.",
-
   "host.explorer.menu.new": "New",
   "host.explorer.menu.newFolder": "Folder",
   "host.explorer.menu.newFile": "File",
@@ -171,7 +153,6 @@
   "host.explorer.menu.delete": "Delete",
   "host.explorer.menu.newChapter": "New chapter",
   "host.explorer.menu.newForeshadowing": "New foreshadowing",
-
   "host.explorer.newFile.inside": "New file in this folder",
   "host.explorer.newFile.sibling": "New file here",
   "host.explorer.newFolder.inside": "New folder in this folder",
@@ -189,7 +170,6 @@
   "host.explorer.create.failed.already-exists": "That name is already taken.",
   "host.explorer.create.failed.not-a-directory": "Nothing can be created at that location.",
   "host.explorer.create.failed.unreadable": "Could not create it: no permission, or the disk is not writable.",
-
   "host.explorer.rename.title": "Rename",
   "host.explorer.rename.confirm": "Rename",
   "host.explorer.rename.extensionChanged": "The extension changed: it will be saved as \"{name}\", and the extension decides whether the IDE can open it.",
@@ -197,7 +177,6 @@
   "host.explorer.rename.failed.already-exists": "That name is already taken (renaming never overwrites it).",
   "host.explorer.rename.failed.not-a-file": "That entry is gone, or it is neither a file nor a folder.",
   "host.explorer.rename.failed.unreadable": "Could not rename it: no permission, or the disk is not writable.",
-
   "host.explorer.delete.title.file": "Delete file",
   "host.explorer.delete.title.folder": "Delete folder",
   "host.explorer.delete.message.file": "Delete \"{name}\"? Once it is gone, it cannot be brought back.",
@@ -207,7 +186,6 @@
   "host.explorer.delete.failed.not-a-file": "That entry is gone, or it is neither a file nor a folder.",
   "host.explorer.delete.failed.is-project-root": "The project root cannot be deleted.",
   "host.explorer.delete.failed.unreadable": "Could not delete it: no permission, or the disk is not writable.",
-
   "host.project.panel.section.chapters": "Chapters",
   "host.project.panel.section.gallery": "Gallery",
   "host.project.panel.section.foreshadowing": "Foreshadowing",
@@ -221,7 +199,6 @@
   "host.project.panel.chapter.failed.already-exists": "That name is taken (creating never overwrites). Pick another name, or rename the existing chapter first.",
   "host.project.panel.chapter.failed.not-a-directory": "The chapter directory does not exist, or it is not a folder.",
   "host.project.panel.chapter.failed.unreadable": "Could not create it: no permission, or the disk is not writable.",
-
   "host.project.panel.foreshadowing.new": "New foreshadowing",
   "host.project.panel.foreshadowing.empty": "No foreshadowing in this directory yet.",
   "host.project.panel.foreshadowing.no-dir": "The foreshadowing directory is unavailable: the project configuration cannot be read.",
@@ -229,7 +206,6 @@
   "host.project.panel.foreshadowing.failed.already-exists": "That name is taken (creating never overwrites). Pick another name, or rename the existing entry first.",
   "host.project.panel.foreshadowing.failed.not-a-directory": "The foreshadowing directory does not exist, or it is not a folder.",
   "host.project.panel.foreshadowing.failed.unreadable": "Could not create it: no permission, or the disk is not writable.",
-
   "host.project.panel.gallery.new": "New gallery",
   "host.project.panel.gallery.newEntry": "New entry",
   "host.project.panel.gallery.editFields": "Edit fields",
@@ -243,7 +219,6 @@
   "host.project.panel.gallery.failed.unknown-gallery": "That gallery is gone.",
   "host.project.panel.gallery.failed.reserved-name": "\"config.yml\" is the name of the gallery field table; pick another.",
   "host.project.panel.gallery.failed.unreadable": "The action failed: no permission, or the disk is not writable.",
-
   "host.project.panel.overview.newDocument": "New document",
   "host.project.panel.overview.empty": "No overview documents in this directory yet.",
   "host.project.panel.overview.outline": "Outline",
@@ -263,11 +238,9 @@
   "host.project.panel.overview.role.failed.invalid-name": "That name cannot be used for this role.",
   "host.project.panel.overview.role.failed.unknown-file": "That document is gone.",
   "host.project.panel.overview.role.failed.unreadable": "The action failed: no permission, or the disk is not writable.",
-
   "host.editor.gallery.empty": "This gallery has no fields yet. Add a few in its config.yml first.",
   "host.editor.gallery.extra": "These fields are not part of the gallery configuration (the field may have been renamed). They are kept as they are.",
   "host.editor.gallery.value.placeholder": "Empty means this field has not been written yet",
-
   "host.editor.gallery.config.title": "Gallery fields",
   "host.editor.gallery.config.hint": "One field per line; the order is the order in the entry form. The first field names an entry.",
   "host.editor.gallery.config.first": "names the entry",
@@ -279,7 +252,6 @@
   "host.editor.gallery.config.invalid.illegal-character": "The field name cannot contain spaces, colons, # or control characters.",
   "host.editor.gallery.config.invalid.too-long": "The field name is too long.",
   "host.editor.gallery.config.invalid.duplicate": "That field already exists.",
-
   "host.editor.empty.title": "No file open",
   "host.editor.empty.hint": "Click a file in the tree on the left; it opens here as a tab.",
   "host.editor.tab.close": "Close",
@@ -298,14 +270,12 @@
   "host.editor.menu.closeSaved": "Close unmodified tabs",
   "host.editor.menu.closeSaved.disabled": "Every open file has unsaved changes.",
   "host.editor.menu.closeAll": "Close all tabs",
-
   "host.editor.view.label": "View mode",
   "host.editor.view.text": "Plain text",
   "host.editor.view.form": "Form",
   "host.editor.view.split": "Split text and preview",
   "host.editor.view.preview": "Preview",
   "host.editor.preview.empty": "This document has no body yet.",
-
   "host.editor.form.index": "Index",
   "host.editor.form.index.hint": "0 is the prologue",
   "host.editor.form.index.placeholder": "Leave empty for unnumbered",
@@ -321,7 +291,6 @@
   "host.editor.form.notes.placeholder": "Notes",
   "host.editor.form.summary": "Summary",
   "host.editor.form.summary.placeholder": "A summary of this chapter",
-
   "host.editor.form.foreshadowing.name": "Name",
   "host.editor.form.foreshadowing.name.placeholder": "What is this foreshadowing called",
   "host.editor.form.foreshadowing.start": "Start chapter",
@@ -330,17 +299,18 @@
   "host.editor.form.foreshadowing.chapter.placeholder": "Leave empty if it is not decided yet",
   "host.editor.form.foreshadowing.description": "Description",
   "host.editor.form.foreshadowing.description.placeholder": "What was planted, and where it is meant to pay off",
-
   "host.plugin.loading": "Loading…",
-
   "host.locale.switch.title": "Switch language",
   "host.locale.switch.message": "Switching to \"{label}\" requires restarting the window to take full effect. Unsaved editor content will be lost. Continue?",
   "host.locale.switch.confirm": "Switch and restart",
   "host.locale.switch.cancel": "Cancel",
   "host.locale.switch.failed": "Could not switch to \"{locale}\". The current language was kept.",
-
   "host.locale.fallback.notice": "No language pack found for \"{locale}\"; falling back to Chinese.",
   "host.locale.diagnostics.missing": "\"{locale}\" has {count} untranslated strings; they fall back to Chinese.",
   "host.startup.clientRuntimeFailed": "The client runtime failed to start, so this window cannot render. Check the log and restart the app.",
-  "host.locale.diagnostics.conflict": "\"{locale}\" has {count} strings provided by multiple language packs; the third-party one wins."
+  "host.locale.diagnostics.conflict": "\"{locale}\" has {count} strings provided by multiple language packs; the third-party one wins.",
+  "host.settings.plugins.tab.core": "Core",
+  "host.settings.plugins.core.intro": "Kernel, host services and client platform packages. They are part of the app and cannot be toggled; they are listed so that \"where does this feature live\" is answerable from the UI.",
+  "host.settings.plugins.core.kind.service": "host service",
+  "host.settings.plugins.core.kind.package": "platform package"
 }

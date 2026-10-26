@@ -51,6 +51,8 @@ export const HOST_CHANNELS = {
    * 开发期绝对路径由渲染进程转成 Vite `/@fs/` URL；生产环境会换成 app 协议。
    */
   getClientBundles: 'host:get-client-bundles',
+  /** 核心包清单（宿主服务 + 客户端平台包），只读展示用 */
+  getCorePackages: 'host:get-core-packages',
   /** 启用 / 禁用插件。禁用后它的视图从工具区消失，状态由宿主落盘 */
   setPluginEnabled: 'host:set-plugin-enabled',
   /** 当前被禁用的插件 id（宿主持久化过的那份） */

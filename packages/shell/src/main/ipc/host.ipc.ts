@@ -3,6 +3,7 @@ import { WINDOW_CHANNELS } from '@nide/contracts/window'
 import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@nide/contracts/host'
 import { AI_PROVIDER_PLUGIN_ID } from '@nide/contracts/ai-provider'
 import { normalizeAppearancePreference } from '@nide/contracts/appearance'
+import type { CorePackage } from '@nide/contracts/plugin-api/core-packages'
 import { getAppearancePreference, getThemePayload, setThemePreference } from '../appearance'
 import { createMainTranslator, getI18nPayload, switchLocale } from '../i18n'
 import { loggerFor, toLogRecord } from '../logger'
@@ -161,6 +162,22 @@ export function registerHostIPC(): void {
       return await invokeHost<ClientBundleDescriptor[]>('plugins', 'clientBundles', [])
     } catch (error) {
       logger.error('Failed to read the client bundles through host', { error })
+      return []
+    }
+  })
+
+  /**
+   * 核心包清单（只读）。
+   *
+   * 插件页原本只列 `plugins/builtin/*`；「一切皆插件」之后内核 / 宿主服务 / 客户端
+   * 平台包也是包，但它们不可启停（禁掉内核等于关掉应用），所以单独一栏只读展示。
+   * 宿主服务那部分由 host 从 profile 读，shell 不维护第二份。
+   */
+  ipcMain.handle(HOST_CHANNELS.getCorePackages, async (): Promise<CorePackage[]> => {
+    try {
+      return await invokeHost<CorePackage[]>('plugins', 'core', [])
+    } catch (error) {
+      logger.error('Failed to read the core packages through host', { error })
       return []
     }
   })

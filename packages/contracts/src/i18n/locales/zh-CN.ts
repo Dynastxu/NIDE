@@ -177,6 +177,11 @@ export const zhCN = {
   'host.settings.plugins.install.failed':
     '安装失败：目录里没有可用的 manifest.json，或者同名插件已经存在。',
   'host.settings.plugins.disabledWarning': '该插件已禁用：它的视图不会出现在工作台里。',
+  'host.settings.plugins.tab.core': '核心',
+  'host.settings.plugins.core.intro':
+    '内核、宿主服务与客户端平台包。它们是应用的一部分、不可启停；列在这里是为了让「这个功能在哪」在界面上也能查到。',
+  'host.settings.plugins.core.kind.service': '宿主服务',
+  'host.settings.plugins.core.kind.package': '平台包',
   'host.settings.plugins.note':
     '启用状态会保存到用户配置目录，重启后仍然有效；卸载会删除用户安装的插件目录，内置插件不可卸载。',
 

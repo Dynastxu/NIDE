@@ -33,6 +33,8 @@ export interface ProfileRow {
    * 「先 provide 后 require」的顺序语义，而 loader 的激活是并行的。
    */
   kind?: 'plugin' | 'service'
+  /** 面向开发者的说明（设置里的「核心包」列表展示用） */
+  description?: string
   config?: unknown
   disabled?: boolean
 }
@@ -188,6 +190,9 @@ function normalizeRow(raw: unknown, index: number, file: string): ProfileRow {
     id: row.id,
     name: row.name,
     ...(row.kind === 'service' ? { kind: 'service' as const } : {}),
+    ...(typeof row.description === 'string' && row.description.length > 0
+      ? { description: row.description }
+      : {}),
     ...(row.config === undefined ? {} : { config: row.config }),
     ...(row.disabled === true ? { disabled: true } : {})
   }
@@ -210,6 +215,7 @@ export function dumpRows(rows: ProfileRow[]): string {
       `- id: ${row.id}`,
       `  name: ${row.name}`,
       ...(row.kind === 'service' ? ['  kind: service'] : []),
+      ...(row.description ? [`  description: ${row.description}`] : []),
       ...(row.disabled ? ['  disabled: true'] : [])
     ])
   ]

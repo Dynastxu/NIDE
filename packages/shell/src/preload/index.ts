@@ -86,6 +86,7 @@ import type {
   PluginInstallResult,
   PluginRemoveResult
 } from '@nide/contracts/plugin-api'
+import type { CorePackage } from '@nide/contracts/plugin-api/core-packages'
 
 // 通用事件总线（渲染进程侧）
 const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
@@ -785,6 +786,16 @@ const api = {
       }
     }
     return ipcRenderer.invoke(HOST_CHANNELS.getClientBundles)
+  },
+
+  /** 核心包清单（只读）：宿主服务 + 客户端平台包 */
+  getCorePackages: async (): Promise<CorePackage[]> => {
+    try {
+      return await ipcRenderer.invoke(HOST_CHANNELS.getCorePackages)
+    } catch (error) {
+      preloadLogger.warn('host plugins.core failed', { error })
+      return []
+    }
   },
 
   /**

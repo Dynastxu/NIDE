@@ -2,6 +2,7 @@ import { JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { ContextMenu, type ContextMenuItem } from '@nide/client-kit/ui/ContextMenu'
 import type { PluginDescriptor } from '@nide/contracts/plugin-api'
+import type { CorePackage } from '@nide/contracts/plugin-api/core-packages'
 
 /**
  * 插件浏览与启用 / 禁用界面。
@@ -52,7 +53,7 @@ export function PluginsBrowser({
   onRestartRequired
 }: PluginsBrowserProps): JSX.Element {
   const t = useT()
-  const [tab, setTab] = useState<'marketplace' | 'installed'>('installed')
+  const [tab, setTab] = useState<'marketplace' | 'installed' | 'core'>('installed')
   const [plugins, setPlugins] = useState<PluginDescriptor[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -70,6 +71,13 @@ export function PluginsBrowser({
   const [menu, setMenu] = useState<{ x: number; y: number; pluginId: string } | null>(null)
   /** 安装 / 卸载失败时的一行说明；成功或取消后清空 */
   const [notice, setNotice] = useState<string | null>(null)
+  /**
+   * 核心包（只读）：宿主服务 + 客户端平台包。
+   *
+   * 它们不是「可启停的插件」（禁掉内核等于关掉应用），所以单独一栏展示 —— 让
+   * 「这个功能在哪」在界面上也能查到，而不是只能翻仓库。
+   */
+  const [core, setCore] = useState<CorePackage[]>([])
 
   /** 界面上呈现（并用于算脏）的那份状态：immediate 模式没有草稿，只有已生效值 */
   const shown = mode === 'immediate' ? applied : draft
@@ -86,12 +94,14 @@ export function PluginsBrowser({
    * 这种只在下次启动才自愈的中间态。
    */
   const reloadPlugins = useCallback(async (): Promise<void> => {
-    const [list, off] = await Promise.all([
+    const [list, off, coreList] = await Promise.all([
       window.hostAPI.getPlugins(),
-      window.hostAPI.getDisabledPlugins()
+      window.hostAPI.getDisabledPlugins(),
+      window.hostAPI.getCorePackages()
     ])
 
     setPlugins(list)
+    setCore(coreList)
     setApplied(off)
     setDraft(off)
     setSelectedId((current) =>
@@ -269,6 +279,12 @@ export function PluginsBrowser({
             active={tab === 'installed'}
             onSelect={() => setTab('installed')}
           />
+          <Tab
+            id="core"
+            label={t('host.settings.plugins.tab.core')}
+            active={tab === 'core'}
+            onSelect={() => setTab('core')}
+          />
         </div>
         <button
           type="button"
@@ -285,7 +301,35 @@ export function PluginsBrowser({
         </p>
       )}
 
-      {tab === 'marketplace' ? (
+      {tab === 'core' ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <p className="border-b border-zinc-800 px-4 py-2 text-[11px] leading-relaxed text-zinc-500">
+            {t('host.settings.plugins.core.intro')}
+          </p>
+          <ul className="divide-y divide-zinc-800/60">
+            {core.map((entry) => (
+              <li key={`${entry.kind}:${entry.id}`} className="flex items-start gap-3 px-4 py-2">
+                <span className="mt-0.5 shrink-0 rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                  {entry.kind === 'service'
+                    ? t('host.settings.plugins.core.kind.service')
+                    : t('host.settings.plugins.core.kind.package')}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs text-zinc-200">{entry.name}</p>
+                  {entry.description && (
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500">
+                      {entry.description}
+                    </p>
+                  )}
+                  <p className="mt-0.5 truncate font-mono text-[10px] text-zinc-600">
+                    {entry.path}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : tab === 'marketplace' ? (
         <p className="p-6 text-xs text-zinc-500">
           {t('host.settings.plugins.marketplace.placeholder')}
         </p>

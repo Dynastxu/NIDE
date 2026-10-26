@@ -200,7 +200,9 @@ const env: HostEnvironment = {
   profileName: paths.profileName,
   home: paths.home,
   userDataDir,
-  appRoot
+  appRoot,
+  /** 装配点知道全部行（服务 + 插件），plugins.core 要用 */
+  profileRows: loadRows(paths, distRoot ?? REPO_ROOT)
 }
 const hostCtx = installNideContext(host.ctx, {
   rpc: { register: (namespace, handlers) => rpc.register(namespace, handlers) },

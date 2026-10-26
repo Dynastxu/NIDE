@@ -1,3 +1,4 @@
+import type { CorePackage } from '@nide/contracts/plugin-api/core-packages'
 import type { ElectronAPI } from '@electron-toolkit/preload'
 import type { LogLevel } from '@nide/contracts/logger'
 import type { I18nPayload, LocaleId } from '@nide/contracts/i18n'
@@ -326,6 +327,8 @@ export interface HostAPI {
   installPlugin: () => Promise<PluginInstallResult>
   /** 卸载第三方插件；内置插件返回 `builtin`，取消返回 `cancelled` */
   removePlugin: (pluginId: string) => Promise<PluginRemoveResult>
+  /** 核心包清单（只读）：宿主服务 + 客户端平台包 */
+  getCorePackages: () => Promise<CorePackage[]>
   getDisabledPlugins: () => Promise<string[]>
   onPluginEnabledChanged: (handler: (pluginId: string, enabled: boolean) => void) => Disposable
   getI18n: () => Promise<I18nPayload>

@@ -13,6 +13,10 @@ import { i18nService } from '../../packages/services/i18n/src/index.ts'
 import { appearanceService } from '../../packages/services/appearance/src/index.ts'
 import { secretsService } from '../../packages/services/secrets/src/index.ts'
 import { aiService } from '../../packages/services/ai/src/index.ts'
+import {
+  CORE_PACKAGES,
+  type CorePackage
+} from '../../packages/contracts/src/plugin-api/core-packages.ts'
 
 /**
  * 服务装配（阶段 3 的收口）。
@@ -45,7 +49,9 @@ afterEach(() => {
   fs.rmSync(base, { recursive: true, force: true })
 })
 
-function bootServices(): { rpc: RpcRegistry; namespaces: string[] } {
+function bootServices(
+  profileRows: readonly { id: string; name: string; kind?: string; description?: string }[] = []
+): { rpc: RpcRegistry; namespaces: string[] } {
   const rpc = new RpcRegistry()
   const namespaces: string[] = []
   const ctx = installNideContext(new Context(), {
@@ -60,7 +66,8 @@ function bootServices(): { rpc: RpcRegistry; namespaces: string[] } {
       profileName: 'desktop',
       home: base,
       userDataDir: path.join(base, 'user-data'),
-      appRoot: path.join(base, 'app')
+      appRoot: path.join(base, 'app'),
+      profileRows
     }
   })
 
@@ -102,6 +109,41 @@ describe('host 服务装配', () => {
     ).resolves.toMatchObject({ ok: true })
   })
 
+  it('plugins.core：profile 里的服务行 + 静态平台包，全部只读且有说明', async () => {
+    const { rpc } = bootServices([
+      {
+        id: 'project',
+        name: '{{NIDE_ROOT}}/packages/services/project/src/index.ts',
+        kind: 'service',
+        description: '项目生命周期'
+      }
+    ])
+
+    const response = await rpc.invoke({
+      type: 'rpc',
+      id: 'core',
+      namespace: 'plugins',
+      method: 'core',
+      args: []
+    })
+
+    expect(response).toMatchObject({ ok: true })
+    const list = (response as { ok: true; result: CorePackage[] }).result
+
+    // 宿主服务那部分来自 profile（这里只给了一条），客户端平台包来自静态表
+    expect(list.filter((entry) => entry.kind === 'service')).toEqual([
+      {
+        id: 'project',
+        name: 'project',
+        kind: 'service',
+        path: '{{NIDE_ROOT}}/packages/services/project/src/index.ts',
+        description: '项目生命周期'
+      }
+    ])
+    expect(list.filter((entry) => entry.kind === 'package')).toHaveLength(CORE_PACKAGES.length)
+    expect(list.every((entry) => entry.id && entry.name && entry.path)).toBe(true)
+  })
+
   it('装配是幂等的：同一份服务列表重复 apply 才应该失败（provide 冲突）', () => {
     const rpc = new RpcRegistry()
     const ctx = installNideContext(new Context(), {
@@ -111,7 +153,8 @@ describe('host 服务装配', () => {
         profileName: 'desktop',
         home: base,
         userDataDir: path.join(base, 'user-data'),
-        appRoot: path.join(base, 'app')
+        appRoot: path.join(base, 'app'),
+        profileRows: []
       }
     })
 

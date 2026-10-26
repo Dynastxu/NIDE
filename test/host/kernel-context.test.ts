@@ -23,7 +23,8 @@ function setup(): {
       profileName: 'desktop',
       home: '/tmp/home',
       userDataDir: '/tmp/user-data',
-      appRoot: '/tmp/app'
+      appRoot: '/tmp/app',
+      profileRows: []
     }
   })
 

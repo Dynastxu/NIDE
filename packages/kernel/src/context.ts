@@ -24,6 +24,13 @@ export interface HostEnvironment {
   userDataDir: string
   /** 应用根：`<root>/plugins/builtin` 在它下面 */
   appRoot: string
+  /**
+   * 本次启动用的 profile 行（`cordis.yml`）。
+   *
+   * 放这里是因为「哪些服务在跑」只有装配点知道：plugins 服务要用它回答
+   * `plugins.core`（设置里的「核心包」列表），而不该自己再读一遍 profile。
+   */
+  profileRows: readonly { id: string; name: string; kind?: string; description?: string }[]
 }
 
 /**
