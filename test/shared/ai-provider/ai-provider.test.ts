@@ -8,7 +8,7 @@ import {
   parseModelsResponse,
   parseProviderConfig,
   type ProviderConfig
-} from '@shared/ai-provider'
+} from '@nide/contracts/ai-provider'
 
 const PROVIDER: ProviderConfig = {
   id: 'provider-1',

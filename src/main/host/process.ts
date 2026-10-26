@@ -8,9 +8,9 @@ import {
   type WebContents
 } from 'electron'
 import { loggerFor } from '../logger'
-import { isHostStreamEvent } from '@shared/host-rpc'
+import { isHostStreamEvent } from '@nide/contracts/host-rpc'
 import { attachShellCapabilities } from './capabilities'
-import type { HostStreamEvent } from '@shared/host-rpc'
+import type { HostStreamEvent } from '@nide/contracts/host-rpc'
 
 /**
  * Electron shell 侧的 host 进程管理（MVP）。

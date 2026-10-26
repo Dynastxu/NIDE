@@ -7,8 +7,8 @@ import {
   isGalleryEntryDocument,
   isGalleryEntryPath,
   readGalleryEntry
-} from '@shared/project'
-import type { FileWriteResult } from '@shared/project'
+} from '@nide/contracts/project'
+import type { FileWriteResult } from '@nide/contracts/project'
 
 const logger = loggerFor('editor')
 

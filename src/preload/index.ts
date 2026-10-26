@@ -7,18 +7,18 @@ import {
   parseLogLevel,
   type LogMessage,
   type Logger
-} from '@shared/logger'
-import { DEFAULT_LOCALE, LOCALE_ARG_PREFIX } from '@shared/i18n'
+} from '@nide/contracts/logger'
+import { DEFAULT_LOCALE, LOCALE_ARG_PREFIX } from '@nide/contracts/i18n'
 import {
   APPEARANCE_ARG_PREFIX,
   APPEARANCE_CHANNEL,
   THEME_PALETTE_ARG_PREFIX,
   normalizeAppearancePreference
-} from '@shared/appearance'
-import { CONFIRM_CHANNELS } from '@shared/confirm'
-import { HOST_PORT_CHANNEL, isRpcResponse } from '@shared/host-rpc'
-import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
-import { AI_PROVIDER_CHANNELS } from '@shared/ai-provider'
+} from '@nide/contracts/appearance'
+import { CONFIRM_CHANNELS } from '@nide/contracts/confirm'
+import { HOST_PORT_CHANNEL, isRpcResponse } from '@nide/contracts/host-rpc'
+import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@nide/contracts/host'
+import { AI_PROVIDER_CHANNELS } from '@nide/contracts/ai-provider'
 import {
   PROJECT_ARG_PREFIX,
   PROJECT_CHANNELS,
@@ -26,7 +26,7 @@ import {
   PROJECT_FILE_CHANNELS,
   PROJECT_GALLERY_CHANNELS,
   PROJECT_OVERVIEW_CHANNELS
-} from '@shared/project'
+} from '@nide/contracts/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
   WINDOW_ARG_PREFIX,
@@ -35,8 +35,8 @@ import {
   type WindowAction,
   type WindowState,
   type WindowType
-} from '@shared/window'
-import type { I18nPayload, LocaleId } from '@shared/i18n'
+} from '@nide/contracts/window'
+import type { I18nPayload, LocaleId } from '@nide/contracts/i18n'
 import type {
   ChatOpenRequest,
   ChatOpenResult,
@@ -47,10 +47,10 @@ import type {
   SaveProviderResult,
   TestProviderRequest,
   TestProviderResult
-} from '@shared/ai-provider'
-import type { AppearancePreference } from '@shared/appearance'
-import type { ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
-import type { ConfirmOptions, ConfirmRequest } from '@shared/confirm'
+} from '@nide/contracts/ai-provider'
+import type { AppearancePreference } from '@nide/contracts/appearance'
+import type { ThemeId, ThemePalette, ThemePayload } from '@nide/contracts/theme'
+import type { ConfirmOptions, ConfirmRequest } from '@nide/contracts/confirm'
 import type {
   ChapterListResult,
   CreateEntryRequest,
@@ -78,14 +78,14 @@ import type {
   RenameEntryRequest,
   RenameEntryResult,
   WriteFileRequest
-} from '@shared/project'
+} from '@nide/contracts/project'
 import type {
   Disposable,
   PluginDescriptor,
   ClientBundleDescriptor,
   PluginInstallResult,
   PluginRemoveResult
-} from '@shared/plugin-api'
+} from '@nide/contracts/plugin-api'
 
 // 通用事件总线（渲染进程侧）
 const listeners = new Map<string, Set<(...args: unknown[]) => void>>()

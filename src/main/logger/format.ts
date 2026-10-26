@@ -13,7 +13,12 @@
  * 不依赖 electron：只有纯字符串与类型。
  */
 
-import { normalizeFields, stringifyFields, type LogLevel, type LogMessage } from '@shared/logger'
+import {
+  normalizeFields,
+  stringifyFields,
+  type LogLevel,
+  type LogMessage
+} from '@nide/contracts/logger'
 
 /**
  * 文件行的格式。与 electron-log 的 file transport 默认值一致。

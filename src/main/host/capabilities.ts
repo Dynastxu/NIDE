@@ -1,5 +1,5 @@
 import { nativeTheme, safeStorage } from 'electron'
-import { isShellCall, type ShellCall, type ShellCallResult } from '@shared/host-rpc'
+import { isShellCall, type ShellCall, type ShellCallResult } from '@nide/contracts/host-rpc'
 import { loggerFor } from '../logger'
 import type { UtilityProcess } from 'electron'
 

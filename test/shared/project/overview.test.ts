@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { OVERVIEW_ROLES, PROJECT_OVERVIEW_CHANNELS } from '@shared/project'
+import { OVERVIEW_ROLES, PROJECT_OVERVIEW_CHANNELS } from '@nide/contracts/project'
 
 /**
  * 概述的纯逻辑：角色集合与通道名。

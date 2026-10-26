@@ -1,5 +1,5 @@
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { windowTitle } from '@shared/window'
+import { windowTitle } from '@nide/contracts/window'
 
 /**
  * 当前窗口**自绘标题栏**上的标题。

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isProjectSwitch } from '@shared/project'
+import { isProjectSwitch } from '@nide/contracts/project'
 
 /**
  * 「这次打开会不会丢掉一个已经打开的项目」。

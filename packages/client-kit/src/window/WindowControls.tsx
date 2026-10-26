@@ -6,7 +6,7 @@ import {
   RestoreIcon
 } from '@nide/client-kit/window/chrome-icons'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import type { WindowState } from '@shared/window'
+import type { WindowState } from '@nide/contracts/window'
 
 /**
  * 自绘的三个系统按钮：最小化 / 最大化-还原 / 关闭。

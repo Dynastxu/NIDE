@@ -7,7 +7,7 @@ import type {
   ForeshadowingFile,
   ForeshadowingListResult,
   ProjectConfig
-} from '@shared/project'
+} from '@nide/contracts/project'
 
 /**
  * 文件树 / 项目面板的**启动顺序**测试。

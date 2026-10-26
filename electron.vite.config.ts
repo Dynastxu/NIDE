@@ -4,17 +4,17 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { reactClickToComponent } from 'vite-plugin-react-click-to-component'
 
-// 注意：Vite 不读 tsconfig 的 paths，@shared 必须在每个环境里显式声明别名
+// 注意：Vite 不读 tsconfig 的 paths，@nide/contracts 必须在每个环境里显式声明别名
 // main 与 preload 的依赖外置由 v5 的 build.externalizeDeps 默认启用，无需注册 externalizeDepsPlugin
 const shared = resolve('packages/contracts/src')
 const projectRoot = resolve('.')
 
 export default defineConfig({
   main: {
-    resolve: { alias: { '@shared': shared } }
+    resolve: { alias: { '@nide/contracts': shared } }
   },
   preload: {
-    resolve: { alias: { '@shared': shared } }
+    resolve: { alias: { '@nide/contracts': shared } }
   },
   renderer: {
     resolve: {
@@ -40,7 +40,7 @@ export default defineConfig({
           find: /^@nide\/client-ui-welcome\//,
           replacement: `${resolve('packages/client-ui-welcome/src')}/`
         },
-        { find: '@shared', replacement: shared },
+        { find: '@nide/contracts', replacement: shared },
         { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') },
         {
           find: '@nide/client-runtime',

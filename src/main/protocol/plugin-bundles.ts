@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import { protocol } from 'electron'
-import { PLUGIN_BUNDLE_SCHEME, pluginIdFromBundleUrl } from '@shared/plugin-api'
+import { PLUGIN_BUNDLE_SCHEME, pluginIdFromBundleUrl } from '@nide/contracts/plugin-api'
 import { invokeHost } from '../host/process'
 import { loggerFor } from '../logger'
-import type { ClientBundleDescriptor } from '@shared/plugin-api'
+import type { ClientBundleDescriptor } from '@nide/contracts/plugin-api'
 
 /**
  * 插件浏览器半的 bundle 协议（`nide-plugin://`）。

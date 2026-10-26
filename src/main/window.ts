@@ -1,20 +1,20 @@
 import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
-import { LOCALE_ARG_PREFIX } from '@shared/i18n'
+import { LOCALE_ARG_PREFIX } from '@nide/contracts/i18n'
 import {
   APPEARANCE_ARG_PREFIX,
   THEME_PALETTE_ARG_PREFIX,
   encodeAppearancePreference
-} from '@shared/appearance'
-import { PROJECT_ARG_PREFIX } from '@shared/project'
-import type { ProjectRecord } from '@shared/project'
+} from '@nide/contracts/appearance'
+import { PROJECT_ARG_PREFIX } from '@nide/contracts/project'
+import type { ProjectRecord } from '@nide/contracts/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
   WINDOW_ARG_PREFIX,
   systemWindowTitle,
   type WindowType
-} from '@shared/window'
+} from '@nide/contracts/window'
 import icon from '../../resources/icon.png?asset'
 import { createMainTranslator, getCurrentLocale } from './i18n'
 import { getAppearancePreference, getCurrentPalette, getCurrentWindowColor } from './appearance'

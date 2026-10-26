@@ -13,7 +13,7 @@ import type { zhCN } from '../../../../packages/contracts/src/i18n/locales/zh-CN
 /**
  * 宿主词条表的 key 集合。
  *
- * 与 `@shared/i18n` 的 `HostMessageKey` 是同一个类型（那个模块为了兼容渲染进程
+ * 与 `@nide/contracts/i18n` 的 `HostMessageKey` 是同一个类型（那个模块为了兼容渲染进程
  * 用了免扩展名 import，host 的 NodeNext 解析不了，所以这里从词条表本身取）。
  */
 type HostMessageKey = keyof typeof zhCN

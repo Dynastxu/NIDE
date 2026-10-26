@@ -9,14 +9,14 @@ import {
   PROJECT_OVERVIEW_CHANNELS,
   isProjectSwitch,
   projectNameFromPath
-} from '@shared/project'
+} from '@nide/contracts/project'
 import type {
   DeleteEntryRequest,
   DeleteEntryResult,
   ProjectListItem,
   ProjectOpenResult,
   ProjectPickMode
-} from '@shared/project'
+} from '@nide/contracts/project'
 import { CONFIRM_SPECS, isActionConfirmed, type ConfirmSpec } from '../confirm'
 import { createMainTranslator } from '../i18n'
 import { loggerFor } from '../logger'

@@ -6,7 +6,7 @@
  * - 渲染进程（列表项的显示与「目录还在不在」的措辞）；
  * - Electron 主进程（只做类型与路径比较，不再碰这个文件）。
  *
- * 因此这个文件**不能** import electron / fs / DOM，也不能用 `@shared/*` 别名 ——
+ * 因此这个文件**不能** import electron / fs / DOM，也不能用 `@nide/contracts/*` 别名 ——
  * host 是纯 Node ESM，没有构建期的路径映射。类型与纯函数之外的东西一律留在
  * 各自的运行时里。
  */

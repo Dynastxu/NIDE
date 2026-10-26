@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { PLUGIN_BUNDLE_SCHEME, pluginBundleUrl, pluginIdFromBundleUrl } from '@shared/plugin-api'
+import {
+  PLUGIN_BUNDLE_SCHEME,
+  pluginBundleUrl,
+  pluginIdFromBundleUrl
+} from '@nide/contracts/plugin-api'
 
 /**
  * 插件 bundle 的 URL 约定（`nide-plugin://plugin/<id>/client.js`）。

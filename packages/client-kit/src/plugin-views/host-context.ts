@@ -4,8 +4,8 @@ import {
   DEFAULT_LOCALE,
   createLooseTranslator,
   createTranslator
-} from '@shared/i18n'
-import type { LocaleId, LooseTranslator, MessageTable, Translator } from '@shared/i18n'
+} from '@nide/contracts/i18n'
+import type { LocaleId, LooseTranslator, MessageTable, Translator } from '@nide/contracts/i18n'
 
 /**
  * 宿主注入给**插件 UI** 的本地化上下文。

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { BrowserWindow, ipcMain, type WebContents } from 'electron'
-import { CONFIRM_CHANNELS, confirmRequested, parseConfirmResponse } from '@shared/confirm'
-import type { ConfirmRequest } from '@shared/confirm'
-import type { HostMessageKey, MessageParams } from '@shared/i18n'
+import { CONFIRM_CHANNELS, confirmRequested, parseConfirmResponse } from '@nide/contracts/confirm'
+import type { ConfirmRequest } from '@nide/contracts/confirm'
+import type { HostMessageKey, MessageParams } from '@nide/contracts/i18n'
 import { createMainTranslator } from './i18n'
 import { loggerFor } from './logger'
 

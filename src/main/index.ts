@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { APPEARANCE_CHANNEL } from '@shared/appearance'
+import { APPEARANCE_CHANNEL } from '@nide/contracts/appearance'
 import { installLogger, loggerFor } from './logger'
 import { registerConfirmIPC } from './confirm'
 import { installQuitGate } from './lifecycle'

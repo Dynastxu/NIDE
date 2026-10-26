@@ -4,7 +4,7 @@ import { loggerFor } from '@nide/client-kit/logger'
 import { usePluginStore } from '@nide/client-kit/stores/plugin.store'
 import { useI18nStore, useT } from '@nide/client-kit/stores/i18n.store'
 import { PluginHostProvider } from './PluginHostProvider'
-import type { PluginViewDescriptor } from '@shared/plugin-api'
+import type { PluginViewDescriptor } from '@nide/contracts/plugin-api'
 
 /**
  * 构建期由 Vite 展开成一张静态映射表：

@@ -1,5 +1,5 @@
-import { pluginBundleUrl } from '@shared/plugin-api'
-import type { ClientBundleDescriptor } from '@shared/plugin-api'
+import { pluginBundleUrl } from '@nide/contracts/plugin-api'
+import type { ClientBundleDescriptor } from '@nide/contracts/plugin-api'
 
 /**
  * 插件浏览器半的运行时加载器。

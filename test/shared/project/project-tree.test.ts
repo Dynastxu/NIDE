@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildTreeRows, createChildVisibility, treeBaseName } from '@shared/project'
-import type { BuildRowsInput, FileTreeEntry, TreeRow } from '@shared/project'
+import { buildTreeRows, createChildVisibility, treeBaseName } from '@nide/contracts/project'
+import type { BuildRowsInput, FileTreeEntry, TreeRow } from '@nide/contracts/project'
 
 /**
  * 文件树的**可见性判定**与**行表构建**。

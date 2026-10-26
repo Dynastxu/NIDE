@@ -13,7 +13,7 @@ import {
   type SaveProviderResult,
   type TestProviderRequest,
   type TestProviderResult
-} from '@shared/ai-provider'
+} from '@nide/contracts/ai-provider'
 import { loggerFor } from '../logger'
 import { invokeHost, subscribeHostStream } from '../host/process'
 

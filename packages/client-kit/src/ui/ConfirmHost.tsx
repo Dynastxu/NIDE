@@ -1,6 +1,6 @@
 import { JSX, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@nide/client-kit/ui/ConfirmDialog'
-import type { ConfirmRequest } from '@shared/confirm'
+import type { ConfirmRequest } from '@nide/contracts/confirm'
 
 /**
  * 宿主（主进程）发起的二次确认在渲染进程的落点。

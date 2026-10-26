@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from 'electron'
-import { confirmRequested } from '@shared/confirm'
+import { confirmRequested } from '@nide/contracts/confirm'
 import { CONFIRM_SPECS, askConfirmation, canAskIn } from './confirm'
 import { loggerFor } from './logger'
 

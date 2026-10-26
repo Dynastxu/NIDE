@@ -2,7 +2,7 @@ import {
   DEFAULT_VIEW_CHROME,
   type ViewChromeController,
   type ViewChromeOptions
-} from '@shared/plugin-api'
+} from '@nide/contracts/plugin-api'
 import type {
   ViewChromeConfig,
   ViewChromeInput,

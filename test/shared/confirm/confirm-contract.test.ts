@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { confirmRequested, parseConfirmResponse } from '@shared/confirm'
+import { confirmRequested, parseConfirmResponse } from '@nide/contracts/confirm'
 
 /**
  * 二次确认契约里那两个**判不可信输入**的纯函数。

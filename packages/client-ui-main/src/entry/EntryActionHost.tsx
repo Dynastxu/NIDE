@@ -8,7 +8,7 @@ import {
   useEntryActionStore
 } from '@nide/client-ui-main/stores/entry-action.store'
 import { NamePromptDialog } from '@nide/client-ui-main/entry/NamePromptDialog'
-import { DEFAULT_GALLERY_ENTRY_EXTENSION } from '@shared/project'
+import { DEFAULT_GALLERY_ENTRY_EXTENSION } from '@nide/contracts/project'
 
 /**
  * 条目动作在界面上的两个落点：名字输入框与失败提示。

@@ -1,10 +1,10 @@
 import { nativeTheme } from 'electron'
-import { DEFAULT_APPEARANCE } from '@shared/appearance'
-import { BUILTIN_THEMES, DEFAULT_THEME, THEME_WINDOW_COLORS } from '@shared/theme'
+import { DEFAULT_APPEARANCE } from '@nide/contracts/appearance'
+import { BUILTIN_THEMES, DEFAULT_THEME, THEME_WINDOW_COLORS } from '@nide/contracts/theme'
 import { invokeHost } from '../host/process'
 import { loggerFor } from '../logger'
-import type { AppearancePreference, AppearanceState } from '@shared/appearance'
-import type { ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
+import type { AppearancePreference, AppearanceState } from '@nide/contracts/appearance'
+import type { ThemeId, ThemePalette, ThemePayload } from '@nide/contracts/theme'
 
 const logger = loggerFor('appearance')
 

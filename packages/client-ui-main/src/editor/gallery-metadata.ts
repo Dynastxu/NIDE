@@ -1,4 +1,4 @@
-import { formatGalleryEntry, serializeGalleryConfig } from '@shared/project'
+import { formatGalleryEntry, serializeGalleryConfig } from '@nide/contracts/project'
 import {
   ensureModel,
   modelFor,

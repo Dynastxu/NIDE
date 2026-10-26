@@ -3,7 +3,7 @@
  *
  * 这一层被主进程、preload、渲染进程、host 进程共用，所以**不能** import
  * electron / fs / DOM。目录内的模块之间一律用 `#project/*`（见 package.json 的
- * `imports`）：`@shared/*` 是构建期别名、免扩展名的相对路径 Node 也不认，只有这一层
+ * `imports`）：`@nide/contracts/*` 是构建期别名、免扩展名的相对路径 Node 也不认，只有这一层
  * 是 Node / tsc / Vite 三边都解析得了的，host（纯 Node ESM）才能直接 import。
  *
  * 文件树（目录条目、排序、支持哪些文本格式、新建时的名字校验）在 `#project/files`，

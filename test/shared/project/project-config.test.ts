@@ -19,7 +19,7 @@ import {
   sanitizeProjectConfigPatch,
   serializeProjectConfig,
   validateProjectConfig
-} from '@shared/project'
+} from '@nide/contracts/project'
 
 /**
  * 项目配置（`.nide/config.yml`）的**纯逻辑**：配置形状、路径校验、补丁应用、

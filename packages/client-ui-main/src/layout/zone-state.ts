@@ -1,6 +1,6 @@
 import { useLayoutStore, type ZoneId } from '@nide/client-kit/stores/layout.store'
 import { usePluginStore } from '@nide/client-kit/stores/plugin.store'
-import type { PluginViewDescriptor } from '@shared/plugin-api'
+import type { PluginViewDescriptor } from '@nide/contracts/plugin-api'
 
 /**
  * 该区注册了哪些视图。

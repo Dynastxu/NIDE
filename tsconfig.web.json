@@ -35,7 +35,7 @@
       "@nide/client-ui-main/*": ["packages/client-ui-main/src/*"],
       "@nide/client-ui-settings/*": ["packages/client-ui-settings/src/*"],
       "@nide/client-ui-welcome/*": ["packages/client-ui-welcome/src/*"],
-      "@shared/*": ["packages/contracts/src/*"],
+      "@nide/contracts/*": ["packages/contracts/src/*"],
       "@nide/client-runtime": ["packages/client-runtime/src/index.ts"],
       "@nide/client-modules": ["packages/client-modules/src/index.ts"],
       "@nide/client-ui-slots": ["packages/client-ui-slots/src/index.ts"],

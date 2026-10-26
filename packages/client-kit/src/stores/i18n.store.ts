@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { BASE_MESSAGES, DEFAULT_LOCALE, createTranslator } from '@shared/i18n'
+import { BASE_MESSAGES, DEFAULT_LOCALE, createTranslator } from '@nide/contracts/i18n'
 import { loggerFor } from '../logger'
 import type {
   I18nPayload,
@@ -8,7 +8,7 @@ import type {
   LocaleId,
   MessageTable,
   Translator
-} from '@shared/i18n'
+} from '@nide/contracts/i18n'
 
 const logger = loggerFor('i18n')
 

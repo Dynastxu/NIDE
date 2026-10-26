@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
-import type { HostMessageKey, Translator } from '@shared/i18n'
-import type { PluginSettingsDescriptor } from '@shared/plugin-api'
+import type { HostMessageKey, Translator } from '@nide/contracts/i18n'
+import type { PluginSettingsDescriptor } from '@nide/contracts/plugin-api'
 
 /**
  * 设置页与设置树的登记表。

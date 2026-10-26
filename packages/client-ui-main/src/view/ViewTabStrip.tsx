@@ -7,7 +7,7 @@ import type {
   ViewTab,
   ViewTabCloseIcon,
   ViewTabStrip
-} from '@shared/plugin-api'
+} from '@nide/contracts/plugin-api'
 
 /** 一个槽位值在渲染进程里的真实类型：元素，或者按标签现算的函数 */
 export type SlotContent = (tab: ViewTab) => ReactNode

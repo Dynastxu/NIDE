@@ -5,7 +5,7 @@ import {
   useDocumentViewStore,
   type DocumentViewMode
 } from '@nide/client-kit/stores/document-view.store'
-import type { HostMessageKey } from '@shared/i18n'
+import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**
  * 主视图标题栏上的视图模式切换（「更多」按钮左侧的那一组）。

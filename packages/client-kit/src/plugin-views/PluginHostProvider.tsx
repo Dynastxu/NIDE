@@ -1,8 +1,8 @@
 import { useMemo, type JSX, type ReactNode } from 'react'
-import { createLooseTranslator } from '@shared/i18n'
+import { createLooseTranslator } from '@nide/contracts/i18n'
 import { PluginHostContext } from './host-context'
 import type { PluginHostContextValue } from './host-context'
-import type { LocaleId, Translator } from '@shared/i18n'
+import type { LocaleId, Translator } from '@nide/contracts/i18n'
 
 /**
  * 把宿主的语言和 t() 注入给插件视图。

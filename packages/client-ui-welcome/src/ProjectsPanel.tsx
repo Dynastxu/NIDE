@@ -3,13 +3,13 @@ import { loggerFor } from '@nide/client-kit/logger'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { ContextMenu, type ContextMenuItem } from '@nide/client-kit/ui/ContextMenu'
-import type { HostMessageKey, Translator } from '@shared/i18n'
+import type { HostMessageKey, Translator } from '@nide/contracts/i18n'
 import {
   projectNameFromPath,
   type ProjectFailureReason,
   type ProjectListItem,
   type ProjectOpenResult
-} from '@shared/project'
+} from '@nide/contracts/project'
 
 const logger = loggerFor('welcome')
 

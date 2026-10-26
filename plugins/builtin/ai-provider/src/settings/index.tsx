@@ -8,8 +8,8 @@ import {
   type ProviderSummary,
   type ReasoningEffort,
   type ThinkingMode
-} from '@shared/ai-provider'
-import type { MessageTable } from '@shared/i18n'
+} from '@nide/contracts/ai-provider'
+import type { MessageTable } from '@nide/contracts/i18n'
 
 /**
  * 插件自己的词条表。

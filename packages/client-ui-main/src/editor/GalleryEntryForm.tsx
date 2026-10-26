@@ -1,5 +1,5 @@
 import { JSX, useEffect } from 'react'
-import { galleryEntryFields } from '@shared/project'
+import { galleryEntryFields } from '@nide/contracts/project'
 import { FormField, FormTextArea } from '@nide/client-ui-main/editor/form-controls'
 import {
   applyGalleryEntryValues,

@@ -316,7 +316,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - `pnpm host:dump` / `host:smoke`；
 - 第一批 `e270b5f`：写路径（新建 / 改名 / 删除）搬完。
 - 第二批 `b753126`：章节 / 伏笔 / 图鉴 / 概述 / 配置搬到 host；`src/shared/project`
-  改成 `#project/*` 子路径导入（原 `@shared/yaml` 与免扩展名相对导入 Node 解析不了）。
+  改成 `#project/*` 子路径导入（原 `@nide/contracts/yaml` 与免扩展名相对导入 Node 解析不了）。
   `pnpm test` 35 files / 583 tests 全绿（Vitest 能解析 `#project/*`）。
 - 第三批 `f1cd701`：删掉主进程两份服务实现，旧 IPC handler 改成**转发**到 host；
   `config.initialize` 由 shell 经父端口 RPC（`invokeHost`）调用；host 变成启动必需；
@@ -530,7 +530,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 7. **所有新路径都要有回退**：host 直连 port 失败回退 IPC（现在也转发到 host）；
    bundle 失败回退 glob；slot 失败回退 fallback。
 8. **不做 Context 模块增强**：Cordis 的 `Context` 是 re-export，会遮蔽原接口。
-9. **`src/shared/project` 内的模块之间只用 `#project/*`**：`@shared/*` 是构建期别名、
+9. **`src/shared/project` 内的模块之间只用 `#project/*`**：`@nide/contracts/*` 是构建期别名、
    免扩展名的相对导入也一样，host 的纯 Node ESM 都解析不了。`package.json#imports`
    是 Node / tsc / Vite 三边都认的那一层（见 `src/shared/project/package.json`）。
 10. **host 是必需进程**：文件 / 配置的全部实现都在它里面。打包目前靠
@@ -550,7 +550,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     读缓存，不要自己 import 语言包或读 `locale.json`。
 15. **`src/shared` 里能被 host 加载的文件必须自包含**：要么没有任何 import（如
     `plugin-api/view.ts`、`i18n/locale-tag.ts`、`i18n/locales/zh-CN.ts`），要么
-    import 的是同类自包含文件。跨目录引用 `@shared/*` 在 host 里解析不了；共享目录
+    import 的是同类自包含文件。跨目录引用 `@nide/contracts/*` 在 host 里解析不了；共享目录
     内的相对导入在 NodeNext 下要写 `./x.js`（见 `plugin-api/contributions.ts`）——
     纯类型导入会被擦除，安全。
 
@@ -566,7 +566,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
    `<dir>/<entry>` 匹配（`test/renderer/plugin-ui-glob.test.ts` 钉住层数与命中）。
 4. **`src/shared` 下的 .ts 被 host 直接 import**：需要在目录里放
    `package.json` `{"type":"module"}`（`src/shared/project`、`src/shared/plugin-api`、
-   `src/shared/i18n` 都已经有），并且目录内**不能有 `@shared/*` 或免扩展名的
+   `src/shared/i18n` 都已经有），并且目录内**不能有 `@nide/contracts/*` 或免扩展名的
    相对 import** —— Node ESM 只认 `#project/*`（由同一个 package.json 的 `imports`
    映射到 `./*.ts`）或显式扩展名。
 5. **`import.meta.env.DEV` 在 alias 源码里不可靠**：loader 改用

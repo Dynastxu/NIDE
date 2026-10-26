@@ -4,7 +4,7 @@ import { initMonacoNls } from '@nide/client-kit/monaco-env'
 import { installRendererLogger, loggerFor } from '@nide/client-kit/logger'
 import './assets/index.css'
 import type { JSX } from 'react'
-import { systemWindowTitle, type WindowType } from '@shared/window'
+import { systemWindowTitle, type WindowType } from '@nide/contracts/window'
 import { ConfirmHost } from '@nide/client-kit/ui/ConfirmHost'
 import type { ClientRuntime } from '@nide/client-runtime'
 

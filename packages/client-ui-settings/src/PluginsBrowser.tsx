@@ -1,7 +1,7 @@
 import { JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { ContextMenu, type ContextMenuItem } from '@nide/client-kit/ui/ContextMenu'
-import type { PluginDescriptor } from '@shared/plugin-api'
+import type { PluginDescriptor } from '@nide/contracts/plugin-api'
 
 /**
  * 插件浏览与启用 / 禁用界面。

@@ -1,9 +1,9 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
-import type { LogLevel } from '@shared/logger'
-import type { I18nPayload, LocaleId } from '@shared/i18n'
-import type { AppearancePreference } from '@shared/appearance'
-import type { ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
-import type { ConfirmOptions, ConfirmRequest } from '@shared/confirm'
+import type { LogLevel } from '@nide/contracts/logger'
+import type { I18nPayload, LocaleId } from '@nide/contracts/i18n'
+import type { AppearancePreference } from '@nide/contracts/appearance'
+import type { ThemeId, ThemePalette, ThemePayload } from '@nide/contracts/theme'
+import type { ConfirmOptions, ConfirmRequest } from '@nide/contracts/confirm'
 import type {
   ChapterListResult,
   CreateEntryRequest,
@@ -31,7 +31,7 @@ import type {
   RenameEntryRequest,
   RenameEntryResult,
   WriteFileRequest
-} from '@shared/project'
+} from '@nide/contracts/project'
 import type {
   Disposable,
   ClientBundleDescriptor,
@@ -40,7 +40,7 @@ import type {
   PluginRemoveResult,
   PluginSettingsDescriptor,
   PluginViewDescriptor
-} from '@shared/plugin-api'
+} from '@nide/contracts/plugin-api'
 import type {
   ChatOpenRequest,
   ChatOpenResult,
@@ -51,8 +51,8 @@ import type {
   SaveProviderResult,
   TestProviderRequest,
   TestProviderResult
-} from '@shared/ai-provider'
-import type { WindowAction, WindowState, WindowType } from '@shared/window'
+} from '@nide/contracts/ai-provider'
+import type { WindowAction, WindowState, WindowType } from '@nide/contracts/window'
 
 /**
  * preload 在渲染进程里同步暴露的启动信息。

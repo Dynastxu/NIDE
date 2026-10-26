@@ -6,7 +6,7 @@ import {
   localeCandidates,
   normalizeLocale,
   toMonacoLocale
-} from '@shared/i18n'
+} from '@nide/contracts/i18n'
 
 /**
  * 共享层的 i18n 纯函数：locale 规范化 / 候选链 / Monaco 映射 / 插值 / `t()`。

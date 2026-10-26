@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_VIEW_CHROME } from '@shared/plugin-api'
+import { DEFAULT_VIEW_CHROME } from '@nide/contracts/plugin-api'
 import { buildChromeConfig, resolveChromeOptions } from '@nide/client-ui-main/view/chrome-options'
 
 /**

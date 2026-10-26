@@ -6,7 +6,7 @@ import { DropdownMenu } from '@nide/client-kit/ui/DropdownMenu'
 import { useViewDescriptor } from '@nide/client-ui-main/view/view-descriptor'
 import { ChromeSlot, ViewTabStripView } from '@nide/client-ui-main/view/ViewTabStrip'
 import type { ViewChromeConfig } from '@nide/client-ui-main/view/chrome-context'
-import type { ViewChromeSlots, ViewMoreItem } from '@shared/plugin-api'
+import type { ViewChromeSlots, ViewMoreItem } from '@nide/contracts/plugin-api'
 import type { MenuItem } from '@nide/client-kit/ui/MenuItem'
 
 /**

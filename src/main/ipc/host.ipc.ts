@@ -1,8 +1,8 @@
 import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
-import { WINDOW_CHANNELS } from '@shared/window'
-import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
-import { AI_PROVIDER_PLUGIN_ID } from '@shared/ai-provider'
-import { normalizeAppearancePreference } from '@shared/appearance'
+import { WINDOW_CHANNELS } from '@nide/contracts/window'
+import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@nide/contracts/host'
+import { AI_PROVIDER_PLUGIN_ID } from '@nide/contracts/ai-provider'
+import { normalizeAppearancePreference } from '@nide/contracts/appearance'
 import { getAppearancePreference, getThemePayload, setThemePreference } from '../appearance'
 import { createMainTranslator, getI18nPayload, switchLocale } from '../i18n'
 import { loggerFor, toLogRecord } from '../logger'
@@ -10,8 +10,8 @@ import { getMainWindow, recreateRootWindow } from '../window'
 import { invokeHost } from '../host/process'
 import { CONFIRM_SPECS, isActionConfirmed } from '../confirm'
 import { shutdownAiProviderIPC } from './ai-provider.ipc'
-import type { I18nPayload, LocaleId } from '@shared/i18n'
-import type { ThemePayload } from '@shared/theme'
+import type { I18nPayload, LocaleId } from '@nide/contracts/i18n'
+import type { ThemePayload } from '@nide/contracts/theme'
 import type {
   ClientBundleDescriptor,
   PluginDescriptor,
@@ -19,7 +19,7 @@ import type {
   PluginRemoveResult,
   PluginSettingsDescriptor,
   PluginViewDescriptor
-} from '@shared/plugin-api'
+} from '@nide/contracts/plugin-api'
 
 const logger = loggerFor('host')
 const pluginLogger = loggerFor('plugin-host')

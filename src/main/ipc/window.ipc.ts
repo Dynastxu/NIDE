@@ -1,5 +1,10 @@
 import { BrowserWindow, Menu, ipcMain } from 'electron'
-import { WINDOW_CHANNELS, isWindowType, type WindowAction, type WindowState } from '@shared/window'
+import {
+  WINDOW_CHANNELS,
+  isWindowType,
+  type WindowAction,
+  type WindowState
+} from '@nide/contracts/window'
 import { CONFIRM_SPECS, isActionConfirmed } from '../confirm'
 import { requestQuit } from '../lifecycle'
 import { loggerFor } from '../logger'

@@ -1,4 +1,4 @@
-import type { ProjectListItem, ProjectOpenResult, ProjectRecord } from '@shared/project'
+import type { ProjectListItem, ProjectOpenResult, ProjectRecord } from '@nide/contracts/project'
 import { invokeHost } from './process'
 
 /**

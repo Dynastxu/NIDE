@@ -1,6 +1,11 @@
 import { app } from 'electron'
-import { BASE_MESSAGES, DEFAULT_LOCALE, createTranslator, normalizeLocale } from '@shared/i18n'
-import type { I18nPayload, LocaleId, Translator } from '@shared/i18n'
+import {
+  BASE_MESSAGES,
+  DEFAULT_LOCALE,
+  createTranslator,
+  normalizeLocale
+} from '@nide/contracts/i18n'
+import type { I18nPayload, LocaleId, Translator } from '@nide/contracts/i18n'
 import { invokeHost } from '../host/process'
 import { loggerFor } from '../logger'
 

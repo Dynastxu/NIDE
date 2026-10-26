@@ -33,9 +33,9 @@ import type {
   OverviewDocument,
   OverviewRole,
   ProjectConfigKey
-} from '@shared/project'
-import { GALLERY_CONFIG_FILE_NAME } from '@shared/project'
-import type { HostMessageKey } from '@shared/i18n'
+} from '@nide/contracts/project'
+import { GALLERY_CONFIG_FILE_NAME } from '@nide/contracts/project'
+import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**
  * 「项目」标签页：按四个内容目录列出各自的内容。

@@ -53,8 +53,8 @@ profiles/desktop/cordis.yml  # 唯一的装配点
 | 阶段 | 动作 | 风险 | 状态 |
 | --- | --- | --- | --- |
 | 0 | 写下这份约定 + 目标树，代码不动 | 极低 | 完成 |
-| 1 | `src/shared` → `packages/contracts/src`（别名先保持 `@shared`） | 低（纯搬运） | 完成 |
-| 2 | 别名 `@shared` → `@nide/contracts`，删掉旧名字 | 低（机械替换） | 待做 |
+| 1 | `src/shared` → `packages/contracts/src`（别名名暂留，见阶段 2） | 低（纯搬运） | 完成 |
+| 2 | 别名 `@shared` → `@nide/contracts`，删掉旧名字 | 低（机械替换） | 完成 |
 | 3 | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配 | 中 | 待做 |
 | 4 | `src/main` → `packages/shell`：窗口 / 菜单 / 对话框 / 日志 / 协议变成 `ctx.shell.*` 服务 | 中 | 待做 |
 | 5 | `client-kit` 拆成 `sdk` + `ui/*`；`client-runtime` 按声明装配窗口 | 中高 | 待做 |
@@ -67,8 +67,7 @@ profiles/desktop/cordis.yml  # 唯一的装配点
   marker 只剩 `project/` 需要 —— 它带 `#project/*` 的 imports 映射）；
 - 五处别名的目标路径（`tsconfig.{json,node,web,host}`、`electron.vite.config`、
   `vitest.config`、插件 bundle 构建脚本）从 `src/shared` 指向
-  `packages/contracts/src`；**别名名仍是 `@shared`**，改名留给阶段 2（一次机械替换，
-  避免把「搬目录」和「换名字」的失败混在一起）；
+  `packages/contracts/src`；别名名在阶段 2 一起改成 `@nide/contracts`。
 - host 的运行时导入是**相对路径**（`../../../packages/contracts/src/...`），
   所以搬目录必须跟着改；`scripts/build-host.mts` 里复制 `imports` 映射的目标
   也跟着改成 `out/host/packages/contracts/src/...`。

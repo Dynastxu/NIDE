@@ -2,7 +2,7 @@
  * 主进程日志实现：electron-log 的配置与全局 sink。
  *
  * 职责边界很清楚 —— 这里只管「往哪儿写、写到什么程度」，消息的级别判断与
- * 形状由 `@shared/logger` 的门面负责。业务代码不 import 这个文件，
+ * 形状由 `@nide/contracts/logger` 的门面负责。业务代码不 import 这个文件，
  * 而是通过 `loggerFor(scope)` 拿到门面实例。
  *
  * 顺带说明为什么主进程只有这一个文件写盘：
@@ -21,7 +21,7 @@ import {
   type LogLevel,
   type LogMessage,
   type Logger
-} from '@shared/logger'
+} from '@nide/contracts/logger'
 import { FILE_FORMAT, buildLogMessage } from './format'
 
 /** 日志文件的轮转上限。超过就改名成 main.old.log，当前文件清空重写 */

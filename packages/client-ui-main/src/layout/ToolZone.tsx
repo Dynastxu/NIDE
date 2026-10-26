@@ -3,7 +3,7 @@ import { HostSlot } from '@nide/client-ui-main/plugins/HostSlot'
 import { PluginSlot } from '@nide/client-kit/plugin-views/PluginSlot'
 import { useActiveView } from '@nide/client-ui-main/layout/zone-state'
 import { ViewDescriptorContext } from '@nide/client-ui-main/view/view-descriptor'
-import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
+import { HOST_VIEW_PLUGIN_ID } from '@nide/contracts/plugin-api'
 import type { ZoneId } from '@nide/client-kit/stores/layout.store'
 
 /**

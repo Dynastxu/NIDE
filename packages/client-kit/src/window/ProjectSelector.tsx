@@ -2,7 +2,7 @@ import { JSX, useEffect, useRef, useState } from 'react'
 import { loggerFor } from '@nide/client-kit/logger'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
-import { projectNameFromPath, type ProjectListItem } from '@shared/project'
+import { projectNameFromPath, type ProjectListItem } from '@nide/contracts/project'
 
 const logger = loggerFor('window')
 
