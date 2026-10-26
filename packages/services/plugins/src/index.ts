@@ -28,6 +28,25 @@ export const pluginsService = {
       preferencePath: pluginPreferencePath(ctx.env.userDataDir)
     })
 
+    /**
+     * 展示用的模块位置：**只给相对路径**。
+     *
+     * profile 行里是绝对路径（`{{NIDE_ROOT}}` 展开之后），直接回给渲染进程等于把
+     * 用户的安装位置 / 账户名暴露到界面上 —— 发布版里那是隐私信息。这里换成相对
+     * `appRoot` 的路径；跑出 appRoot（软链、外置插件目录）就退回一个稳定的包内路径，
+     * 宁可少显示信息也不泄露路径。
+     */
+    const displayPath = (absolute: string, fallback: string): string => {
+      if (!path.isAbsolute(absolute)) return absolute.split(path.sep).join('/')
+
+      const relative = path.relative(ctx.env.appRoot, absolute)
+      if (relative.length === 0 || relative.startsWith('..') || path.isAbsolute(relative)) {
+        return fallback
+      }
+
+      return relative.split(path.sep).join('/')
+    }
+
     const i18n = (): I18nService => ctx.services.require<I18nService>('i18n')
 
     /**
@@ -44,7 +63,7 @@ export const pluginsService = {
           id: row.id,
           name: row.id,
           kind: 'service',
-          path: row.name,
+          path: displayPath(row.name, `packages/services/${row.id}`),
           description: row.description ?? ''
         }))
 

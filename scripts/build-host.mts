@@ -58,14 +58,6 @@ function fail(message: string): never {
   process.exit(1)
 }
 
-function* walk(dir: string): Generator<string> {
-  for (const name of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, name.name)
-    if (name.isDirectory()) yield* walk(full)
-    else yield full
-  }
-}
-
 const options: ts.CompilerOptions = {
   target: ts.ScriptTarget.ES2023,
   /*
@@ -158,17 +150,16 @@ for (const name of fs.readdirSync(sharedRoot)) {
 
 /**
  * profile 模板要一起进产物：打包版由 host 传 `--dist-root`，模板就从这里取，
- * `{{NIDE_ROOT}}` 也展开成这里。模板里的插件路径指向源码（`.ts`），一并改写成 `.js`。
+ * `{{NIDE_ROOT}}` 也展开成这里。
+ *
+ * **不改写模板里的 `.ts` 路径** —— 编译布局下由 `boot` 的 `loadRows({ compiled })`
+ * 统一改写。这样 dev 与打包版共用同一份 profile，不会出现「dev 写的 profile 拿到
+ * 打包版里指向不存在的 `.ts`」。
  */
 const profilesSource = path.join(root, 'profiles')
 const profilesTarget = path.join(outDir, 'profiles')
 if (!fs.existsSync(profilesSource)) fail('profiles/ not found')
 
 fs.cpSync(profilesSource, profilesTarget, { recursive: true })
-for (const file of walk(profilesTarget)) {
-  if (!file.endsWith('.yml') && !file.endsWith('.yaml')) continue
-  const text = fs.readFileSync(file, 'utf-8')
-  fs.writeFileSync(file, text.replaceAll('/src/index.ts', '/src/index.js'), 'utf-8')
-}
 
 console.log(`[build-host] built ${path.relative(root, outDir)}`)

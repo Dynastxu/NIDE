@@ -158,7 +158,23 @@ export function ensureProfile(paths: NidePaths, reset = false, templateRoot?: st
  * `nideRoot` 是 `{{NIDE_ROOT}}` 的展开值：源码树里是仓库根，打包版是编译产物根
  * （`out/host`，那里有一份改写过的 profile 模板，插件路径指向 `.js`）。
  */
-export function loadRows(paths: NidePaths, nideRoot: string = REPO_ROOT): ProfileRow[] {
+export interface LoadRowsOptions {
+  /**
+   * 跑的是**编译产物**（`out/host`）还是源码树。
+   *
+   * profile 里统一写源码路径（`.../src/index.ts`）：编译产物里同名文件是 `.js`，
+   * 这里按布局改写。这样**一份 profile 在 dev 与打包版通用**。以前是构建脚本改写
+   * 产物里的 profile，于是「dev 写的 profile 拿去跑打包版」会指向不存在的 `.ts`
+   * （真实踩过：ERR_MODULE_NOT_FOUND …/services/project/src/index.ts）。
+   */
+  compiled?: boolean
+}
+
+export function loadRows(
+  paths: NidePaths,
+  nideRoot: string = REPO_ROOT,
+  options: LoadRowsOptions = {}
+): ProfileRow[] {
   const file = path.join(paths.profileDir, 'cordis.yml')
   const text = fs.readFileSync(file, 'utf8')
   const expanded = text.replaceAll('{{NIDE_ROOT}}', nideRoot.replaceAll('\\', '/'))
@@ -168,10 +184,15 @@ export function loadRows(paths: NidePaths, nideRoot: string = REPO_ROOT): Profil
     throw new Error(`${file} must contain a YAML array`)
   }
 
-  return parsed.map((raw, index) => normalizeRow(raw, index, file))
+  return parsed.map((raw, index) => normalizeRow(raw, index, file, options))
 }
 
-function normalizeRow(raw: unknown, index: number, file: string): ProfileRow {
+function normalizeRow(
+  raw: unknown,
+  index: number,
+  file: string,
+  options: LoadRowsOptions
+): ProfileRow {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error(`${file}: row #${index} must be an object`)
   }
@@ -188,7 +209,7 @@ function normalizeRow(raw: unknown, index: number, file: string): ProfileRow {
 
   return {
     id: row.id,
-    name: row.name,
+    name: options.compiled ? compiledEntry(row.name) : row.name,
     ...(row.kind === 'service' ? { kind: 'service' as const } : {}),
     ...(typeof row.description === 'string' && row.description.length > 0
       ? { description: row.description }
@@ -206,6 +227,15 @@ export function toImportSpecifier(name: string): string {
   if (path.isAbsolute(name)) return pathToFileURL(name).href
   // 包标识符原样交给 Node 解析；MVP 阶段它必须能在仓库 node_modules 里找到。
   return name
+}
+
+/**
+ * 源码入口 -> 编译产物入口：`.../src/index.ts` -> `.../src/index.js`。
+ *
+ * 只认这一种形状（profile 里的行都指向包入口），别的形状原样返回 —— 猜错比不改写更糟。
+ */
+function compiledEntry(name: string): string {
+  return name.endsWith('/src/index.ts') ? name.replace(/\/src\/index\.ts$/, '/src/index.js') : name
 }
 
 export function dumpRows(rows: ProfileRow[]): string {
@@ -229,8 +259,11 @@ export interface BootedHost {
   services: ProfileRow[]
 }
 
-export async function boot(paths: NidePaths): Promise<BootedHost> {
-  const rows = loadRows(paths)
+export async function boot(
+  paths: NidePaths,
+  options: { nideRoot?: string; compiled?: boolean } = {}
+): Promise<BootedHost> {
+  const rows = loadRows(paths, options.nideRoot ?? REPO_ROOT, { compiled: options.compiled })
   const ctx = new Context()
 
   // TODO: 换成 electron-log / 文件 exporter；MVP 先证明 Cordis 日志能出来。

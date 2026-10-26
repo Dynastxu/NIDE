@@ -142,6 +142,9 @@ describe('host 服务装配', () => {
     ])
     expect(list.filter((entry) => entry.kind === 'package')).toHaveLength(CORE_PACKAGES.length)
     expect(list.every((entry) => entry.id && entry.name && entry.path)).toBe(true)
+
+    // 展示路径必须是相对的：绝对路径会把用户的安装位置暴露到界面上
+    expect(list.every((entry) => !path.isAbsolute(entry.path))).toBe(true)
   })
 
   it('装配是幂等的：同一份服务列表重复 apply 才应该失败（provide 冲突）', () => {

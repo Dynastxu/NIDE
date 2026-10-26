@@ -149,11 +149,13 @@ const distRoot = options.distRoot ? path.resolve(options.distRoot) : null
 ensureProfile(paths, options.reset, distRoot ? path.join(distRoot, 'profiles') : undefined)
 
 if (options.dumpConfig) {
-  console.log(dumpRows(loadRows(paths, distRoot ?? REPO_ROOT)))
+  console.log(dumpRows(loadRows(paths, distRoot ?? REPO_ROOT, { compiled: distRoot !== null })))
   process.exit(0)
 }
 
-const host = await boot(paths)
+const nideRoot = distRoot ?? REPO_ROOT
+const compiled = distRoot !== null
+const host = await boot(paths, { nideRoot, compiled })
 const logger = host.ctx.logger('nide-host')
 
 /**
@@ -202,7 +204,7 @@ const env: HostEnvironment = {
   userDataDir,
   appRoot,
   /** 装配点知道全部行（服务 + 插件），plugins.core 要用 */
-  profileRows: loadRows(paths, distRoot ?? REPO_ROOT)
+  profileRows: loadRows(paths, nideRoot, { compiled })
 }
 const hostCtx = installNideContext(host.ctx, {
   rpc: { register: (namespace, handlers) => rpc.register(namespace, handlers) },
