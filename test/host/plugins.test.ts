@@ -164,6 +164,10 @@ describe('PluginManager：浏览器半', () => {
       version: '1.0.0',
       client: { platform: 'web', bundle: 'dist/client.js' }
     })
+    // 声明了 client 却没构建出文件时不会返回（见下面的用例），所以这里真的写一份。
+    // writeFile 不会建父目录，`dist/` 得自己 mkdir —— 真实插件目录里它是构建出来的。
+    await fs.mkdir(path.join(builtinDir, 'demo', 'dist'), { recursive: true })
+    await fs.writeFile(path.join(builtinDir, 'demo', 'dist', 'client.js'), '// bundle', 'utf-8')
 
     const plugins = manager()
     const [bundle] = plugins.clientBundles()
@@ -176,6 +180,17 @@ describe('PluginManager：浏览器半', () => {
 
     plugins.setEnabled('builtin.demo', false)
     expect(plugins.clientBundles()).toEqual([])
+  })
+
+  it('声明了 client 但文件不存在时不返回（让渲染进程回退到 glob）', async () => {
+    await writePlugin(builtinDir, 'demo', {
+      id: 'builtin.demo',
+      name: 'Demo',
+      version: '1.0.0',
+      client: { platform: 'web', bundle: 'dist/client.js' }
+    })
+
+    expect(manager().clientBundles()).toEqual([])
   })
 
   it('bundle 路径逃出插件目录时不返回', async () => {

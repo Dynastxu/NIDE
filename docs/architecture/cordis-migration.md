@@ -34,15 +34,17 @@
   - **主窗口 root 也已接**：`@nide/client-ui-main` 把现有 `App` 注册到 `main.root`；`client-runtime` 按 `windowType` 只加载对应插件，主窗口不会拖入 WelcomeApp，欢迎窗口也不会加载 Monaco。settings 仍走旧路径。
   - **六个工具区已接 slot**：`@nide/client-ui-layout` 注册 `zone.leftTop` … `zone.bottomRight`；`WorkbenchLayout` 改成 `<Slot name="zone.*" fallback={<ToolZone .../>}>`，客户端树没起来时仍走 fallback。
   - **视图组件注册表已接**：`@nide/client-modules` 提供 `ClientModuleRegistry`；`PluginSlot` 优先查注册表、未命中再回退构建期 `import.meta.glob`。
-  - **插件 UI 的运行时 bundle 已接（开发期）**：manifest 的 `client` 声明 → 主进程 `host:get-client-bundles` → `client-runtime` 注入 IIFE → `__NIDE_REGISTER__` → `ClientModuleRegistry`。详见 [plugin-ui-bundles.md](plugin-ui-bundles.md)。生产环境的协议分发仍是 TODO。
+  - **插件 UI 的运行时 bundle 已接（dev + 打包后）**：manifest 的 `client` 声明 → host 的 `plugins.clientBundles` → `client-runtime` 注入 IIFE → `__NIDE_REGISTER__` → `ClientModuleRegistry`。开发期用 Vite `/@fs/`；打包后走 shell 注册的 `nide-plugin://plugin/<pluginId>/client.js`（处理器只按 pluginId 去 host 清单里查路径，CSP 的 `script-src` 里列了这个 scheme）。详见 [plugin-ui-bundles.md](plugin-ui-bundles.md)。
   - **三个窗口都走 slot 了**：`main.root` / `welcome.root` / `settings.root` 分别由 `client-ui-main` / `client-ui-welcome` / `client-ui-settings` 注册，渲染的仍是现有组件。
   - **当前项目同步**：host 启动时 `resolveStartup()`；每个窗口 port 建立后把 `--nide-project=` 的路径发 `project.setCurrent`，换项目时 host 跟着切。
   - **项目生命周期已全部搬到 host**：`project.open/forget/close` 接上 RPC，shell 的 `src/main/services/project-store.ts` 删除；建窗要等 host 的启动结论（`openStartupWindow()` 变 async，首窗晚约 0.4s），shell 只留 `boundProjectPath`（主窗口**绑定**的项目，重建窗口时复用）。host 不可达时开项目返回 `unreadable`，不再谎称「目录不存在」。`test/host/project-store.test.ts` 覆盖这套语义。
   - **插件贡献点也搬到 host 了**：唯一读插件目录的是 [plugin-contributions.ts](../../packages/host/src/services/plugin-contributions.ts)（manifest、路径守卫、chrome/location 收敛、语言包、`package.nls*.json`），经 `plugins.contributions` 下发；shell 的 loader / plugin-registry / permission / sandbox / errors 全删，只剩四张缓存表 + 「按当前语言解析 `%key%`」。[src/shared/plugin-api/contributions.ts](../../src/shared/plugin-api/contributions.ts) 是这条跨进程契约（`titleSpec` 不解析、路径只用插件目录内相对 POSIX）。语言标签规范化拆到自包含的 [locale-tag.ts](../../src/shared/i18n/locale-tag.ts)，host 才能直接加载。
+  - **生产 bundle 协议已接**：`nide-plugin://` 自定义协议（standard + secure，ready 前登记 scheme、ready 后挂处理器），渲染进程只给 pluginId，路径由 host 清单回答；`clientBundles` 同时过滤掉声明了 `client` 但文件不存在的条目，让渲染进程安静回退 glob。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
-- 下一步：**继续搬旧实现**。① npm 安装来源；② 生产 bundle 协议；③ i18n 服务化
-  （D10，把词条表构建真正搬进 host）。打包内容已验证（`asar: false` + host 跑源码），
-  签名与「编译 host + 恢复 asar」留到发布前。
+- 下一步：**继续搬旧实现**。① i18n 服务化（D10，把词条表构建真正搬进 host）；
+  ② 发布化（编译 host + 恢复 asar + 签名）；③ theme / appearance / AI / secrets
+  与 `ctx.shell`。npm 安装来源用户已明确跳过。打包内容已验证（`asar: false` + host
+  跑源码），签名与「编译 host + 恢复 asar」留到发布前。
 
 ## 0. 已锁定决策
 

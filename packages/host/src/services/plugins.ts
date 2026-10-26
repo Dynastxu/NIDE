@@ -365,21 +365,28 @@ export class PluginManager {
   /**
    * 已启用插件的浏览器半清单。
    *
-   * 绝对路径只用于开发期的 Vite `/@fs/`；生产环境会换成 app 协议（见
-   * docs/architecture/plugin-ui-bundles.md）。
+   * 两个过滤，缺一不可：
+   * - 被禁用的插件不给：装了不等于同意让它跑；
+   * - **文件不存在的不给**：manifest 声明了 `client` 但作者没构建（或打包时漏了
+   *   `dist/`）时，回一份指向空气的清单只会让渲染进程去请求一个必然 404 的 URL。
+   *   不返回它，`PluginSlot` 就会安静地回退到构建期 glob。
    */
   clientBundles(): ClientBundleDescriptor[] {
     const disabled = new Set(this.preference.disabled)
 
     return Array.from(this.entries.values()).flatMap((entry) => {
       if (!entry.client || disabled.has(entry.descriptor.id)) return []
-      return [
-        {
+
+      const bundlePath = path.resolve(entry.dirPath, entry.client.bundle)
+      if (!fs.existsSync(bundlePath)) {
+        warn('Plugin client bundle is declared but missing, ignored', {
           pluginId: entry.descriptor.id,
-          platform: entry.client.platform,
-          bundlePath: path.resolve(entry.dirPath, entry.client.bundle)
-        }
-      ]
+          bundlePath
+        })
+        return []
+      }
+
+      return [{ pluginId: entry.descriptor.id, platform: entry.client.platform, bundlePath }]
     })
   }
 

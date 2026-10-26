@@ -1,7 +1,10 @@
 # 插件 UI 的运行时 bundle（方案 A）
 
-状态：MVP 已接入，开发期可用；生产环境的协议分发仍是 TODO。
+状态：开发期与打包后都能加载（生产走 `nide-plugin://` 自定义协议）。
 相关决策：`docs/architecture/cordis-migration.md` 的 D4 / D17。
+
+**已知限制**：打包后**只有** `plugins/**`（内置）与 `<userData>/plugins` 里的
+`dist/client.js` 会被加载；第三方插件必须自带构建产物（安装时不构建，见下）。
 
 ## 为什么是 A
 
@@ -63,52 +66,77 @@ window.__NIDE_REGISTER__ = (id, component) => runtime.modules.register(id, compo
 
 ```
 manifest.client
-  -> pluginRegistry（主进程）
-  -> host:get-client-bundles（纯数据：pluginId / platform / bundle 绝对路径）
+  -> PluginManager（host）
+  -> plugins.clientBundles（纯数据：pluginId / platform / bundle 绝对路径）
+  -> plugins.contributions（视图 / 设置页 / 语言包，另一条）
   -> preload hostAPI.getClientBundles()
   -> client-runtime 的 loadClientBundles()
-  -> <script src="/@fs/<abs path>">（开发期）
+  -> <script src="/@fs/<abs path>">      （开发期）
+     或 <script src="nide-plugin://…">   （打包后）
   -> bundle 调 __NIDE_REGISTER__
   -> ClientModuleRegistry
   -> PluginSlot 按 viewId 取组件
 ```
 
 没有 bundle / 加载失败时，`PluginSlot` 继续走构建期 `import.meta.glob` 的兜底，
-界面不会空白。
+界面不会空白。`clientBundles` 也**不会返回**指向不存在文件的条目（manifest 声明了
+`client` 但作者没构建 / 打包漏了 `dist/` 时，直接回退 glob，而不是让渲染进程去请求
+一个必然 404 的 URL）。
 
 ## 构建
 
 ```bash
-pnpm build:plugin-demo
+pnpm build:plugin-clients          # 所有声明了 client 的内置插件
+pnpm build:plugin-demo             # 只构建 demo（--only demo，迭代时用）
 ```
 
-产物：`plugins/builtin/demo/dist/client.js`（已 gitignore）。
+产物：`<插件目录>/<manifest.client.bundle>`，demo 是
+`plugins/builtin/demo/dist/client.js`（已 gitignore）。
 
-脚本：`scripts/build-plugin-client.mjs`。它用 Vite 的 JS API：
+脚本 `scripts/build-plugin-client.mjs` 遍历 `plugins/builtin/*/manifest.json`，
+**只挑 `client: { platform:'web', bundle }` 的插件**，入口固定为插件目录下的
+`src/ui/client-entry.tsx`。它用 Vite 的 JS API：
 
 - `build.lib` + `formats: ['iife']`；
 - `external: ['react', 'react-dom']` + `output.globals`；
 - `esbuild.jsx = 'transform'`，强制 classic JSX；
-- 别名与主工程一致（`@renderer` / `@shared`）。
+- 别名与主工程一致（`@renderer` / `@shared`）；
+- `emptyOutDir: false` —— bundle 有可能声明在插件根上，清目录会删掉源码。
 
-当前只硬编码 demo。等 `nide.client` 的声明稳定后，改成遍历插件目录。
+打包前必须先跑它：`dist/` 是 gitignore 的，electron-builder 只带磁盘上已有的文件。
 
 ## 开发 vs 生产
 
 | 环境 | bundle 来源 | 状态 |
 | --- | --- | --- |
 | dev | Vite `/@fs/<绝对路径>` | 可用 |
-| 生产 | TODO：`nide-plugin://` 或 app 协议，从 `plugins/<id>/dist/` 读 | 未实现 |
+| 生产 | `nide-plugin://plugin/<pluginId>/client.js`（shell 注册的自定义协议） | 可用 |
 
-`packages/client-runtime/src/loader.ts` 在非 DEV 下会直接跳过并告警，避免留下
-“开发能跑、打包就坏”的隐形路径。
+生产这条路是 [src/main/protocol/plugin-bundles.ts](../../src/main/protocol/plugin-bundles.ts)：
+
+- `app.whenReady()` **之前** `protocol.registerSchemesAsPrivileged` 登记
+  `nide-plugin`（standard + secure + fetch）；
+- ready 之后 `protocol.handle` 收请求：URL 里**只有 pluginId**（path 里，
+  `encodeURIComponent` 过 —— 不能放 host，URL 解析会把 host 小写化），处理器拿这个
+  id 去 host 的 `plugins.clientBundles` 里查绝对路径，读到文件后以
+  `text/javascript` 返回；
+- 所以「允许清单」就是 host 那份清单，渲染进程拼不出一个能读到别处的 URL；
+- CSP（`src/renderer/index.html`）里 `script-src` 加了 `nide-plugin:`，否则
+  Chromium 会拦掉这个来源的脚本。
+
+`loaded` 集合按 URL 去重：dev 是绝对路径、打包后是 pluginId，两种形态都成立。
+单个 bundle 失败只告警、不影响其它插件（`loadClientBundles` 逐个 try/catch）。
 
 ## 已知限制
 
 - **只支持 classic JSX**：用自动 JSX 的插件需要宿主额外提供 `react/jsx-runtime` 全局。
 - **CSS 还没处理**：bundle 里的样式不会自动注入。当前 demo 没有自己的 CSS；
   以后要么限制插件用宿主的设计 token，要么给 bundle 增加一个样式注入约定。
+- **每个插件只有一个入口文件**：协议只认 `/client.js`，bundle 里不能 `import()`
+  兄弟文件 —— 需要拆分的插件自己打成一个文件。
 - **构建脚本硬编码 demo**：还没有“按插件目录批量构建”。
+- **第三方插件不代构建**：装进来的是作者构建好的 `dist/`；缺了就回退到 glob（第三方
+  没有 glob，等于这个视图加载失败）。
 - **没有 HMR**：改插件 UI 需要重新 `build:plugin-demo` 并刷新页面。
 - **没有版本/能力校验**：bundle 与宿主的 React 版本、API 版本目前靠约定。
 - **信任模型**：bundle 在 renderer 里执行，拥有与宿主 UI 相同的 DOM/`hostAPI` 权限。
@@ -137,7 +165,17 @@ pnpm dev
 [plugin-slot] view served by client modules {"viewId":"demo.hello"}
 ```
 
-如果只看到 `[nide] failed to load client bundles`，检查：
+打包后（`pnpm build:unpack`，用 `electron.exe dist\win-unpacked\resources\app` 起）
+同一个视图的日志里 `url` 应变成 `nide-plugin://plugin/builtin.demo/client.js`；
+如果它回退到 glob（看不到 `client bundle loaded`），检查：
+
+1. `plugins/builtin/demo/dist/client.js` 是否真的进了 `resources/app`（`pnpm
+   build:plugin-demo` 要在 `build:unpack` 之前跑，`dist/` 是 gitignore 的）；
+2. 主进程日志里有没有 `Plugin bundle requested but not in the host catalog`（说明
+   host 的清单里没有它：插件被禁用，或文件不存在）；
+3. DevTools Console 里是否有 CSP 报错（`nide-plugin:` 没加进 `script-src`）。
+
+如果只看到 `[nide] client bundle failed to load`，检查：
 
 1. `plugins/builtin/demo/dist/client.js` 是否存在；
 2. manifest 的 `client.bundle` 是否指向它；

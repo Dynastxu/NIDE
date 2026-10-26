@@ -158,18 +158,24 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - `WorkbenchLayout` 用 `<Slot name="zone.*" fallback={<ToolZone .../>}>`，没有注册者时旧路径照常；
 - `Slot` 不产生包装 DOM（`createElement`）。
 
-### 插件 UI 运行时 bundle（开发期）
+### 插件 UI 运行时 bundle（dev + 打包后）
 - manifest `client: { platform:'web', bundle:'dist/client.js' }`；
-- 主进程 `host:get-client-bundles` → preload → `client-runtime` 注入 IIFE；
+- host `plugins.clientBundles` → preload → `client-runtime` 注入 IIFE；
 - bundle 调 `window.__NIDE_REGISTER__(viewId, Component)` 注册；
 - demo 的 bundle 已构建：`plugins/builtin/demo/dist/client.js`（71 KB）；
-- 日志已验证：
+- **打包后走 `nide-plugin://plugin/<pluginId>/client.js`**：shell 注册的自定义协议
+  （[src/main/protocol/plugin-bundles.ts](src/main/protocol/plugin-bundles.ts)），
+  处理器只用 URL 里的 pluginId 去 host 的清单里查绝对路径，读出来以
+  `text/javascript` 返回；CSP 的 `script-src` 里加了 `nide-plugin:`；
+- `clientBundles` 不返回指向不存在文件的条目（声明了 `client` 但没构建 / 打包漏了
+  `dist/` 时直接回退 glob）；
+- 日志已验证（dev）：
   ```
   [nide] client bundle loaded
   [nide] client module registered by bundle {"id":"demo.hello"}
   [plugin-view] view served by client modules
   ```
-- 没有 bundle 时 `PluginSlot` 回退构建期 `import.meta.glob`。
+- 没有 bundle / 加载失败时 `PluginSlot` 回退构建期 `import.meta.glob`。
 
 ### 工程
 - npm registry 已切 `https://registry.npmmirror.com/`（`.npmrc`）；
@@ -185,16 +191,11 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - 第四批 `8dbb073`：打包（`asar: false` + host 跑源码），`build:unpack` 产物已验证。
 - 第五批 `59ed8af`：插件清单 / 禁用集合 / client bundle 收到 host；新增本地文件夹
   安装、第三方卸载、启用前的信任确认与插件页入口；`test/host/plugins.test.ts`。
-- 第六批（未提交）：项目生命周期统一到 host —— shell 的 `src/main/services/project-store.ts`
-  删除，`project.open/forget/close` 接上 RPC，建窗改成等 host 的启动结论；
-  `test/host/project-store.test.ts`（14 个用例）新增。typecheck 三套都绿，`pnpm test`
-  待用户在普通终端跑。
-- 第七批（未提交）：插件 loader / 视图 / 设置页 / 语言包迁 host —— 新增
-  `plugin-contributions.ts`（唯一读插件目录的地方）与 `plugins.contributions` RPC；
-  shell 只剩四张缓存表与「按当前语言解析标题」。删除 loader / plugin-registry /
-  permission / sandbox / errors 五个文件；4 份 shell loader 用例合成
-  [test/host/plugin-contributions.test.ts](../../test/host/plugin-contributions.test.ts)。
-  `pnpm typecheck` 三套都绿，`pnpm test` 待用户终端跑。
+- 第六批 `8ceb257`：项目生命周期统一到 host；`test/host/project-store.test.ts`。
+- 第七批 `874940e`：插件 loader / 视图 / 设置页 / 语言包迁 host；
+  `test/host/plugin-contributions.test.ts`。
+- 第八批（未提交）：生产 bundle 协议 —— `nide-plugin://` 自定义协议 + CSP +
+  `clientBundles` 过滤缺文件的条目；`test/shared/plugin-api/plugin-bundle-url.test.ts`。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -205,12 +206,12 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 2. ~~**插件 loader / 视图 / 设置页 / 语言包迁 host**~~ —— 已完成（第七批）。
    注意当时的决定：host 下发**未解析的贡献点**（含 manifest 词条表），标题解析仍在
    shell —— 没有把整个 i18n 搬进 host。真要搬的话是 D10 那一步。
-3. **npm 安装来源**（D6）
+3. **npm 安装来源**（D6）—— 用户当前明确**跳过**
    - 先定 pnpm 运行时；推荐自带 registry tarball 安装（需加 `tar` 依赖，v1 不做
      传递依赖），替换 `plugins.install` 的 sourceDir 输入，UI 加包名输入；
    - 插件市场标签页暂不做。
-4. **生产 bundle 协议**：`nide-plugin://` 或 app 协议 + 批量构建 + CSS 约定 + HMR。
-   现在打包版不会加载任何插件 UI（loader 非 dev 直接跳过）。
+4. ~~**生产 bundle 协议**~~ —— 已完成（第八批，`nide-plugin://` + 批量构建）。
+   仍剩：CSS 约定、HMR。
 5. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
 6. **剩余迁移**：i18n / theme / appearance / AI / secrets 服务化；核心 UI 组件搬进
    `client-ui-*`；D10 per-package locale；视觉回归；最后删 `src/main/plugin-host`
@@ -232,7 +233,7 @@ host 启动必需。
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell，但 `ctx.shell`
   桥接尚未实现）；
 - 核心 UI 组件（`client-ui-*` 目前只是把 `@renderer/App` 等包一层 slot）；
-- 生产 bundle 协议、编译 host / asar / 签名、视觉回归、D10。
+- 编译 host / asar / 签名、视觉回归、D10。
 
 **旧实现里也没有的**：插件后端（`manifest.main`）、依赖解析、profile bundle /
 `cordis.patch.yml` / `!!js` / required 审计 / runtime resolution。
@@ -258,7 +259,10 @@ host 现在是启动必需的，不再需要 `NIDE_HOST`。日志里应能看到
   英文界面都不该退化；
 - 设置窗口：菜单打开，期望 `settings.root registered`；
 - Demo：启用 Demo Plugin，打开 `demo.hello`，应出现
-  `view served by client modules`。
+  `view served by client modules`；
+- 打包后的插件 UI：`pnpm build:plugin-clients && pnpm build:unpack`，用
+  `electron.exe dist\win-unpacked\resources\app` 起，`client bundle loaded` 的 `url`
+  应是 `nide-plugin://plugin/builtin.demo/client.js`。
 
 常用命令：
 
@@ -269,7 +273,7 @@ pnpm lint
 pnpm test                 # 需在普通终端跑
 pnpm host:dump
 pnpm host:smoke
-pnpm build:plugin-demo
+pnpm build:plugin-clients
 pnpm build:unpack        # 打包到 dist/<platform>-unpacked（host 必需，先验这个）
 ```
 
@@ -279,7 +283,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 
 - `pnpm install` / `pnpm add`（全局 store 锁 / 删 node_modules）；
 - `pnpm test`（vitest 起 esbuild）；
-- `pnpm build:plugin-demo`（Vite 在 Windows 上 spawn）；
+- `pnpm build:plugin-clients`（Vite 在 Windows 上 spawn）；
 - 直接启动 Electron GUI。
 
 另外 agent 环境里设了 `ELECTRON_RUN_AS_NODE=1`；跑 Electron 前要
@@ -306,10 +310,11 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/plugins.ts` | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做） |
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
 | `src/main/plugin-host/index.ts` | shell 侧缓存：从 host 拉贡献点灌进四张表，安装 / 卸载后重拉 |
+| `src/main/protocol/plugin-bundles.ts` | `nide-plugin://` 协议：打包后按 pluginId 从 host 清单取 bundle 文件 |
 | `src/shared/plugin-api/contributions.ts` | 贡献点的纯数据契约（未解析的 `titleSpec`、插件目录内相对路径） |
 | `src/shared/i18n/locale-tag.ts` | 语言标签规范化 + 候选链（自包含，host 也能直接加载） |
 | `packages/client-runtime/src/index.ts` | 客户端树、slots/modules、bundle 加载 |
-| `packages/client-runtime/src/loader.ts` | `/@fs/` IIFE 注入 |
+| `packages/client-runtime/src/loader.ts` | bundle 注入：dev 走 `/@fs/`，打包后走 `nide-plugin://` |
 | `packages/client-ui-slots/src/index.ts` | `SlotRegistry` / `slotsOf` |
 | `packages/client-modules/src/index.ts` | `ClientModuleRegistry` / `modulesOf` |
 | `packages/client-ui-renderer/src/index.tsx` | `<SlotProvider>` / `<Slot>` |
@@ -386,12 +391,16 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     host 没起来，15s 后会回落成欢迎窗口（同时日志里有 `Failed to resolve the startup
     project through host`）。别再在 shell 里加一份 `projects.json` 的读法来「加速启动」，
     那正是上一轮删掉的东西。
+14. **自定义协议 + CSP 是两处，缺一不可**：`nide-plugin://` 的 scheme 权限必须在
+    `app.whenReady()` **之前**登记（ready 之后登记无效），而页面里的 `<script>` 要能
+    加载它，`src/renderer/index.html` 的 `script-src` 里必须有 `nide-plugin:`。
+    少任何一处，症状都是「打包后插件视图一片白、Console 里 CSP 或 net::ERR_UNKNOWN_URL_SCHEME」。
 
 ## 9. 待定的设计问题
 
-- 生产 bundle 协议：`nide-plugin://` vs app 协议；是否复用 `/plugins` 路由。
 - 插件 CSS：禁止自带全局样式 / 提供 `@nide/ui` token / 注入约定，三选一。
 - 第三方插件构建：安装时构建还是发布时预构建；pnpm 运行时怎么随包。
+- bundle 拆包：协议只认 `/client.js`，需要多文件的插件得自己打成一个文件。
 - `PluginSlot` 的 glob 兜底是长期保留还是删掉。
 - 视觉回归工具：Playwright + Electron 截图，还是自建 `capturePage`。
 - `nide.client` 的正式字段（`views` 映射？`external`？）现在只用了 `bundle`。
@@ -404,22 +413,23 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
 > 当前状态：项目文件 / 章节 / 伏笔 / 图鉴 / 概述 / 配置 / **项目生命周期（列表 /
 > 打开 / 移除 / 关闭）** / **插件的视图 / 设置页 / 语言包 / manifest 词条** 的
-> **实现只有一份**，在 host。客户端 slots 与运行时 bundle（dev）正常，UI 未变。
-> 打包 `asar: false` + 源码 host 已用 `electron.exe <resources/app>` 验证过；
-> `nide.exe` 未签名会被 SmartScreen 拦。
+> **实现只有一份**，在 host。客户端 slots 与运行时 bundle 在 **dev 与打包后都可用**
+> （后者走 `nide-plugin://`），UI 未变。打包 `asar: false` + 源码 host 已用
+> `electron.exe <resources/app>` 验证过；`nide.exe` 未签名会被 SmartScreen 拦。
 > **旧实现没有全部迁完**：`src/main/plugin-host/` 剩下的四张表、`src/main/i18n/`、
 > theme/AI/secrets、核心 UI 组件仍在 shell（见 §4.1）。
-> 下一步按 §4：① npm 安装来源；② 生产 bundle 协议；③ i18n 服务化（D10）。
-> 第六、七批可能还没 commit，先看 `git status`。
+> 下一步按 §4：① i18n 服务化（D10，能顺手收掉四张表）；② 发布化（编译 host +
+> asar + 签名）；③ theme/AI/secrets 与 `ctx.shell`。npm 安装来源已明确跳过。
+> 第八批可能还没 commit，先看 `git status`。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
 
 - [x] `pnpm typecheck` / `pnpm typecheck:host` 绿（host 工程现在包含
       [test/host](../../test/host) 的 11 份用例）
-- [ ] `pnpm test` 重跑：610 全绿是第六批（项目生命周期）之后的数；
-      第七批新增的 `plugin-contributions.test.ts`（34 个用例）与删掉的 4 份
-      shell loader 用例还没在用户终端跑过
+- [ ] `pnpm test` 重跑：608 个用例是第七批之后的数；第八批新增
+      `test/shared/plugin-api/plugin-bundle-url.test.ts`（11 个用例）与
+      `clientBundles` 缺文件过滤的用例还没在用户终端跑过
 - [x] `pnpm dev` 手工验证：从文件夹安装 → 默认禁用 → 启用信任确认 → 卸载；
       视图 / 设置树同步更新，UI 插件启用后不重启即可显示
 - [x] `pnpm dev`：启动自动拉起 host；新建项目生成 `.nide` + 默认图鉴 / 概述预设
@@ -427,6 +437,10 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       从列表移除、关掉主窗口后重开（不该再问「切换项目」）
 - [ ] `pnpm dev` 复验第七批（插件贡献点）：视图标题 / 设置树 / 英文界面不退化，
       安装一个带语言包的插件后语言列表里能看到它
+- [x] **打包后插件 UI**：`pnpm build:unpack` 产物用 `electron.exe
+      resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
+      `nide-plugin://plugin/builtin.demo/client.js`，随后 `view served by client modules`
+      —— 说明协议、CSP、host 清单三处都对上了
 - [x] 图鉴 / 概述 / 角色图鉴 / 项目配置读路径正常
 - [x] `EditorPanes` 的 ResizeObserver 修复已验证：持续刷屏消失（只剩首次布局的一条）
 - [ ] `pnpm lint`：只剩 `scripts/host-ipc-node-smoke.mjs` 的两个
@@ -434,8 +448,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 - [x] `pnpm build:unpack` 通过：用 `electron.exe dist\win-unpacked\resources\app`
       启动，host ready、新建项目初始化、读写正常（当前 `asar: false` + 源码 host）
 - [ ] 代码签名：`nide.exe` 未签名会被 SmartScreen 拦；发布前配 `win.certificateFile`
-- [ ] `pnpm build:plugin-demo` 可重复产出 `plugins/builtin/demo/dist/client.js`
+- [ ] `pnpm build:plugin-clients` 还没在普通终端真跑过一次（agent 沙箱里 esbuild
+      `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第六、七批改动未提交**（项目生命周期 + 插件贡献点），先 commit 再开工
+- [ ] **第八批改动未提交**（生产 bundle 协议），先 commit 再开工
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

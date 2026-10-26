@@ -1,15 +1,17 @@
+import { pluginBundleUrl } from '@shared/plugin-api'
 import type { ClientBundleDescriptor } from '@shared/plugin-api'
 
 /**
- * 插件浏览器半的运行时加载器（MVP）。
+ * 插件浏览器半的运行时加载器。
  *
  * 当前形态（方案 A）：
  * - 插件 bundle 是 IIFE，加载时调用 `window.__NIDE_REGISTER__(viewId, Component)`；
  * - React / ReactDOM 由宿主挂在全局，bundle 里不打包；
- * - 开发期用 Vite dev server 的 `/@fs/<绝对路径>` 取文件。
+ * - 开发期用 Vite dev server 的 `/@fs/<绝对路径>` 取文件；
+ * - 打包后用 shell 注册的 `nide-plugin://plugin/<pluginId>/client.js`：渲染进程只给
+ *   插件 id，路径由主进程按 host 的清单去查（见 `src/main/protocol/plugin-bundles.ts`）。
  *
- * 生产环境不能走 `/@fs/`：会换成 app 协议（见 docs/architecture/plugin-ui-bundles.md）。
- * 所以这里在非 DEV 下直接跳过并告警，避免留下一个「开发能跑、打包就坏」的路径。
+ * 两条路都只让渲染进程碰 URL，不碰文件系统 —— 它在 Chromium 沙箱里本来也读不了盘。
  */
 
 const loaded = new Set<string>()
@@ -27,6 +29,11 @@ function devBundleUrl(bundlePath: string): string {
   return `/@fs/${bundlePath.replaceAll('\\', '/')}`
 }
 
+/** 这个 bundle 该从哪个 URL 取 */
+function bundleUrl(descriptor: ClientBundleDescriptor): string {
+  return isDev() ? devBundleUrl(descriptor.bundlePath) : pluginBundleUrl(descriptor.pluginId)
+}
+
 function injectScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script')
@@ -38,21 +45,30 @@ function injectScript(src: string): Promise<void> {
   })
 }
 
+/**
+ * 加载清单里的全部 bundle。
+ *
+ * **逐个**吞掉失败：一个插件的 bundle 坏了（文件被删、协议回 404、语法错）不该让
+ * 后面的插件一起不加载 —— `PluginSlot` 对没注册的视图还有构建期 glob 兜底，所以
+ * 最坏的结果是这一个插件回退到打包进去的那份，而不是整片界面空掉。
+ */
 export async function loadClientBundles(descriptors: ClientBundleDescriptor[]): Promise<void> {
-  if (!isDev()) {
-    // TODO: 生产环境用 `nide-plugin://` 或 app 协议提供已构建的 bundle。
-    console.warn('[nide] client bundles are only wired for the dev server')
-    return
-  }
-
   for (const descriptor of descriptors) {
     if (descriptor.platform !== 'web') continue
 
-    const url = devBundleUrl(descriptor.bundlePath)
+    const url = bundleUrl(descriptor)
     if (loaded.has(url)) continue
 
-    await injectScript(url)
-    loaded.add(url)
-    console.info('[nide] client bundle loaded', { pluginId: descriptor.pluginId, url })
+    try {
+      await injectScript(url)
+      loaded.add(url)
+      console.info('[nide] client bundle loaded', { pluginId: descriptor.pluginId, url })
+    } catch (error) {
+      console.warn('[nide] client bundle failed to load', {
+        pluginId: descriptor.pluginId,
+        url,
+        error
+      })
+    }
   }
 }

@@ -12,6 +12,7 @@ import { initPluginHost } from './plugin-host'
 import { startHost, stopHost, attachHostPort } from './host/process'
 import { initI18n } from './i18n'
 import { initAppearance, registerAppearanceBroadcast } from './appearance'
+import { registerPluginBundleProtocol, registerPluginBundleScheme } from './protocol/plugin-bundles'
 import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './window'
 
 /**
@@ -23,11 +24,20 @@ import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './w
  */
 const logger = installLogger()
 
+/**
+ * 自定义 scheme 的权限位只能在 ready **之前**登记，所以这一句刻意放在模块顶层。
+ * 处理器本身在 ready 之后挂（见下面的 `registerPluginBundleProtocol`）。
+ */
+registerPluginBundleScheme()
+
 app.whenReady().then(async () => {
   // 必须和 electron-builder.yml 的 appId 保持一致：Windows 靠 AppUserModelID
   // 归组任务栏图标、关联通知，两边不一致时通知会挂到别的应用名下。
   // Electron 没有在运行时读 appId 的 API，所以只能硬编码，改动时两处一起改。
   electronApp.setAppUserModelId('com.github.dynastxu.nide')
+
+  // 打包后插件 UI 靠它取 bundle（开发期走 Vite 的 /@fs/，用不到）
+  registerPluginBundleProtocol()
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
