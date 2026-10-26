@@ -652,10 +652,13 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第十七批改动未提交**（删 shell 旧实现 + 内建视图搬 host），先 commit 再开工
-- [ ] `pnpm typecheck` / `typecheck:host` / `lint` 已复跑（第十七批之后）；
-      `pnpm test` 仍需在用户终端跑（新增 `test/host/builtin-views.test.ts`、`test/host/secrets.test.ts`、
-      `test/host/ai-provider.test.ts`）
+- [x] 第十七批已提交 `a1b3059`（删 shell 旧实现 + 内建视图搬 host）
+- [x] `pnpm typecheck` / `typecheck:host` / `lint` 复跑（第十七批之后）：绿 / 基线
+- [x] 编译产物复跑：`node out/host/packages/host/src/index.js --dist-root out/host --once` 正常
+- [ ] **等用户验证**：`pnpm test`（新增 `test/host/builtin-views.test.ts`、
+      `test/host/secrets.test.ts`、`test/host/ai-provider.test.ts`）、`pnpm dev`（三个窗口 +
+      主题 + 语言 + AI 设置页）、`pnpm build:unpack`（asar 与 `app.asar.unpacked`
+      布局）。**用户说了先不合并，验证通过再决定。**
 - [x] 编译产物实跑：`node out/host/packages/host/src/index.js --dist-root out/host --once`
       通过（profile 从产物里取、hello 插件加载、内建插件扫描到 3 个）
 - [ ] `pnpm build:unpack` 复跑（asar 已开）：`resources/app.asar` 存在，
