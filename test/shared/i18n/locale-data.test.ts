@@ -13,7 +13,7 @@ import ts from 'typescript'
  * 才拦得住，人眼是发现不了的。
  */
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
-const BASE_TABLE = path.join(ROOT, 'src', 'shared', 'i18n', 'locales', 'zh-CN.ts')
+const BASE_TABLE = path.join(ROOT, 'packages', 'contracts', 'src', 'i18n', 'locales', 'zh-CN.ts')
 const PLUGIN_DIRS = [
   path.join(ROOT, 'plugins', 'builtin'),
   // 第三方语言包通常不在仓库里，但本地调试时可能放这儿

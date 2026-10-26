@@ -15,7 +15,7 @@ import {
   systemWindowTitle,
   type WindowType
 } from '@nide/contracts/window'
-import icon from '../../resources/icon.png?asset'
+import icon from '../../../../resources/icon.png?asset'
 import { createMainTranslator, getCurrentLocale } from './i18n'
 import { getAppearancePreference, getCurrentPalette, getCurrentWindowColor } from './appearance'
 import { getLogLevel, loggerFor } from './logger'
