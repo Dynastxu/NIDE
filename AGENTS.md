@@ -15,6 +15,11 @@ All code written in this project must adhere to the following SOLID principles:
 - **Interface Segregation Principle (ISP)**: Clients should not be forced to depend on interfaces they do not use. Prefer small, focused interfaces over large, monolithic ones.
 - **Dependency Inversion Principle (DIP)**: Depend on abstractions, not on concretions. High-level modules should not depend on low-level modules; both should depend on abstractions.
 
+All code written in this project must also follow these design guidelines:
+
+- **UX/DX/AX Balance**: Every modification must balance User Experience (UX), Developer Experience (DX), and AI Agent usage experience (AX). All three must improve, and existing functionality must not be broken.
+- **UI Simplicity**: For UI/frontend code: delete redundant slogans, explanatory text, and secondary labels. If the interface becomes incomprehensible after removing them, the layout itself is flawed—propose a redesign rather than adding text back.
+
 ## User
 - When the user refuses to run tests, builds, or other commands with elevated privileges, stop trying, and do not use any method to attempt to run them without elevated privileges.
 - Without the user's permission, git commands may be executed only if they are read-only; all other git commands must not be executed.
