@@ -1,13 +1,11 @@
-import {
-  BUILTIN_DARK_THEME,
-  BUILTIN_LIGHT_THEME,
-  type ThemeDescriptor,
-  type ThemeId,
-  type ThemePalette
-} from './types'
+import type { ThemeDescriptor, ThemeId, ThemePalette } from './types.js'
 
 /**
- * 宿主内置的两套主题。
+ * 宿主内置的两套主题 —— **纯数据、无运行时 import**。
+ *
+ * 这一点是刻意的：host（纯 Node ESM）要读它来判断「这个主题 id 存在吗 / 它是深是浅」，
+ * 而 host 加载不了任何带运行时 import 的共享文件。所以类型用 `./types.js`（纯类型，
+ * 运行时会被擦除）引进来。
  *
  * 配色不在数据里 —— 它在样式表中：
  * - 深色：组件里的原始色阶（`bg-zinc-900` …）+ `assets/index.css`；
@@ -15,6 +13,13 @@ import {
  *
  * 这里只声明"有哪两套、各自深浅、窗口底色是什么"。
  */
+
+export const BUILTIN_DARK_THEME: ThemeId = 'builtin.dark'
+export const BUILTIN_LIGHT_THEME: ThemeId = 'builtin.light'
+
+/** 没有偏好、或偏好指向的主题不存在时用它 */
+export const DEFAULT_THEME: ThemeId = BUILTIN_DARK_THEME
+
 export const BUILTIN_THEMES: readonly ThemeDescriptor[] = [
   // 主题名不参与翻译（见 ThemeDescriptor.label 的说明）
   { id: BUILTIN_DARK_THEME, label: 'NIDE Dark', palette: 'dark' },

@@ -343,7 +343,7 @@ export function registerHostIPC(): void {
    * 与 set-locale 的关键差别：这里不重建窗口、不确认。换主题不需要重建（词条表在
    * 首帧前就固定了），也就不会丢掉未保存的内容。
    */
-  ipcMain.handle(HOST_CHANNELS.setTheme, (_e, payload: unknown): boolean => {
+  ipcMain.handle(HOST_CHANNELS.setTheme, async (_e, payload: unknown): Promise<boolean> => {
     const preference = normalizeAppearancePreference(payload)
     /**
      * `followSystem` 刻意**不**从载荷里取：它当前恒为 false（设置页把这一项摆成

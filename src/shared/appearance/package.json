@@ -1,0 +1,5 @@
+{
+  "//": "ESM 标记：host（纯 Node ESM）直接加载 preference.ts（主题偏好的类型与归一化）。",
+  "//2": "preference.ts 只有类型 import，所以可以被 host 加载。",
+  "type": "module"
+}

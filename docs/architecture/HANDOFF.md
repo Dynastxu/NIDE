@@ -11,8 +11,8 @@ Cordis/DSH 架构的**核心竖切已经跑通**：Electron shell → 独立 hos
 语言包 / manifest 词条** / **本地化（语言包瀑布、语言偏好、标题解析）** 的实现只有
 一份，在 host；插件清单 / 启停 / 本地安装 / 卸载 / 信任确认也在 host。现有界面外观未改。
 
-**但旧实现没有全部迁完**：theme / appearance / AI / secrets、核心 UI 组件仍在 shell
-或旧路径（逐项见 §4.1）。下一步不是继续加新功能，而是在 §4 里挑一条搬完。
+**但旧实现没有全部迁完**：AI / secrets、核心 UI 组件仍在 shell 或旧路径
+（逐项见 §4.1）。下一步不是继续加新功能，而是在 §4 里挑一条搬完。
 
 ## 1. 目标与已锁定决策
 
@@ -56,6 +56,7 @@ Host（packages/host，纯 Node ESM）
 │  （视图 / 设置页 / 语言包 / manifest 词条）
 ├─ 本地化（services/i18n.ts）：语言包注册表 + 逐 key 瀑布 + 语言偏好
 │  （`<userData>/locale.json`）+ manifest 标题解析
+├─ 主题 / 外观（services/appearance.ts）：偏好（`<userData>/appearance.json`）+ 主题解析
 └─ `shell` 反向桥（shell.ts）：host 需要 Electron 能力时反向调 shell
    （`nativeTheme` / `safeStorage`，见 §3「ctx.shell」）
 
@@ -170,6 +171,21 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - shell 的 `language-packs.ts` / `preference.ts` / `manifest-nls.ts` 全部删除；
   语言偏好文件从 shell 挪到 host 后**路径不变**（同一个 userData），老用户的偏好照常生效。
 
+### 主题 / 外观（host）
+- [packages/host/src/services/appearance.ts](packages/host/src/services/appearance.ts)：
+  `appearance.json` 偏好、`findBuiltinTheme` 校验、`fallbackFrom` 语义、原生明暗
+  （`shell.call('nativeTheme.setSource')`）；
+- RPC：`appearance.init` / `appearance.payload` / `appearance.setTheme`
+  （返回 `{ payload, preference }`，主题不存在时回 `null`）；
+- shell 侧 [src/main/appearance/index.ts](src/main/appearance/index.ts) 只缓存 `AppearanceState`：
+  窗口底色（`backgroundColor`）与 `--nide-appearance=` / `--nide-theme-palette=`
+  启动参数都在建窗那一刻定死，跑不了 IPC；`nativeTheme.on('updated')` 仍挂在 shell
+  （Electron 事件），只用来让 host 重算一次、变了再广播；
+- 共享层为了能被 host 加载做了两处调整：`theme/builtin.ts` 改成**纯数据**（三个 id
+  常量搬进去、类型用 `./types.js` 纯类型导入），`appearance/preference.ts` 独立出来
+  （`DEFAULT_APPEARANCE.theme` 写成字面量，由 `test/shared/theme/theme-data.test.ts`
+  钉住与 `DEFAULT_THEME` 一致）。
+
 ### ctx.shell（host → shell 的反向能力桥）
 - 协议在 [src/shared/host-rpc/index.ts](src/shared/host-rpc/index.ts)：
   `shell-call` / `shell-result`，方法名是白名单 `ShellMethod`
@@ -234,10 +250,13 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   `plugins.views` / `plugins.settings` 直接下发已解析标题的描述符；
   shell 删掉 `language-packs` / `preference` / `manifest-nls` 与四张缓存表，
   `src/main/i18n` 只留一份载荷缓存。`test/host/i18n.test.ts` 新增。
-- 第十批（未提交）：`ctx.shell` 反向能力桥 —— `shell-call` / `shell-result` 协议、
+- 第十批 `68fac0e`：`ctx.shell` 反向能力桥 —— `shell-call` / `shell-result` 协议、
   host 的 `ShellBridge`、shell 的 `capabilities.ts`（`nativeTheme` / `safeStorage`
-  白名单）；`test/host/shell-bridge.test.ts`。这是 theme/appearance 与 secrets
-  搬进 host 的前置。
+  白名单）；`test/host/shell-bridge.test.ts`。
+- 第十一批（未提交）：theme / appearance 搬进 host —— `services/appearance.ts`
+  持有偏好与解析，`nativeTheme` 走反向桥；shell 只缓存 `AppearanceState`（窗口底色 /
+  启动参数要同步）。共享层 `theme/builtin.ts` 改成纯数据、`appearance/preference.ts`
+  独立，host 才能加载。`test/host/appearance.test.ts`、`test/shared/theme/theme-data.test.ts`。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -256,23 +275,25 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
    shell 只缓存一份载荷；`src/main/plugin-host` 的四张表随之删除。
    仍剩 D10（每包 `locale/*.json`，让插件自带 locale 目录而不是 manifest 里声明文件）。
 6. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
-7. **剩余迁移**：theme / appearance / AI / secrets 服务化；核心 UI 组件搬进
-   `client-ui-*`；D10；视觉回归；`ctx.shell` 桥（D7）。
+7. ~~**theme / appearance 服务化**~~ —— 已完成（第十一批）。
+8. **剩余迁移**：AI / secrets 服务化（secrets 走 `safeStorage` 反向桥，AI 的流式
+   响应要先给 RPC 加事件通道）；核心 UI 组件搬进 `client-ui-*`；D10；视觉回归。
 
 ### 4.1 迁移完成度（哪些还在旧实现）
 
 **已迁到 host**：项目文件 / 章节 / 伏笔 / 图鉴 / 概述 / 配置；新建项目初始化；
 项目生命周期（列表 / 打开 / 移除 / 关闭 / 启动恢复）；插件清单 / 启停 / 本地安装 /
 卸载 / 信任确认 / **视图 / 设置页 / 语言包 / manifest 词条的读取**；
-**本地化（语言包瀑布 / 语言偏好 / 标题解析）**；通用 RPC；host 启动必需。
+**本地化（语言包瀑布 / 语言偏好 / 标题解析）**；**主题 / 外观（偏好 + 解析，
+nativeTheme 走反向桥）**；通用 RPC；host 启动必需。
 
 **仍在 shell / 旧实现**：
 - `src/main/plugin-host/` 只剩 `host-views`（三条内建视图）与 `preference`
   （禁用集合的镜像，host 不可达时兜底）—— 前者因为标题要用 shell 缓存的载荷翻；
-- theme / appearance / logger（appearance 的偏好文件在 shell，不依赖 host）；
-- AI provider / secrets（`secrets/vault.ts` 若绑 `safeStorage`，要等 `ctx.shell`）；
-- window / menu / tray / update / dialog / confirm（按 D7 属于 shell，但 `ctx.shell`
-  桥接尚未实现）；
+- logger（日志文件归 shell，host 的 stdout 由它接管，不打算搬）；
+- AI provider / secrets（`secrets/vault.ts` 走 `safeStorage` 反向桥；AI 的流式响应
+  要先给 RPC 加事件通道）；
+- window / menu / tray / update / dialog / confirm（按 D7 属于 shell）；
 - 核心 UI 组件（`client-ui-*` 目前只是把 `@renderer/App` 等包一层 slot）；
 - 编译 host / asar / 签名、视觉回归、D10。
 
@@ -354,6 +375,8 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/plugins.ts` | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做） |
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
 | `packages/host/src/services/i18n.ts` | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析 |
+| `packages/host/src/services/appearance.ts` | host 侧主题 / 外观：`appearance.json` 偏好 + 主题解析（nativeTheme 走反向桥） |
+| `src/main/appearance/index.ts` | shell 的 `AppearanceState` 缓存（窗口底色 / 启动参数要同步） |
 | `src/main/plugin-host/host-views.ts` | 三条内建视图（文件树 / 版本控制 / 提交），标题用 shell 缓存的载荷翻 |
 | `src/main/plugin-host/preference.ts` | 禁用集合的 shell 镜像（host 是写入方，这里兜底） |
 | `src/main/i18n/index.ts` | shell 的载荷缓存 + `t()` + 切语言入口（语言与词条都在 host） |
@@ -469,31 +492,31 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
 > 当前状态：项目文件 / 章节 / 伏笔 / 图鉴 / 概述 / 配置 / **项目生命周期（列表 /
 > 打开 / 移除 / 关闭）** / **插件的视图 / 设置页 / 语言包 / manifest 词条** /
-> **本地化（语言包瀑布 / 偏好 / 标题解析）** 的 **实现只有一份**，在 host。
-> 客户端 slots 与运行时 bundle 在 **dev 与打包后都可用**（后者走 `nide-plugin://`），
-> UI 未变。打包 `asar: false` + 源码 host 已用 `electron.exe <resources/app>` 验证过；
-> `nide.exe` 未签名会被 SmartScreen 拦。
-> **旧实现没有全部迁完**：theme/appearance、AI/secrets、核心 UI 组件仍在 shell
-> （见 §4.1）。
-> 下一步按 §4：① 发布化（编译 host + asar + 签名）；② theme/AI/secrets 与
-> `ctx.shell`；③ 核心 UI 插件化 + D10。npm 安装来源已明确跳过。
-> 第九批可能还没 commit，先看 `git status`。
+> **本地化（语言包瀑布 / 偏好 / 标题解析）** / **主题 / 外观** 的
+> **实现只有一份**，在 host。客户端 slots 与运行时 bundle 在 **dev 与打包后都可用**
+> （后者走 `nide-plugin://`），UI 未变。打包 `asar: false` + 源码 host 已用
+> `electron.exe <resources/app>` 验证过；`nide.exe` 未签名会被 SmartScreen 拦。
+> **旧实现没有全部迁完**：AI/secrets、核心 UI 组件仍在 shell（见 §4.1）。
+> 下一步按 §4：① AI / secrets 搬 host（先给 RPC 加事件通道）；② 核心 UI 插件化
+> （D1）+ D10；③ 发布化（编译 host + asar + 签名）。npm 安装来源已明确跳过。
+> 第十一批可能还没 commit，先看 `git status`。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
 
 - [x] `pnpm typecheck` / `pnpm typecheck:host` 绿（host 工程现在包含
-      [test/host](../../test/host) 的 12 份用例）
-- [ ] `pnpm test` 重跑：第八批之后是 35 文件 / 619 用例（其中 1 个当时失败，
-      已修）；第九批新增 `test/host/i18n.test.ts`、删掉 shell 侧语言包用例，
-      还没在用户终端跑过
+      [test/host](../../test/host) 的 14 份用例）
+- [ ] `pnpm test` 重跑：第十批之前是 36 文件；第十 / 十一批新增
+      `test/host/shell-bridge.test.ts`、`test/host/appearance.test.ts`、
+      `test/shared/theme/theme-data.test.ts`，还没在用户终端跑过
 - [x] `pnpm dev` 手工验证：从文件夹安装 → 默认禁用 → 启用信任确认 → 卸载；
       视图 / 设置树同步更新，UI 插件启用后不重启即可显示
 - [x] `pnpm dev`：启动自动拉起 host；新建项目生成 `.nide` + 默认图鉴 / 概述预设
 - [x] `pnpm dev` 复验第六批（项目生命周期）：启动进主窗口、换项目、关闭项目回欢迎窗口、
       从列表移除、关掉主窗口后重开（不该再问「切换项目」）
-- [ ] `pnpm dev` 复验第七 / 九批（插件贡献点 + 本地化）：视图标题、设置树子页、
-      语言切换（中文 <-> English）都正常，英文下没有裸 key
+- [ ] `pnpm dev` 复验第七 / 九 / 十一批（插件贡献点 + 本地化 + 主题）：视图标题、
+      设置树子页、语言切换（中文 <-> English）、换主题（深/浅，窗口底色不该露异色）
+      都正常，英文下没有裸 key
 - [x] **打包后插件 UI**：`pnpm build:unpack` 产物用 `electron.exe
       resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
       `nide-plugin://plugin/builtin.demo/client.js`，随后 `view served by client modules`
@@ -509,5 +532,5 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第九批改动未提交**（i18n 服务化），先 commit 再开工
+- [ ] **第十一批改动未提交**（theme/appearance 搬 host），先 commit 再开工
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

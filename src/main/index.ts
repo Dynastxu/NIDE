@@ -102,7 +102,7 @@ app.whenReady().then(async () => {
    * 放在 initI18n 之后只是为了让日志顺序与"语言 -> 主题"的阅读顺序一致，
    * 两者之间没有依赖。
    */
-  initAppearance()
+  await initAppearance()
   registerAppearanceBroadcast((payload) => pushEventToRenderer(APPEARANCE_CHANNEL, payload))
   // 4) 最后开窗：窗口一打开，渲染进程就能拿到完整的视图列表和词条表。
   //    开哪个窗口由「打开过的项目」决定 —— 那份记录现在只有 host 在读，

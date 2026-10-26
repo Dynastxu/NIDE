@@ -38,6 +38,7 @@ import {
 } from './services/project-config.ts'
 import { PluginManager, pluginPreferencePath } from './services/plugins.ts'
 import { HostI18n } from './services/i18n.ts'
+import { HostAppearance } from './services/appearance.ts'
 import { shell } from './shell.ts'
 import type { TitleResolver } from './services/plugins.ts'
 import { filePathKey } from '../../../src/shared/project/files.ts'
@@ -195,6 +196,14 @@ const plugins = new PluginManager({
  * Electron 知道）。每次 i18n 调用前重灌一遍语言包：安装 / 卸载插件之后集合会变。
  */
 const i18n = new HostI18n({ userDataDir })
+
+/**
+ * 主题 / 外观。
+ *
+ * 偏好文件（`appearance.json`）与「哪套主题生效」的解析都在这里；`nativeTheme`
+ * 那一下通过反向桥请 shell 做。shell 缓存一份状态，因为开窗要同步拿窗口底色。
+ */
+const appearance = new HostAppearance({ userDataDir })
 
 function syncLanguagePacks(): void {
   i18n.setPacks(plugins.contributions().locales)
@@ -661,6 +670,21 @@ rpc.register('i18n', {
     return i18n.setLocale(String(locale ?? ''))
   },
   payload: () => i18n.payload()
+})
+
+/**
+ * 主题 / 外观。
+ *
+ * `setTheme` 落盘并更新原生明暗，返回新状态；主题不存在时回 null（shell 据此
+ * 告诉设置页「没改成」）。`payload` 给 shell 缓存与渲染进程的查询用。
+ */
+rpc.register('appearance', {
+  init: () => appearance.init(),
+  payload: () => appearance.payload(),
+  setTheme: (request) => {
+    const payload = (request ?? {}) as { theme?: unknown; followSystem?: unknown }
+    return appearance.setTheme(String(payload.theme ?? ''), payload.followSystem === true)
+  }
 })
 
 /**
