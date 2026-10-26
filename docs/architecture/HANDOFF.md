@@ -655,6 +655,12 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 - [x] 第十七批已提交 `a1b3059`（删 shell 旧实现 + 内建视图搬 host）
 - [x] `pnpm typecheck` / `typecheck:host` / `lint` 复跑（第十七批之后）：绿 / 基线
 - [x] 编译产物复跑：`node out/host/packages/host/src/index.js --dist-root out/host --once` 正常
+- [x] **打包布局模拟过**（不用 electron-builder）：把 `out/host` 与 `plugins/` 拷到
+      `<tmp>/app.asar.unpacked/`，用
+      `--app-root <tmp>/app.asar.unpacked --dist-root <tmp>/app.asar.unpacked/out/host`
+      跑编译产物 —— host ready、3 个内建插件、语言包 309 条、demo 的
+      `dist/client.js` 都按打包后的路径解析正确。asar 本体（真的 `app.asar` 与
+      Electron 的 asar 文件系统）仍需 `build:unpack` 实测。
 - [ ] **等用户验证**：`pnpm test`（新增 `test/host/builtin-views.test.ts`、
       `test/host/secrets.test.ts`、`test/host/ai-provider.test.ts`）、`pnpm dev`（三个窗口 +
       主题 + 语言 + AI 设置页）、`pnpm build:unpack`（asar 与 `app.asar.unpacked`
