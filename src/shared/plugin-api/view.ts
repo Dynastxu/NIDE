@@ -12,10 +12,10 @@ export type ViewLocation =
  * `<来源>.<插件目录名>`（内置插件 `builtin.`，第三方插件在 userData 下，
  * 例如 `builtin.demo` / `user.lang-en`）。
  *
- * 整个 `host` / `host.*` 命名空间由宿主保留。这不是靠约定维持的：加载器
- * 用 isReservedHostId 在注册之前拒绝占用它的 manifest id 或视图 id
- * （见 plugin-host/loader.ts），否则一个第三方 manifest 就能把内建视图
- * 挤出同一张视图表。
+ * 整个 `host` / `host.*` 命名空间由宿主保留。这不是靠约定维持的：host 读插件
+ * 贡献点时用 isReservedHostId 在注册之前拒绝占用它的 manifest id 或视图 id
+ * （见 packages/host/src/services/plugin-contributions.ts），否则一个第三方
+ * manifest 就能把内建视图挤出同一张视图表。
  *
  * 渲染进程据此把内建视图交给宿主的组件表（HostSlot），插件视图仍走
  * import.meta.glob 那套。

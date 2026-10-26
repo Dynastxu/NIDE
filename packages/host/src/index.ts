@@ -598,6 +598,15 @@ rpc.register('plugins', {
   },
   clientBundles: () => plugins.clientBundles(),
 
+  /**
+   * 视图 / 设置页 / 语言包 / manifest 词条。
+   *
+   * 这一份数据此前由 shell 自己扫目录得到（`src/main/plugin-host/loader.ts`），
+   * 与 host 的清单扫描各读一遍 manifest。现在读盘只在这里，shell 只消费 ——
+   * 标题的 `%key%` 解析仍留在 shell（要用当前语言）。
+   */
+  contributions: () => plugins.contributions(),
+
   install: (sourceDir) => plugins.install(String(sourceDir ?? '')),
   remove: (pluginId) => plugins.remove(String(pluginId ?? '')),
 

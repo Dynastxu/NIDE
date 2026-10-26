@@ -472,11 +472,11 @@ describe('插件 manifest 文案（%key% 解析）', () => {
     expect(parsePlaceholder('%a%')).toBe('a')
   })
 
-  it('unregisterByPlugin 后不再解析', () => {
+  it('reset 之后不再解析（重扫贡献点走这条路）', () => {
     const scoped = new ManifestNlsRegistry()
     scoped.register('p', { byLocale: { 'en-US': { k: 'v' } } })
     expect(scoped.resolve('p', '%k%', 'en-US')).toBe('v')
-    scoped.unregisterByPlugin('p')
+    scoped.reset()
     expect(scoped.resolve('p', '%k%', 'en-US')).toBe('%k%')
   })
 })

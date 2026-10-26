@@ -1,4 +1,3 @@
-import path from 'node:path'
 import { BrowserWindow, Menu, dialog, ipcMain, webContents } from 'electron'
 import { WINDOW_CHANNELS } from '@shared/window'
 import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
@@ -8,7 +7,6 @@ import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
 import { uiRegistry } from '../plugin-host/ui-registry'
 import { settingsRegistry } from '../plugin-host/settings-registry'
 import { HOST_VIEWS } from '../plugin-host/host-views'
-import { pluginRegistry } from '../plugin-host/plugin-registry'
 import {
   getDisabledPlugins,
   reloadPluginPreference,
@@ -179,23 +177,10 @@ export function registerHostIPC(): void {
     try {
       return await invokeHost<PluginDescriptor[]>('plugins', 'list', [])
     } catch (error) {
-      logger.warn('host plugins.list failed, falling back to the shell registry', { error })
+      // 清单的唯一来源是 host。读不到就给空列表，而不是拿一份可能过期的镜像顶上
+      logger.error('Failed to read the plugin list through host', { error })
+      return []
     }
-
-    return pluginRegistry
-      .getAll()
-      .map((plugin) => ({
-        id: plugin.id,
-        name: plugin.name,
-        version: plugin.version,
-        builtin: plugin.source === 'builtin',
-        dir: plugin.dir,
-        permissions: plugin.permissions,
-        views: plugin.views,
-        requiresRestart: plugin.requiresRestart,
-        ...(plugin.description ? { description: plugin.description } : {})
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
   })
 
   /**
@@ -208,22 +193,9 @@ export function registerHostIPC(): void {
     try {
       return await invokeHost<ClientBundleDescriptor[]>('plugins', 'clientBundles', [])
     } catch (error) {
-      logger.warn('host plugins.clientBundles failed, falling back to the shell registry', {
-        error
-      })
+      logger.error('Failed to read the client bundles through host', { error })
+      return []
     }
-
-    const disabled = new Set(getDisabledPlugins())
-    return pluginRegistry.getAll().flatMap((plugin) => {
-      if (!plugin.client || disabled.has(plugin.id)) return []
-      return [
-        {
-          pluginId: plugin.id,
-          platform: plugin.client.platform,
-          bundlePath: path.join(plugin.dirPath, plugin.client.bundle)
-        }
-      ]
-    })
   })
 
   /**
@@ -245,9 +217,12 @@ export function registerHostIPC(): void {
        *
        * 内置插件不走这一问：它们随宿主分发，用户没有「装不装」的选择。第三方代码
        * 拥有完整 Node 权限（D6），装进来只代表「有了」，启用才是信任决定。
+       *
+       * 「是不是第三方」只有 host 的清单知道；读不到清单时**不问**（与搬迁前
+       * 「清单里找不到这个 id」同一条行为），因为那时启用也不会成功。
        */
-      const record = pluginRegistry.getAll().find((plugin) => plugin.id === pluginId)
-      if (enabled && record && record.source !== 'builtin') {
+      const record = await findPlugin(pluginId)
+      if (enabled && record && !record.builtin) {
         const ok = await isActionConfirmed(event.sender, options, {
           ...CONFIRM_SPECS.enableThirdPartyPlugin,
           params: { name: record.name }
@@ -328,7 +303,7 @@ export function registerHostIPC(): void {
 
     try {
       const result = await invokeHost<PluginInstallResult>('plugins', 'install', [source])
-      if (result.ok) notifyPluginCatalogChanged()
+      if (result.ok) await notifyPluginCatalogChanged()
       return result
     } catch (error) {
       logger.warn('host plugins.install failed', { error })
@@ -348,8 +323,8 @@ export function registerHostIPC(): void {
       const id = String(pluginId ?? '')
       if (id.length === 0) return { ok: false, reason: 'not-found' }
 
-      const record = pluginRegistry.getAll().find((plugin) => plugin.id === id)
-      if (record?.source === 'builtin') return { ok: false, reason: 'builtin' }
+      const record = await findPlugin(id)
+      if (record?.builtin) return { ok: false, reason: 'builtin' }
 
       const confirmed = await isActionConfirmed(event.sender, undefined, {
         ...CONFIRM_SPECS.uninstallPlugin,
@@ -359,7 +334,7 @@ export function registerHostIPC(): void {
 
       try {
         const result = await invokeHost<PluginRemoveResult>('plugins', 'remove', [id])
-        if (result.ok) notifyPluginCatalogChanged()
+        if (result.ok) await notifyPluginCatalogChanged()
         return result
       } catch (error) {
         logger.warn('host plugins.remove failed', { error })
@@ -476,14 +451,30 @@ export function registerHostIPC(): void {
 /**
  * 插件目录变了（安装 / 卸载）之后的通知。
  *
- * 先重扫 shell 的插件注册表（视图 / 设置页 / 语言包），再用既有的
- * `plugin:enabled-changed` 广播叫所有窗口重拉一次 —— 主窗口重拉视图，设置窗口
- * 重拉设置树。它只是「该刷新了」的信号，不携带语义。
+ * 先重拉 shell 的贡献点缓存（视图 / 设置页 / 语言包 / manifest 词条都来自 host 的
+ * 同一份数据），再用既有的 `plugin:enabled-changed` 广播叫所有窗口重拉一次 ——
+ * 主窗口重拉视图，设置窗口重拉设置树。它只是「该刷新了」的信号，不携带语义。
  */
-function notifyPluginCatalogChanged(): void {
+async function notifyPluginCatalogChanged(): Promise<void> {
   reloadPluginPreference()
-  rescanPluginHost()
+  await rescanPluginHost()
   pushEventToRenderer(HOST_EVENT_CHANNELS.pluginEnabledChanged, '', false)
+}
+
+/**
+ * 从 host 的清单里找一条插件记录；读不到时给 null。
+ *
+ * 「是不是第三方」只由 host 的清单回答 —— shell 不再自己扫目录，所以这里没有第二
+ * 份名单可查。读不到时调用方按「不知道」处理（不弹信任确认、让 host 自己去拒绝）。
+ */
+async function findPlugin(pluginId: string): Promise<PluginDescriptor | null> {
+  try {
+    const plugins = await invokeHost<PluginDescriptor[]>('plugins', 'list', [])
+    return plugins.find((plugin) => plugin.id === pluginId) ?? null
+  } catch (error) {
+    logger.warn('Failed to look up a plugin through host', { pluginId, error })
+    return null
+  }
 }
 
 /** 宿主 -> 渲染进程：推送事件 */

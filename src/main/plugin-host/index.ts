@@ -1,95 +1,72 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import { app } from 'electron'
-import { uiRegistry } from './ui-registry'
-import { settingsRegistry } from './settings-registry'
-import { pluginRegistry } from './plugin-registry'
-import { PluginLoader } from './loader'
+import { emptyPluginContributions, type PluginContributions } from '@shared/plugin-api'
+import { invokeHost } from '../host/process'
 import { languagePackRegistry } from '../i18n'
+import { manifestNlsRegistry } from '../i18n/manifest-nls'
 import { loggerFor } from '../logger'
-import type { LocaleSourceTier } from '@shared/i18n'
+import { settingsRegistry } from './settings-registry'
+import { uiRegistry } from './ui-registry'
 
 /**
- * 本模块的日志出口。
+ * 插件贡献点在 shell 侧的**缓存**。
  *
- * 加载器那份可以在测试里替换（见 loader.ts 的 setPluginHostLogger），
- * 这里扫描目录时的告警不参与单元测试，用固定出口即可。
+ * 读盘的那一半已经在 host（[plugin-contributions.ts](../../packages/host/src/services/plugin-contributions.ts)）：
+ * 扫两个插件目录、读 manifest、读语言包与 `package.nls*.json`，最后把纯数据下发。
+ * 这里只做两件事：
+ *
+ * 1. 启动时拉一次，灌进下面几个注册表；
+ * 2. 安装 / 卸载之后重拉一次（`rescanPluginHost`）。
+ *
+ * 为什么还留着这几个注册表而不是每次查询都隔着进程问：标题的 `%key%` 要用**当前
+ * 语言**解析，而语言属于 shell 的 i18n（`src/main/i18n`）。视图列表、设置树、词条表
+ * 都是同步查询的，把这份数据缓存住比每次查询都发一次 RPC 简单得多。
  */
+
 const logger = loggerFor('plugin-host')
 
-const BUILTIN_REL = path.join('plugins', 'builtin')
-
-function resolveBuiltinPluginsDir(): string {
-  // dev：app.getAppPath() = 项目根
-  // 打包：app.getAppPath() = .../resources/app.asar（plugins/ 会被 electron-builder 打进 asar）
-  const candidates = [
-    path.join(app.getAppPath(), BUILTIN_REL),
-    path.join(process.cwd(), BUILTIN_REL)
-  ]
-  return candidates.find((p) => fs.existsSync(p)) ?? candidates[0]
+async function fetchContributions(): Promise<PluginContributions> {
+  try {
+    return await invokeHost<PluginContributions>('plugins', 'contributions')
+  } catch (error) {
+    /**
+     * host 不可达时退回「什么都没有」：界面只剩内建视图，语言只剩中文基础表。
+     * 这不是正常状态，但比让启动整个失败要好 —— 用户至少还能看到窗口和错误日志。
+     */
+    logger.error('Failed to read plugin contributions through host', { error })
+    return emptyPluginContributions()
+  }
 }
 
 /**
- * 第三方插件目录：userData 下，用户可写。
+ * 把一份贡献点灌进注册表。
  *
- * 放 userData 而不是安装目录，是因为安装目录在 macOS/Windows 上通常不可写、
- * 而且会被应用更新覆盖 —— 用户装的语言包不该因为升级宿主就没了。
+ * **先清空再灌**：安装 / 卸载之后重扫时，上一轮注册的视图 / 设置页 / 语言包不该
+ * 留在表里。清空是必须的 —— 注册表是同名覆盖，只灌不清会让被卸载插件的视图
+ * 永远留在界面上。
  */
-export function resolveThirdPartyPluginsDir(): string {
-  return path.join(app.getPath('userData'), 'plugins')
-}
+export function applyPluginContributions(contributions: PluginContributions): void {
+  uiRegistry.reset()
+  settingsRegistry.reset()
+  languagePackRegistry.reset()
+  manifestNlsRegistry.reset()
 
-function scanDir(loader: PluginLoader, dir: string, source: LocaleSourceTier): number {
-  if (!fs.existsSync(dir)) return 0
-
-  let loaded = 0
-  for (const name of fs.readdirSync(dir)) {
-    const manifestPath = path.join(dir, name, 'manifest.json')
-    if (!fs.existsSync(manifestPath)) continue
-    try {
-      // loadContributions 返回 manifest 本身，顺手登记进插件清单 ——
-      // 这样「设置 -> 插件」能列出**全部**插件，包括没有任何视图的语言包。
-      // 从 uiRegistry 反推插件列表是不行的，那类插件会整个不可见。
-      const manifest = loader.loadContributions(manifestPath, source)
-      if (manifest) pluginRegistry.register(manifest, source, name, path.join(dir, name))
-      loaded += 1
-    } catch (err) {
-      logger.error('Failed to load plugin', { name, error: err })
-    }
+  for (const view of contributions.views) uiRegistry.register(view)
+  for (const page of contributions.settings) settingsRegistry.register(page)
+  for (const pack of contributions.locales) languagePackRegistry.register(pack)
+  for (const [pluginId, tables] of Object.entries(contributions.manifestNls)) {
+    manifestNlsRegistry.register(pluginId, tables)
   }
-  return loaded
 }
 
 /**
- * 初始化插件宿主：扫描内置与第三方插件目录，注册权限、视图贡献点和语言包。
+ * 初始化插件宿主：从 host 拉一次贡献点。
  *
- * 注意：这里不加载任何前端代码 —— 插件 UI 由渲染进程的 Vite 在构建期打包。
- * 主进程只负责回答「有哪些视图」「有哪些语言包」，不负责「怎么加载组件」。
+ * **必须在 `initI18n()` 之前完成** —— 语言包是随贡献点一起下发的，注册表空着的话
+ * 所有 locale 都会回落成中文。
  *
- * 两个目录的扫描顺序（内置在前、第三方在后）不影响语言包优先级 ——
- * 优先级由 tier 决定，不靠加载顺序，见 LanguagePackRegistry.buildMessages。
+ * 这个函数不抛：host 起不来时降级成空集合（日志里有原因），启动照常往下走。
  */
-/** 当前这一轮扫描用的 loader；rescan 时用它逐个 unload */
-let activeLoader: PluginLoader | null = null
-
-export function initPluginHost(): void {
-  const loader = new PluginLoader()
-  activeLoader = loader
-  const builtinDir = resolveBuiltinPluginsDir()
-  const thirdPartyDir = resolveThirdPartyPluginsDir()
-
-  if (!fs.existsSync(builtinDir)) {
-    logger.warn('Built-in plugin directory not found', { dir: builtinDir })
-  } else {
-    scanDir(loader, builtinDir, 'builtin')
-  }
-
-  const thirdPartyCount = scanDir(loader, thirdPartyDir, 'third-party')
-  // 把路径打出来：第三方语言包要放哪儿，是用户最常问的问题
-  logger.info('Plugin directories scanned', {
-    thirdPartyDir,
-    thirdPartyCount
-  })
+export async function initPluginHost(): Promise<void> {
+  applyPluginContributions(await fetchContributions())
 
   logger.info('Plugin host initialization completed', {
     views: uiRegistry.getAll().length,
@@ -99,17 +76,14 @@ export function initPluginHost(): void {
 }
 
 /**
- * 重新扫描插件目录（安装 / 卸载之后由 IPC 层调用）。
+ * 重新拉一次贡献点（安装 / 卸载插件之后由 IPC 层调用）。
  *
- * 先按插件 id 把上一轮注册的视图 / 设置页 / 语言包 / 权限全部撤掉，再重新扫描。
- * i18n 的词条表是 `initI18n()` 时构建并缓存的，重扫不会重建它 —— 带语言包的插件
- * 安装 / 卸载后仍要重启才完全生效，界面按 `requiresRestart` 提示用户。
+ * host 在 install / remove 里已经重扫过目录，这里只是把 shell 的缓存换掉 ——
+ * 不再有「两个加载器各扫一遍」的问题。
+ *
+ * i18n 的词条表是 `initI18n()` 时构建并缓存的，换掉语言包注册表不会重建它 ——
+ * 带语言包的插件安装 / 卸载后仍要重启才完全生效，界面按 `requiresRestart` 提示。
  */
-export function rescanPluginHost(): void {
-  if (activeLoader) {
-    for (const plugin of pluginRegistry.getAll()) activeLoader.unload(plugin.id)
-  }
-
-  pluginRegistry.clear()
-  initPluginHost()
+export async function rescanPluginHost(): Promise<void> {
+  applyPluginContributions(await fetchContributions())
 }

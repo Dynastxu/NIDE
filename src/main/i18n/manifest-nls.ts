@@ -1,24 +1,20 @@
+import { DEFAULT_NLS_FILE, NLS_FILE_RE, parsePlaceholder } from '@shared/plugin-api'
 import { localeCandidates } from '@shared/i18n'
 import type { LocaleId, MessageTable } from '@shared/i18n'
 
 /**
- * 插件的 **manifest 文案**本地化。
+ * 插件的 **manifest 文案**本地化 —— 解析这一半。
  *
  * 和语言包是两件不同的事，别混：
  * - 语言包（language-packs.ts）翻的是**宿主自己**的文案。
  * - 这里翻的是**插件自己**的 manifest 文案（视图标题等），数据在插件目录里。
  *
- * 约定照抄 VS Code：manifest 里写 `%key%` 占位符，插件目录下放
- *   package.nls.json          插件自己声明的默认语言
- *   package.nls.<locale>.json 某个语言的翻译
- * 只有**整串**被 % 包住才算占位符，所以 "100% done" 这种标题不会被误判。
+ * 约定（文件名规则、`%key%` 占位符）定义在 `@shared/plugin-api` 的 manifest-nls：
+ * 读文件的那一半在 host（`packages/host/src/services/plugin-contributions.ts`），
+ * 两边必须用同一份规则。这个文件只剩「按当前语言解析」这件事，数据由 host 下发。
  */
 
-/** 默认词条文件名（插件自己声明的语言） */
-export const DEFAULT_NLS_FILE = 'package.nls.json'
-
-/** `package.nls.<locale>.json` 的文件名规则 */
-export const NLS_FILE_RE = /^package\.nls\.(.+)\.json$/
+export { DEFAULT_NLS_FILE, NLS_FILE_RE, parsePlaceholder }
 
 /** 一个插件贡献的全部 manifest 词条 */
 export interface ManifestNlsTables {
@@ -26,14 +22,6 @@ export interface ManifestNlsTables {
   defaultTable?: MessageTable
   /** locale -> package.nls.<locale>.json */
   byLocale: Record<LocaleId, MessageTable>
-}
-
-const PLACEHOLDER_RE = /^%(.+)%$/
-
-/** 只在整串被 % 包住时才算占位符 */
-export function parsePlaceholder(spec: string): string | null {
-  const match = PLACEHOLDER_RE.exec(spec)
-  return match ? match[1] : null
 }
 
 /** pluginId -> 该插件的 manifest 词条 */
@@ -44,13 +32,9 @@ export class ManifestNlsRegistry {
     this.tables.set(pluginId, tables)
   }
 
-  /** 清空。主要给测试用，和 LanguagePackRegistry.reset() 保持对称 */
+  /** 清空。重扫贡献点时先清再灌，和 LanguagePackRegistry.reset() 保持对称 */
   reset(): void {
     this.tables.clear()
-  }
-
-  unregisterByPlugin(pluginId: string): void {
-    this.tables.delete(pluginId)
   }
 
   get(pluginId: string): ManifestNlsTables | undefined {
@@ -75,7 +59,7 @@ export class ManifestNlsRegistry {
     const tables = this.tables.get(pluginId)
     if (!tables) return spec
 
-    // localeCandidates 已经做过规范化，byLocale 的 key 由 loader 保证也是规范形式
+    // localeCandidates 已经做过规范化，byLocale 的 key 由 host 保证也是规范形式
     for (const candidate of localeCandidates(locale)) {
       const value = tables.byLocale[candidate]?.[key]
       if (value !== undefined) return value

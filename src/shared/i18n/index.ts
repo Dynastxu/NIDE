@@ -1,8 +1,18 @@
 import { zhCN } from './locales/zh-CN'
+import { normalizeLocale } from './locale-tag'
 import type { LocaleId, MessageTable } from './types'
 
 export * from './types'
 export { zhCN }
+
+/**
+ * 语言标签的规范化 + 候选链。
+ *
+ * 定义在 `./locale-tag`（那个文件没有任何 import，host 的纯 Node ESM 能直接加载）：
+ * host 读插件 manifest 词条时要先把文件名里的 locale 规范化，而它加载不了本文件
+ * —— 这里要 `zhCN` 这张词条表，Node 认不了这种无扩展名的相对导入。
+ */
+export { DEFAULT_LOCALE, localeCandidates, normalizeLocale } from './locale-tag'
 
 /**
  * 宿主的中文基础表 —— 兜底地板。
@@ -10,9 +20,6 @@ export { zhCN }
  * 语言包再怎么缺，交集也一定包含这份表，所以界面上永远不会出现裸 key。
  */
 export const BASE_MESSAGES: MessageTable = zhCN
-
-/** 没有语言包、也没有系统语言可用时的最终回落 */
-export const DEFAULT_LOCALE: LocaleId = 'zh-CN'
 
 /**
  * 启动参数前缀：主进程建窗时把语言喂进渲染进程的 `process.argv`。
@@ -77,48 +84,6 @@ export function createTranslator(messages: MessageTable): Translator {
  */
 export function createLooseTranslator(messages: MessageTable): LooseTranslator {
   return (key, params) => interpolate(messages[key] ?? key, params)
-}
-
-/**
- * 把任意来源的语言标签规范化成项目内部形式：语言小写、地区大写、脚本首字母大写。
- *
- * 来源五花八门：`app.getLocale()` 给 "zh-CN"，系统语言可能是 "zh-Hans-CN"，
- * 插件作者可能写 "zh_CN" 或 "EN_us"。统一在入口处收敛，别让大小写问题散到各处。
- */
-export function normalizeLocale(tag: string): LocaleId {
-  const parts = String(tag ?? '')
-    .replace(/_/g, '-')
-    .split('-')
-    .filter(Boolean)
-
-  if (parts.length === 0) return DEFAULT_LOCALE
-
-  const [lang, ...rest] = parts
-  return [
-    lang.toLowerCase(),
-    ...rest.map((part) => {
-      if (part.length === 2) return part.toUpperCase()
-      if (part.length === 4) return part[0].toUpperCase() + part.slice(1).toLowerCase()
-      return part.toLowerCase()
-    })
-  ].join('-')
-}
-
-/**
- * 从具体到宽泛的匹配候选。
- *
- * "zh-Hans-CN" -> ["zh-Hans-CN", "zh-Hans", "zh"]
- *
- * 这样只提供 "en" 的语言包也能接住 "en-GB" 的请求，作者不必为每个地区复制一份。
- */
-export function localeCandidates(tag: string): LocaleId[] {
-  const normalized = normalizeLocale(tag)
-  const parts = normalized.split('-')
-  const out: LocaleId[] = []
-  for (let i = parts.length; i > 0; i--) {
-    out.push(parts.slice(0, i).join('-'))
-  }
-  return out
 }
 
 /**

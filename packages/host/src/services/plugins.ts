@@ -7,8 +7,12 @@ import {
   setPluginEnabled as applyPluginEnabled
 } from '../../../../src/shared/plugin-api/preference.ts'
 import { isReservedHostId } from '../../../../src/shared/plugin-api/view.ts'
+import { emptyPluginContributions } from '../../../../src/shared/plugin-api/contributions.ts'
+import { readPluginContributions } from './plugin-contributions.ts'
+import type { PluginContributionSet } from './plugin-contributions.ts'
 import type { PluginPreference } from '../../../../src/shared/plugin-api/preference.ts'
 import type { ClientBundleDescriptor } from '../../../../src/shared/plugin-api/client-bundle.ts'
+import type { PluginContributions } from '../../../../src/shared/plugin-api/contributions.ts'
 import type {
   PluginDescriptor,
   PluginInstallResult,
@@ -16,11 +20,14 @@ import type {
 } from '../../../../src/shared/plugin-api/plugin.ts'
 
 /**
- * 插件目录的发现、清单与启用状态（host 侧）。
+ * 插件目录的发现、清单、启用状态与**贡献点**（host 侧）。
  *
- * 只做**纯数据**：读 manifest、维护「装了哪些插件」、把禁用集合落盘、算出浏览器半
- * 的绝对路径。视图 / 设置页 / 语言包的注册仍在 shell（它们依赖 i18n 与渲染进程的
- * 构建期 glob），这里不碰。
+ * 这一层现在是插件目录的**唯一**读取方：
+ * - 清单（装了哪些、哪个启用、浏览器半在哪）；
+ * - 视图 / 设置页 / 语言包 / manifest 词条（见 plugin-contributions.ts）。
+ *
+ * shell 不再扫插件目录：它要的东西全部由 `plugins.*` 下发。标题的解析仍在 shell
+ * —— 那要用当前语言，而语言属于 shell 的 i18n（`src/main/i18n`）。
  *
  * 两个目录：
  * - `<appRoot>/plugins/builtin`：随宿主分发，不能卸载；
@@ -38,6 +45,8 @@ interface CatalogEntry {
   /** 插件目录的绝对路径；只在 host 内用来解析 bundle，不进 descriptor */
   dirPath: string
   client?: { platform: 'web'; bundle: string }
+  /** 视图 / 设置页 / 语言包 / manifest 词条，扫目录时一并读好 */
+  contributions: PluginContributionSet
 }
 
 export interface PluginManagerOptions {
@@ -87,7 +96,7 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
     requiresRestart?: unknown
     description?: unknown
     client?: unknown
-    contributes?: { views?: unknown }
+    contributes?: unknown
   }
 
   const id = normalizeId(manifest.id)
@@ -105,13 +114,20 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
     return null
   }
 
-  const views = Array.isArray(manifest.contributes?.views)
-    ? manifest.contributes.views
-        .map((view) =>
-          view && typeof view === 'object' ? normalizeId((view as { id?: unknown }).id) : ''
-        )
-        .filter((viewId) => viewId.length > 0)
-    : []
+  /**
+   * 视图清单（清单展示用）取自同一份贡献点，不再单独解析一遍 manifest：
+   * 两处各读一次是上一轮「两个加载器对不上」的根源。
+   */
+  const contributions = readPluginContributions({
+    pluginDir: dirPath,
+    pluginId: id,
+    source,
+    contributes: manifest.contributes
+  })
+  // 保留 id 已在上面拒绝；这里只是把「读不出来」当成整份忽略，与旧行为一致
+  if (!contributions) return null
+
+  const views = contributions.views.map((view) => view.id)
 
   const permissions = Array.isArray(manifest.permissions)
     ? manifest.permissions.filter(
@@ -132,6 +148,7 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
   return {
     source,
     dirPath,
+    contributions,
     ...(client ? { client } : {}),
     descriptor: {
       id,
@@ -364,6 +381,27 @@ export class PluginManager {
         }
       ]
     })
+  }
+
+  /**
+   * 全部插件的贡献点，按扫描顺序拼接（内置在前、第三方在后）。
+   *
+   * 启用状态**不在这里过滤**：视图列表由渲染进程按禁用集合过滤，设置页由 shell
+   * 过滤 —— 那一侧的现有行为就是「先拿全量、再按需筛」，这里跟着它，免得同一条
+   * 规则在两个地方各写一遍。
+   */
+  contributions(): PluginContributions {
+    const result = emptyPluginContributions()
+
+    for (const entry of this.entries.values()) {
+      const { views, settings, locales, manifestNls } = entry.contributions
+      result.views.push(...views)
+      result.settings.push(...settings)
+      result.locales.push(...locales)
+      if (manifestNls) result.manifestNls[entry.descriptor.id] = manifestNls
+    }
+
+    return result
   }
 }
 

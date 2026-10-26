@@ -81,8 +81,8 @@ export interface PluginManifest {
      *
      * 语言包是**纯数据插件**：它不需要 UI 入口、不需要激活事件、也不需要权限，
      * 宿主只从它的目录里读一个 JSON 词条文件。之所以能这么轻，是因为宿主本来
-     * 就不启动插件后端（见 plugin-host/loader.ts），语言包正好完全落在
-     * 「主进程读盘 -> 作为纯数据下发渲染进程」这条既有链路上。
+     * 就不启动插件后端（见 packages/host/src/services/plugin-contributions.ts），
+     * 语言包正好完全落在「宿主读盘 -> 作为纯数据下发」这条既有链路上。
      *
      * 优先级：同一个 locale 被多个包提供时，**第三方覆盖内置**。
      */
