@@ -12,7 +12,19 @@ import {
 import { attachHostIpc } from './ipc.ts'
 import { RpcRegistry } from './rpc.ts'
 import { HostProjectStore } from './services/project-store.ts'
-import { readProjectDir, readProjectFile, writeProjectFile } from './services/project-files.ts'
+import {
+  createProjectEntry,
+  deleteProjectEntry,
+  readProjectDir,
+  readProjectFile,
+  renameProjectEntry,
+  writeProjectFile
+} from './services/project-files.ts'
+import type {
+  CreateEntryRequest,
+  DeleteEntryRequest,
+  RenameEntryRequest
+} from '../../../src/shared/project/files.ts'
 
 /**
  * 独立 host 进程入口（MVP）。
@@ -172,9 +184,48 @@ rpc.register('project', {
 })
 
 /**
- * 文件读取：只搬了 readDir / readFile 两条读路径。
+ * 请求形状校验：host 收到的是渲染进程经 MessagePort 发来的 JSON，形状完全不可信。
+ * 名字的合法性仍由 service 用 `validateEntryName` 判，这一层只确认类型。
+ */
+function parseCreateEntryRequest(value: unknown): CreateEntryRequest | null {
+  if (!value || typeof value !== 'object') return null
+
+  const { kind, targetPath, name, content } = value as Partial<CreateEntryRequest>
+  if (kind !== 'file' && kind !== 'directory') return null
+  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
+  if (typeof name !== 'string') return null
+  // 初始内容可以不给；给了就必须是字符串（null / 数字不能被悄悄写成 "null" / "42"）
+  if (content !== undefined && typeof content !== 'string') return null
+
+  return { kind, targetPath, name, ...(content === undefined ? {} : { content }) }
+}
+
+function parseRenameEntryRequest(value: unknown): RenameEntryRequest | null {
+  if (!value || typeof value !== 'object') return null
+
+  const { targetPath, name } = value as Partial<RenameEntryRequest>
+  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
+  if (typeof name !== 'string') return null
+
+  return { targetPath, name }
+}
+
+function parseDeleteEntryRequest(value: unknown): DeleteEntryRequest | null {
+  if (!value || typeof value !== 'object') return null
+
+  const { targetPath } = value as Partial<DeleteEntryRequest>
+  if (typeof targetPath !== 'string' || targetPath.length === 0) return null
+
+  return { targetPath }
+}
+
+/**
+ * 项目文件读写。
  *
- * 写入、新建、改名、删除仍在 Electron 主进程；等这些也搬完再删旧实现。
+ * `readDir` / `readFile` / `writeFile` 是第一批；`createEntry` / `renameEntry` /
+ * `deleteEntry` 在同一份 service 上补齐，写路径的范围 / 链接 / 覆盖语义与主进程
+ * 那份一致。删除的二次确认**不在这里**：host 没有窗口，preload 先问 shell 再调
+ * 本方法（见 src/preload/index.ts 的 deleteEntry）。
  */
 rpc.register('files', {
   readDir: (dirPath) =>
@@ -199,6 +250,33 @@ rpc.register('files', {
         caseInsensitive: caseInsensitivePaths()
       }
     )
+  },
+  createEntry: (request) => {
+    const parsed = parseCreateEntryRequest(request)
+    if (!parsed) return { ok: false, reason: 'invalid-name' }
+
+    return createProjectEntry(parsed, {
+      roots: allowedRoots(),
+      caseInsensitive: caseInsensitivePaths()
+    })
+  },
+  renameEntry: (request) => {
+    const parsed = parseRenameEntryRequest(request)
+    if (!parsed) return { ok: false, reason: 'invalid-name' }
+
+    return renameProjectEntry(parsed, {
+      roots: allowedRoots(),
+      caseInsensitive: caseInsensitivePaths()
+    })
+  },
+  deleteEntry: (request) => {
+    const parsed = parseDeleteEntryRequest(request)
+    if (!parsed) return { ok: false, reason: 'unreadable' }
+
+    return deleteProjectEntry(parsed, {
+      roots: allowedRoots(),
+      caseInsensitive: caseInsensitivePaths()
+    })
   }
 })
 

@@ -542,6 +542,26 @@ export function registerProjectIPC(): void {
   )
 
   /**
+   * 改名之后把 `.nide/config.yml` 里的概述映射跟着改 —— 只为 preload 的 host 写路径服务。
+   *
+   * 改名已经搬到 host，而项目配置仍由 shell 管（见 project-config.service 的
+   * remapOverviewRole）。preload 在 host 改名成功之后调一次，这条映射就不会因为
+   * 搬家而断掉。两个路径都由 shell 再校验一遍范围，不信任调用方。
+   */
+  ipcMain.handle(
+    PROJECT_OVERVIEW_CHANNELS.remapAfterRename,
+    async (_event, previousPath: unknown, nextPath: unknown): Promise<boolean> => {
+      const root = getCurrentProject()?.path
+      if (!root) return false
+
+      if (typeof previousPath !== 'string' || previousPath.length === 0) return false
+      if (typeof nextPath !== 'string' || nextPath.length === 0) return false
+
+      return remapOverviewRole(root, previousPath, nextPath)
+    }
+  )
+
+  /**
    * 新建文件 / 文件夹 —— 用户内容**唯一**的写入入口（宿主自己的 `.nide` 不算，
    * 那个由 project-config.service 管）。
    *
@@ -664,26 +684,59 @@ export function registerProjectIPC(): void {
         return { ok: false, reason: 'unreadable' }
       }
 
-      /**
-       * 目录与文件问的话不一样（目录会连同里面的东西一起删，文案要说得更重），
-       * 所以先问一次磁盘上这个路径是什么。读到的结论**只影响文案**：删除自己
-       * 在执行前会再判一次类型与边界，中间变了也不会因此少一道校验。
-       */
-      const kind = await entryKindAt(parsed.targetPath)
-      const spec = kind === 'directory' ? CONFIRM_SPECS.deleteFolder : CONFIRM_SPECS.deleteFile
-
-      if (
-        !(await isActionConfirmed(event.sender, options, {
-          ...spec,
-          params: { name: path.basename(parsed.targetPath) }
-        }))
-      ) {
+      if (!(await confirmDelete(event.sender, parsed, options))) {
         return { ok: false, reason: 'cancelled' }
       }
 
       return deleteProjectEntry(parsed, { roots, caseInsensitive: caseInsensitivePaths() })
     }
   )
+
+  /**
+   * 删除前的二次确认 —— 只为 preload 的 host 写路径服务。
+   *
+   * 删除本身已经搬到 host，而 host 没有窗口、问不出浮层。所以 preload 先调这一条
+   * （问在 shell），用户同意后再调 host 的 `files.deleteEntry`。回退路径不受影响：
+   * 旧 `deleteEntry` 通道仍然自己问（见上面那个 handler）。
+   */
+  ipcMain.handle(
+    PROJECT_FILE_CHANNELS.confirmDelete,
+    async (event, request: unknown, options: unknown): Promise<boolean> => {
+      const parsed = parseDeleteRequest(request)
+      if (!parsed) {
+        logger.warn('Rejected a malformed delete confirmation request')
+        return false
+      }
+
+      if (allowedRoots().length === 0) {
+        logger.warn('Rejected a delete confirmation without an open project')
+        return false
+      }
+
+      return confirmDelete(event.sender, parsed, options)
+    }
+  )
+}
+
+/**
+ * 删除前的确认。目录与文件问的话不一样（目录会连同里面的东西一起删，文案要更重），
+ * 所以先问一次磁盘上这个路径是什么。
+ *
+ * 读到的结论**只影响文案**：删除自己在执行前会再判一次类型与边界，中间变了也不会
+ * 因此少一道校验。
+ */
+async function confirmDelete(
+  initiator: WebContents,
+  request: DeleteEntryRequest,
+  options: unknown
+): Promise<boolean> {
+  const kind = await entryKindAt(request.targetPath)
+  const spec = kind === 'directory' ? CONFIRM_SPECS.deleteFolder : CONFIRM_SPECS.deleteFile
+
+  return isActionConfirmed(initiator, options, {
+    ...spec,
+    params: { name: path.basename(request.targetPath) }
+  })
 }
 
 /**

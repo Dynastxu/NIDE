@@ -41,7 +41,8 @@ Host（packages/host，纯 Node ESM）
 ├─ Cordis root + loader + profile（packages/boot）
 ├─ RpcRegistry（host/src/rpc.ts）
 ├─ HostProjectStore（project.list / setCurrent / startup）
-└─ readProjectDir / readProjectFile / writeProjectFile
+└─ readProjectDir / readProjectFile / writeProjectFile /
+   createProjectEntry / renameProjectEntry / deleteProjectEntry
 
 Client（renderer，HTTP 页面里的第二棵 Cordis 树）
 ├─ packages/client-runtime：Context + slots + modules + bundle loader
@@ -75,9 +76,15 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 ### RPC 与宿主业务
 - 协议：`src/shared/host-rpc/index.ts`；host 分发：`packages/host/src/rpc.ts`；
 - namespace：`host.info`、`project.list/current/startup/setCurrent`、
-  `files.readDir/readFile/writeFile`；
+  `files.readDir/readFile/writeFile/createEntry/renameEntry/deleteEntry`；
 - preload 暴露 `window.nideHost.invoke(ns, method, ...args)`；
-- preload 的 `projects.list/readDir/readFile/writeFile` 已 host 优先、失败回退旧 IPC；
+- preload 的 `projects.list/readDir/readFile/writeFile/createEntry/renameEntry/deleteEntry`
+  已 host 优先、失败回退旧 IPC；
+- 删除的二次确认留在 shell（host 没有窗口）：preload 先走
+  `host:project-confirm-delete` 问一句，用户同意后再调 host；
+- 改名的后续动作也留在 shell：host 改名成功后 preload 调
+  `host:project-overview-remap`，把 `.nide/config.yml` 里的大纲 / 写作风格映射跟着改
+  （配置服务还没搬进 host）；
 - `project.setCurrent` 在每个窗口 port 建立后按 `--nide-project=` 同步，换项目时 host 跟着切。
 
 ### 客户端 Cordis / slots
@@ -104,13 +111,18 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - npm registry 已切 `https://registry.npmmirror.com/`（`.npmrc`）；
 - `tsconfig.host.json`；`pnpm typecheck:host`；
 - `pnpm host:dump` / `host:smoke`；
-- 最近一次完整 `pnpm test`：583 passed（在 bundle 链路改动之前；需要重跑）。
+- `pnpm test`：35 files / 583 tests 全绿（2026-10-26，用户终端）。此前那条失败是
+  `host-channels.test.ts` 漏了 `getClientBundles`，已补。
+- `NIDE_HOST=1 pnpm dev` 已验证：新建 / 改名 / 删除的日志全部来自 `[nide-host]`，
+  没有回退到旧 IPC；删除确认框仍在 shell 弹出。
 
 ## 4. 未完成 / 下一步优先级
 
-1. **宿主写路径**：`createEntry` / `renameEntry` / `deleteEntry`；
-   然后 `readChapters` / `readForeshadowing` / config / gallery / overview。
-   搬完后删 `src/main/services/project-files.service.ts` 的重复实现与旧 handler。
+1. **宿主读路径第二批**：`readChapters` / `readForeshadowing` / config / gallery / overview。
+   写路径（`createEntry` / `renameEntry` / `deleteEntry`）已搬完，旧实现仍留作回退；
+   全部搬完后删 `src/main/services/project-files.service.ts` 的重复实现与旧 handler，
+   并把 `host:project-confirm-delete` / `host:project-overview-remap` 两条过渡通道
+   并回 host（配置服务搬过去之后）。
 2. **插件管理器**：安装/卸载/启停、写 profile patch、第三方 bundle、信任确认。
 3. **生产 bundle 链路**：`nide-plugin://` 或 app 协议、批量构建、CSS 约定、HMR。
 4. **Profile / loader 完整语义**：bundle 组合、`cordis.patch.yml`、`!!js`、
@@ -221,15 +233,21 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 ## 10. 建议的下一会话起手式
 
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
-> 当前状态：host 竖切 + client slots + demo 运行时 bundle 已通，UI 未变。
-> 下一步做「宿主写路径」：`createEntry` / `renameEntry` / `deleteEntry` 搬到
-> `packages/host/src/services/project-files.ts`，注册 `files.*`，preload host 优先、
-> 失败回退，最后跑 `pnpm typecheck`、`pnpm test`、`pnpm dev` 验证。
+> 当前状态：host 竖切 + client slots + demo 运行时 bundle 已通，UI 未变；
+> 文件读、保存、新建、改名、删除都已 host 优先。
+> 下一步做「宿主读路径第二批」：`readChapters` / `readForeshadowing` / config /
+> gallery / overview 搬进 `packages/host/src/services/`，注册对应 `files.*` /
+> `project.*`，preload host 优先、失败回退；搬完删主进程的重复实现与旧 handler。
+> 在用户终端跑 `pnpm test`（agent 沙箱起不了 vitest 的 esbuild）。
 
 ## 11. 交接检查清单
 
-- [ ] `pnpm test` 重跑（bundle 链路改动后还没跑）
-- [ ] `pnpm typecheck` / `pnpm typecheck:host` / `pnpm lint` 绿
+- [x] `pnpm typecheck` / `pnpm typecheck:host` 绿（`tsconfig.host` 已收窄到
+      `packages/host|boot|hello`，不再把 client 包拖进 NodeNext 工程）
+- [x] `pnpm test`：35 files / 583 tests 全绿（2026-10-26，用户终端）
+- [x] `NIDE_HOST=1 pnpm dev`：新建 / 改名 / 删除均由 host 处理，无回退日志
+- [ ] `pnpm lint`：只剩 `scripts/host-ipc-node-smoke.mjs` 的两个
+      `explicit-function-return-type`（迁移前就有，与本次改动无关）
 - [ ] `pnpm build:plugin-demo` 可重复产出 `plugins/builtin/demo/dist/client.js`
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）

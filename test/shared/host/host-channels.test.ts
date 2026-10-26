@@ -19,6 +19,7 @@ describe('HOST_CHANNELS', () => {
       getPluginSettings: 'host:get-plugin-settings',
       getI18n: 'host:get-i18n',
       getPlugins: 'host:get-plugins',
+      getClientBundles: 'host:get-client-bundles',
       setPluginEnabled: 'host:set-plugin-enabled',
       getDisabledPlugins: 'host:get-disabled-plugins',
       getTheme: 'host:get-theme',

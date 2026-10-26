@@ -270,10 +270,27 @@ const windowAPI = {
  */
 let hostProjectList: (() => Promise<ProjectListItem[]>) | null = null
 
-/** host 侧文件读取的延迟绑定；port 未到 / host 未启用时为 null。 */
+/** host 侧文件读写的延迟绑定；port 未到 / host 未启用时为 null。 */
 let hostReadDir: ((dirPath: string) => Promise<DirReadResult>) | null = null
 let hostReadFile: ((filePath: string) => Promise<FileReadResult>) | null = null
 let hostWriteFile: ((request: WriteFileRequest) => Promise<FileWriteResult>) | null = null
+let hostCreateEntry: ((request: CreateEntryRequest) => Promise<CreateEntryResult>) | null = null
+let hostRenameEntry: ((request: RenameEntryRequest) => Promise<RenameEntryResult>) | null = null
+let hostDeleteEntry: ((request: DeleteEntryRequest) => Promise<DeleteEntryResult>) | null = null
+
+/**
+ * host 改名之后的概述映射跟进。
+ *
+ * 配置服务还在 shell（`.nide/config.yml` 不归 host），所以这一步走 IPC。失败只记
+ * 日志：改名已经落盘，把它报成失败会让用户以为文件还是旧名字。
+ */
+async function remapOverviewAfterRename(previousPath: string, nextPath: string): Promise<void> {
+  try {
+    await ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.remapAfterRename, previousPath, nextPath)
+  } catch (error) {
+    preloadLogger.warn('failed to remap the overview role after a host rename', { error })
+  }
+}
 
 const projectAPI = {
   /** 「打开过的项目」列表，最近打开的在前 */
@@ -375,8 +392,16 @@ const projectAPI = {
    * 条目推导，渲染进程因此无法指定任意写入位置。已存在时返回
    * `{ ok: false, reason: 'already-exists' }`，**不会覆盖**。
    */
-  createEntry: (request: CreateEntryRequest): Promise<CreateEntryResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.createEntry, request),
+  createEntry: async (request: CreateEntryRequest): Promise<CreateEntryResult> => {
+    if (hostCreateEntry) {
+      try {
+        return await hostCreateEntry(request)
+      } catch (error) {
+        preloadLogger.warn('host files.createEntry failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.createEntry, request)
+  },
 
   /**
    * 把正文写回一个文件（保存）。
@@ -403,22 +428,59 @@ const projectAPI = {
    * 给一个文件 / 文件夹改名。
    *
    * 只报「被右键了谁」+「新名字」，不报「改到哪儿」—— 目录就是那个条目自己
-   * 所在的那一层，由主进程推导。同名条目已存在时返回
+   * 所在的那一层，由主进程 / host 推导。同名条目已存在时返回
    * `{ ok: false, reason: 'already-exists' }`，**不会覆盖**。
+   *
+   * host 改名成功之后补一步概述映射（大纲 / 写作风格的标记在 `.nide/config.yml`
+   * 里，配置还没搬进 host）。这一步失败**不该**把改名报成失败：磁盘上已经改了。
    */
-  renameEntry: (request: RenameEntryRequest): Promise<RenameEntryResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.renameEntry, request),
+  renameEntry: async (request: RenameEntryRequest): Promise<RenameEntryResult> => {
+    if (hostRenameEntry) {
+      try {
+        const result = await hostRenameEntry(request)
+        if (result.ok) await remapOverviewAfterRename(result.previousPath, result.path)
+        return result
+      } catch (error) {
+        preloadLogger.warn('host files.renameEntry failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.renameEntry, request)
+  },
 
   /**
-   * 删除一个文件 / 文件夹。目录连同里面的东西一起删，**不可撤销** ——
-   * 二次确认由**主进程**在动作出口处问（见 main/confirm.ts），无论谁发起都会问，
-   * 界面不必自己弹框。用户拒了时返回 `{ ok: false, reason: 'cancelled' }`。
+   * 删除一个文件 / 文件夹。目录连同里面的东西一起删，**不可撤销**。
+   *
+   * 二次确认仍然问在 shell（见 main/confirm.ts）：host 没有窗口，问不出浮层。
+   * 所以顺序是「先问 shell -> 再让 host 删」，用户拒了就回 `cancelled`，不会碰盘。
+   *
+   * 回退：确认本身失败时走旧 IPC（它会自己再问一次）；host 删除失败时也走旧 IPC，
+   * 但带 `{ confirm: false }` —— 用户刚刚已经答过一次，不能问第二遍。
    */
-  deleteEntry: (
+  deleteEntry: async (
     request: DeleteEntryRequest,
     options?: ConfirmOptions
-  ): Promise<DeleteEntryResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, options),
+  ): Promise<DeleteEntryResult> => {
+    if (hostDeleteEntry) {
+      let confirmed: boolean
+      try {
+        confirmed = await ipcRenderer.invoke(PROJECT_FILE_CHANNELS.confirmDelete, request, options)
+      } catch (error) {
+        preloadLogger.warn('delete confirmation failed, falling back to IPC', { error })
+        return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, options)
+      }
+
+      if (!confirmed) return { ok: false, reason: 'cancelled' }
+
+      try {
+        return await hostDeleteEntry(request)
+      } catch (error) {
+        preloadLogger.warn('host files.deleteEntry failed, falling back to IPC', { error })
+        return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, { confirm: false })
+      }
+    }
+
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, options)
+  },
 
   /**
    * 读图鉴：内容目录下每个子目录一个图鉴（各自的字段表与条目），外加 `.nide` 里的
@@ -828,6 +890,13 @@ ipcRenderer.on(HOST_PORT_CHANNEL, (event) => {
     hostInvoke('files', 'readFile', [filePath]) as Promise<FileReadResult>
   hostWriteFile = (request) =>
     hostInvoke('files', 'writeFile', [request]) as Promise<FileWriteResult>
+  hostCreateEntry = (request) =>
+    hostInvoke('files', 'createEntry', [request]) as Promise<CreateEntryResult>
+  hostRenameEntry = (request) =>
+    hostInvoke('files', 'renameEntry', [request]) as Promise<RenameEntryResult>
+  // 删一棵大树可能比默认的 5s 久：给删除单独放宽，别在它删到一半时切回旧路径
+  hostDeleteEntry = (request) =>
+    hostInvoke('files', 'deleteEntry', [request], 30_000) as Promise<DeleteEntryResult>
 
   // 窗口知道自己绑定的是哪个项目；换项目后 host 需要跟着切。
   const bootProject = readBootProjectPath()
