@@ -35,9 +35,9 @@
   - **三个窗口都走 slot 了**：`main.root` / `welcome.root` / `settings.root` 分别由 `client-ui-main` / `client-ui-welcome` / `client-ui-settings` 注册，渲染的仍是现有组件。
   - **当前项目同步**：host 启动时 `resolveStartup()`；每个窗口 port 建立后把 `--nide-project=` 的路径发 `project.setCurrent`，换项目时 host 跟着切。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
-- 下一步：**打包**。host 现在是必需进程，`build:win` 必须把 host 入口与 profile
-  模板放进 resources / `asarUnpack`，并在 `app.isPackaged` 下指向已编译的 host；
-  之后是插件管理器与生产环境的 bundle 协议（`nide-plugin://`）/ 批量构建。
+- 下一步：**插件管理器**。打包内容已验证（`asar: false` + host 跑源码，用
+  `electron.exe <resources/app>` 启动）；未签名 exe 被 SmartScreen 拦是发布问题，
+  发布前再配代码签名。编译 host + 恢复 asar 同样留到发布前。
 
 ## 0. 已锁定决策
 

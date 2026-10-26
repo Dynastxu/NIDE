@@ -2,15 +2,31 @@ appId: com.github.dynastxu.nide
 productName: NIDE
 directories:
   buildResources: build
+
+# host 以源码 `.ts` 运行（Electron 自带的 Node 做类型剥离），并且 loader 会按
+# profile 里的绝对路径动态 import 插件；这两件事放进 asar 都不可靠，所以先不打
+# asar。等 host 有编译产物、profile 改用包标识符之后再打开。
+asar: false
+
 files:
+  # 渲染进程 / 主进程 / 预加载的构建产物
+  - out/**
+  # host 直接跑源码，需要它以及被它 import 的 boot / hello 与共享层
+  - packages/host/**
+  - packages/boot/**
+  - packages/hello/**
+  - src/shared/**
+  # profile 模板与内建插件
+  - profiles/**
+  - plugins/**
+  - package.json
+  # 杂项
   - '!**/.vscode/*'
-  - '!src/*'
+  - '!**/*.map'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-asarUnpack:
-  - resources/**
+  - '!{tsconfig.json,tsconfig.host.json,tsconfig.node.json,tsconfig.web.json}'
 win:
   executableName: nide
 nsis:

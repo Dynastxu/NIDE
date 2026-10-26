@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import {
   app,
@@ -19,9 +20,13 @@ import { loggerFor } from '../logger'
  * host 现在是**必需**的：文件 / 章节 / 图鉴 / 概述 / 配置的实现都在它里面，shell
  * 只保留项目列表、窗口、对话框与确认框。所以它在启动时无条件拉起，不再是开关。
  *
+ * 打包：`electron-builder.yml` 明确不做 asar，并把 host 源码、boot / hello、共享层
+ * 与 profiles 一起放进 app 根。所以 dev 与打包版走同一个入口路径；等 host 有编译
+ * 产物之后，再把这里改成 `app.isPackaged` 分支与 asar。
+ *
  * TODO:
- * - 打包后的入口：`app.isPackaged` 时用 resources 里的已编译 host，而不是 .ts
  * - host 崩溃后的重启策略与退避
+ * - 编译产物 + asar（那时 profile 需要改用包标识符）
  */
 
 const logger = loggerFor('host-process')
@@ -85,9 +90,18 @@ export interface StartHostOptions {
   timeoutMs?: number
 }
 
-/** dev：app.getAppPath() 是仓库根。打包后的路径在 TODO 里处理。 */
+/**
+ * host 入口：dev 是仓库根，打包版是 `resources/app`（未启用 asar，布局相同）。
+ *
+ * 找不到时只记一条错误：`startHost()` 接下来的失败会带着这条上下文，比一个孤零零的
+ * spawn 错误容易查得多。
+ */
 export function resolveHostEntry(): string {
-  return path.join(app.getAppPath(), 'packages', 'host', 'src', 'index.ts')
+  const entry = path.join(app.getAppPath(), 'packages', 'host', 'src', 'index.ts')
+  if (!fs.existsSync(entry)) {
+    logger.error('host entry not found; the packaged app is missing packages/host', { entry })
+  }
+  return entry
 }
 
 function resolveHostHome(explicit?: string): string {

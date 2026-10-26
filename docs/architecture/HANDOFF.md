@@ -129,10 +129,19 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 
 ## 4. 未完成 / 下一步优先级
 
-1. **收尾 host 化**：重复实现已删、测试已切到 host。还剩两件事：
-   - **打包**：`build:win` 必须把 `packages/host/src/index.ts` 与 profiles 一起放进
-     resources / `asarUnpack`，并让 `resolveHostEntry()` 在 `app.isPackaged` 下指向
-     已编译的 host。host 现在是必需的，打包漏掉它就是整个文件系统功能不可用。
+1. **收尾 host 化 / 打包**：重复实现已删、测试已切到 host。打包先走最小可用路线：
+   - `electron-builder.yml` **不启用 asar**，host 继续跑源码 `.ts`（Electron 的 Node
+     做类型剥离）；`files` 里显式带上 `packages/host|boot|hello`、`src/shared`、
+     `profiles`、`plugins`。`resolveHostEntry()` 在 dev 与打包版都指向 app 根下的
+     `packages/host/src/index.ts`，所以两者布局一致。
+   - 已验证：`pnpm build:unpack` 产物用
+     `node_modules\electron\dist\electron.exe dist\win-unpacked\resources\app` 启动正常
+     （host ready、新建项目初始化、文件读写都通过）。直接运行 `nide.exe` 会被
+     SmartScreen 按「未签名」拦掉 —— 那是发布问题，不是打包内容问题；正式分发前
+     要配代码签名。
+   - 之后才是「编译 host + 恢复 asar」：那时 profile 里的 `{{NIDE_ROOT}}/...` 要换成
+     包标识符或 resources 路径，`files` 也会缩到编译产物。不要在没有验证的情况下
+     先开 asar —— host 读不到自己的源码，文件功能会整块失效。
    - **回退链**：preload 的旧 IPC 通道现在也转发到 host；等打包验证过、直连 port
      足够稳定后可以删掉这一层，只留 `host:project-confirm-delete`。
 2. **插件管理器**：安装/卸载/启停、写 profile patch、第三方 bundle、信任确认。
@@ -169,6 +178,7 @@ pnpm test                 # 需在普通终端跑
 pnpm host:dump
 pnpm host:smoke
 pnpm build:plugin-demo
+pnpm build:unpack        # 打包到 dist/<platform>-unpacked（host 必需，先验这个）
 ```
 
 ### 沙箱限制（重要）
@@ -187,6 +197,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 
 | 文件 | 说明 |
 | --- | --- |
+| `electron-builder.yml` | 打包：`asar: false`，显式带上 host 源码 / boot / hello / shared / profiles / plugins |
 | `src/main/host/process.ts` | spawn host、ready、attach port、`invokeHost`（shell→host RPC）、stop |
 | `src/main/index.ts` | 启动时拉起 host；`browser-window-created` 挂 port；`will-quit` 停 host |
 | `src/main/ipc/project.ipc.ts` | 项目列表 / 打开 / 关闭 + 删除确认 + 旧通道转发到 host |
@@ -224,8 +235,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 9. **`src/shared/project` 内的模块之间只用 `#project/*`**：`@shared/*` 是构建期别名、
    免扩展名的相对导入也一样，host 的纯 Node ESM 都解析不了。`package.json#imports`
    是 Node / tsc / Vite 三边都认的那一层（见 `src/shared/project/package.json`）。
-10. **host 是必需进程**：文件 / 配置的全部实现都在它里面，`build:win` 必须把
-    host 入口与 profile 模板打进 resources / `asarUnpack`，否则打包版的文件功能全坏。
+10. **host 是必需进程**：文件 / 配置的全部实现都在它里面。打包目前靠
+    `asar: false` + `files` 带上 host 源码 / boot / hello / `src/shared` / profiles；
+    改回 asar 之前必须先让 host 有编译产物，否则打包版读不到自己的源码。
 
 ## 8. 踩过的坑（别再踩）
 
@@ -251,6 +263,10 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     曾经在 observer → state → layout effect 的同一轮里写容器高度，浏览器持续报
     `ResizeObserver loop completed with undelivered notifications`。现在的规则是高度
     重算排进下一帧、同一帧只排一次，`chapter-body` 只把宽度变化当重新布局的信号。
+12. **未签名的打包 exe 会被 Windows 拦掉**：表现是双击/命令行启动后立刻返回，
+    `%APPDATA%\NIDE\logs` 没有任何新行（进程根本没起来）。验证打包内容时用
+    `node_modules\electron\dist\electron.exe dist\win-unpacked\resources\app`，
+    它加载的是同一份 `resources/app`；发布前再解决签名。
 
 ## 9. 待定的设计问题
 
@@ -260,16 +276,21 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 - `PluginSlot` 的 glob 兜底是长期保留还是删掉。
 - 视觉回归工具：Playwright + Electron 截图，还是自建 `capturePage`。
 - `nide.client` 的正式字段（`views` 映射？`external`？）现在只用了 `bundle`。
+- **代码签名**：打包产物未签名，Windows 会直接拦 `nide.exe`。发布前需要证书
+  （electron-builder `win.certificateFile` / `certificateSubjectName` + 时间戳）；
+  在此之前用 `electron.exe <resources/app>` 验证打包内容。
 
 ## 10. 建议的下一会话起手式
 
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
 > 当前状态：文件 / 章节 / 伏笔 / 图鉴 / 概述 / 项目配置的**实现只有一份**，在 host；
 > shell 只剩项目列表、窗口、对话框、确认框，以及转发旧 IPC 的薄层。host 启动必需。
-> 下一步做「打包 + 插件管理器」：先把 host 入口与 profiles 打进 resources /
-> `asarUnpack` 并验证 `build:win`（host 现在不可缺），然后做安装 / 卸载 / 启停与
-> 第三方 bundle。旧 IPC 转发层可以在打包验证后删掉，只留删除确认。
-> 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest）。
+> 打包已配好「asar: false + host 跑源码」，`build:unpack` 产物已用
+> `electron.exe <resources/app>` 验证通过。`nide.exe` 未签名会被 SmartScreen 拦，
+> 那是发布/签名问题，不影响打包内容。
+> 下一步做**插件管理器**：安装 / 卸载 / 启停、写 profile patch、第三方 bundle、
+> 信任确认；代码签名与「编译 host + 恢复 asar」留到发布前。
+> 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
 
@@ -282,6 +303,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 - [x] `EditorPanes` 的 ResizeObserver 修复已验证：持续刷屏消失（只剩首次布局的一条）
 - [ ] `pnpm lint`：只剩 `scripts/host-ipc-node-smoke.mjs` 的两个
       `explicit-function-return-type`（迁移前就有，与本次改动无关）
+- [x] `pnpm build:unpack` 通过：用 `electron.exe dist\win-unpacked\resources\app`
+      启动，host ready、新建项目初始化、读写正常（当前 `asar: false` + 源码 host）
+- [ ] 代码签名：`nide.exe` 未签名会被 SmartScreen 拦；发布前配 `win.certificateFile`
 - [ ] `pnpm build:plugin-demo` 可重复产出 `plugins/builtin/demo/dist/client.js`
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
