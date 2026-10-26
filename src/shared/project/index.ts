@@ -2,10 +2,11 @@
  * 项目契约：打开过的文件夹、当前项目、以及跨进程的 IPC 通道名。
  *
  * 这一层被主进程、preload、渲染进程、host 进程共用，所以**不能** import
- * electron / fs / DOM。纯数据模型在 `./store`，它刻意不使用 `@shared/*` 别名，
- * 这样 host（纯 Node ESM、无构建期路径映射）也能直接 import。
+ * electron / fs / DOM。目录内的模块之间一律用 `#project/*`（见 package.json 的
+ * `imports`）：`@shared/*` 是构建期别名、免扩展名的相对路径 Node 也不认，只有这一层
+ * 是 Node / tsc / Vite 三边都解析得了的，host（纯 Node ESM）才能直接 import。
  *
- * 文件树（目录条目、排序、支持哪些文本格式、新建时的名字校验）在 `./files`，
+ * 文件树（目录条目、排序、支持哪些文本格式、新建时的名字校验）在 `#project/files`，
  * 同样只放纯逻辑；项目级配置（`.nide/config.yml` 的形状与文本读写）在 `./config`；
  * 章节 Markdown 的开头属性（frontmatter）在 `./chapters`，伏笔（固定四个字段的整份
  * yml）在 `./foreshadowing`，图鉴（分区的字段表与条目）在 `./gallery`，概述（平铺的
@@ -13,18 +14,18 @@
  * `./frontmatter` 里那一份「属性块怎么读」。
  */
 
-import { projectPathKey } from './store'
-import type { ProjectRecord } from './store'
+import { projectPathKey } from '#project/store'
+import type { ProjectRecord } from '#project/store'
 
-export * from './store'
-export * from './files'
-export * from './tree'
-export * from './config'
-export * from './frontmatter'
-export * from './chapters'
-export * from './foreshadowing'
-export * from './gallery'
-export * from './overview'
+export * from '#project/store'
+export * from '#project/files'
+export * from '#project/tree'
+export * from '#project/config'
+export * from '#project/frontmatter'
+export * from '#project/chapters'
+export * from '#project/foreshadowing'
+export * from '#project/gallery'
+export * from '#project/overview'
 
 /**
  * 启动参数前缀：主进程建窗时把**当前项目路径**喂进渲染进程。

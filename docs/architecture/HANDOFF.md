@@ -41,8 +41,11 @@ Host（packages/host，纯 Node ESM）
 ├─ Cordis root + loader + profile（packages/boot）
 ├─ RpcRegistry（host/src/rpc.ts）
 ├─ HostProjectStore（project.list / setCurrent / startup）
-└─ readProjectDir / readProjectFile / writeProjectFile /
-   createProjectEntry / renameProjectEntry / deleteProjectEntry
+├─ 文件读写（services/project-files.ts）：readDir / readFile / readChapters /
+│  readForeshadowing / writeFile / createEntry / renameEntry / deleteEntry /
+│  gallery / overview 的读与新建
+└─ 项目配置（services/project-config.ts）：load / update / registry / resolve /
+   remapOverviewRole
 
 Client（renderer，HTTP 页面里的第二棵 Cordis 树）
 ├─ packages/client-runtime：Context + slots + modules + bundle loader
@@ -76,15 +79,14 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 ### RPC 与宿主业务
 - 协议：`src/shared/host-rpc/index.ts`；host 分发：`packages/host/src/rpc.ts`；
 - namespace：`host.info`、`project.list/current/startup/setCurrent`、
-  `files.readDir/readFile/writeFile/createEntry/renameEntry/deleteEntry`；
+  `files.readDir/readFile/readChapters/readForeshadowing/writeFile/createEntry/renameEntry/deleteEntry`、
+  `gallery.read/create/updateRegistry`、`overview.read/setRole`、`config.read/update`；
 - preload 暴露 `window.nideHost.invoke(ns, method, ...args)`；
-- preload 的 `projects.list/readDir/readFile/writeFile/createEntry/renameEntry/deleteEntry`
-  已 host 优先、失败回退旧 IPC；
+- preload 的上面这些 `projects.*` 方法全部 host 优先、失败回退旧 IPC；
+- 图鉴 / 概述的「报上来的路径必须正是配置里那个目录」也在 host 判：配置服务已经搬过去；
 - 删除的二次确认留在 shell（host 没有窗口）：preload 先走
   `host:project-confirm-delete` 问一句，用户同意后再调 host；
-- 改名的后续动作也留在 shell：host 改名成功后 preload 调
-  `host:project-overview-remap`，把 `.nide/config.yml` 里的大纲 / 写作风格映射跟着改
-  （配置服务还没搬进 host）；
+- 改名之后的概述映射在 host 内部补（`remapOverviewRole`），不再有 shell 的后续通道；
 - `project.setCurrent` 在每个窗口 port 建立后按 `--nide-project=` 同步，换项目时 host 跟着切。
 
 ### 客户端 Cordis / slots
@@ -111,18 +113,24 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - npm registry 已切 `https://registry.npmmirror.com/`（`.npmrc`）；
 - `tsconfig.host.json`；`pnpm typecheck:host`；
 - `pnpm host:dump` / `host:smoke`；
-- `pnpm test`：35 files / 583 tests 全绿（2026-10-26，用户终端）。此前那条失败是
-  `host-channels.test.ts` 漏了 `getClientBundles`，已补。
-- `NIDE_HOST=1 pnpm dev` 已验证：新建 / 改名 / 删除的日志全部来自 `[nide-host]`，
-  没有回退到旧 IPC；删除确认框仍在 shell 弹出。
+- 第一批提交 `e270b5f`：写路径（新建 / 改名 / 删除）搬完。`pnpm test` 35 files /
+  583 tests 全绿，`NIDE_HOST=1 pnpm dev` 已验证三条写路径都走 `[nide-host]`。
+- 第二批（未提交）：章节 / 伏笔 / 图鉴 / 概述 / 配置搬到 host；`src/shared/project`
+  改成 `#project/*` 子路径导入（原 `@shared/yaml` 与免扩展名相对导入 Node 解析不了）。
+  `pnpm typecheck` / `typecheck:host` / `host:smoke` 绿，host 服务的 12 条直跑通过。
+  `pnpm test` 35 files / 583 tests 全绿（Vitest 能解析 `#project/*`）；dev 已验证
+  新建 / 保存走 host、没有回退日志。
 
 ## 4. 未完成 / 下一步优先级
 
-1. **宿主读路径第二批**：`readChapters` / `readForeshadowing` / config / gallery / overview。
-   写路径（`createEntry` / `renameEntry` / `deleteEntry`）已搬完，旧实现仍留作回退；
-   全部搬完后删 `src/main/services/project-files.service.ts` 的重复实现与旧 handler，
-   并把 `host:project-confirm-delete` / `host:project-overview-remap` 两条过渡通道
-   并回 host（配置服务搬过去之后）。
+1. **删旧实现**：项目文件 / 内容列表 / 图鉴 / 概述 / 配置现在都 host 优先。
+   下一步删 `src/main/services/project-files.service.ts` 与
+   `src/main/services/project-config.service.ts` 的重复实现和旧 IPC handler；
+   唯一还依赖 shell 配置的是 `project.open/create` 时的 `initializeProjectDirectory` ——
+   先把它搬成 host 的 `config.initialize`，再删。删除确认通道
+   `host:project-confirm-delete` 保留（host 没有窗口）。
+   **删之前先把测试目标切到 host**：现在 `test/main/services/*` 打的是主进程那份副本，
+   而 host 服务（读写 / 图鉴 / 概述 / 配置）目前只有一次性 Node 冒烟覆盖。
 2. **插件管理器**：安装/卸载/启停、写 profile patch、第三方 bundle、信任确认。
 3. **生产 bundle 链路**：`nide-plugin://` 或 app 协议、批量构建、CSS 约定、HMR。
 4. **Profile / loader 完整语义**：bundle 组合、`cordis.patch.yml`、`!!js`、
@@ -180,7 +188,8 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `src/shared/host-rpc/index.ts` | RPC 协议 |
 | `packages/host/src/rpc.ts` | RpcRegistry |
 | `packages/host/src/services/project-store.ts` | host 项目列表 / 当前项目 |
-| `packages/host/src/services/project-files.ts` | host 读/写文件 |
+| `packages/host/src/services/project-files.ts` | host 文件 / 章节 / 伏笔 / 图鉴 / 概述的读写 |
+| `packages/host/src/services/project-config.ts` | host 项目配置（load / update / registry / remap） |
 | `packages/client-runtime/src/index.ts` | 客户端树、slots/modules、bundle 加载 |
 | `packages/client-runtime/src/loader.ts` | `/@fs/` IIFE 注入 |
 | `packages/client-ui-slots/src/index.ts` | `SlotRegistry` / `slotsOf` |
@@ -189,7 +198,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `src/renderer/src/plugins/PluginSlot.tsx` | 先查注册表，再回退 glob |
 | `plugins/builtin/demo/src/ui/client-entry.tsx` | bundle 入口 |
 | `scripts/build-plugin-client.mjs` | IIFE 构建 |
-| `src/shared/project/store.ts` | 纯 store 模型；`src/shared/project/package.json` 是 ESM 标记 |
+| `src/shared/project/store.ts` | 纯 store 模型 |
+| `src/shared/project/package.json` | ESM 标记 + `#project/*` 子路径导入映射 |
+| `src/shared/project/yaml.ts` | 最小 YAML（原 `src/shared/yaml`，搬进 project 包以便 `#project/yaml`） |
 
 ## 7. 不可破坏的约定
 
@@ -201,6 +212,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 6. **host 不 import electron**；Electron 只能在 shell。
 7. **所有新路径都要有回退**：host 失败回退 IPC；bundle 失败回退 glob；slot 失败回退 fallback。
 8. **不做 Context 模块增强**：Cordis 的 `Context` 是 re-export，会遮蔽原接口。
+9. **`src/shared/project` 内的模块之间只用 `#project/*`**：`@shared/*` 是构建期别名、
+   免扩展名的相对导入也一样，host 的纯 Node ESM 都解析不了。`package.json#imports`
+   是 Node / tsc / Vite 三边都认的那一层（见 `src/shared/project/package.json`）。
 
 ## 8. 踩过的坑（别再踩）
 
@@ -209,7 +223,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 2. **Node type stripping 不支持参数属性**：`constructor(private x: string)` 会
    `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`；写成显式字段。
 3. **`src/shared` 下的 .ts 被 host 直接 import**：需要在目录里放
-   `package.json` `{"type":"module"}`（`src/shared/project/package.json` 就是为此）。
+   `package.json` `{"type":"module"}`（`src/shared/project/package.json` 就是为此），
+   并且目录内**不能有 `@shared/*` 或免扩展名的相对 import** —— Node ESM 只认
+   `#project/*`（由同一个 package.json 的 `imports` 映射到 `./*.ts`）。
 4. **`import.meta.env.DEV` 在 alias 源码里不可靠**：loader 改用
    `window.location.protocol === 'http:'` 判断 dev。
 5. **IIFE bundle**：必须 classic JSX（`React.createElement`），React 外置，
@@ -229,23 +245,37 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 - `PluginSlot` 的 glob 兜底是长期保留还是删掉。
 - 视觉回归工具：Playwright + Electron 截图，还是自建 `capturePage`。
 - `nide.client` 的正式字段（`views` 映射？`external`？）现在只用了 `bundle`。
+- **打开新建的 Markdown 后渲染进程持续报 `ResizeObserver loop completed with undelivered
+  notifications`**：已确认与 host 迁移无关（`NIDE_HOST` 不启用时照样刷），来源是
+  `src/renderer/src/editor/EditorPanes.tsx` 的 `fitBodyHeight` 在 observer 链路里同步改
+  被观察容器的高度。已改成：`chapter-body` 的高度重算排进下一帧、同一帧只排一次；
+  observer 里只把**宽度**变化当成重新布局的信号（高度是我们自己写的）。
+  已验证：持续刷屏消失（打开章节时仍有一条初始化告警，来自 Monaco 自身的
+  `automaticLayout` 首次布局，不连续、无害）。
 
 ## 10. 建议的下一会话起手式
 
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
 > 当前状态：host 竖切 + client slots + demo 运行时 bundle 已通，UI 未变；
-> 文件读、保存、新建、改名、删除都已 host 优先。
-> 下一步做「宿主读路径第二批」：`readChapters` / `readForeshadowing` / config /
-> gallery / overview 搬进 `packages/host/src/services/`，注册对应 `files.*` /
-> `project.*`，preload host 优先、失败回退；搬完删主进程的重复实现与旧 handler。
-> 在用户终端跑 `pnpm test`（agent 沙箱起不了 vitest 的 esbuild）。
+> 文件读写、章节 / 伏笔、图鉴、概述、项目配置都已 host 优先。
+> 下一步做「删旧实现」：先把 `initializeProjectDirectory` 搬成 host 的
+> `config.initialize`（`project.open/create` 还在 shell 调它），再删
+> `src/main/services/project-files.service.ts` / `project-config.service.ts` 的重复
+> 实现与旧 IPC handler。删除确认通道（`host:project-confirm-delete`）保留。
+> 在用户终端跑 `pnpm test` 与 `NIDE_HOST=1 pnpm dev`（agent 沙箱起不了 vitest）。
 
 ## 11. 交接检查清单
 
 - [x] `pnpm typecheck` / `pnpm typecheck:host` 绿（`tsconfig.host` 已收窄到
       `packages/host|boot|hello`，不再把 client 包拖进 NodeNext 工程）
-- [x] `pnpm test`：35 files / 583 tests 全绿（2026-10-26，用户终端）
-- [x] `NIDE_HOST=1 pnpm dev`：新建 / 改名 / 删除均由 host 处理，无回退日志
+- [x] `pnpm test`：35 files / 583 tests 全绿（2026-10-26，用户终端；
+      `#project/*` 在 Vitest 里也能解析）
+- [x] `NIDE_HOST=1 pnpm dev`：新建 / 保存走 host，无回退日志
+- [ ] 手动点一遍图鉴 / 概述 / 角色图鉴 / 项目配置，确认读路径也来自 host（这些成功调用
+      没有 info 日志，只能看「没有 falling back to IPC」与结果是否正确）
+- [x] 验证 `EditorPanes` 的 ResizeObserver 修复：持续刷屏消失（只剩首次布局的一条），
+      短稿 / 长稿高度行为未变
+- [ ] `pnpm test` 在 `EditorPanes` 修复之后重跑（renderer 用例不覆盖这个文件，但求稳）
 - [ ] `pnpm lint`：只剩 `scripts/host-ipc-node-smoke.mjs` 的两个
       `explicit-function-return-type`（迁移前就有，与本次改动无关）
 - [ ] `pnpm build:plugin-demo` 可重复产出 `plugins/builtin/demo/dist/client.js`

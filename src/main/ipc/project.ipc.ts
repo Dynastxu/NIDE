@@ -542,26 +542,6 @@ export function registerProjectIPC(): void {
   )
 
   /**
-   * 改名之后把 `.nide/config.yml` 里的概述映射跟着改 —— 只为 preload 的 host 写路径服务。
-   *
-   * 改名已经搬到 host，而项目配置仍由 shell 管（见 project-config.service 的
-   * remapOverviewRole）。preload 在 host 改名成功之后调一次，这条映射就不会因为
-   * 搬家而断掉。两个路径都由 shell 再校验一遍范围，不信任调用方。
-   */
-  ipcMain.handle(
-    PROJECT_OVERVIEW_CHANNELS.remapAfterRename,
-    async (_event, previousPath: unknown, nextPath: unknown): Promise<boolean> => {
-      const root = getCurrentProject()?.path
-      if (!root) return false
-
-      if (typeof previousPath !== 'string' || previousPath.length === 0) return false
-      if (typeof nextPath !== 'string' || nextPath.length === 0) return false
-
-      return remapOverviewRole(root, previousPath, nextPath)
-    }
-  )
-
-  /**
    * 新建文件 / 文件夹 —— 用户内容**唯一**的写入入口（宿主自己的 `.nide` 不算，
    * 那个由 project-config.service 管）。
    *

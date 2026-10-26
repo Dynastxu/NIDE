@@ -1,5 +1,5 @@
-import type { ProjectConfig } from './config'
-import type { DirReadFailureReason } from './files'
+import type { ProjectConfig } from '#project/config'
+import type { DirReadFailureReason } from '#project/files'
 
 /**
  * 概述的契约：内容目录（`.nide/config.yml` 的 `overview.path`）里是**一堆普通
@@ -88,13 +88,5 @@ export const PROJECT_OVERVIEW_CHANNELS = {
   /** 读概述目录里的 Markdown（invoke），参数是概述内容目录的绝对路径 */
   readOverview: 'host:project-read-overview',
   /** 把概述目录里的某份 Markdown 标记成大纲 / 写作风格（invoke），改的是项目配置 */
-  setRole: 'host:project-set-overview-role',
-  /**
-   * 改名之后把配置里的概述映射跟着改（invoke），参数是 previousPath + path。
-   *
-   * 过渡期用：文件改名已经搬到 host，而项目配置（`.nide/config.yml`）仍由 shell 管。
-   * preload 在 host 改名成功之后调一次，映射断掉这件事就不会因为搬家而回退。
-   * 等配置服务也搬进 host 之后，这一步并进 `files.renameEntry`，这条通道删掉。
-   */
-  remapAfterRename: 'host:project-overview-remap'
+  setRole: 'host:project-set-overview-role'
 } as const

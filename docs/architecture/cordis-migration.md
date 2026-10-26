@@ -22,7 +22,9 @@
   - **preload 的 `projects.list` 已切到 host**：port 到达后走 `nideHost.invoke('project','list')`，失败自动回落旧 IPC；日志里出现 `project.list served by host`。
   - **文件读取已切到 host**：`files.readDir` / `files.readFile` 注册在 host；preload 的 `projects.readDir/readFile` host 优先、失败回退。复用 `src/shared/project/files.ts` 的纯规则，只把碰盘那一半放进 `packages/host/src/services/project-files.ts`。
   - **保存已切到 host**：`files.writeFile` 走同一套范围/符号链接/格式校验，落盘仍是「同目录临时件 + 原子 rename」；preload 的 `projects.writeFile` host 优先、失败回退。
-  - **新建 / 改名 / 删除已切到 host**：`files.createEntry` / `renameEntry` / `deleteEntry` 在 [packages/host/src/services/project-files.ts](../../packages/host/src/services/project-files.ts)，范围、符号链接、绝不覆盖、项目根不可删这些边界与主进程那份逐条一致；preload 三条都 host 优先、失败回退旧 IPC。删除的二次确认留在 shell（host 没有窗口）：preload 先 `host:project-confirm-delete` 再调 host，回退时带 `{ confirm: false }` 避免问两遍。改名的概述映射跟进（`.nide/config.yml`）也暂留 shell，走 `host:project-overview-remap`。
+  - **新建 / 改名 / 删除已切到 host**：`files.createEntry` / `renameEntry` / `deleteEntry` 在 [packages/host/src/services/project-files.ts](../../packages/host/src/services/project-files.ts)，范围、符号链接、绝不覆盖、项目根不可删这些边界与主进程那份逐条一致；preload 三条都 host 优先、失败回退旧 IPC。删除的二次确认留在 shell（host 没有窗口）：preload 先 `host:project-confirm-delete` 再调 host，回退时带 `{ confirm: false }` 避免问两遍。
+  - **章节 / 伏笔 / 图鉴 / 概述 / 配置已切到 host**：`files.readChapters` / `readForeshadowing`、`gallery.read/create/updateRegistry`、`overview.read/setRole`、`config.read/update` 注册在 host；preload 全部 host 优先、失败回退。图鉴 / 概述「报上来的路径必须正是配置里那个目录」的核对也在 host（配置服务已搬进 [packages/host/src/services/project-config.ts](../../packages/host/src/services/project-config.ts)），改名后的概述映射由 host 的 `remapOverviewRole` 直接补。
+  - **shared/project 变成 host 可直接加载**：目录内模块之间改用 `#project/*`（[src/shared/project/package.json](../../src/shared/project/package.json) 的 `imports`），不再用 `@shared/*` 或免扩展名相对路径 —— Node 的 ESM 解析器不认后者。原 `src/shared/yaml` 搬成 `src/shared/project/yaml.ts`，归到同一个包作用域里。
   - **客户端 Cordis 树已起**：[packages/client-runtime](../../packages/client-runtime/src/index.ts) 在 renderer 里建独立根 Context + 一个最小插件，挂到 `window.__NIDE_CLIENT__`。
   - **第一个 slot 已接**：`@nide/client-ui-slots` 提供注册表，`@nide/client-ui-renderer` 提供不产生包装 DOM 的 `<Slot>`；欢迎窗口改走 `<Slot name="welcome.root">`，渲染的仍是现有 `WelcomeApp`（组件一行没改）。
   - **主窗口 root 也已接**：`@nide/client-ui-main` 把现有 `App` 注册到 `main.root`；`client-runtime` 按 `windowType` 只加载对应插件，主窗口不会拖入 WelcomeApp，欢迎窗口也不会加载 Monaco。settings 仍走旧路径。
@@ -32,9 +34,9 @@
   - **三个窗口都走 slot 了**：`main.root` / `welcome.root` / `settings.root` 分别由 `client-ui-main` / `client-ui-welcome` / `client-ui-settings` 注册，渲染的仍是现有组件。
   - **当前项目同步**：host 启动时 `resolveStartup()`；每个窗口 port 建立后把 `--nide-project=` 的路径发 `project.setCurrent`，换项目时 host 跟着切。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
-- 下一步：把剩下的读路径（`readChapters` / `readForeshadowing` / config / gallery /
-  overview）搬进 host，然后删掉 `src/main/services/project-files.service.ts` 里的重复实现；
-  生产环境的 bundle 协议（`nide-plugin://`）与批量构建仍在后面。
+- 下一步：把 `initializeProjectDirectory` 搬成 host 的 `config.initialize`，然后删掉
+  `src/main/services/project-files.service.ts` / `project-config.service.ts` 的重复实现
+  与旧 IPC handler。生产环境的 bundle 协议（`nide-plugin://`）与批量构建仍在后面。
 
 ## 0. 已锁定决策
 

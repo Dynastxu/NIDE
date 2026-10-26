@@ -35,13 +35,13 @@
  * 都不存在；用户标记之后才写进来。旧项目的 config.yml 因此不需要迁移 —— 缺这两个键
  * 就是「还没标记」。缺 `path` 仍然整份作废。
  *
- * YAML 那一档写法（标量与引号）在 `@shared/yaml`：章节 Markdown 的 frontmatter 用的是
+ * YAML 那一档写法（标量与引号）在 `#project/yaml`：章节 Markdown 的 frontmatter 用的是
  * 同一档，两处共用同一份实现，才不会出现「config.yml 读得出、frontmatter 读不出」
  * 这类只在运行时才看得见的分叉。
  */
 
-import { parseYamlScalar, quoteYamlValue } from '@shared/yaml'
-import { isMarkdownPath } from './files'
+import { parseYamlScalar, quoteYamlValue } from '#project/yaml'
+import { isMarkdownPath } from '#project/files'
 
 /** 配置项：四个内容分区 */
 export const PROJECT_CONFIG_KEYS = ['chapters', 'gallery', 'foreshadowing', 'overview'] as const
@@ -504,7 +504,7 @@ export type ProjectConfigUpdateResult =
 /**
  * config.yml 的写法：**只有两层的映射**，每个值都是字符串。
  *
- * 标量与引号那一档实现在 `@shared/yaml`（章节 frontmatter 用的是同一档）。这里只留
+ * 标量与引号那一档实现在 `#project/yaml`（章节 frontmatter 用的是同一档）。这里只留
  * 本文件特有的三样：落盘顺序、缩进与注释头。手改过的 config.yml 用了锚点、多行块、
  * 流式集合这类结构时判为坏配置，由调用方回落成默认值（见 loadProjectConfig）。
  */

@@ -1,6 +1,39 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Dirent, Stats } from 'node:fs'
+import type { FileHandle } from 'node:fs/promises'
+import {
+  DEFAULT_GALLERY_FIELDS,
+  FRONTMATTER_SCAN_LIMIT,
+  GALLERY_CONFIG_FILE_NAME,
+  emptyForeshadowingMetadata,
+  foreshadowingEntryLabel,
+  galleryEntryLabel,
+  isForeshadowingPath,
+  isGalleryConfigFileName,
+  isGalleryEntryPath,
+  isMarkdownPath,
+  normalizeOverviewFileName,
+  parseChapterHeading,
+  parseChapterNumber,
+  parseGalleryConfig,
+  readForeshadowingEntry,
+  readGalleryEntry,
+  serializeGalleryConfig
+} from '../../../../src/shared/project/index.ts'
+import type {
+  ChapterFile,
+  ChapterListResult,
+  ForeshadowingFile,
+  ForeshadowingListResult,
+  GalleryCreateRequest,
+  GalleryCreateResult,
+  GalleryEntryFile,
+  GalleryFolder,
+  GalleryFoldersResult,
+  OverviewDocument,
+  OverviewListResult
+} from '../../../../src/shared/project/index.ts'
 import {
   HOST_TEMP_FILE_PREFIX,
   MAX_TEXT_FILE_BYTES,
@@ -166,6 +199,352 @@ export async function readProjectFile(
     console.warn('[nide-host] failed to read a file', { file: filePath, error })
     return { ok: false, reason: 'unreadable' }
   }
+}
+
+// ============ 章节 / 伏笔（内容目录里的列表） ============
+
+/**
+ * 读一个文件开头的那一小段，失败给 null。
+ *
+ * 只读 `FRONTMATTER_SCAN_LIMIT` 个**字节**：多字节字符被切断在末尾时解出来的替换
+ * 字符落在 frontmatter 之后，读属性不受影响。
+ *
+ * 失败**不**记为目录错误：一个读不了的文件不该让整份章节列表消失，它只是拿不到编号。
+ */
+async function readFileHead(filePath: string): Promise<string | null> {
+  let handle: FileHandle | null = null
+
+  try {
+    handle = await fs.open(filePath, 'r')
+    const buffer = Buffer.alloc(FRONTMATTER_SCAN_LIMIT)
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+
+    return buffer.subarray(0, bytesRead).toString('utf-8')
+  } catch (error) {
+    console.warn('[nide-host] failed to read a file head while listing chapters', {
+      file: filePath,
+      error
+    })
+    return null
+  } finally {
+    await handle?.close().catch(() => undefined)
+  }
+}
+
+/**
+ * 读一个内容目录里的章节列表。
+ *
+ * 只取目录里的文件（章节平铺，不起子目录），逐个读头部取编号与一级标题。读不出来的
+ * 文件仍然列出来（它是一个还没编号的章节），只是 `chapter` 为 null。
+ */
+export async function readProjectChapters(
+  dirPath: string,
+  options: RootsOptions
+): Promise<ChapterListResult> {
+  const listing = await readProjectDir(dirPath, options)
+  if (!listing.ok) return { ok: false, reason: listing.reason }
+
+  const files = listing.entries.filter(
+    (entry): entry is Extract<FileTreeEntry, { kind: 'file' }> =>
+      entry.kind === 'file' && isMarkdownPath(entry.path)
+  )
+
+  const chapters: ChapterFile[] = []
+
+  for (const file of files) {
+    const head = await readFileHead(file.path)
+    chapters.push({
+      path: file.path,
+      name: file.name,
+      chapter: head === null ? null : parseChapterNumber(head),
+      // 一级标题也在正文开头，同一次读取就够
+      heading: head === null ? null : parseChapterHeading(head)
+    })
+  }
+
+  return { ok: true, path: listing.path, chapters }
+}
+
+/**
+ * 读一个内容目录里的伏笔列表。
+ *
+ * 与章节同一套做法，只是伏笔要读**整份** yml（描述可能很长，截断会把一条伏笔读成
+ * 半截）。读不出来的文件仍然列出来，名称回落到文件名、其余字段为空。
+ */
+export async function readProjectForeshadowing(
+  dirPath: string,
+  options: RootsOptions
+): Promise<ForeshadowingListResult> {
+  const listing = await readProjectDir(dirPath, options)
+  if (!listing.ok) return { ok: false, reason: listing.reason }
+
+  const files = listing.entries.filter(
+    (entry): entry is Extract<FileTreeEntry, { kind: 'file' }> =>
+      entry.kind === 'file' && isForeshadowingPath(entry.path)
+  )
+
+  const foreshadowing: ForeshadowingFile[] = []
+
+  for (const file of files) {
+    const content = await readProjectFile(file.path, options)
+    const metadata = content.ok
+      ? readForeshadowingEntry(content.content)
+      : emptyForeshadowingMetadata()
+
+    foreshadowing.push({
+      path: file.path,
+      name: file.name,
+      label: foreshadowingEntryLabel(metadata, file.name),
+      startChapter: metadata.startChapter,
+      endChapter: metadata.endChapter,
+      description: metadata.description
+    })
+  }
+
+  return { ok: true, path: listing.path, foreshadowing }
+}
+
+// ============ 图鉴（内容目录下的一层子目录） ============
+
+/**
+ * 读图鉴目录里的所有图鉴：每个子目录一个图鉴，各自带字段表与条目。
+ *
+ * 读不出 `config.yml` 的图鉴用默认字段（不是错误）；某个图鉴目录读不出来时只让那个
+ * 图鉴空着（带 `error`），不影响别的图鉴；条目只读开头一小段取名字。
+ */
+export async function readProjectGalleries(
+  galleryRoot: string,
+  options: RootsOptions
+): Promise<GalleryFoldersResult> {
+  const listing = await readProjectDir(galleryRoot, options)
+  if (!listing.ok) return { ok: false, reason: listing.reason }
+
+  const galleries: GalleryFolder[] = []
+
+  for (const entry of listing.entries) {
+    // 图鉴目录下散着的文件不是图鉴：图鉴是**分区**，只有目录才算
+    if (entry.kind !== 'directory') continue
+
+    galleries.push(await readGalleryFolder(entry, options))
+  }
+
+  return { ok: true, path: listing.path, galleries }
+}
+
+async function readGalleryFolder(
+  dir: Extract<FileTreeEntry, { kind: 'directory' }>,
+  options: RootsOptions
+): Promise<GalleryFolder> {
+  const configPath = path.join(dir.path, GALLERY_CONFIG_FILE_NAME)
+  const fields = await readGalleryFields(configPath)
+
+  const listing = await readProjectDir(dir.path, options)
+  if (!listing.ok) {
+    console.warn('[nide-host] failed to read a gallery directory', {
+      dir: dir.name,
+      reason: listing.reason
+    })
+    return {
+      name: dir.name,
+      path: dir.path,
+      configPath,
+      fields,
+      entries: [],
+      error: listing.reason
+    }
+  }
+
+  const entries: GalleryEntryFile[] = []
+
+  for (const item of listing.entries) {
+    if (item.kind !== 'file') continue
+    if (!isGalleryEntryPath(item.path)) continue
+    // 字段表自己不是条目
+    if (isGalleryConfigFileName(item.name)) continue
+
+    const head = await readFileHead(item.path)
+    const values = head === null ? {} : readGalleryEntry(head).values
+
+    entries.push({
+      path: item.path,
+      name: item.name,
+      label: galleryEntryLabel(values, fields, item.name)
+    })
+  }
+
+  return { name: dir.name, path: dir.path, configPath, fields, entries }
+}
+
+/**
+ * 读一个图鉴的字段表；读不出来（不在、坏掉、没权限）时给默认字段。
+ *
+ * 「坏掉」也算读不出来：用户此时更需要能继续用（默认字段 + 一条日志），而不是一个
+ * 空图鉴。
+ */
+async function readGalleryFields(configPath: string): Promise<string[]> {
+  try {
+    const parsed = parseGalleryConfig(await fs.readFile(configPath, 'utf-8'))
+    if (parsed !== null) return parsed.fields
+
+    console.warn('[nide-host] the gallery configuration is invalid; using the default fields', {
+      file: path.basename(path.dirname(configPath))
+    })
+  } catch (error) {
+    if ((error as { code?: unknown } | null)?.code !== 'ENOENT') {
+      console.warn('[nide-host] failed to read a gallery configuration', {
+        file: path.basename(path.dirname(configPath)),
+        error
+      })
+    }
+  }
+
+  return [...DEFAULT_GALLERY_FIELDS]
+}
+
+/**
+ * 新建一个图鉴：一个目录 + 它的 `config.yml`。
+ *
+ * 与新建条目同一条边界（范围、绝对路径、不跟符号链接），差别只在「一个条目 + 一份
+ * 元数据要一起落盘」：字段表写不成时把刚建的目录撤掉，不留一个没有字段表的图鉴。
+ */
+export async function createProjectGallery(
+  request: GalleryCreateRequest,
+  options: RootsOptions
+): Promise<GalleryCreateResult> {
+  const { targetPath } = request
+
+  const validation = validateEntryName(request.name)
+  if (!validation.ok) return { ok: false, reason: 'invalid-name' }
+
+  if (typeof targetPath !== 'string' || targetPath.length === 0) {
+    return { ok: false, reason: 'unreadable' }
+  }
+
+  if (!path.isAbsolute(targetPath)) return { ok: false, reason: 'unreadable' }
+
+  if (!isInsideAnyRoot(options.roots, targetPath, options.caseInsensitive)) {
+    console.warn('[nide-host] refused to create a gallery outside every known root', {
+      target: targetPath
+    })
+    return { ok: false, reason: 'unreadable' }
+  }
+
+  let stats: Stats
+  try {
+    stats = await fs.lstat(targetPath)
+  } catch (error) {
+    console.warn('[nide-host] failed to stat the gallery create target', {
+      target: targetPath,
+      error
+    })
+    return { ok: false, reason: 'unreadable' }
+  }
+
+  if (stats.isSymbolicLink()) {
+    console.warn('[nide-host] refused to create a gallery through a symbolic link', {
+      target: targetPath
+    })
+    return { ok: false, reason: 'not-a-directory' }
+  }
+
+  if (!stats.isDirectory()) {
+    console.warn(
+      '[nide-host] refused to create a gallery inside an entry that is not a directory',
+      {
+        target: targetPath
+      }
+    )
+    return { ok: false, reason: 'not-a-directory' }
+  }
+
+  const galleryPath = path.join(targetPath, validation.name)
+  const configPath = path.join(galleryPath, GALLERY_CONFIG_FILE_NAME)
+
+  try {
+    // 不带 recursive：父目录不存在应当失败
+    await fs.mkdir(galleryPath)
+  } catch (error) {
+    return { ok: false, reason: classifyCreateError(error) }
+  }
+
+  try {
+    await fs.writeFile(
+      configPath,
+      serializeGalleryConfig({ fields: [...DEFAULT_GALLERY_FIELDS] }),
+      { encoding: 'utf-8', flag: 'wx' }
+    )
+  } catch (error) {
+    await fs.rm(galleryPath, { recursive: true, force: true }).catch((rollbackError: unknown) => {
+      console.warn('[nide-host] failed to remove a gallery directory after a failed create', {
+        name: validation.name,
+        error: rollbackError
+      })
+    })
+    return { ok: false, reason: classifyCreateError(error) }
+  }
+
+  console.info('[nide-host] project gallery created', { name: validation.name })
+  return { ok: true, path: galleryPath, configPath }
+}
+
+// ============ 概述（内容目录里平铺的 Markdown） ============
+
+/**
+ * 读概述目录里的 Markdown。
+ *
+ * 只列 Markdown、不按内容或文件名筛角色：`config.yml` 说哪份是大纲，它就是大纲；其余
+ * 都是普通文档。角色映射属于项目配置，这一层只回答「这一层有哪些 Markdown」。
+ */
+export async function readProjectOverview(
+  overviewRoot: string,
+  options: RootsOptions
+): Promise<OverviewListResult> {
+  const listing = await readProjectDir(overviewRoot, options)
+  if (!listing.ok) return { ok: false, reason: listing.reason }
+
+  const documents: OverviewDocument[] = listing.entries
+    .filter(
+      (entry): entry is Extract<FileTreeEntry, { kind: 'file' }> =>
+        entry.kind === 'file' && isMarkdownPath(entry.path)
+    )
+    .map((entry) => ({ path: entry.path, name: entry.name }))
+
+  return { ok: true, path: listing.path, documents }
+}
+
+/** 概述目录里的一份文档能不能被登记成大纲 / 写作风格 */
+export type OverviewDocumentCheck = 'ok' | 'unknown-file' | 'unreadable'
+
+/**
+ * 确认概述目录里确实有这份 Markdown。
+ *
+ * 角色映射改的是项目配置，但配置里写下一个名字之前要确认那份文件真的在：否则「大纲」
+ * 会指向一个不存在的文件，而界面上根本看不出原因。
+ */
+export async function checkProjectOverviewDocument(
+  overviewRoot: string,
+  fileName: string,
+  options: RootsOptions
+): Promise<OverviewDocumentCheck> {
+  const name = normalizeOverviewFileName(fileName)
+  if (name === null) return 'unknown-file'
+
+  if (!isInsideAnyRoot(options.roots, overviewRoot, options.caseInsensitive)) {
+    return 'unreadable'
+  }
+
+  try {
+    const stats = await fs.lstat(path.join(overviewRoot, name))
+    // 链接能把「改概述里的映射」变成「改指向根外某处的一份文件」：拒绝
+    if (stats.isSymbolicLink() || !stats.isFile()) return 'unknown-file'
+  } catch (error) {
+    if ((error as { code?: unknown } | null)?.code === 'ENOENT') return 'unknown-file'
+
+    console.warn('[nide-host] failed to stat an overview document', { error })
+    return 'unreadable'
+  }
+
+  return 'ok'
 }
 
 function temporaryName(scope: string): string {

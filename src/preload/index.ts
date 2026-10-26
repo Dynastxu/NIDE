@@ -277,20 +277,20 @@ let hostWriteFile: ((request: WriteFileRequest) => Promise<FileWriteResult>) | n
 let hostCreateEntry: ((request: CreateEntryRequest) => Promise<CreateEntryResult>) | null = null
 let hostRenameEntry: ((request: RenameEntryRequest) => Promise<RenameEntryResult>) | null = null
 let hostDeleteEntry: ((request: DeleteEntryRequest) => Promise<DeleteEntryResult>) | null = null
-
-/**
- * host 改名之后的概述映射跟进。
- *
- * 配置服务还在 shell（`.nide/config.yml` 不归 host），所以这一步走 IPC。失败只记
- * 日志：改名已经落盘，把它报成失败会让用户以为文件还是旧名字。
- */
-async function remapOverviewAfterRename(previousPath: string, nextPath: string): Promise<void> {
-  try {
-    await ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.remapAfterRename, previousPath, nextPath)
-  } catch (error) {
-    preloadLogger.warn('failed to remap the overview role after a host rename', { error })
-  }
-}
+let hostReadChapters: ((dirPath: string) => Promise<ChapterListResult>) | null = null
+let hostReadForeshadowing: ((dirPath: string) => Promise<ForeshadowingListResult>) | null = null
+let hostReadGalleries: ((galleryRoot: string) => Promise<GalleryListResult>) | null = null
+let hostCreateGallery: ((request: GalleryCreateRequest) => Promise<GalleryCreateResult>) | null =
+  null
+let hostUpdateGalleryRegistry:
+  ((request: GalleryRegistryUpdateRequest) => Promise<GalleryRegistryUpdateResult | null>) | null =
+  null
+let hostReadOverview: ((overviewRoot: string) => Promise<OverviewListResult>) | null = null
+let hostSetOverviewRole:
+  ((request: OverviewRoleUpdateRequest) => Promise<OverviewRoleUpdateResult>) | null = null
+let hostReadConfig: (() => Promise<ProjectConfig | null>) | null = null
+let hostUpdateConfig:
+  ((patch: ProjectConfigPatch) => Promise<ProjectConfigUpdateResult | null>) | null = null
 
 const projectAPI = {
   /** 「打开过的项目」列表，最近打开的在前 */
@@ -373,8 +373,16 @@ const projectAPI = {
    * 与 readDir 分开：这一步会只读每个文件的**开头**（frontmatter）取章节号，
    * 而渲染进程没有「只读一段」这个能力 —— 那是主进程的活。
    */
-  readChapters: (dirPath: string): Promise<ChapterListResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readChapters, dirPath),
+  readChapters: async (dirPath: string): Promise<ChapterListResult> => {
+    if (hostReadChapters) {
+      try {
+        return await hostReadChapters(dirPath)
+      } catch (error) {
+        preloadLogger.warn('host files.readChapters failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readChapters, dirPath)
+  },
 
   /**
    * 读一个内容目录里的伏笔列表（名称 / 起始章节 / 结束章节 / 描述）。
@@ -382,8 +390,16 @@ const projectAPI = {
    * 与 readChapters 同一条理由：列表要扫一个目录并逐份取出字段；交给渲染进程就
    * 只有「一次读一个文件」这一条路。读不出字段的 yml 仍然列出来，只是名称回落到文件名。
    */
-  readForeshadowing: (dirPath: string): Promise<ForeshadowingListResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readForeshadowing, dirPath),
+  readForeshadowing: async (dirPath: string): Promise<ForeshadowingListResult> => {
+    if (hostReadForeshadowing) {
+      try {
+        return await hostReadForeshadowing(dirPath)
+      } catch (error) {
+        preloadLogger.warn('host files.readForeshadowing failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readForeshadowing, dirPath)
+  },
 
   /**
    * 新建文件 / 文件夹。
@@ -431,15 +447,13 @@ const projectAPI = {
    * 所在的那一层，由主进程 / host 推导。同名条目已存在时返回
    * `{ ok: false, reason: 'already-exists' }`，**不会覆盖**。
    *
-   * host 改名成功之后补一步概述映射（大纲 / 写作风格的标记在 `.nide/config.yml`
-   * 里，配置还没搬进 host）。这一步失败**不该**把改名报成失败：磁盘上已经改了。
+   * host 改名成功之后会顺手改概述映射（大纲 / 写作风格的标记在 `.nide/config.yml`
+   * 里）——配置服务已经在 host，这一步不再是 shell 的后续动作。
    */
   renameEntry: async (request: RenameEntryRequest): Promise<RenameEntryResult> => {
     if (hostRenameEntry) {
       try {
-        const result = await hostRenameEntry(request)
-        if (result.ok) await remapOverviewAfterRename(result.previousPath, result.path)
-        return result
+        return await hostRenameEntry(request)
       } catch (error) {
         preloadLogger.warn('host files.renameEntry failed, falling back to IPC', { error })
       }
@@ -486,20 +500,36 @@ const projectAPI = {
    * 读图鉴：内容目录下每个子目录一个图鉴（各自的字段表与条目），外加 `.nide` 里的
    * 注册表（哪个图鉴是角色图鉴）。
    *
-   * 传的是图鉴内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在主进程：
+   * 传的是图鉴内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在 host：
    * 渲染进程只声明「我想读这个图鉴目录」，声明不了「哪个目录算图鉴目录」。
    */
-  readGalleries: (galleryRoot: string): Promise<GalleryListResult> =>
-    ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.readGalleries, galleryRoot),
+  readGalleries: async (galleryRoot: string): Promise<GalleryListResult> => {
+    if (hostReadGalleries) {
+      try {
+        return await hostReadGalleries(galleryRoot)
+      } catch (error) {
+        preloadLogger.warn('host gallery.read failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.readGalleries, galleryRoot)
+  },
 
   /**
    * 新建一个图鉴：一个目录 + 它的 `config.yml`。
    *
-   * 落点（`request.targetPath`）同样必须是配置里那个图鉴内容目录，主进程会核对；
+   * 落点（`request.targetPath`）同样必须是配置里那个图鉴内容目录，host 会核对；
    * 目录已存在时**不覆盖**，返回 `already-exists`。
    */
-  createGallery: (request: GalleryCreateRequest): Promise<GalleryCreateResult> =>
-    ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.createGallery, request),
+  createGallery: async (request: GalleryCreateRequest): Promise<GalleryCreateResult> => {
+    if (hostCreateGallery) {
+      try {
+        return await hostCreateGallery(request)
+      } catch (error) {
+        preloadLogger.warn('host gallery.create failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.createGallery, request)
+  },
 
   /**
    * 改图鉴注册表（把某一个图鉴设成角色图鉴）。
@@ -507,10 +537,18 @@ const projectAPI = {
    * 名字指向的目录不在时返回 `unknown-gallery`：注册表指向一个不存在的图鉴，章节表单
    * 的出场角色就永远选不出东西，而那在界面上看不出任何原因。
    */
-  updateGalleryRegistry: (
+  updateGalleryRegistry: async (
     request: GalleryRegistryUpdateRequest
-  ): Promise<GalleryRegistryUpdateResult | null> =>
-    ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.updateRegistry, request),
+  ): Promise<GalleryRegistryUpdateResult | null> => {
+    if (hostUpdateGalleryRegistry) {
+      try {
+        return await hostUpdateGalleryRegistry(request)
+      } catch (error) {
+        preloadLogger.warn('host gallery.updateRegistry failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.updateRegistry, request)
+  },
 
   /**
    * 读概述：内容目录里平铺的 Markdown。
@@ -518,36 +556,71 @@ const projectAPI = {
    * 「哪份是大纲 / 写作风格」不在这份结果里：那是项目配置里的标记，渲染进程手里
    * 已经有 `config.overview`，照着它认即可。
    *
-   * 传的是概述内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在主进程：
+   * 传的是概述内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在 host：
    * 渲染进程只声明「我想读这个概述目录」，声明不了「哪个目录算概述目录」。
    */
-  readOverview: (overviewRoot: string): Promise<OverviewListResult> =>
-    ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.readOverview, overviewRoot),
+  readOverview: async (overviewRoot: string): Promise<OverviewListResult> => {
+    if (hostReadOverview) {
+      try {
+        return await hostReadOverview(overviewRoot)
+      } catch (error) {
+        preloadLogger.warn('host overview.read failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.readOverview, overviewRoot)
+  },
 
   /**
    * 把概述里的某份 Markdown 标记成大纲 / 写作风格。
    *
    * 改的是**项目配置**的概述那一段，不是那份文档本身。文件不在了、或者不是 Markdown
-   * 时主进程拒绝并给出原因。
+   * 时 host 拒绝并给出原因。
    */
-  setOverviewRole: (request: OverviewRoleUpdateRequest): Promise<OverviewRoleUpdateResult> =>
-    ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.setRole, request),
+  setOverviewRole: async (
+    request: OverviewRoleUpdateRequest
+  ): Promise<OverviewRoleUpdateResult> => {
+    if (hostSetOverviewRole) {
+      try {
+        return await hostSetOverviewRole(request)
+      } catch (error) {
+        preloadLogger.warn('host overview.setRole failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.setRole, request)
+  },
 
   /**
    * 读当前项目的配置（`.nide/config.yml`）。
    *
-   * 不传路径：读的就是当前项目，写到哪儿也由主进程决定。`.nide` 被删或配置文件
-   * 坏掉时主进程会静默重建默认配置，所以这里不会返回「没有配置」这种状态 ——
+   * 不传路径：读的就是当前项目，写到哪儿也由 host 决定。`.nide` 被删或配置文件
+   * 坏掉时 host 会静默重建默认配置，所以这里不会返回「没有配置」这种状态 ——
    * 只有「当前没有项目」时给 null。
    */
-  readConfig: (): Promise<ProjectConfig | null> => ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.read),
+  readConfig: async (): Promise<ProjectConfig | null> => {
+    if (hostReadConfig) {
+      try {
+        return await hostReadConfig()
+      } catch (error) {
+        preloadLogger.warn('host config.read failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.read)
+  },
 
   /**
    * 更新当前项目的配置。补丁里只放要改的分区（`{ chapters: { path: 'manuscript' } }`）；
-   * 校验不合格时主进程**一项都不写**，返回的 config 是磁盘上那份没被改动的配置。
+   * 校验不合格时 host **一项都不写**，返回的 config 是磁盘上那份没被改动的配置。
    */
-  updateConfig: (patch: ProjectConfigPatch): Promise<ProjectConfigUpdateResult | null> =>
-    ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.update, patch)
+  updateConfig: async (patch: ProjectConfigPatch): Promise<ProjectConfigUpdateResult | null> => {
+    if (hostUpdateConfig) {
+      try {
+        return await hostUpdateConfig(patch)
+      } catch (error) {
+        preloadLogger.warn('host config.update failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.update, patch)
+  }
 }
 
 /**
@@ -897,6 +970,25 @@ ipcRenderer.on(HOST_PORT_CHANNEL, (event) => {
   // 删一棵大树可能比默认的 5s 久：给删除单独放宽，别在它删到一半时切回旧路径
   hostDeleteEntry = (request) =>
     hostInvoke('files', 'deleteEntry', [request], 30_000) as Promise<DeleteEntryResult>
+  hostReadChapters = (dirPath) =>
+    hostInvoke('files', 'readChapters', [dirPath]) as Promise<ChapterListResult>
+  hostReadForeshadowing = (dirPath) =>
+    hostInvoke('files', 'readForeshadowing', [dirPath]) as Promise<ForeshadowingListResult>
+  hostReadGalleries = (galleryRoot) =>
+    hostInvoke('gallery', 'read', [galleryRoot]) as Promise<GalleryListResult>
+  hostCreateGallery = (request) =>
+    hostInvoke('gallery', 'create', [request]) as Promise<GalleryCreateResult>
+  hostUpdateGalleryRegistry = (request) =>
+    hostInvoke('gallery', 'updateRegistry', [
+      request
+    ]) as Promise<GalleryRegistryUpdateResult | null>
+  hostReadOverview = (overviewRoot) =>
+    hostInvoke('overview', 'read', [overviewRoot]) as Promise<OverviewListResult>
+  hostSetOverviewRole = (request) =>
+    hostInvoke('overview', 'setRole', [request]) as Promise<OverviewRoleUpdateResult>
+  hostReadConfig = () => hostInvoke('config', 'read', []) as Promise<ProjectConfig | null>
+  hostUpdateConfig = (patch) =>
+    hostInvoke('config', 'update', [patch]) as Promise<ProjectConfigUpdateResult | null>
 
   // 窗口知道自己绑定的是哪个项目；换项目后 host 需要跟着切。
   const bootProject = readBootProjectPath()
