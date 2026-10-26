@@ -31,11 +31,15 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "postinstall": "node scripts/install-electron.mjs",
-    "build:unpack": "pnpm run build && electron-builder --dir",
-    "build:win": "pnpm run build && electron-builder --win",
-    "build:mac": "pnpm run build && electron-builder --mac",
-    "build:linux": "pnpm run build && electron-builder --linux",
-    "ci": "pnpm run check && pnpm run build"
+    "build:unpack": "pnpm run build:dist && electron-builder --dir",
+    "build:win": "pnpm run build:dist && electron-builder --win",
+    "build:mac": "pnpm run build:dist && electron-builder --mac",
+    "build:linux": "pnpm run build:dist && electron-builder --linux",
+    "ci": "pnpm run check && pnpm run build",
+    "build:host": "node scripts/build-host.mts",
+    "host:dist": "node out/host/packages/host/src/index.js --profile desktop --home .nide-dist --app-root . --dist-root out/host",
+    "host:dist:smoke": "node out/host/packages/host/src/index.js --profile desktop --home .nide-dist --app-root . --dist-root out/host --reset --once",
+    "build:dist": "pnpm run build && pnpm run build:host"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.5",

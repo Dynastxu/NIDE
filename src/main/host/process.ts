@@ -113,17 +113,31 @@ export interface StartHostOptions {
 }
 
 /**
- * host 入口：dev 是仓库根，打包版是 `resources/app`（未启用 asar，布局相同）。
+ * host 入口。
+ *
+ * - 开发（`app.isPackaged === false`）：直接跑源码 `packages/host/src/index.ts`，
+ *   Electron 自带的 Node 做类型剥离，改代码不用先构建；
+ * - 打包版：跑编译产物 `out/host/packages/host/src/index.js`，并把
+ *   `--dist-root` 指过去（profile 模板与 `{{NIDE_ROOT}}` 都在那边）。
  *
  * 找不到时只记一条错误：`startHost()` 接下来的失败会带着这条上下文，比一个孤零零的
  * spawn 错误容易查得多。
  */
 export function resolveHostEntry(): string {
-  const entry = path.join(app.getAppPath(), 'packages', 'host', 'src', 'index.ts')
+  const appRoot = app.getAppPath()
+  const entry = app.isPackaged
+    ? path.join(appRoot, 'out', 'host', 'packages', 'host', 'src', 'index.js')
+    : path.join(appRoot, 'packages', 'host', 'src', 'index.ts')
+
   if (!fs.existsSync(entry)) {
-    logger.error('host entry not found; the packaged app is missing packages/host', { entry })
+    logger.error('host entry not found; the packaged app is missing out/host', { entry })
   }
   return entry
+}
+
+/** 打包版才有编译产物根；开发时返回 null，host 用源码树里的 profiles */
+function resolveHostDistRoot(): string | null {
+  return app.isPackaged ? path.join(app.getAppPath(), 'out', 'host') : null
 }
 
 function resolveHostHome(explicit?: string): string {
@@ -148,9 +162,10 @@ export function startHost(options: StartHostOptions = {}): Promise<void> {
   const home = resolveHostHome(options.home)
   const profile = options.profile ?? process.env.NIDE_PROFILE ?? 'desktop'
   const entry = resolveHostEntry()
+  const distRoot = resolveHostDistRoot()
   const timeoutMs = options.timeoutMs ?? 15_000
 
-  logger.info('starting host process', { entry, home, profile })
+  logger.info('starting host process', { entry, home, profile, distRoot })
 
   const proc = utilityProcess.fork(
     entry,
@@ -163,7 +178,9 @@ export function startHost(options: StartHostOptions = {}): Promise<void> {
       app.getPath('userData'),
       // 内置插件目录在 app 根下；dev 与打包版语义一致（见 resolveHostEntry）
       '--app-root',
-      app.getAppPath()
+      app.getAppPath(),
+      // 编译产物根：打包版才传，host 用它找 profile 模板与 {{NIDE_ROOT}}
+      ...(distRoot ? ['--dist-root', distRoot] : [])
     ],
     {
       serviceName: 'nide-host',

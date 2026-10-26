@@ -3,20 +3,18 @@ productName: NIDE
 directories:
   buildResources: build
 
-# host 以源码 `.ts` 运行（Electron 自带的 Node 做类型剥离），并且 loader 会按
-# profile 里的绝对路径动态 import 插件；这两件事放进 asar 都不可靠，所以先不打
-# asar。等 host 有编译产物、profile 改用包标识符之后再打开。
+# host 现在跑**编译产物**（`out/host/**`，由 `pnpm build:host` 生成），源码里的
+# `packages/host` / `packages/boot` / `packages/hello` / `src/shared` 不再随包。
+#
+# asar 仍然关着：`utilityProcess.fork()` 的入口在 asar 里是已知的坑（ESM +
+# asar 虚拟文件系统的组合），profile 里的插件路径也还是绝对路径。等「profile 用
+# 包标识符 + host 入口从 asar 解到临时目录」之后再打开。
 asar: false
 
 files:
-  # 渲染进程 / 主进程 / 预加载的构建产物
+  # 渲染进程 / 主进程 / 预加载的构建产物 + 编译后的 host（out/host）
   - out/**
-  # host 直接跑源码，需要它以及被它 import 的 boot / hello 与共享层
-  - packages/host/**
-  - packages/boot/**
-  - packages/hello/**
-  - src/shared/**
-  # profile 模板与内建插件
+  # profile 模板与内建插件（host 的 --app-root 指向这里）
   - profiles/**
   - plugins/**
   - package.json
@@ -29,6 +27,13 @@ files:
   - '!{tsconfig.json,tsconfig.host.json,tsconfig.node.json,tsconfig.web.json}'
 win:
   executableName: nide
+  # 代码签名：证书**不进仓库**，走 electron-builder 的标准环境变量
+  #   CSC_LINK            证书文件路径或 base64
+  #   CSC_KEY_PASSWORD    证书密码
+  # 没设这两个变量时构建照常，只是产物未签名（Windows 会拦 nide.exe）。
+  # 需要强制签名（CI 里防止「忘了配」）时加：
+  #   signAndEditExecutable: true
+  #   forceCodeSigning: true
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

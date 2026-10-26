@@ -60,9 +60,14 @@ export function resolveProfile(name: string): NidePaths {
  *
  * 只补缺失的文件，不覆盖已有的 cordis.yml / patch —— 用户手改过的配置不能被启动流程盖掉。
  * 需要重新初始化时传 reset=true（目前只给开发脚本用）。
+ *
+ * `templateRoot` 是**模板所在的 profiles 目录**。默认用源码树里的 `profiles/`；
+ * 打包版由 host 显式传入编译产物里的 `profiles/`（`REPO_ROOT` 是按模块位置算的，
+ * 编译之后指不到源码树）。
  */
-export function ensureProfile(paths: NidePaths, reset = false): void {
-  const template = path.join(REPO_ROOT, 'profiles', paths.profileName)
+export function ensureProfile(paths: NidePaths, reset = false, templateRoot?: string): void {
+  const root = templateRoot ?? path.join(REPO_ROOT, 'profiles')
+  const template = path.join(root, paths.profileName)
   if (!fs.existsSync(template)) {
     throw new Error(`profile template not found: ${template}`)
   }
@@ -83,11 +88,16 @@ export function ensureProfile(paths: NidePaths, reset = false): void {
   // TODO: 读取 package.json 的 nide.profile.bundles 并合成 bundle patch 层
 }
 
-/** 读取 cordis.yml，替换开发期占位符，并做最小结构校验。 */
-export function loadRows(paths: NidePaths): ProfileRow[] {
+/**
+ * 读取 cordis.yml，替换占位符，并做最小结构校验。
+ *
+ * `nideRoot` 是 `{{NIDE_ROOT}}` 的展开值：源码树里是仓库根，打包版是编译产物根
+ * （`out/host`，那里有一份改写过的 profile 模板，插件路径指向 `.js`）。
+ */
+export function loadRows(paths: NidePaths, nideRoot: string = REPO_ROOT): ProfileRow[] {
   const file = path.join(paths.profileDir, 'cordis.yml')
   const text = fs.readFileSync(file, 'utf8')
-  const expanded = text.replaceAll('{{NIDE_ROOT}}', REPO_ROOT.replaceAll('\\', '/'))
+  const expanded = text.replaceAll('{{NIDE_ROOT}}', nideRoot.replaceAll('\\', '/'))
   const parsed = yaml.load(expanded)
 
   if (!Array.isArray(parsed)) {

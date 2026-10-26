@@ -276,6 +276,30 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   ```
 - 没有 bundle / 加载失败时 `PluginSlot` 回退构建期 `import.meta.glob`。
 
+### 编译 host 与打包
+- `pnpm build:host`（[scripts/build-host.mts](scripts/build-host.mts)）用 TypeScript 的
+  **Node API** 直接把源码编到 `out/host`（不 spawn，受限环境也能跑）；
+- 产物与源码同构：`out/host/packages/host/src/index.js` 是可执行入口，
+  `out/host/packages/hello/src/index.js` 是 profile 引用的插件，
+  `out/host/src/shared/...` 是共享层，`out/host/profiles/...` 是**改写过的** profile
+  模板（`.ts` → `.js`）；
+- 三处细节，缺一个都跑不起来：
+  1. 统一发射 **ESM**（`module: ESNext` + `moduleResolution: Bundler`）。用 NodeNext
+     的话，没有 `type: module` marker 的共享目录会被编成 CJS，和产物根对不上；
+  2. `out/host/package.json` 写 `{"type":"module"}`（它是打包后的「仓库根」）；
+  3. `src/shared/project/package.json` 的 `#project/*` 映射要复制进产物并把 `.ts`
+     改成 `.js`（否则 bare specifier 解析不了）；
+- 打包版的入口与 profile：shell 在 `app.isPackaged` 时跑
+  `<appRoot>/out/host/packages/host/src/index.js` 并传 `--dist-root <appRoot>/out/host`；
+  host 用它当 profile 模板目录与 `{{NIDE_ROOT}}`。开发时仍跑源码
+  `packages/host/src/index.ts`，行为不变；
+- `electron-builder.yml` 的 `files` 因此只留 `out/**` + `profiles/**` + `plugins/**`
+  + `package.json` —— 源码形式的 `packages/*` 与 `src/shared` 不再进包；
+- **asar 仍然关着**：`utilityProcess.fork()` 的入口在 asar 里是已知的坑，profile 里
+  的插件路径也还是绝对路径。等「profile 用包标识符 + 入口解到临时目录」再开；
+- **签名**：证书不进仓库，走 electron-builder 的标准环境变量
+  `CSC_LINK` / `CSC_KEY_PASSWORD`；没配时产物未签名（Windows 会拦 `nide.exe`）。
+
 ### 工程
 - npm registry 已切 `https://registry.npmmirror.com/`（`.npmrc`）；
 - `tsconfig.host.json`；`pnpm typecheck:host`；
@@ -320,11 +344,18 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   `PluginSettingsSlot` / `RestartDialog`）；插件视图渲染管线（`PluginSlot` /
   `PluginHostProvider` / `host-context`）进 kit 的 `plugin-views/`；引导壳按包名
   动态 import 窗口组件。窗口包别名是**正则子路径**，必须排在精确别名之前。
-- 第十五批（未提交）：D1 收尾 —— 主窗口的 `App` / `MainApp` / editor / explorer /
+- 第十五批 `7f877d9`：D1 收尾 —— 主窗口的 `App` / `MainApp` / editor / explorer /
   entry / git / host-view / layout / view / `HostSlot` / `MainMenu` /
   `entry-action.store` 全部进 `client-ui-main`，`monaco-env` 进 kit；
   `src/renderer/src` 只剩 `main.tsx` + `assets` + `env.d.ts`；
   **`@renderer` 别名已从 tsconfig.node / tsconfig.web / vite / vitest / bundle 脚本里全部删除**。
+- 第十六批（未提交）：发布化第一步 —— `pnpm build:host` 把 host 编到 `out/host`
+  （ESM 统一发射 + 产物根 `{"type":"module"}` + `#project/*` 映射改写 + profile 模板
+  改写）；shell 在打包版跑编译产物并传 `--dist-root`；`boot` 的 profile 模板目录与
+  `{{NIDE_ROOT}}` 改成显式参数；`electron-builder.yml` 只打 `out/**` + `profiles/**` +
+  `plugins/**` + `package.json`；签名走 `CSC_LINK` / `CSC_KEY_PASSWORD`。
+  **编译产物用 `node out/host/.../index.js --once` 实跑验证过**（profile / 插件 / 本地化
+  都正常），`build:unpack` 仍需在用户终端跑。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -342,7 +373,9 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 5. ~~**i18n 服务化**~~ —— 已完成（第九批）。语言包瀑布 / 偏好 / 标题解析都在 host，
    shell 只缓存一份载荷；`src/main/plugin-host` 的四张表随之删除。
    仍剩 D10（每包 `locale/*.json`，让插件自带 locale 目录而不是 manifest 里声明文件）。
-6. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
+6. **发布化**：~~编译 host~~（第十六批，已完成，`build:host` + `--dist-root`）；
+   剩下 asar（要先解决 `utilityProcess.fork` 的 asar 入口与 profile 包标识符）、
+   `build:win` 实跑、签名证书。
 7. ~~**theme / appearance 服务化**~~ —— 已完成（第十一批）。
 8. ~~**AI / secrets 服务化**~~ —— 已完成（第十二批，含 `stream-event` 流式通道）。
 9. ~~**核心 UI 插件化（D1）**~~ —— 已完成（第十三 / 十四 / 十五批）：共享层
@@ -366,7 +399,8 @@ nativeTheme 走反向桥）**；**AI 供应商 / 密钥仓**；通用 RPC；host
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell）；
 - 核心 UI 组件：**已全部进包**（`client-kit` + 三个窗口包），`src/renderer/src`
   只剩 `main.tsx` / `assets` / `env.d.ts`；
-- 编译 host / asar / 签名、视觉回归、D10。
+- asar（要解决 `utilityProcess.fork` 的 asar 入口与 profile 包标识符）、
+  `build:win` 实跑、签名证书、视觉回归、D10。
 
 **旧实现里也没有的**：插件后端（`manifest.main`）、依赖解析、profile bundle /
 `cordis.patch.yml` / `!!js` / required 审计 / runtime resolution。
@@ -466,6 +500,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `src/renderer/src/plugins/PluginSlot.tsx` | 先查注册表，再回退 glob |
 | `plugins/builtin/demo/src/ui/client-entry.tsx` | bundle 入口 |
 | `scripts/build-plugin-client.mjs` | IIFE 构建 |
+| `scripts/build-host.mts` | 编译 host 到 `out/host`（TS Node API，不 spawn） |
 | `src/shared/project/store.ts` | 纯 store 模型 |
 | `src/shared/project/package.json` | ESM 标记 + `#project/*` 子路径导入映射 |
 | `src/shared/project/yaml.ts` | 最小 YAML（原 `src/shared/yaml`，搬进 project 包以便 `#project/yaml`） |
@@ -609,5 +644,10 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第十五批改动未提交**（主窗口搬进 `client-ui-main`），先 commit 再开工
+- [ ] **第十六批改动未提交**（编译 host + 打包配置），先 commit 再开工
+- [x] 编译产物实跑：`node out/host/packages/host/src/index.js --dist-root out/host --once`
+      通过（profile 从产物里取、hello 插件加载、内建插件扫描到 3 个）
+- [ ] `pnpm build:unpack` 复跑：产物里应只有 `out/** / profiles/** / plugins/**`，
+      `resources/app/out/host/...` 存在；用 `electron.exe resources/app` 起，
+      日志里的 host 入口是 `out/host/packages/host/src/index.js`
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

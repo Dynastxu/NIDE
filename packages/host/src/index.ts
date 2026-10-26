@@ -101,6 +101,11 @@ interface Options {
   userData?: string
   /** 应用根目录（Electron 的 app.getAppPath()）；用来找 <root>/plugins/builtin。 */
   appRoot?: string
+  /**
+   * 编译产物根（`out/host`）。给了就不再从模块位置猜 profile 模板与
+   * `{{NIDE_ROOT}}` —— 编译后模块位置已经不是源码树了。
+   */
+  distRoot?: string
 }
 
 function parseArgs(argv: string[]): Options {
@@ -126,6 +131,9 @@ function parseArgs(argv: string[]): Options {
         break
       case '--app-root':
         options.appRoot = argv[++index]
+        break
+      case '--dist-root':
+        options.distRoot = argv[++index]
         break
       case '--dump-config':
         options.dumpConfig = true
@@ -156,6 +164,7 @@ function usage(): string {
     '  --home          NIDE_HOME 目录，默认 ~/.nide（开发用 .nide-dev）',
     '  --user-data     Electron userData 目录（projects.json 等）',
     '  --app-root      应用根目录（默认仓库根；打包时由 shell 传 resources/app）',
+    '  --dist-root     编译产物根（out/host）；给了就用它的 profiles 模板与 {{NIDE_ROOT}}',
     '  --dump-config   只打印组合后的行，不启动插件',
     '  --once          启动后立即关闭（冒烟测试用）',
     '  --reset         先删掉 profile 目录再从模板重建（仅开发用）'
@@ -172,10 +181,19 @@ if (options.help) {
 if (options.home) process.env.NIDE_HOME = options.home
 
 const paths = resolveProfile(options.profile)
-ensureProfile(paths, options.reset)
+
+/**
+ * 编译产物根。
+ *
+ * 打包版由 shell 传 `--dist-root <appRoot>/out/host`：profile 模板、`{{NIDE_ROOT}}`
+ * 都从那里解析（模板里的插件路径已改写成编译后的 `.js`）。独立运行 / 开发时
+ * 没有这个参数，行为与之前完全一致（源码树里的 profiles）。
+ */
+const distRoot = options.distRoot ? path.resolve(options.distRoot) : null
+ensureProfile(paths, options.reset, distRoot ? path.join(distRoot, 'profiles') : undefined)
 
 if (options.dumpConfig) {
-  console.log(dumpRows(loadRows(paths)))
+  console.log(dumpRows(loadRows(paths, distRoot ?? REPO_ROOT)))
   process.exit(0)
 }
 
