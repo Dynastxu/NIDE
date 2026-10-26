@@ -13,6 +13,7 @@ import { initI18n } from './i18n'
 import { initAppearance, registerAppearanceBroadcast } from './appearance'
 import { registerPluginBundleProtocol, registerPluginBundleScheme } from './protocol/plugin-bundles'
 import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './window'
+import { applyCompatibilitySwitches, noteChildProcessGone } from './compat'
 
 /**
  * 日志必须最先安装，且早于 app.whenReady()。
@@ -22,6 +23,13 @@ import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './w
  * 落地，这样任何后续启动失败都有一份「从哪开始坏」的记录。
  */
 const logger = installLogger()
+
+/**
+ * 兼容性开关（软件渲染等）也必须在 ready 之前应用，且要在日志装好之后 ——
+ * 它自己会记一条 warn 说明为什么关掉了硬件加速。
+ */
+applyCompatibilitySwitches()
+app.on('child-process-gone', (_event, details) => noteChildProcessGone(details))
 
 /**
  * 自定义 scheme 的权限位只能在 ready **之前**登记，所以这一句刻意放在模块顶层。

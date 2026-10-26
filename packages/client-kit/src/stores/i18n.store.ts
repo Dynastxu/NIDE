@@ -41,6 +41,29 @@ function emptyDiagnostics(): LocaleDiagnostics {
 /** 模块级 in-flight promise：多个组件同时触发加载时只打一次 IPC */
 let inflight: Promise<void> | null = null
 
+/**
+ * 造一个会**报告缺失 key** 的 t()。
+ *
+ * `createTranslator` 的最后一级回落是 key 本身 —— 界面上于是出现裸 key，而它
+ * 不会报错。这在迁移期间格外危险：文案散落在几个包里，某个 `t('host.xxx')` 用了
+ * 一个词条表里没有的 key，只有肉眼能发现。
+ *
+ * 所以这里包一层：两侧表都没有这个 key 时，**每个 key 只记一次** warn（含 key 名），
+ * 返回值仍是 createTranslator 的结果（行为不变）。
+ */
+const reportedMissingKeys = new Set<string>()
+
+function createReportingTranslator(messages: MessageTable): Translator {
+  const translate = createTranslator(messages)
+  return (key, params) => {
+    if (!(key in messages) && !(key in BASE_MESSAGES) && !reportedMissingKeys.has(key)) {
+      reportedMissingKeys.add(key)
+      logger.warn('Missing message key; the interface will show the raw key', { key })
+    }
+    return translate(key, params)
+  }
+}
+
 function hydrate(payload: I18nPayload): Partial<I18nState> {
   const state: Partial<I18nState> = {
     ready: true,
@@ -48,7 +71,7 @@ function hydrate(payload: I18nPayload): Partial<I18nState> {
     messages: payload.messages,
     available: payload.available,
     diagnostics: payload.diagnostics,
-    t: createTranslator(payload.messages)
+    t: createReportingTranslator(payload.messages)
   }
 
   if (payload.fallbackFrom) {
@@ -75,7 +98,7 @@ export const useI18nStore = create<I18nState>((set) => ({
   messages: BASE_MESSAGES,
   available: [],
   diagnostics: emptyDiagnostics(),
-  t: createTranslator(BASE_MESSAGES),
+  t: createReportingTranslator(BASE_MESSAGES),
 
   load: async () => {
     if (inflight) return inflight
