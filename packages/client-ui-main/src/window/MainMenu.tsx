@@ -158,8 +158,9 @@ export function MainMenu(): JSX.Element {
         /**
          * 提交：**不是**可执行动作，而是「打开提交页面」。
          *
-         * 页面本体是登记在视图表里的 `host.commit`（见 main/plugin-host/host-views.ts，
-         * 组件在 renderer 的 git/CommitView），所以这里只声明「把哪个区切到谁」，
+         * 页面本体是登记在视图表里的 `host.commit`（见 host 的
+         * `services/builtin-views.ts`，组件在 `client-ui-main` 的 git/CommitView），
+         * 所以这里只声明「把哪个区切到谁」，
          * 菜单不自己画浮层 —— 那会多出一套与工具区并行的页面装配。
          *
          * 切的是**左上工具区**：提交页与文件树同属这一区，菜单选中之后该区展示提交页，

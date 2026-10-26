@@ -347,7 +347,6 @@ export interface HostAPI {
   aiProvider: AiProviderAPI
   /** 行为级二次确认的渲染侧端口（只有 ConfirmHost 用） */
   confirm: ConfirmAPI
-  reloadPlugin: (pluginId: string) => Promise<void>
 }
 
 declare global {

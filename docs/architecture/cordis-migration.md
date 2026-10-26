@@ -49,8 +49,9 @@
   - **D1 完成**：主窗口的 `App` / `MainApp` / 编辑器 / 文件树 / 布局 / 内建视图表 / 文件菜单也进了 `client-ui-main`，`monaco-env` 进 kit；`src/renderer/src` 只剩 `main.tsx`（引导壳）+ `assets` + `env.d.ts`。旧的 `@renderer` 别名已从所有配置里删除。仍可选的后续优化是把主窗口内部拆成 `zone.*` / `editor.*` 子 slot。
   - **host 有了编译产物，asar 也回来了**：`pnpm build:host` 把 host / boot / hello / 共享层编到 `out/host`（统一 ESM、产物根 `{"type":"module"}`、`#project/*` 映射与 profile 模板一并改写），打包版跑 `out/host/.../index.js` 并由 shell 传 `--dist-root`；源码形式的 `packages/*` 不再进包。asar 开启后，host 需要的真实文件（`out/host/**`、`plugins/**`）通过 `asarUnpack` 落在 `app.asar.unpacked/`，shell 负责换根。代码签名仍未配（走 `CSC_LINK` / `CSC_KEY_PASSWORD`）。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
-- 下一步：**收尾**。① 删掉 shell 的 IPC 转发回退 / 禁用集合镜像 / `host-views` 表；
-  ② `build:win` 实跑与签名证书；③ D10 与视觉回归。
+  - **shell 的回退路径删完了**：`src/main/plugin-host/`（禁用集合镜像、内建视图表）与死掉的 `file.service.ts` 整个删除；内建视图搬进 host，视图 / 设置 / 禁用集合 / 启停全部直通 host，`reloadPlugin` 占位链路也删了。壳只剩「按 D7 本来就该在壳里」的东西：窗口 / 菜单 / 对话框 / 日志落盘。
+- 下一步：**收尾**。① `build:win` 实跑与签名证书；② D10 与视觉回归；
+  ③ 合并到主分支。
 
 ## 0. 已锁定决策
 

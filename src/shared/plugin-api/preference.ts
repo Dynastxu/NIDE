@@ -2,8 +2,8 @@
  * 插件启用状态的持久化契约。
  *
  * 和 `shared/project` 的分工一致：读取时的收敛规则（坏文件怎么降级、非法项怎么
- * 丢弃）写在这里的**纯函数**里，落盘与 userData 路径解析留在主进程
- * （`src/main/plugin-host/preference.ts`）—— 那些规则可以单独测，不必起 electron。
+ * 丢弃）写在这里的**纯函数**里，落盘与 userData 路径解析在 host
+ * （`packages/host/src/services/plugins.ts`）—— 那些规则可以单独测，不必起 electron。
  *
  * 这一层不 import electron / fs / DOM：`shared` 被三方共用，而渲染进程在 Chromium
  * 沙箱里既没有 fs，也读不到 userData —— 它消费的是 IPC 下发的禁用 id 列表。

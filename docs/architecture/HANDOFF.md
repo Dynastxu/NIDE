@@ -137,16 +137,17 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - 贡献点的读取（读 manifest、路径守卫、chrome / location 收敛、语言包与
   `package.nls*.json`）在
   [plugin-contributions.ts](packages/host/src/services/plugin-contributions.ts)；
-  `src/main/plugin-host/loader.ts`、`plugin-registry.ts`、`permission.ts`、
-  `sandbox.ts`、`errors.ts` 全部删除；
+  搬迁期间的 `src/main/plugin-host/*`（loader / registry / permission / sandbox /
+  errors / host-views / preference）已全部删除；
 - RPC：`plugins.list` / `disabled` / `setEnabled` / `clientBundles` / `views` / `settings` /
   `install` / `remove` / `rescan`；`contributions` 不再是 RPC（shell 不需要了），
   只作为 host 内部聚合点与语言包来源；
-- shell 侧**没有缓存表了**：[src/main/plugin-host](src/main/plugin-host) 只剩两件事 ——
-  `host-views.ts`（三条内建视图，标题用 shell 缓存的载荷翻）与 `preference.ts`
-  （禁用集合的镜像，host 不可达时兜底）；
-- `getPluginViews` = 内建视图（shell）+ `plugins.views`（host，标题已解析）；
-  `getPluginSettings` 直接转发 `plugins.settings`（host 已滤掉禁用插件、已排序）；
+- shell 侧**没有任何缓存表 / 镜像了**：`src/main/plugin-host/` 已整个删除。
+  三条内建视图（文件树 / 版本控制 / 提交）也搬进 host
+  （[packages/host/src/services/builtin-views.ts](packages/host/src/services/builtin-views.ts)）——
+  它们的标题是宿主词条，词条表与当前语言都在 host，放在 shell 拼会让一次查询跨两份翻译；
+- `getPluginViews` / `getPluginSettings` / `getDisabledPlugins` / `setPluginEnabled`
+  都是**直通**：host 是唯一写方与唯一读源，壳不再保留副本；
 - `getPlugins` / `getClientBundles` 读 host，失败时给空列表；
   判断「是不是第三方」也问 host 的清单（`findPlugin`）；
 - **安装 / 卸载**：`plugins.install(sourceDir)` 复制到 `<userData>/plugins`、默认禁用；
@@ -352,13 +353,20 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   `entry-action.store` 全部进 `client-ui-main`，`monaco-env` 进 kit；
   `src/renderer/src` 只剩 `main.tsx` + `assets` + `env.d.ts`；
   **`@renderer` 别名已从 tsconfig.node / tsconfig.web / vite / vitest / bundle 脚本里全部删除**。
-- 第十六批（未提交）：发布化第一步 —— `pnpm build:host` 把 host 编到 `out/host`
+- 第十六批 `1c34ec3` + `582ceab`：发布化 —— `pnpm build:host` 把 host 编到 `out/host`
   （ESM 统一发射 + 产物根 `{"type":"module"}` + `#project/*` 映射改写 + profile 模板
   改写）；shell 在打包版跑编译产物并传 `--dist-root`；`boot` 的 profile 模板目录与
-  `{{NIDE_ROOT}}` 改成显式参数；`electron-builder.yml` 只打 `out/**` + `profiles/**` +
-  `plugins/**` + `package.json`；签名走 `CSC_LINK` / `CSC_KEY_PASSWORD`。
-  **编译产物用 `node out/host/.../index.js --once` 实跑验证过**（profile / 插件 / 本地化
-  都正常），`build:unpack` 仍需在用户终端跑。
+  `{{NIDE_ROOT}}` 改成显式参数；asar 恢复，host 需要的真实文件走 `asarUnpack`；
+  `electron-builder.yml` 只打 `out/**` + `plugins/**` + `package.json`；
+  签名走 `CSC_LINK` / `CSC_KEY_PASSWORD`。**编译产物实跑验证过**，`build:unpack`
+  仍需在用户终端跑。
+- 第十七批（未提交）：删掉 shell 的最后两块旧实现 —— `src/main/plugin-host/`
+  （`preference.ts` 禁用集合镜像、`host-views.ts` 内建视图表）与
+  `src/main/services/file.service.ts` 整个删除；内建视图搬进 host
+  （`services/builtin-views.ts`，标题与插件视图同一个解析器）；
+  shell 的视图 / 设置 / 禁用集合 / 启停全部改成直通 host（启停失败不再假装成功）；
+  `reloadPlugin` 占位链路（channel / handler / preload / d.ts）一并删掉；
+  `ai-provider.ipc.ts` 的启用检查改成问 host。`test/host/builtin-views.test.ts` 新增。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -383,8 +391,9 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 9. ~~**核心 UI 插件化（D1）**~~ —— 已完成（第十三 / 十四 / 十五批）：共享层
    `@nide/client-kit`、三个窗口的组件都在各自包里，`src/renderer/src` 只剩引导壳。
    仍剩的可选优化：把主窗口内部拆成 `zone.*` / `editor.*` 子 slot（现在是一个根组件）。
-10. **D10**（每包 `locale/*.json`）、视觉回归；
-    最后删掉 shell 的 IPC 转发回退、禁用集合镜像、`host-views` 表。
+10. ~~**删掉 shell 的回退路径**~~ —— 已完成（第十七批）：禁用集合镜像、
+    `host-views` 表、`reloadPlugin` 占位都删了，内建视图搬进 host。
+    剩下**D10**（每包 `locale/*.json`）、视觉回归、`build:win` 实跑与签名。
 
 ### 4.1 迁移完成度（哪些还在旧实现）
 
@@ -394,9 +403,7 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 **本地化（语言包瀑布 / 语言偏好 / 标题解析）**；**主题 / 外观（偏好 + 解析，
 nativeTheme 走反向桥）**；**AI 供应商 / 密钥仓**；通用 RPC；host 启动必需。
 
-**仍在 shell / 旧实现**：
-- `src/main/plugin-host/` 只剩 `host-views`（三条内建视图）与 `preference`
-  （禁用集合的镜像，host 不可达时兜底）—— 前者因为标题要用 shell 缓存的载荷翻；
+**仍在 shell**（按 D7 本来就该在 shell 的那部分）：
 - logger（日志文件归 shell，host 的 stdout 由它接管，不打算搬）；
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell）；
 - 核心 UI 组件：**已全部进包**（`client-kit` + 三个窗口包），`src/renderer/src`
@@ -488,8 +495,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/secrets.ts` | host 侧密钥仓（密文落盘；加解密走 `safeStorage` 反向桥） |
 | `src/main/ipc/ai-provider.ipc.ts` | shell 边界：启用检查 + 把分片转给发起窗口（`subscribeHostStream`） |
 | `src/main/appearance/index.ts` | shell 的 `AppearanceState` 缓存（窗口底色 / 启动参数要同步） |
-| `src/main/plugin-host/host-views.ts` | 三条内建视图（文件树 / 版本控制 / 提交），标题用 shell 缓存的载荷翻 |
-| `src/main/plugin-host/preference.ts` | 禁用集合的 shell 镜像（host 是写入方，这里兜底） |
+| `packages/host/src/services/builtin-views.ts` | 三条内建视图（文件树 / 版本控制 / 提交），标题由 host 按当前语言解析 |
 | `src/main/i18n/index.ts` | shell 的载荷缓存 + `t()` + 切语言入口（语言与词条都在 host） |
 | `src/main/protocol/plugin-bundles.ts` | `nide-plugin://` 协议：打包后按 pluginId 从 host 清单取 bundle 文件 |
 | `src/shared/plugin-api/contributions.ts` | 贡献点的纯数据契约（未解析的 `titleSpec`、插件目录内相对路径） |
@@ -646,7 +652,10 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第十六批改动未提交**（编译 host + 打包配置），先 commit 再开工
+- [ ] **第十七批改动未提交**（删 shell 旧实现 + 内建视图搬 host），先 commit 再开工
+- [ ] `pnpm typecheck` / `typecheck:host` / `lint` 已复跑（第十七批之后）；
+      `pnpm test` 仍需在用户终端跑（新增 `test/host/builtin-views.test.ts`、`test/host/secrets.test.ts`、
+      `test/host/ai-provider.test.ts`）
 - [x] 编译产物实跑：`node out/host/packages/host/src/index.js --dist-root out/host --once`
       通过（profile 从产物里取、hello 插件加载、内建插件扫描到 3 个）
 - [ ] `pnpm build:unpack` 复跑（asar 已开）：`resources/app.asar` 存在，

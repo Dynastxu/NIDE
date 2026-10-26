@@ -941,10 +941,9 @@ const api = {
    * 送来的问题画成浮层，再把用户的回答送回去。别的组件不需要碰这两个函数 ——
    * 要确认的是**动作**（主进程那边管），不是某个按钮。
    */
-  confirm: confirmAPI,
+  confirm: confirmAPI
 
   /** 插件管理（占位） */
-  reloadPlugin: (pluginId: string) => ipcRenderer.invoke(HOST_CHANNELS.reloadPlugin, pluginId)
 }
 
 /**

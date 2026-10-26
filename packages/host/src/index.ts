@@ -37,6 +37,7 @@ import {
   updateProjectConfig
 } from './services/project-config.ts'
 import { PluginManager, pluginPreferencePath } from './services/plugins.ts'
+import { builtinViews } from './services/builtin-views.ts'
 import { HostI18n } from './services/i18n.ts'
 import { HostAppearance } from './services/appearance.ts'
 import { AiProviderService, AiProviderServiceError } from './services/ai-provider.ts'
@@ -686,8 +687,8 @@ rpc.register('plugins', {
   },
   clientBundles: () => plugins.clientBundles(),
 
-  /** 视图表（协议视图之外的插件视图），标题已按当前语言解析 */
-  views: () => plugins.views(resolveTitle),
+  /** 视图表：内建视图（文件树 / 版本控制 / 提交）在前，插件视图在后，标题都已解析 */
+  views: () => [...builtinViews(resolveTitle), ...plugins.views(resolveTitle)],
 
   /** 设置页，已滤掉被禁用插件的页，标题已解析 */
   settings: () => plugins.settings(resolveTitle),

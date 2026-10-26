@@ -3,13 +3,6 @@ import { WINDOW_CHANNELS } from '@shared/window'
 import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
 import { AI_PROVIDER_PLUGIN_ID } from '@shared/ai-provider'
 import { normalizeAppearancePreference } from '@shared/appearance'
-import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
-import { HOST_VIEWS } from '../plugin-host/host-views'
-import {
-  getDisabledPlugins,
-  reloadPluginPreference,
-  setPluginEnabled
-} from '../plugin-host/preference'
 import { getAppearancePreference, getThemePayload, setThemePreference } from '../appearance'
 import { createMainTranslator, getI18nPayload, switchLocale } from '../i18n'
 import { loggerFor, toLogRecord } from '../logger'
@@ -99,34 +92,21 @@ export function registerHostIPC(): void {
    * 渲染进程拿到的只是「有哪些视图」这份纯数据，
    * 组件怎么加载由渲染进程自己决定（构建期 import.meta.glob）。
    *
-   * 插件视图的标题由 **host 按当前语言解析好**（语言与词条表都在那边）；
-   * 宿主内建视图（文件树 / 版本控制 / 提交）的标题是宿主自己的词条，只能在 shell
-   * 用缓存的载荷翻 —— 所以这里拼在**前面**。
+   * 内建视图（文件树 / 版本控制 / 提交）也在 host 的视图表里：它们的标题是宿主
+   * 词条，而词条表与当前语言都在 host —— 放在 shell 拼会让同一次查询跨两份翻译。
+   * 顺序由 host 保证：内建视图在前，插件视图在后。
    *
    * 顺序有实际意义：排在前面的视图是各自区的**第一个**，也就是该区 activeViewId
    * 为 null 时默认展示的那一个 —— 打开工作台就该看见文件树，而不是演示面板。
    */
   ipcMain.handle(HOST_CHANNELS.getPluginViews, async (): Promise<PluginViewDescriptor[]> => {
-    const t = createMainTranslator()
-
-    const hostViews: PluginViewDescriptor[] = HOST_VIEWS.map((view) => ({
-      id: view.id,
-      title: t(view.titleKey),
-      location: view.location,
-      icon: view.icon,
-      pluginId: HOST_VIEW_PLUGIN_ID,
-      // 内建视图的组件编译在宿主里，没有插件目录，也没有入口文件
-      dir: '',
-      entry: ''
-    }))
-
     try {
-      const pluginViews = await invokeHost<PluginViewDescriptor[]>('plugins', 'views', [])
-      return [...hostViews, ...pluginViews]
+      return await invokeHost<PluginViewDescriptor[]>('plugins', 'views', [])
     } catch (error) {
-      // 读不到插件视图时至少保住内建视图：界面还能用，只是少了插件那一批
+      // host 是启动必需的；走到这里说明它刚崩了。返回空表让界面进「没有视图」的
+      // 状态，比让渲染进程的 await 永不落地好查。
       logger.error('Failed to read the plugin views through host', { error })
-      return hostViews
+      return []
     }
   })
 
@@ -189,8 +169,8 @@ export function registerHostIPC(): void {
    * 启用 / 禁用插件。
    *
    * 「禁用」的效果**立刻可见**，因为它落在渲染进程侧：被禁用的插件，它的视图
-   * 会从工具区消失（见 renderer 的 plugin.store）。宿主这边记状态并**落盘**
-   * （见 plugin-host/preference.ts），重启后仍然有效。
+   * 会从工具区消失（见 renderer 的 plugin.store）。状态由 host 持有并**落盘**，
+   * 重启后仍然有效 —— shell 不保留副本，需要时问 host。
    *
    * 刻意**不做**的一件事：不重建窗口。禁用是高频的试错操作，每次都重建窗口会
    * 丢掉编辑器里未保存的内容 —— 而语言切换之所以能那样做，是因为它低频且真的
@@ -221,20 +201,18 @@ export function registerHostIPC(): void {
       }
 
       /**
-       * 启用状态由 host 持有并落盘（和 plugin list / bundles 同一份清单）。
-       * shell 这份镜像仍然要更新：视图过滤与 i18n 用的是 `getDisabledPlugins()`，
-       * 它读的是 `plugin-host/preference.ts` 的内存镜像。两边写同一个文件、同一个
-       * 值，重复这一步换来的是「视图列表不用等 host 回包也能立刻正确」。
+       * 启用状态由 host 持有并落盘（和清单、bundle、语言包同一处维护）。
+       *
+       * shell 不再保留镜像：视图表、禁用集合、语言包都由 host 按这份状态算好，
+       * 什么时候要就什么时候问。失败时**不假装成功** —— 返回 false，界面上的勾选
+       * 会回到原状，而不是「看起来禁用了、其实没有」。
        */
       try {
         await invokeHost('plugins', 'setEnabled', [pluginId, enabled])
       } catch (error) {
-        logger.warn('host plugins.setEnabled failed, falling back to the shell preference', {
-          error
-        })
+        logger.error('host plugins.setEnabled failed', { error, pluginId })
+        return false
       }
-
-      setPluginEnabled(pluginId, enabled)
 
       // 供应商插件被禁用时，把它还在跑的 SSE 全部取消；否则用户以为停用了，
       // 后台仍然在读流。
@@ -259,8 +237,9 @@ export function registerHostIPC(): void {
     try {
       return await invokeHost<string[]>('plugins', 'disabled', [])
     } catch (error) {
-      logger.warn('host plugins.disabled failed, falling back to the shell preference', { error })
-      return getDisabledPlugins()
+      // 问不到当作「全部启用」：宁可多显示一个视图，也不要把插件静默关掉
+      logger.error('host plugins.disabled failed', { error })
+      return []
     }
   })
 
@@ -380,11 +359,6 @@ export function registerHostIPC(): void {
     logger.debug('Editor content changed', { filePath, chars: content.length })
   })
 
-  // 插件重载（占位，等插件后端接上再实现）
-  ipcMain.handle(HOST_CHANNELS.reloadPlugin, (_e, pluginId: string) => {
-    pluginLogger.info('Plugin reload requested', { pluginId, implemented: false })
-  })
-
   /**
    * 接收渲染进程与预加载转发来的日志。
    *
@@ -438,13 +412,11 @@ export function registerHostIPC(): void {
 /**
  * 插件目录变了（安装 / 卸载）之后的通知。
  *
- * host 在 install / remove 里已经重扫过目录（视图、设置页、语言包都在那边），所以
- * 这里只需要做两件事：刷新 shell 自己的禁用集合镜像（装进来的插件默认禁用），
- * 再用既有的 `plugin:enabled-changed` 广播叫所有窗口重拉一次 —— 主窗口重拉视图，
- * 设置窗口重拉设置树。它只是「该刷新了」的信号，不携带语义。
+ * host 在 install / remove 里已经重扫过目录（视图、设置页、语言包、禁用集合都在
+ * 那边），所以 shell 只需要广播一次「该刷新了」—— 主窗口重拉视图，设置窗口重拉
+ * 设置树。它不携带语义，也就没有需要 shell 同步的副本。
  */
 function notifyPluginCatalogChanged(): void {
-  reloadPluginPreference()
   pushEventToRenderer(HOST_EVENT_CHANNELS.pluginEnabledChanged, '', false)
 }
 

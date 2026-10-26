@@ -15,7 +15,6 @@ import {
   type TestProviderResult
 } from '@shared/ai-provider'
 import { loggerFor } from '../logger'
-import { getDisabledPlugins } from '../plugin-host/preference'
 import { invokeHost, subscribeHostStream } from '../host/process'
 
 const logger = loggerFor('ai-provider')
@@ -48,8 +47,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isProviderEnabled(): boolean {
-  return !getDisabledPlugins().includes(AI_PROVIDER_PLUGIN_ID)
+/**
+ * 插件是否启用。
+ *
+ * 启用集合只在 host 有一份（和清单一起维护），所以这里问它 —— shell 不再保留
+ * 镜像。问不到时按**启用**处理：真正的失败会在后续调用里以 `internal` 错误暴露，
+ * 比在这里静默把插件当停用更有用。
+ */
+async function isProviderEnabled(): Promise<boolean> {
+  try {
+    const disabled = await invokeHost<string[]>('plugins', 'disabled', [])
+    return !disabled.includes(AI_PROVIDER_PLUGIN_ID)
+  } catch (error) {
+    logger.warn('Failed to read the plugin preference through host', { error })
+    return true
+  }
 }
 
 function pluginUnavailable(): ProviderError {
@@ -135,7 +147,7 @@ export function registerAiProviderIPC(): void {
   })
 
   ipcMain.handle(AI_PROVIDER_CHANNELS.list, async (): Promise<ProviderSummary[]> => {
-    if (!isProviderEnabled()) return []
+    if (!(await isProviderEnabled())) return []
     try {
       return await invokeHost<ProviderSummary[]>('ai', 'list', [])
     } catch (error) {
@@ -148,7 +160,7 @@ export function registerAiProviderIPC(): void {
     AI_PROVIDER_CHANNELS.save,
     async (_event, payload: unknown): Promise<SaveProviderResult> => {
       if (!isRecord(payload)) return invalidRequest()
-      if (!isProviderEnabled()) return { ok: false, error: pluginUnavailable() }
+      if (!(await isProviderEnabled())) return { ok: false, error: pluginUnavailable() }
 
       try {
         return await invokeHost<SaveProviderResult>('ai', 'save', [payload as SaveProviderRequest])
@@ -162,7 +174,7 @@ export function registerAiProviderIPC(): void {
     AI_PROVIDER_CHANNELS.remove,
     async (_event, providerId: unknown): Promise<RemoveProviderResult> => {
       if (typeof providerId !== 'string' || providerId.length === 0) return invalidRequest()
-      if (!isProviderEnabled()) return { ok: false, error: pluginUnavailable() }
+      if (!(await isProviderEnabled())) return { ok: false, error: pluginUnavailable() }
 
       try {
         return await invokeHost<RemoveProviderResult>('ai', 'remove', [providerId])
@@ -176,7 +188,7 @@ export function registerAiProviderIPC(): void {
     AI_PROVIDER_CHANNELS.test,
     async (_event, payload: unknown): Promise<TestProviderResult> => {
       if (!isRecord(payload)) return invalidRequest()
-      if (!isProviderEnabled()) return { ok: false, error: pluginUnavailable() }
+      if (!(await isProviderEnabled())) return { ok: false, error: pluginUnavailable() }
 
       try {
         return await invokeHost<TestProviderResult>('ai', 'test', [payload as TestProviderRequest])
@@ -190,7 +202,7 @@ export function registerAiProviderIPC(): void {
     AI_PROVIDER_CHANNELS.open,
     async (event, payload: unknown): Promise<ChatOpenResult> => {
       if (!isRecord(payload)) return invalidRequest()
-      if (!isProviderEnabled()) return { ok: false, error: pluginUnavailable() }
+      if (!(await isProviderEnabled())) return { ok: false, error: pluginUnavailable() }
 
       const sender = event.sender
       watchSender(sender)

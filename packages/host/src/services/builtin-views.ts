@@ -1,6 +1,20 @@
-import { HOST_COMMIT_VIEW_ID, HOST_EXPLORER_VIEW_ID, HOST_GIT_VIEW_ID } from '@shared/plugin-api'
-import type { HostMessageKey } from '@shared/i18n'
-import type { ViewLocation } from '@shared/plugin-api'
+import {
+  HOST_COMMIT_VIEW_ID,
+  HOST_EXPLORER_VIEW_ID,
+  HOST_GIT_VIEW_ID,
+  HOST_VIEW_PLUGIN_ID
+} from '../../../../src/shared/plugin-api/view.ts'
+import type { PluginViewDescriptor, ViewLocation } from '../../../../src/shared/plugin-api/view.ts'
+import type { zhCN } from '../../../../src/shared/i18n/locales/zh-CN.ts'
+
+/**
+ * 宿主词条表的 key 集合。
+ *
+ * 与 `@shared/i18n` 的 `HostMessageKey` 是同一个类型（那个模块为了兼容渲染进程
+ * 用了免扩展名 import，host 的 NodeNext 解析不了，所以这里从词条表本身取）。
+ */
+type HostMessageKey = keyof typeof zhCN
+import type { TitleResolver } from './plugins.ts'
 
 /**
  * 宿主**内建**视图的登记表。
@@ -14,7 +28,8 @@ import type { ViewLocation } from '@shared/plugin-api'
  * 1. 组件不在磁盘上，所以 `dir` / `entry` 是空串。渲染进程不会去 glob 它，
  *    而是按 `pluginId === HOST_VIEW_PLUGIN_ID` 交给宿主自己的组件表。
  * 2. 标题**不走 manifest 词条**（没有 manifest），直接由宿主词条表给出 key，
- *    查询时按当前语言解析（与插件标题同一时机，见 host.ipc.ts）。
+ *    查询时按当前语言解析 —— 和插件标题同一个解析器（`HostI18n.resolveTitle`），
+ *    所以整张视图表只需要一次翻译。
  *
  * 这个表刻意写死在代码里而不是读配置文件：内建视图的组件是编译进宿主的，
  * 一个只存在于配置文件里的视图没有对应的组件，加载时必然失败。
@@ -29,7 +44,7 @@ export interface HostViewSpec {
    */
   titleKey: HostMessageKey
   location: ViewLocation
-  /** 宿主内置图标名（见 renderer 的 layout/icons.tsx） */
+  /** 宿主内置图标名（见 `packages/client-kit/src/icons.tsx`） */
   icon: string
 }
 
@@ -73,3 +88,22 @@ export const HOST_VIEWS: readonly HostViewSpec[] = [
     icon: 'check'
   }
 ]
+
+/**
+ * 表格 → 视图描述符（`PluginViewDescriptor`），标题在这里解析。
+ *
+ * 位置与调用点：host 的 `plugins.views` RPC 把它放在插件视图**前面** —— 排在前面的
+ * 视图是各自区的第一个，也就是该区 `activeViewId` 为 null 时默认展示的那一个。
+ */
+export function builtinViews(resolve: TitleResolver): PluginViewDescriptor[] {
+  return HOST_VIEWS.map((view) => ({
+    id: view.id,
+    title: resolve(HOST_VIEW_PLUGIN_ID, view.titleKey, view.id),
+    location: view.location,
+    icon: view.icon,
+    pluginId: HOST_VIEW_PLUGIN_ID,
+    // 内建视图的组件编译在壳里，没有插件目录，也没有入口文件
+    dir: '',
+    entry: ''
+  }))
+}
