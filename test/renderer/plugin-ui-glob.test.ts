@@ -12,15 +12,25 @@ import { describe, expect, it } from 'vitest'
  *    （真发生过：设置页搬进 `client-ui-settings` 后少算了一层）；
  * 2. **目录写错** → 表里有别的 key，同样命不中。
  *
- * 这里直接读源码里的 pattern，按文件所在目录解析成绝对路径，再确认它下面的
- * 插件目录里**真的有**对应的入口文件。搬文件 / 改目录时这条用例会先失败。
+ * 被测文件**靠发现**而不是硬编码：以前这里写死了两个路径，结果视图管线从
+ * `client-kit` 搬到 `sdk` 时用例自己先炸了（`ENOENT`）—— 那是「测试跟不上搬家」，
+ * 不是被测代码坏了。现在按命名约定找 `packages/*\/src/**\/Plugin*Slot.tsx`：
+ * 文件搬到哪个包都行，只要还叫这个名。
+ *
+ * 约定本身也断言了：至少要找到两个（视图 + 设置页），少了说明命名变了，这条用例
+ * 就失效了 —— 那比「静默通过」好。
  */
 const repoRoot = path.resolve(import.meta.dirname, '..', '..')
 
-const targets = [
-  { file: 'packages/sdk/src/plugin-views/PluginSlot.tsx' },
-  { file: 'packages/client-ui-settings/src/PluginSettingsSlot.tsx' }
-] as const
+/** 两个 slot 的命名约定：`PluginSlot`（视图）与 `PluginSettingsSlot`（设置页） */
+const SOURCE_GLOB = 'packages/*/src/**/Plugin*Slot.tsx'
+
+function findSlotSources(): string[] {
+  return fs
+    .globSync(SOURCE_GLOB, { cwd: repoRoot })
+    .map((file) => file.split(path.sep).join('/'))
+    .sort()
+}
 
 function patternOf(file: string): string {
   const source = fs.readFileSync(path.join(repoRoot, file), 'utf-8')
@@ -29,8 +39,16 @@ function patternOf(file: string): string {
   return match[1]
 }
 
+const slotSources = findSlotSources()
+
 describe('插件 UI 的 glob 路径', () => {
-  for (const { file } of targets) {
+  it(`按约定找到两个 slot 源文件（${SOURCE_GLOB}）`, () => {
+    expect(slotSources).toHaveLength(2)
+    expect(slotSources.some((file) => file.endsWith('/PluginSlot.tsx'))).toBe(true)
+    expect(slotSources.some((file) => file.endsWith('/PluginSettingsSlot.tsx'))).toBe(true)
+  })
+
+  for (const file of slotSources) {
     const pattern = patternOf(file)
     // `<repo>/plugins/builtin/*/<mid...>/<file>.tsx`
     const resolved = path.resolve(path.dirname(path.join(repoRoot, file)), pattern)
