@@ -1,0 +1,4 @@
+{
+  "//": "纯数据契约（无 import）。host 在 dev 下直接 import 这里的 .ts，标成 ESM 才能免掉 Node 的「重新按 ESM 解析」警告。",
+  "type": "module"
+}

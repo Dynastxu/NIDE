@@ -6,7 +6,6 @@ import './assets/index.css'
 import type { JSX } from 'react'
 import { systemWindowTitle, type WindowType } from '@shared/window'
 import { ConfirmHost } from '@nide/client-kit/ui/ConfirmHost'
-import type { ProjectListItem } from '@shared/project'
 import type { ClientRuntime } from '@nide/client-runtime'
 
 /**
@@ -176,49 +175,6 @@ function loadClientRuntime(): Promise<ClientRuntime | null> {
 
 function bootClientRuntime(): void {
   void loadClientRuntime()
-}
-
-/**
- * 临时诊断：确认 renderer -> host 的通用 RPC 通了，并对照旧 IPC 的结果。
- *
- * 主进程在 `did-finish-load` 后才送 port，而 boot() 可能先跑完，所以这里
- * 最多等 2 秒。阶段 2 接入真正的业务 namespace 后删除。
- */
-async function probeHost(): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (window.nideHost?.available()) {
-      try {
-        const [hostProjects, legacyProjects] = await Promise.all([
-          window.nideHost.invoke<ProjectListItem[]>('project', 'list'),
-          window.hostAPI.projects.list()
-        ])
-        logger.info('Host project.list ok', {
-          host: hostProjects.length,
-          legacy: legacyProjects.length,
-          same: JSON.stringify(hostProjects) === JSON.stringify(legacyProjects)
-        })
-
-        const root = window.__NIDE_BOOT__.projectPath
-        if (root) {
-          const dir = await window.hostAPI.projects.readDir(root)
-          logger.info('Host files.readDir ok', {
-            ok: dir.ok,
-            entries: dir.ok ? dir.entries.length : 0,
-            ...(dir.ok ? {} : { reason: dir.reason })
-          })
-        }
-      } catch (error) {
-        logger.warn('Host project.list failed', { error })
-      }
-      return
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100))
-  }
-  logger.warn('Host port was not attached')
-}
-
-if (window.__NIDE_BOOT__.windowType === 'main') {
-  void probeHost()
 }
 
 void bootClientRuntime()

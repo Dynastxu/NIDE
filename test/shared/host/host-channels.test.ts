@@ -26,7 +26,6 @@ describe('HOST_CHANNELS', () => {
       setTheme: 'host:set-theme',
       setLocale: 'host:set-locale',
       showStripeMenu: 'host:show-stripe-menu',
-      reloadPlugin: 'host:reload-plugin',
       installPlugin: 'host:install-plugin',
       removePlugin: 'host:remove-plugin',
       eventEmit: 'host:event-emit',

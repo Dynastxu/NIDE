@@ -554,42 +554,46 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
    会让 `plugin` / `effect` 全部丢失。用 `slotsOf(ctx)` / `modulesOf(ctx)` 显式取服务。
 2. **Node type stripping 不支持参数属性**：`constructor(private x: string)` 会
    `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`；写成显式字段。
-3. **`src/shared` 下的 .ts 被 host 直接 import**：需要在目录里放
+3. **`import.meta.glob` 的层数是相对本文件的**：`PluginSlot`（`client-kit/src/plugin-views/`）
+   是四层、`PluginSettingsSlot`（`client-ui-settings/src/`）是三层；写错不会报错，只会
+   得到空表（界面显示「找不到 UI 模块」）。key 也**不要**拼前缀去比，按尾部
+   `<dir>/<entry>` 匹配（`test/renderer/plugin-ui-glob.test.ts` 钉住层数与命中）。
+4. **`src/shared` 下的 .ts 被 host 直接 import**：需要在目录里放
    `package.json` `{"type":"module"}`（`src/shared/project`、`src/shared/plugin-api`、
    `src/shared/i18n` 都已经有），并且目录内**不能有 `@shared/*` 或免扩展名的
    相对 import** —— Node ESM 只认 `#project/*`（由同一个 package.json 的 `imports`
    映射到 `./*.ts`）或显式扩展名。
-4. **`import.meta.env.DEV` 在 alias 源码里不可靠**：loader 改用
+5. **`import.meta.env.DEV` 在 alias 源码里不可靠**：loader 改用
    `window.location.protocol === 'http:'` 判断 dev。
-5. **IIFE bundle**：必须 classic JSX（`React.createElement`），React 外置，
+6. **IIFE bundle**：必须 classic JSX（`React.createElement`），React 外置，
    加载时调 `__NIDE_REGISTER__`；否则 `React is not defined` / 注册不上。
-6. **`/@fs/` 只在 dev**：生产会走 app 协议（TODO）；
+7. **`/@fs/` 只在 dev**：生产会走 app 协议（TODO）；
    `loader.ts` 非 dev 会跳过并告警。
-7. **`ELECTRON_RUN_AS_NODE=1`**：会让 `electron.exe` 变成 Node，`app` 为 undefined。
-8. **pnpm 全局 store 锁**：agent 沙箱无法 `pnpm add`；用户终端跑。
-9. **ESLint `static-components`**：动态组件用 `createElement`，别用 `<Component />`。
-10. **`WorkbenchLayout` 的 flex**：slot outlet 多一层 div 就会改布局；不要加包装。
-11. **`ResizeObserver` 回调链路里不要改被观察元素**：`EditorPanes` 的 `fitBodyHeight`
+8. **`ELECTRON_RUN_AS_NODE=1`**：会让 `electron.exe` 变成 Node，`app` 为 undefined。
+9. **pnpm 全局 store 锁**：agent 沙箱无法 `pnpm add`；用户终端跑。
+10. **ESLint `static-components`**：动态组件用 `createElement`，别用 `<Component />`。
+11. **`WorkbenchLayout` 的 flex**：slot outlet 多一层 div 就会改布局；不要加包装。
+12. **`ResizeObserver` 回调链路里不要改被观察元素**：`EditorPanes` 的 `fitBodyHeight`
     曾经在 observer → state → layout effect 的同一轮里写容器高度，浏览器持续报
     `ResizeObserver loop completed with undelivered notifications`。现在的规则是高度
     重算排进下一帧、同一帧只排一次，`chapter-body` 只把宽度变化当重新布局的信号。
-12. **未签名的打包 exe 会被 Windows 拦掉**：表现是双击/命令行启动后立刻返回，
+13. **未签名的打包 exe 会被 Windows 拦掉**：表现是双击/命令行启动后立刻返回，
     `%APPDATA%\NIDE\logs` 没有任何新行（进程根本没起来）。验证打包内容时用
     `node_modules\electron\dist\electron.exe dist\win-unpacked\resources\app`，
     它加载的是同一份 `resources/app`；发布前再解决签名。
-13. **首窗现在要等 host（约 0.4s）**：`openStartupWindow()` 依赖 host 读
+14. **首窗现在要等 host（约 0.4s）**：`openStartupWindow()` 依赖 host 读
     `projects.json`。看不到窗口时先看日志里有没有 `host process is ready` —— 没有就是
     host 没起来，15s 后会回落成欢迎窗口（同时日志里有 `Failed to resolve the startup
     project through host`）。别再在 shell 里加一份 `projects.json` 的读法来「加速启动」，
     那正是上一轮删掉的东西。
-14. **自定义协议 + CSP 是两处，缺一不可**：`nide-plugin://` 的 scheme 权限必须在
+15. **自定义协议 + CSP 是两处，缺一不可**：`nide-plugin://` 的 scheme 权限必须在
     `app.whenReady()` **之前**登记（ready 之后登记无效），而页面里的 `<script>` 要能
     加载它，`src/renderer/index.html` 的 `script-src` 里必须有 `nide-plugin:`。
     少任何一处，症状都是「打包后插件视图一片白、Console 里 CSP 或 net::ERR_UNKNOWN_URL_SCHEME」。
-15. **`HostI18n` 在 `i18n.init` 之前是中文**：它构造时的 payload 只是中文兜底
+16. **`HostI18n` 在 `i18n.init` 之前是中文**：它构造时的 payload 只是中文兜底
     （`locale = zh-CN`）。启动顺序写错（比如先取视图标题、后初始化语言）不会报错，
     只会让第一屏用中文标题 —— shell 那边 `await initI18n()` 必须在开窗之前。
-16. **`plugins.views` / `plugins.settings` 的标题依赖当前语言**：切语言后**必须**重建
+17. **`plugins.views` / `plugins.settings` 的标题依赖当前语言**：切语言后**必须**重建
     窗口（渲染进程会重新拉一次），否则视图标题停在旧语言。切语言那条路已经在
     `recreateRootWindow()` 里，别在别处缓存视图列表。
 
@@ -661,10 +665,17 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       跑编译产物 —— host ready、3 个内建插件、语言包 309 条、demo 的
       `dist/client.js` 都按打包后的路径解析正确。asar 本体（真的 `app.asar` 与
       Electron 的 asar 文件系统）仍需 `build:unpack` 实测。
-- [ ] **等用户验证**：`pnpm test`（新增 `test/host/builtin-views.test.ts`、
-      `test/host/secrets.test.ts`、`test/host/ai-provider.test.ts`）、`pnpm dev`（三个窗口 +
-      主题 + 语言 + AI 设置页）、`pnpm build:unpack`（asar 与 `app.asar.unpacked`
-      布局）。**用户说了先不合并，验证通过再决定。**
+- [x] 用户第一轮验证（`pnpm test` + `pnpm dev`）发现两处问题，已修：
+      1. `test/shared/host/host-channels.test.ts` 钉住的通道表里还有已删除的
+         `reloadPlugin` —— 断言随之更新；
+      2. `PluginSettingsSlot` 的 `import.meta.glob` 少算一层（文件搬进
+         `packages/client-ui-settings/src/` 后只该有 3 层 `../../../`），表为空
+         → 设置页显示「找不到 UI 模块」。两个 slot 的 key 解析同时改成**按尾部匹配**，
+         不再各自维护一个 `GLOB_PREFIX`；新增 `test/renderer/plugin-ui-glob.test.ts`
+         读源码里的 pattern 解析成绝对路径、确认真的能匹配到入口文件。
+- [ ] 用户第二轮验证：`pnpm test`、`pnpm dev`（重点：**设置 -> 插件 -> AI 供应商**的
+      设置页要能渲染）、`pnpm build:unpack`（asar 与 `app.asar.unpacked` 布局）。
+      **用户说了先不合并，验证通过再决定。**
 - [x] 编译产物实跑：`node out/host/packages/host/src/index.js --dist-root out/host --once`
       通过（profile 从产物里取、hello 插件加载、内建插件扫描到 3 个）
 - [ ] `pnpm build:unpack` 复跑（asar 已开）：`resources/app.asar` 存在，

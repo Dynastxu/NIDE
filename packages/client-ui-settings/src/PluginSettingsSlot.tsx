@@ -6,27 +6,32 @@ import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
 
 /**
  * 构建期由 Vite 展开成一张静态映射表：
- *   { '../../../../plugins/builtin/ai-provider/src/settings/index.tsx': () => import('...') }
+ *   { '../../../plugins/builtin/ai-provider/src/settings/index.tsx': () => import('...') }
  *
  * 和 PluginSlot 用同一条链路：渲染进程在 Chromium 沙箱里没有 fs，也不能 import
  * 任意磁盘路径；它能加载的只有构建期打包进来的模块。设置页因此也只能是内置插件
  * 的（第三方插件目前没有 UI 加载路径）。
  *
- * 路径层数与 `PluginSlot` 同一约定：四层 ../../../../ 到仓库根，改了目录要一起改。
+ * **路径层数是硬编码的**：本文件在 `packages/client-ui-settings/src/`，三层
+ * `../../../` 到仓库根。搬家时少写一层不会报错，只会得到一张空表（设置页显示
+ * 「找不到 UI 模块」）—— `test/renderer/plugin-ui-glob.test.ts` 会把两个 slot 的
+ * 层数钉住。
  */
-const settingsModules = import.meta.glob(
-  '../../../../plugins/builtin/*/src/settings/*.tsx'
-) as Record<string, () => Promise<unknown>>
+const settingsModules = import.meta.glob('../../../plugins/builtin/*/src/settings/*.tsx') as Record<
+  string,
+  () => Promise<unknown>
+>
 
-const GLOB_PREFIX = '../../../../'
-
+/**
+ * 把主进程给的 `{ dir, entry }` 还原成 glob 的 key。
+ *
+ * 按**尾部**匹配而不是拼一个完整前缀：glob 的 key 是相对本文件的字符串，它的
+ * 前缀随文件位置变；而 `dir/entry` 在一张表里唯一，尾部一定对得上。这样搬文件
+ * 只需要改上面那行 glob 的层数，不必同步第二个常量。
+ */
 function resolveSettingsLoader(
   descriptor: PluginSettingsDescriptor
 ): (() => Promise<unknown>) | undefined {
-  const exact = `${GLOB_PREFIX}${descriptor.dir}/${descriptor.entry}`
-  if (settingsModules[exact]) return settingsModules[exact]
-
-  // 兜底：key 以 '<dir>/<entry>' 结尾也算命中，理由同 PluginSlot
   const suffix = `/${descriptor.dir}/${descriptor.entry}`
   const hit = Object.keys(settingsModules).find((key) => key.endsWith(suffix))
   return hit ? settingsModules[hit] : undefined
@@ -72,7 +77,7 @@ export function PluginSettingsSlot({
     return [
       `没有找到设置页 ${descriptor.pluginId}/${descriptor.id} 对应的 UI 模块。`,
       `主进程给的坐标: dir=${descriptor.dir}, entry=${descriptor.entry}`,
-      `拼出来的 glob key: ${GLOB_PREFIX}${descriptor.dir}/${descriptor.entry}`,
+      `按尾部应命中: */${descriptor.dir}/${descriptor.entry}`,
       `构建期实际打包到的 key:`,
       available.length ? available.map((k) => `  - ${k}`).join('\n') : '  (空)'
     ].join('\n')

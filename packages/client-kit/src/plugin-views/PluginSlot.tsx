@@ -22,15 +22,14 @@ const viewModules = import.meta.glob('../../../../plugins/builtin/*/src/ui/*.tsx
   () => Promise<unknown>
 >
 
-const GLOB_PREFIX = '../../../../'
-
-/** 把主进程给的 { dir, entry } 还原成 glob 的 key */
+/**
+ * 把主进程给的 `{ dir, entry }` 还原成 glob 的 key。
+ *
+ * 按**尾部**匹配而不是拼一个完整前缀：glob 的 key 是相对本文件的字符串，前缀随
+ * 文件位置变；`dir/entry` 在一张表里唯一，尾部一定对得上。搬文件时只需要改上面
+ * 那行 glob 的层数（`test/renderer/plugin-ui-glob.test.ts` 会钉住）。
+ */
 function resolveViewLoader(view: PluginViewDescriptor): (() => Promise<unknown>) | undefined {
-  const exact = `${GLOB_PREFIX}${view.dir}/${view.entry}`
-  if (viewModules[exact]) return viewModules[exact]
-
-  // 兜底：key 以 '<dir>/<entry>' 结尾也算命中，
-  // 这样即使 GLOB_PREFIX 的层数写错，也不会整体失效。
   const suffix = `/${view.dir}/${view.entry}`
   const hit = Object.keys(viewModules).find((key) => key.endsWith(suffix))
   return hit ? viewModules[hit] : undefined
@@ -93,7 +92,7 @@ export function PluginSlot({ viewId }: PluginSlotProps): JSX.Element {
     return [
       `没有找到视图 ${view.id} 对应的 UI 模块。`,
       `主进程给的坐标: dir=${view.dir}, entry=${view.entry}`,
-      `拼出来的 glob key: ${GLOB_PREFIX}${view.dir}/${view.entry}`,
+      `按尾部应命中: */${view.dir}/${view.entry}`,
       `构建期实际打包到的 key:`,
       available.length ? available.map((k) => `  - ${k}`).join('\n') : '  (空)'
     ].join('\n')
