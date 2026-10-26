@@ -55,7 +55,7 @@ profiles/desktop/cordis.yml  # 唯一的装配点
 | 0 | 写下这份约定 + 目标树，代码不动 | 极低 | 完成 |
 | 1 | `src/shared` → `packages/contracts/src`（别名名暂留，见阶段 2） | 低（纯搬运） | 完成 |
 | 2 | 别名 `@shared` → `@nide/contracts`，删掉旧名字 | 低（机械替换） | 完成 |
-| 3 | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配 | 中 | 进行中（内核已完成） |
+| 3 | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配 | 中 | 完成 |
 | 4 | `src/main` → `packages/shell`：窗口 / 菜单 / 对话框 / 日志 / 协议变成 `ctx.shell.*` 服务 | 中 | 待做 |
 | 5 | `client-kit` 拆成 `sdk` + `ui/*`；`client-runtime` 按声明装配窗口 | 中高 | 待做 |
 | 6 | `apps/desktop` 只剩 bootstrap；`cordis.yml` 列全所有包 | 低 | 待做 |
@@ -114,6 +114,25 @@ export const projectService = {
 2. **每个服务自己注册 RPC 命名空间**（namespace 与包名一一对应）；
 3. `host/src/index.ts` 最后只剩：解析参数 → `boot(paths)` → `installNideContext` →
    `ctx.plugin(service)` 若干 → `attachHostIpc`。
+
+### 阶段 3 完成后的样子
+
+```
+packages/kernel/src/{rpc,ipc,shell,context}.ts
+packages/services/
+  project/     project.*       projects.json 的唯一实现
+  content/     files.* gallery.* overview.*（同一批读写实现）
+  config/      config.*        + 作为「项目配置纯函数库」被 content 复用
+  plugins/     plugins.*       清单 / 贡献点 / 内建视图表
+  i18n/        i18n.*          I18nService：refresh() + HostI18n
+  appearance/  appearance.*
+  secrets/     （无 RPC）      基础设施：由 ai 服务 require
+  ai/          ai.*            SSE sink 由入口注入，服务不碰 transport
+packages/host/src/index.ts     363 行：参数 → profile → boot → kernel → services → transport
+```
+
+`test/host/services.test.ts` 把整条装配链跑一遍：真的构造实例、真的往
+`RpcRegistry` 注册，断言命名空间集合、服务名唯一、`provide` 冲突会抛。
 
 ### 已经落地的部分（本阶段第一步）
 
