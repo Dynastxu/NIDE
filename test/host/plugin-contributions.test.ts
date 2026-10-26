@@ -9,7 +9,7 @@ import type {
   ContributionsLogger,
   PluginContributionSet
 } from '../../packages/host/src/services/plugin-contributions.ts'
-import { isReservedHostId } from '../../src/shared/plugin-api/view.ts'
+import { isReservedHostId } from '../../packages/contracts/src/plugin-api/view.ts'
 import {
   createPluginFixture,
   localeManifest,

@@ -22,7 +22,7 @@
      */
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["packages/contracts/src/*"]
     }
   },
   "include": [

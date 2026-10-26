@@ -25,7 +25,7 @@ import {
   type SaveProviderRequest,
   type TestProviderRequest,
   type TestProviderResult
-} from '../../../../src/shared/ai-provider/index.ts'
+} from '../../../../packages/contracts/src/ai-provider/index.ts'
 
 import { SecretDecryptError, type SecretVault } from './secrets.ts'
 import { ProviderConfigStore } from './ai-provider-config.ts'

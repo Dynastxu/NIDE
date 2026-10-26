@@ -13,7 +13,7 @@ import {
   remapOverviewRole,
   updateProjectConfig
 } from '../../packages/host/src/services/project-config.ts'
-import { parseProjectConfig } from '../../src/shared/project/index.ts'
+import { parseProjectConfig } from '../../packages/contracts/src/project/index.ts'
 
 /**
  * 概述的**读盘**部分：读目录里的普通 Markdown、确认某份文档能不能被标记，以及改名

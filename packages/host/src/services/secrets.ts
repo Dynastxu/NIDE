@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { isSafePathSegment } from '../../../../src/shared/ai-provider/index.ts'
+import { isSafePathSegment } from '../../../../packages/contracts/src/ai-provider/index.ts'
 import { shell } from '../shell.ts'
 import type {
   SafeStoragePlaintext,
   SafeStorageStatus
-} from '../../../../src/shared/host-rpc/index.ts'
+} from '../../../../packages/contracts/src/host-rpc/index.ts'
 
 /**
  * 按插件分命名空间的密钥仓（host 侧）。

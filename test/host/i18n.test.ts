@@ -8,8 +8,8 @@ import {
   resolvePluginTitle
 } from '../../packages/host/src/services/i18n.ts'
 import type { LanguagePackEntry } from '../../packages/host/src/services/i18n.ts'
-import { parsePlaceholder } from '../../src/shared/plugin-api/manifest-nls.ts'
-import type { PluginManifestNls } from '../../src/shared/plugin-api/contributions.ts'
+import { parsePlaceholder } from '../../packages/contracts/src/plugin-api/manifest-nls.ts'
+import type { PluginManifestNls } from '../../packages/contracts/src/plugin-api/contributions.ts'
 
 /**
  * host 侧的本地化：语言包注册表 + 逐 key 瀑布 + manifest 文案解析 + 偏好。

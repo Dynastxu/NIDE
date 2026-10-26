@@ -33,7 +33,7 @@ export default defineConfig({
         find: /^@nide\/client-ui-welcome\//,
         replacement: `${resolve('packages/client-ui-welcome/src')}/`
       },
-      { find: '@shared', replacement: resolve('src/shared') },
+      { find: '@shared', replacement: resolve('packages/contracts/src') },
       { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') }
     ]
   },

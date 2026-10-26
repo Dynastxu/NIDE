@@ -3,18 +3,22 @@ import path from 'node:path'
 import {
   DEFAULT_APPEARANCE,
   normalizeAppearancePreference
-} from '../../../../src/shared/appearance/preference.ts'
+} from '../../../../packages/contracts/src/appearance/preference.ts'
 import {
   BUILTIN_THEMES,
   DEFAULT_THEME,
   findBuiltinTheme
-} from '../../../../src/shared/theme/builtin.ts'
+} from '../../../../packages/contracts/src/theme/builtin.ts'
 import { shell } from '../shell.ts'
 import type {
   AppearancePreference,
   AppearanceState
-} from '../../../../src/shared/appearance/preference.ts'
-import type { ThemeId, ThemePalette, ThemePayload } from '../../../../src/shared/theme/types.ts'
+} from '../../../../packages/contracts/src/appearance/preference.ts'
+import type {
+  ThemeId,
+  ThemePalette,
+  ThemePayload
+} from '../../../../packages/contracts/src/theme/types.ts'
 
 /**
  * 主题 / 外观（host 侧）。

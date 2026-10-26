@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ShellBridge } from '../../packages/host/src/shell.ts'
-import type { ShellCall, ShellCallResult } from '../../src/shared/host-rpc/index.ts'
+import type { ShellCall, ShellCallResult } from '../../packages/contracts/src/host-rpc/index.ts'
 
 /**
  * host 侧的 `ctx.shell` 桥（反向 RPC）。

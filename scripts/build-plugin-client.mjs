@@ -111,7 +111,7 @@ for (const job of jobs) {
           find: /^@nide\/client-ui-settings\//,
           replacement: `${path.resolve(root, 'packages/client-ui-settings/src')}/`
         },
-        { find: '@shared', replacement: path.resolve(root, 'src/shared') }
+        { find: '@shared', replacement: path.resolve(root, 'packages/contracts/src') }
       ]
     },
     esbuild: {

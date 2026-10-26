@@ -5,24 +5,24 @@ import {
   emptyPluginPreference,
   parsePluginPreference,
   setPluginEnabled as applyPluginEnabled
-} from '../../../../src/shared/plugin-api/preference.ts'
-import { isReservedHostId } from '../../../../src/shared/plugin-api/view.ts'
-import { emptyPluginContributions } from '../../../../src/shared/plugin-api/contributions.ts'
+} from '../../../../packages/contracts/src/plugin-api/preference.ts'
+import { isReservedHostId } from '../../../../packages/contracts/src/plugin-api/view.ts'
+import { emptyPluginContributions } from '../../../../packages/contracts/src/plugin-api/contributions.ts'
 import { readPluginContributions } from './plugin-contributions.ts'
 import type { PluginContributionSet } from './plugin-contributions.ts'
-import type { PluginPreference } from '../../../../src/shared/plugin-api/preference.ts'
-import type { ClientBundleDescriptor } from '../../../../src/shared/plugin-api/client-bundle.ts'
+import type { PluginPreference } from '../../../../packages/contracts/src/plugin-api/preference.ts'
+import type { ClientBundleDescriptor } from '../../../../packages/contracts/src/plugin-api/client-bundle.ts'
 import type {
   PluginContributions,
   PluginManifestNls
-} from '../../../../src/shared/plugin-api/contributions.ts'
-import type { PluginSettingsDescriptor } from '../../../../src/shared/plugin-api/manifest.ts'
-import type { PluginViewDescriptor } from '../../../../src/shared/plugin-api/view.ts'
+} from '../../../../packages/contracts/src/plugin-api/contributions.ts'
+import type { PluginSettingsDescriptor } from '../../../../packages/contracts/src/plugin-api/manifest.ts'
+import type { PluginViewDescriptor } from '../../../../packages/contracts/src/plugin-api/view.ts'
 import type {
   PluginDescriptor,
   PluginInstallResult,
   PluginRemoveResult
-} from '../../../../src/shared/plugin-api/plugin.ts'
+} from '../../../../packages/contracts/src/plugin-api/plugin.ts'
 
 /**
  * 把一个贡献点的标题解析成当前语言的文案。

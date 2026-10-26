@@ -15,7 +15,7 @@
  *   继续读别的（frontmatter 就是这么办的：一行写坏不该让整个章节标题失效）。
  *
  * 这一层被 shell、host 与渲染进程共用，所以不能 import electron / fs / DOM。
- * 模块之间用 `#project/*`（见 `src/shared/project/package.json` 的 imports）而不是
+ * 模块之间用 `#project/*`（见 `packages/contracts/src/project/package.json` 的 imports）而不是
  * 免扩展名的相对路径：host 是纯 Node ESM，解析不了后者。
  */
 

@@ -20,7 +20,7 @@ import {
   readForeshadowingEntry,
   readGalleryEntry,
   serializeGalleryConfig
-} from '../../../../src/shared/project/index.ts'
+} from '../../../../packages/contracts/src/project/index.ts'
 import type {
   ChapterFile,
   ChapterListResult,
@@ -33,7 +33,7 @@ import type {
   GalleryFoldersResult,
   OverviewDocument,
   OverviewListResult
-} from '../../../../src/shared/project/index.ts'
+} from '../../../../packages/contracts/src/project/index.ts'
 import {
   HOST_TEMP_FILE_PREFIX,
   MAX_TEXT_FILE_BYTES,
@@ -45,7 +45,7 @@ import {
   isSupportedTextPath,
   sortTreeEntries,
   validateEntryName
-} from '../../../../src/shared/project/files.ts'
+} from '../../../../packages/contracts/src/project/files.ts'
 import type {
   CreateEntryFailureReason,
   CreateEntryRequest,
@@ -64,14 +64,14 @@ import type {
   RenameEntryRequest,
   RenameEntryResult,
   WriteFileRequest
-} from '../../../../src/shared/project/files.ts'
+} from '../../../../packages/contracts/src/project/files.ts'
 
 /**
  * 项目文件读写（host 侧）。
  *
  * 读：`readDir` / `readFile`；写：`writeFile` / `createEntry` / `renameEntry` /
  * `deleteEntry`。纯逻辑（支持的扩展名、忽略目录、排序、名字校验、是否在项目根内）
- * 全部复用 `src/shared/project/files.ts`，这里只保留碰盘的那一半。
+ * 全部复用 `packages/contracts/src/project/files.ts`，这里只保留碰盘的那一半。
  *
  * 保留 `src/main/services/project-files.service.ts` 是为了回退：preload 走 host
  * 优先，失败时仍回到旧 IPC。等所有读写路径都在 host 上验证过之后再删那一份。

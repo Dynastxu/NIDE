@@ -1,13 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { normalizeLocale } from '../../../../src/shared/i18n/locale-tag.ts'
+import { normalizeLocale } from '../../../../packages/contracts/src/i18n/locale-tag.ts'
 import {
   DEFAULT_NLS_FILE,
   NLS_FILE_RE,
   parsePlaceholder
-} from '../../../../src/shared/plugin-api/manifest-nls.ts'
-import { isReservedHostId } from '../../../../src/shared/plugin-api/view.ts'
-import type { ViewChromeOptions, ViewLocation } from '../../../../src/shared/plugin-api/view.ts'
+} from '../../../../packages/contracts/src/plugin-api/manifest-nls.ts'
+import { isReservedHostId } from '../../../../packages/contracts/src/plugin-api/view.ts'
+import type {
+  ViewChromeOptions,
+  ViewLocation
+} from '../../../../packages/contracts/src/plugin-api/view.ts'
 import type {
   PluginLocalePack,
   PluginLocaleTier,
@@ -15,7 +18,7 @@ import type {
   PluginMessages,
   PluginSettingsEntry,
   PluginViewEntry
-} from '../../../../src/shared/plugin-api/contributions.ts'
+} from '../../../../packages/contracts/src/plugin-api/contributions.ts'
 
 /**
  * 插件贡献点（视图 / 设置页 / 语言包 / manifest 词条）的读取。

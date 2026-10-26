@@ -1,10 +1,10 @@
 import process from 'node:process'
-import { isShellCallResult } from '../../../src/shared/host-rpc/index.ts'
+import { isShellCallResult } from '../../../packages/contracts/src/host-rpc/index.ts'
 import type {
   RpcRequest,
   RpcResponse,
   ShellCallResult
-} from '../../../src/shared/host-rpc/index.ts'
+} from '../../../packages/contracts/src/host-rpc/index.ts'
 
 /**
  * Host 与「父进程 / renderer」之间的最小 IPC 通道（MVP）。

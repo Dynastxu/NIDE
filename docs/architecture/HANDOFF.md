@@ -72,19 +72,23 @@ Client（renderer，HTTP 页面里的第二棵 Cordis 树）
 └─ packages/client-modules：viewId -> Component
 ```
 
-目录：
+目录（**目标形态与迁移顺序见 [plugin-first-layout.md](plugin-first-layout.md)**）：
 
 ```
-apps/            # 计划中，尚未创建
+src/                 # Electron 外壳 + 跨进程契约 + 引导壳（阶段 4 之后会继续缩小）
+  main/              # 窗口 / 菜单 / 对话框 / 日志 / 协议 / host 生命周期
+  preload/           # window.hostAPI 桥
+  renderer/          # 只剩 main.tsx（181 行）+ Tailwind 入口
 packages/
-  boot/ host/ hello/
+  contracts/         # 跨进程契约（原 src/shared）：类型 + 纯函数 + 词条基础表
+  boot/ host/ hello/ # host 运行时与业务（host/src/services/*）
   client-runtime/ client-modules/
-  client-kit/                  # 客户端共享层：stores / ui / window 外壳 / logger
+  client-kit/        # 客户端共享层：stores / ui / window 外壳 / 插件视图管线
   client-ui-slots/ client-ui-renderer/
   client-ui-main/ client-ui-layout/ client-ui-welcome/ client-ui-settings/
-profiles/desktop/   # package.json + cordis.yml + cordis.patch.yml
-vendor/            # 已删除（改用 pnpm 依赖）
-docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
+plugins/builtin/     # 第三方扩展形态的插件包（demo / ai-provider / lang-en）
+profiles/desktop/    # package.json + cordis.yml + cordis.patch.yml
+docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目录方案
 ```
 
 ## 3. 已完成（可运行、已验证）
@@ -631,7 +635,8 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 
 ## 10. 建议的下一会话起手式
 
-> 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
+> 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`、
+> `plugin-first-layout.md`（后者说明「一切皆插件」的目标目录与阶段计划）。
 > 当前状态：**迁移已完成**。项目数据 / 插件清单与贡献点 / 本地化 / 主题 /
 > AI 与密钥仓的**实现只有一份**，在 host；窗口 UI 全部在 `packages/client-ui-*`，
 > `src/renderer/src` 只剩引导壳。客户端 slots 与运行时 bundle 在 **dev 与打包后都

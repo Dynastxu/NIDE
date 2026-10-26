@@ -4,7 +4,7 @@ import {
   parseModelsResponse,
   type ModelInfo,
   type ProviderError
-} from '../../../../src/shared/ai-provider/index.ts'
+} from '../../../../packages/contracts/src/ai-provider/index.ts'
 
 /**
  * 供应商请求失败。`status` 为 0 表示网络层失败（没拿到 HTTP 响应）。

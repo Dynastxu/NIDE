@@ -1,4 +1,8 @@
-import type { ShellCall, ShellCallResult, ShellMethod } from '../../../src/shared/host-rpc/index.ts'
+import type {
+  ShellCall,
+  ShellCallResult,
+  ShellMethod
+} from '../../../packages/contracts/src/host-rpc/index.ts'
 
 /**
  * host 侧的 `ctx.shell`：需要 Electron 的能力（原生主题、`safeStorage`）通过反向

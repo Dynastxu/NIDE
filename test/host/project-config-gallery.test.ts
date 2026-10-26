@@ -18,7 +18,7 @@ import {
   parseGalleryConfig,
   parseProjectConfig,
   serializeProjectConfig
-} from '../../src/shared/project/index.ts'
+} from '../../packages/contracts/src/project/index.ts'
 
 /**
  * `.nide/config.yml` 里的角色图鉴，以及「新建项目时默认建一个角色图鉴」这条要求。

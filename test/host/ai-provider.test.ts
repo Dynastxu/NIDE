@@ -9,7 +9,7 @@ import {
 import { ProviderConfigStore } from '../../packages/host/src/services/ai-provider-config.ts'
 import { SecretVault } from '../../packages/host/src/services/secrets.ts'
 import type { SecretsBackend } from '../../packages/host/src/services/secrets.ts'
-import { AI_PROVIDER_ERROR_CODES } from '../../src/shared/ai-provider/index.ts'
+import { AI_PROVIDER_ERROR_CODES } from '../../packages/contracts/src/ai-provider/index.ts'
 
 /**
  * AI 供应商服务（host 侧）。

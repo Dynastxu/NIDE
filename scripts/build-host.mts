@@ -15,7 +15,7 @@
  *
  *   out/host/packages/host/src/index.js     ← 入口
  *   out/host/packages/hello/src/index.js    ← profile 里引用的插件
- *   out/host/src/shared/...                 ← 共享层
+ *   out/host/packages/contracts/src/...                 ← 共享层
  *   out/host/profiles/desktop/...           ← profile 模板（.ts → .js 已改写）
  *   out/host/package.json                   ← {"type":"module"}
  */
@@ -137,12 +137,12 @@ fs.writeFileSync(
 /**
  * 共享层里的 `package.json` 有两类作用：
  * - `{"type":"module"}`：产物根那份已经覆盖，不必复制；
- * - `imports` 映射（`src/shared/project` 的 `#project/*`）：**必须**带上，
+ * - `imports` 映射（`packages/contracts/src/project` 的 `#project/*`）：**必须**带上，
  *   否则 `#project/store` 这种 bare specifier 解析不了。
  *
  * 映射目标是 `.ts`（源码里就是给类型剥离用的），发射后要改成 `.js`。
  */
-const sharedRoot = path.join(root, 'src', 'shared')
+const sharedRoot = path.join(root, 'packages', 'contracts', 'src')
 for (const name of fs.readdirSync(sharedRoot)) {
   const marker = path.join(sharedRoot, name, 'package.json')
   if (!fs.existsSync(marker)) continue
@@ -151,7 +151,7 @@ for (const name of fs.readdirSync(sharedRoot)) {
   if (!raw.imports) continue
 
   const rewritten = JSON.parse(JSON.stringify(raw).replaceAll('.ts"', '.js"')) as object
-  const target = path.join(outDir, 'src', 'shared', name, 'package.json')
+  const target = path.join(outDir, 'packages', 'contracts', 'src', name, 'package.json')
   fs.mkdirSync(path.dirname(target), { recursive: true })
   fs.writeFileSync(target, `${JSON.stringify(rewritten, null, 2)}\n`, 'utf-8')
 }

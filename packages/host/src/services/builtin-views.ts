@@ -3,9 +3,12 @@ import {
   HOST_EXPLORER_VIEW_ID,
   HOST_GIT_VIEW_ID,
   HOST_VIEW_PLUGIN_ID
-} from '../../../../src/shared/plugin-api/view.ts'
-import type { PluginViewDescriptor, ViewLocation } from '../../../../src/shared/plugin-api/view.ts'
-import type { zhCN } from '../../../../src/shared/i18n/locales/zh-CN.ts'
+} from '../../../../packages/contracts/src/plugin-api/view.ts'
+import type {
+  PluginViewDescriptor,
+  ViewLocation
+} from '../../../../packages/contracts/src/plugin-api/view.ts'
+import type { zhCN } from '../../../../packages/contracts/src/i18n/locales/zh-CN.ts'
 
 /**
  * 宿主词条表的 key 集合。

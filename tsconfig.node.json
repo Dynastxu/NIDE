@@ -21,7 +21,7 @@
     "vitest.config.*",
     "src/main/**/*",
     "src/preload/**/*",
-    "src/shared/**/*",
+    "packages/contracts/src/**/*",
     "test/main/**/*",
     "test/shared/**/*",
     "test/fixtures/**/*"
@@ -31,7 +31,7 @@
     "types": ["electron-vite/node"],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["packages/contracts/src/*"]
     }
   }
 }

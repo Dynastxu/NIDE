@@ -52,7 +52,7 @@ import {
   type ProviderError,
   type SaveProviderRequest,
   type TestProviderRequest
-} from '../../../src/shared/ai-provider/index.ts'
+} from '../../../packages/contracts/src/ai-provider/index.ts'
 
 /** 把服务抛出的错误收敛成给渲染进程看的领域错误 */
 function toProviderError(error: unknown): ProviderError {
@@ -62,18 +62,18 @@ function toProviderError(error: unknown): ProviderError {
     message: error instanceof Error ? error.message : 'AI 供应商操作失败'
   }
 }
-import { filePathKey } from '../../../src/shared/project/files.ts'
+import { filePathKey } from '../../../packages/contracts/src/project/files.ts'
 import type {
   CreateEntryRequest,
   DeleteEntryRequest,
   RenameEntryRequest
-} from '../../../src/shared/project/files.ts'
+} from '../../../packages/contracts/src/project/files.ts'
 import type {
   GalleryCreateRequest,
   OverviewRoleUpdateRequest,
   ProjectConfig,
   ProjectConfigUpdateResult
-} from '../../../src/shared/project/index.ts'
+} from '../../../packages/contracts/src/project/index.ts'
 
 /**
  * 独立 host 进程入口（MVP）。
