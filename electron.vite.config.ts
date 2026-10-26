@@ -11,10 +11,17 @@ const projectRoot = resolve('.')
 
 export default defineConfig({
   main: {
-    resolve: { alias: { '@nide/contracts': shared } }
+    resolve: { alias: { '@nide/contracts': shared } },
+    // 主进程与预加载都在 packages/shell（Electron 外壳）；渲染进程只有引导壳
+    build: {
+      rollupOptions: { input: resolve('packages/shell/src/main/index.ts') }
+    }
   },
   preload: {
-    resolve: { alias: { '@nide/contracts': shared } }
+    resolve: { alias: { '@nide/contracts': shared } },
+    build: {
+      rollupOptions: { input: resolve('packages/shell/src/preload/index.ts') }
+    }
   },
   renderer: {
     resolve: {

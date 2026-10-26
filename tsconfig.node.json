@@ -19,8 +19,7 @@
   "include": [
     "electron.vite.config.*",
     "vitest.config.*",
-    "src/main/**/*",
-    "src/preload/**/*",
+    "packages/shell/src/**/*",
     "packages/contracts/src/**/*",
     "test/main/**/*",
     "test/shared/**/*",
