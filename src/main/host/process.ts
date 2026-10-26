@@ -23,13 +23,13 @@ import type { HostStreamEvent } from '@shared/host-rpc'
  * host 现在是**必需**的：文件 / 章节 / 图鉴 / 概述 / 配置的实现都在它里面，shell
  * 只保留项目列表、窗口、对话框与确认框。所以它在启动时无条件拉起，不再是开关。
  *
- * 打包：`electron-builder.yml` 明确不做 asar，并把 host 源码、boot / hello、共享层
- * 与 profiles 一起放进 app 根。所以 dev 与打包版走同一个入口路径；等 host 有编译
- * 产物之后，再把这里改成 `app.isPackaged` 分支与 asar。
+ * 打包：host 由 `pnpm build:host` 编译到 `out/host`，asar 打包后入口和插件落在
+ * `resources/app.asar.unpacked/`（真实文件），由 `resolveHostEntry()` 按布局切换；
+ * profile 模板与 `{{NIDE_ROOT}}` 通过 `--dist-root` 指向编译产物根。
  *
  * TODO:
  * - host 崩溃后的重启策略与退避
- * - 编译产物 + asar（那时 profile 需要改用包标识符）
+ * - profile 改用包标识符（现在仍是绝对路径）
  */
 
 const logger = loggerFor('host-process')
@@ -126,18 +126,32 @@ function packagedRoot(): string {
 }
 
 /**
+ * 是不是「打包后的布局」。
+ *
+ * `app.isPackaged` 的判据是**可执行文件**：只有被 electron-builder 改名过的
+ * `nide.exe` 才算打包。用 `node_modules/electron/dist/electron.exe resources/app.asar`
+ * 直接跑打包内容（HANDOFF 检查清单里的调试方式）时它是 **false**，于是会去源码树找
+ * `packages/host/src/index.ts` —— 而包里根本没有源码。
+ *
+ * 所以判据是「应用根是不是 asar」：它描述的是布局，与用哪个 exe 启动无关。
+ */
+function isPackagedLayout(): boolean {
+  return app.isPackaged || app.getAppPath().endsWith('.asar')
+}
+
+/**
  * host 入口。
  *
- * - 开发（`app.isPackaged === false`）：直接跑源码 `packages/host/src/index.ts`，
- *   Electron 自带的 Node 做类型剥离，改代码不用先构建；
- * - 打包版：跑编译产物 `out/host/packages/host/src/index.js`（asar 外），并把
+ * - 开发布局：直接跑源码 `packages/host/src/index.ts`，Electron 自带的 Node 做类型
+ *   剥离，改代码不用先构建；
+ * - 打包布局：跑编译产物 `out/host/packages/host/src/index.js`（asar 外），并把
  *   `--dist-root` 指过去（profile 模板与 `{{NIDE_ROOT}}` 都在那边）。
  *
  * 找不到时只记一条错误：`startHost()` 接下来的失败会带着这条上下文，比一个孤零零的
  * spawn 错误容易查得多。
  */
 export function resolveHostEntry(): string {
-  const entry = app.isPackaged
+  const entry = isPackagedLayout()
     ? path.join(packagedRoot(), 'out', 'host', 'packages', 'host', 'src', 'index.js')
     : path.join(app.getAppPath(), 'packages', 'host', 'src', 'index.ts')
 
@@ -147,19 +161,19 @@ export function resolveHostEntry(): string {
   return entry
 }
 
-/** 打包版才有编译产物根；开发时返回 null，host 用源码树里的 profiles */
+/** 打包布局才有编译产物根；开发时返回 null，host 用源码树里的 profiles */
 function resolveHostDistRoot(): string | null {
-  return app.isPackaged ? path.join(packagedRoot(), 'out', 'host') : null
+  return isPackagedLayout() ? path.join(packagedRoot(), 'out', 'host') : null
 }
 
 /**
  * 传给 host 的 `--app-root`：内建插件（`<root>/plugins/builtin`）的根。
  *
- * 打包版用 asar 外的真实根 —— host 要读插件的 manifest 与 `dist/client.js`，
+ * 打包布局用 asar 外的真实根 —— host 要读插件的 manifest 与 `dist/client.js`，
  * 这些也都是 asarUnpack 出去的。
  */
 function resolveHostAppRoot(): string {
-  return app.isPackaged ? packagedRoot() : app.getAppPath()
+  return isPackagedLayout() ? packagedRoot() : app.getAppPath()
 }
 
 function resolveHostHome(explicit?: string): string {

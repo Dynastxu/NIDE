@@ -584,19 +584,23 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     `node_modules/electron/dist/electron.exe dist/win-unpacked/resources/app.asar`；
     asar 之后**没有 `resources/app` 目录**，传它会报 "Unable to find Electron app"。
     发布前再解决签名。
-14. **首窗现在要等 host（约 0.4s）**：`openStartupWindow()` 依赖 host 读
+14. **`app.isPackaged` 不等于「打包布局」**：用 `electron.exe app.asar` 调试时它是
+    `false`，如果拿它当判据就会去源码树找 `packages/host/src/index.ts`（包里没有），
+    host 直接 `launch-failed (code=63)`。判据是 `app.getAppPath().endsWith('.asar')`
+    或 `app.isPackaged`（见 `src/main/host/process.ts` 的 `isPackagedLayout()`）。
+15. **首窗现在要等 host（约 0.4s）**：`openStartupWindow()` 依赖 host 读
     `projects.json`。看不到窗口时先看日志里有没有 `host process is ready` —— 没有就是
     host 没起来，15s 后会回落成欢迎窗口（同时日志里有 `Failed to resolve the startup
     project through host`）。别再在 shell 里加一份 `projects.json` 的读法来「加速启动」，
     那正是上一轮删掉的东西。
-15. **自定义协议 + CSP 是两处，缺一不可**：`nide-plugin://` 的 scheme 权限必须在
+16. **自定义协议 + CSP 是两处，缺一不可**：`nide-plugin://` 的 scheme 权限必须在
     `app.whenReady()` **之前**登记（ready 之后登记无效），而页面里的 `<script>` 要能
     加载它，`src/renderer/index.html` 的 `script-src` 里必须有 `nide-plugin:`。
     少任何一处，症状都是「打包后插件视图一片白、Console 里 CSP 或 net::ERR_UNKNOWN_URL_SCHEME」。
-16. **`HostI18n` 在 `i18n.init` 之前是中文**：它构造时的 payload 只是中文兜底
+17. **`HostI18n` 在 `i18n.init` 之前是中文**：它构造时的 payload 只是中文兜底
     （`locale = zh-CN`）。启动顺序写错（比如先取视图标题、后初始化语言）不会报错，
     只会让第一屏用中文标题 —— shell 那边 `await initI18n()` 必须在开窗之前。
-17. **`plugins.views` / `plugins.settings` 的标题依赖当前语言**：切语言后**必须**重建
+18. **`plugins.views` / `plugins.settings` 的标题依赖当前语言**：切语言后**必须**重建
     窗口（渲染进程会重新拉一次），否则视图标题停在旧语言。切语言那条路已经在
     `recreateRootWindow()` 里，别在别处缓存视图列表。
 
