@@ -1,9 +1,9 @@
 /**
  * `.nide` 项目配置的契约：配置形状、默认值、校验、以及 config.yml 的读写文本。
  *
- * 这一层被主进程（落盘）与渲染进程（消费配置）共用，所以**不能** import
+ * 这一层被 host（落盘）与渲染进程（消费配置）共用，所以**不能** import
  * electron / fs / DOM：这里只有纯函数，测试不必起 electron，也不必碰盘。
- * 「什么时候建目录、坏配置怎么回落」留给主进程的 project-config.service。
+ * 「什么时候建目录、坏配置怎么回落」留给 host 的 project-config 服务。
  *
  * 配置里只放**相对项目根**的路径。绝对路径一旦落盘，项目被移动或换一台机器就
  * 指向了别处，而这份文件是要跟项目一起进版本库的。
@@ -139,8 +139,8 @@ export const PROJECT_CONFIG_FILE_NAME = 'config.yml'
 /**
  * 合并之前的图鉴注册表文件名。
  *
- * 只用于**读取旧项目**：主进程读到旧格式的配置时把它并进 `config.yml`，随后删掉它
- * （见 project-config.service 的 loadProjectConfig）。新项目不会写这份文件。
+ * 只用于**读取旧项目**：host 读到旧格式的配置时把它并进 `config.yml`，随后删掉它
+ * （见 project-config 服务的 loadProjectConfig）。新项目不会写这份文件。
  */
 export const LEGACY_GALLERY_REGISTRY_FILE_NAME = 'gallery.yml'
 

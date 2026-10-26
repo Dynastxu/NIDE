@@ -27,6 +27,7 @@ import {
   writeProjectFile
 } from './services/project-files.ts'
 import {
+  initializeProjectDirectory,
   loadGalleryRegistry,
   loadProjectConfig,
   remapOverviewRole,
@@ -524,6 +525,19 @@ rpc.register('config', {
     if (!root) return null
 
     return updateProjectConfig(root, patch)
+  },
+
+  /**
+   * 初始化一个**刚新建**的项目：默认配置、内容目录、默认角色图鉴与概述预设。
+   *
+   * 由 shell 在「新建项目」时经父端口调用（`invokeHost('config','initialize')`）：
+   * 打开已有项目**不**走这里 —— 那会替用户建出他删过的东西。
+   */
+  initialize: async (root): Promise<ProjectConfig | null> => {
+    const target = String(root ?? '')
+    if (target.length === 0) return null
+
+    return initializeProjectDirectory(target)
   }
 })
 

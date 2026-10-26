@@ -9,7 +9,7 @@ import { registerProjectIPC } from './ipc/project.ipc'
 import { registerWindowIPC, registerWindowActions } from './ipc/window.ipc'
 import { registerAiProviderIPC, shutdownAiProviderIPC } from './ipc/ai-provider.ipc'
 import { initPluginHost } from './plugin-host'
-import { isHostProcessEnabled, startHost, stopHost, attachHostPort } from './host/process'
+import { startHost, stopHost, attachHostPort } from './host/process'
 import { initI18n } from './i18n'
 import { initAppearance, registerAppearanceBroadcast } from './appearance'
 import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './window'
@@ -37,11 +37,9 @@ app.whenReady().then(() => {
      * 放在 `did-finish-load` 而不是建窗时：preload 要先注册好接收器，
      * 否则 port 会被丢掉。host 还没 ready 时 attachHostPort 会等它。
      */
-    if (isHostProcessEnabled()) {
-      window.webContents.once('did-finish-load', () => {
-        attachHostPort(window.webContents, `window-${window.id}`)
-      })
-    }
+    window.webContents.once('did-finish-load', () => {
+      attachHostPort(window.webContents, `window-${window.id}`)
+    })
   })
 
   ipcMain.on('ping', () => console.log('pong'))
@@ -69,17 +67,15 @@ app.whenReady().then(() => {
     restart: recreateRootWindow
   })
   /**
-   * 插件宿主（MVP）。
+   * 宿主进程。
    *
-   * 用 NIDE_HOST=1 打开，默认不启动 —— 在 client / RPC 接上之前，它只做
-   * 握手与生命周期验证，不该影响现有窗口。启动是并行的：host 慢慢起，
-   * 窗口照常先开。
+   * 项目文件 / 配置的实现已经全部搬进 host，所以它不再是开关：启动时无条件拉起。
+   * 启动是并行的：host 慢慢起，窗口照常先开；第一次文件请求会等它 ready
+   * （`attachHostPort` / `invokeHost` 都先 await `startHost()`）。
    */
-  if (isHostProcessEnabled()) {
-    void startHost()
-      .then(() => logger.info('host process is ready'))
-      .catch((error) => logger.error('host process failed', { error }))
-  }
+  void startHost()
+    .then(() => logger.info('host process is ready'))
+    .catch((error) => logger.error('host process failed', { error }))
   // 2) 插件宿主只扫描 manifest、同步执行；语言包是随 manifest 一起注册进
   //    languagePackRegistry 的，所以 i18n 必须排在它后面，否则注册表还是空的，
   //    所有 locale 都会回落成中文

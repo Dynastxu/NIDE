@@ -33,7 +33,7 @@ import {
  *
  * 合并之前那一版（扁平四项 + 单独的 `gallery.yml`）由 `parseLegacyProjectConfig` 与
  * `parseLegacyGalleryRegistry` 读出来；「把它们合成一份写回去」在
- * `src/main/services/project-config.service.ts`，它依赖 fs 与主进程日志，不在这里 ——
+ * `packages/host/src/services/project-config.ts`，它依赖 fs，不在这里 ——
  * 清单见 [测试](Testing) 与 [项目与欢迎窗口](Projects) 的手工验证。
  */
 

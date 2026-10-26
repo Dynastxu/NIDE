@@ -6,14 +6,14 @@ import {
   checkProjectOverviewDocument,
   readProjectOverview,
   type RootsOptions
-} from '../../../src/main/services/project-files.service'
+} from '../../packages/host/src/services/project-files.ts'
 import {
   loadProjectConfig,
   projectConfigPath,
   remapOverviewRole,
   updateProjectConfig
-} from '../../../src/main/services/project-config.service'
-import { parseProjectConfig } from '@shared/project'
+} from '../../packages/host/src/services/project-config.ts'
+import { parseProjectConfig } from '../../src/shared/project/index.ts'
 
 /**
  * 概述的**读盘**部分：读目录里的普通 Markdown、确认某份文档能不能被标记，以及改名

@@ -16,12 +16,12 @@ import { loggerFor } from '../logger'
  * 2. 等它回 `{ type: 'ready' }`；
  * 3. 退出时发 `{ type: 'shutdown' }`，超时再 kill。
  *
- * 用 `NIDE_HOST=1` 打开，默认关闭 —— 在它稳定之前不影响现有启动链路。
+ * host 现在是**必需**的：文件 / 章节 / 图鉴 / 概述 / 配置的实现都在它里面，shell
+ * 只保留项目列表、窗口、对话框与确认框。所以它在启动时无条件拉起，不再是开关。
  *
  * TODO:
  * - 打包后的入口：`app.isPackaged` 时用 resources 里的已编译 host，而不是 .ts
  * - host 崩溃后的重启策略与退避
- * - renderer ↔ host 的 MessagePort 转发
  */
 
 const logger = loggerFor('host-process')
@@ -29,8 +29,52 @@ const logger = loggerFor('host-process')
 let child: UtilityProcess | null = null
 let readyPromise: Promise<void> | null = null
 
-export function isHostProcessEnabled(): boolean {
-  return process.env.NIDE_HOST === '1'
+/** shell → host 的调用（`invokeHost`）等着回执的那些请求，按 id 索引 */
+interface PendingHostCall {
+  resolve: (value: unknown) => void
+  reject: (error: Error) => void
+  timer: ReturnType<typeof setTimeout>
+}
+
+const pendingCalls = new Map<string, PendingHostCall>()
+let callSeq = 0
+
+/** 把一条 host 回包交给等着的调用；不是 rpc-result 就忽略 */
+function settleHostMessage(message: unknown): void {
+  if (!message || typeof message !== 'object') return
+
+  const data = message as {
+    type?: string
+    id?: string
+    ok?: boolean
+    result?: unknown
+    error?: { code?: string; message?: string }
+  }
+  if (data.type !== 'rpc-result' || typeof data.id !== 'string') return
+
+  const pending = pendingCalls.get(data.id)
+  if (!pending) return
+
+  pendingCalls.delete(data.id)
+  clearTimeout(pending.timer)
+
+  if (data.ok) {
+    pending.resolve(data.result)
+    return
+  }
+
+  const error = new Error(data.error?.message ?? 'host RPC failed') as Error & { code?: string }
+  error.code = data.error?.code
+  pending.reject(error)
+}
+
+/** host 退出时把所有等着的调用拒掉：它们的回执永远不会来 */
+function rejectPendingCalls(error: Error): void {
+  for (const pending of pendingCalls.values()) {
+    clearTimeout(pending.timer)
+    pending.reject(error)
+  }
+  pendingCalls.clear()
 }
 
 export interface StartHostOptions {
@@ -84,6 +128,9 @@ export function startHost(options: StartHostOptions = {}): Promise<void> {
   )
   child = proc
 
+  // 父端口的回包：ready/pong 之外的 rpc-result 交给 invokeHost 的等待表
+  proc.on('message', settleHostMessage)
+
   proc.stdout?.on('data', (chunk: Buffer) => {
     const text = chunk.toString().trim()
     if (text) logger.info(text)
@@ -117,6 +164,7 @@ export function startHost(options: StartHostOptions = {}): Promise<void> {
   }).catch((error) => {
     readyPromise = null
     logger.error('host process failed to become ready', { error })
+    rejectPendingCalls(error instanceof Error ? error : new Error(String(error)))
     try {
       proc.kill()
     } catch {
@@ -129,6 +177,7 @@ export function startHost(options: StartHostOptions = {}): Promise<void> {
     logger.info('host process exited', { code })
     child = null
     readyPromise = null
+    rejectPendingCalls(new Error(`host process exited (code=${String(code)})`))
   })
 
   return readyPromise
@@ -154,12 +203,58 @@ export function attachHostPort(contents: WebContents, label: string): void {
     .catch((error) => logger.warn('renderer port not attached', { error }))
 }
 
+/**
+ * shell → host 的一次 RPC 调用。
+ *
+ * 走 shell 与 host 之间那条父端口（`utilityProcess.postMessage`），不是 renderer 的
+ * 直连 port：调用方是主进程自己（例如新建项目时的 `config.initialize`），那时窗口
+ * 可能还不存在。host 用同一张 `RpcRegistry` 分发，所以 namespace/method 与 renderer
+ * 那一侧完全一样。
+ *
+ * 会先等 host ready；host 没起来就抛（调用方决定是降级还是报错）。
+ */
+export async function invokeHost<T = unknown>(
+  namespace: string,
+  method: string,
+  args: unknown[] = [],
+  timeoutMs = 10_000
+): Promise<T> {
+  await startHost()
+
+  const proc = child
+  if (!proc) throw new Error('host process is not running')
+
+  const id = `shell-${++callSeq}`
+
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingCalls.delete(id)
+      reject(new Error(`${namespace}.${method} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+
+    pendingCalls.set(id, {
+      resolve: (value) => resolve(value as T),
+      reject,
+      timer
+    })
+
+    try {
+      proc.postMessage({ type: 'rpc', id, namespace, method, args })
+    } catch (error) {
+      clearTimeout(timer)
+      pendingCalls.delete(id)
+      reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  })
+}
+
 export async function stopHost(timeoutMs = 3_000): Promise<void> {
   const proc = child
   if (!proc) return
 
   child = null
   readyPromise = null
+  rejectPendingCalls(new Error('host process is stopping'))
   logger.info('stopping host process')
 
   await new Promise<void>((resolve) => {

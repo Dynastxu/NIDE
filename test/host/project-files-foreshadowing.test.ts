@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   readProjectForeshadowing,
   type RootsOptions
-} from '../../../src/main/services/project-files.service'
+} from '../../packages/host/src/services/project-files.ts'
 
 /**
  * 伏笔列表的**读盘**部分。

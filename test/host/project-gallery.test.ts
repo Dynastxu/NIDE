@@ -6,14 +6,14 @@ import {
   createProjectGallery,
   readProjectGalleries,
   type RootsOptions
-} from '../../../src/main/services/project-files.service'
+} from '../../packages/host/src/services/project-files.ts'
 import {
   DEFAULT_GALLERY_FIELDS,
   DEFAULT_CHARACTER_GALLERY_FIELDS,
   GALLERY_CATEGORY,
   parseGalleryConfig,
   serializeGalleryConfig
-} from '@shared/project'
+} from '../../src/shared/project/index.ts'
 
 /**
  * 图鉴的**读盘**部分：新建一个图鉴（目录 + 字段表），以及读一个图鉴目录里的所有图鉴。

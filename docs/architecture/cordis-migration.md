@@ -13,9 +13,9 @@
   - 新增 [profiles/desktop](../../profiles/desktop)：profile 模板（`package.json` / `cordis.yml` / `cordis.patch.yml`）。
   - 命令：`pnpm host:dump`、`pnpm host:smoke`、`pnpm typecheck:host`。
   - 依赖已 pin：`@deepseek-ai/cordis@4.0.5`、`cordis-plugin-loader@1.0.6`、`include@1.0.10`、`group@1.0.5`、`timer@1.1.7`、`js-yaml@4.3.2`；npm 走 npmmirror。
-  - **shell ↔ host 握手已接上**：[src/main/host/process.ts](../../src/main/host/process.ts) 用 `utilityProcess.fork` 拉起 host，等 `ready`，支持 `ping/pong` 与 `shutdown`；默认关闭，`NIDE_HOST=1` 打开。
+  - **shell ↔ host 握手已接上**：[src/main/host/process.ts](../../src/main/host/process.ts) 用 `utilityProcess.fork` 拉起 host，等 `ready`，支持 `ping/pong` 与 `shutdown`。**host 现在是启动必需**：文件 / 配置的实现全在它里面；另有 `invokeHost` 走父端口做 shell → host RPC（新建项目时的 `config.initialize`）。
   - [packages/host/src/ipc.ts](../../packages/host/src/ipc.ts) 同时支持 Electron `process.parentPort` 与 Node `child_process.fork` 的 IPC 载体。
-  - 冒烟脚本：[scripts/host-ipc-node-smoke.mjs](../../scripts/host-ipc-node-smoke.mjs)（纯 Node；已通过）。真实 Electron 启动用 `NIDE_HOST=1 pnpm dev` 验证，日志里能看到 `host process is ready` 与 `ipc=true`。
+  - 冒烟脚本：[scripts/host-ipc-node-smoke.mjs](../../scripts/host-ipc-node-smoke.mjs)（纯 Node；已通过）。真实 Electron 启动用 `pnpm dev` 验证，日志里能看到 `host process is ready`、`ipc=true` 与 `Host port attached`。
   - **renderer ↔ host 直连 port 已接**：主进程在 `did-finish-load` 后用 `MessageChannelMain` 把 port 分给 host 与 renderer；preload 暴露 `window.nideHost.invoke(namespace, method, ...args)`。
   - **通用 RPC 骨架已跑通**：协议在 [src/shared/host-rpc](../../src/shared/host-rpc/index.ts)，host 侧 [RpcRegistry](../../packages/host/src/rpc.ts) 负责分发/错误包装，首个 namespace 是 `host.info`；renderer 启动后调用它。
   - **第一个业务 namespace 已接**：`project.list` / `current` / `startup`。纯数据模型从 `src/shared/project` 拆到 [store.ts](../../src/shared/project/store.ts)（无 `@shared` 别名，host 可直接 import），Electron 侧的 `projects.json` 由 shell 通过 `--user-data` 传给 host。
@@ -25,6 +25,7 @@
   - **新建 / 改名 / 删除已切到 host**：`files.createEntry` / `renameEntry` / `deleteEntry` 在 [packages/host/src/services/project-files.ts](../../packages/host/src/services/project-files.ts)，范围、符号链接、绝不覆盖、项目根不可删这些边界与主进程那份逐条一致；preload 三条都 host 优先、失败回退旧 IPC。删除的二次确认留在 shell（host 没有窗口）：preload 先 `host:project-confirm-delete` 再调 host，回退时带 `{ confirm: false }` 避免问两遍。
   - **章节 / 伏笔 / 图鉴 / 概述 / 配置已切到 host**：`files.readChapters` / `readForeshadowing`、`gallery.read/create/updateRegistry`、`overview.read/setRole`、`config.read/update` 注册在 host；preload 全部 host 优先、失败回退。图鉴 / 概述「报上来的路径必须正是配置里那个目录」的核对也在 host（配置服务已搬进 [packages/host/src/services/project-config.ts](../../packages/host/src/services/project-config.ts)），改名后的概述映射由 host 的 `remapOverviewRole` 直接补。
   - **shared/project 变成 host 可直接加载**：目录内模块之间改用 `#project/*`（[src/shared/project/package.json](../../src/shared/project/package.json) 的 `imports`），不再用 `@shared/*` 或免扩展名相对路径 —— Node 的 ESM 解析器不认后者。原 `src/shared/yaml` 搬成 `src/shared/project/yaml.ts`，归到同一个包作用域里。
+  - **shell 侧重复实现已删**：`src/main/services/project-{files,config}.service.ts` 删除；`project.ipc.ts` 只剩项目列表 / 打开 / 关闭、删除确认，其余旧通道全部**转发**到 host（与 preload 直连 port 共用同一张 `RpcRegistry`）。`config.initialize` 由 shell 经 `invokeHost`（utilityProcess 父端口）调用；host 启动不再受 `NIDE_HOST` 控制。8 份服务测试搬到 [test/host](../../test/host)，由 `tsconfig.host.json` 一起检查。
   - **客户端 Cordis 树已起**：[packages/client-runtime](../../packages/client-runtime/src/index.ts) 在 renderer 里建独立根 Context + 一个最小插件，挂到 `window.__NIDE_CLIENT__`。
   - **第一个 slot 已接**：`@nide/client-ui-slots` 提供注册表，`@nide/client-ui-renderer` 提供不产生包装 DOM 的 `<Slot>`；欢迎窗口改走 `<Slot name="welcome.root">`，渲染的仍是现有 `WelcomeApp`（组件一行没改）。
   - **主窗口 root 也已接**：`@nide/client-ui-main` 把现有 `App` 注册到 `main.root`；`client-runtime` 按 `windowType` 只加载对应插件，主窗口不会拖入 WelcomeApp，欢迎窗口也不会加载 Monaco。settings 仍走旧路径。
@@ -34,9 +35,9 @@
   - **三个窗口都走 slot 了**：`main.root` / `welcome.root` / `settings.root` 分别由 `client-ui-main` / `client-ui-welcome` / `client-ui-settings` 注册，渲染的仍是现有组件。
   - **当前项目同步**：host 启动时 `resolveStartup()`；每个窗口 port 建立后把 `--nide-project=` 的路径发 `project.setCurrent`，换项目时 host 跟着切。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
-- 下一步：把 `initializeProjectDirectory` 搬成 host 的 `config.initialize`，然后删掉
-  `src/main/services/project-files.service.ts` / `project-config.service.ts` 的重复实现
-  与旧 IPC handler。生产环境的 bundle 协议（`nide-plugin://`）与批量构建仍在后面。
+- 下一步：**打包**。host 现在是必需进程，`build:win` 必须把 host 入口与 profile
+  模板放进 resources / `asarUnpack`，并在 `app.isPackaged` 下指向已编译的 host；
+  之后是插件管理器与生产环境的 bundle 协议（`nide-plugin://`）/ 批量构建。
 
 ## 0. 已锁定决策
 

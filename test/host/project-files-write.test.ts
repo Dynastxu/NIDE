@@ -7,8 +7,8 @@ import {
   readProjectFile,
   writeProjectFile,
   type RootsOptions
-} from '../../../src/main/services/project-files.service'
-import { HOST_TEMP_FILE_PREFIX, MAX_TEXT_FILE_BYTES } from '@shared/project'
+} from '../../packages/host/src/services/project-files.ts'
+import { HOST_TEMP_FILE_PREFIX, MAX_TEXT_FILE_BYTES } from '../../src/shared/project/index.ts'
 
 /**
  * 保存（把正文写回一个已有文件）的**写盘**部分。

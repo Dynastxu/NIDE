@@ -133,8 +133,8 @@ interface ExplorerState {
   /**
    * 重读项目配置，**绕开**「已经读过就不重读」那条缓存。
    *
-   * 用在改名之后：主进程可能顺手把概述里的大纲 / 写作风格映射跟着改了（见
-   * project-config.service 的 remapOverviewRole），而界面手里那份配置还是旧的。
+   * 用在改名之后：host 可能顺手把概述里的大纲 / 写作风格映射跟着改了（见
+   * project-config 服务的 remapOverviewRole），而界面手里那份配置还是旧的。
    * 不重读的话，角色行会一直按旧文件名认，直到窗口重建。
    */
   reloadConfig: () => Promise<void>

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   renameProjectEntry,
   type RootsOptions
-} from '../../../src/main/services/project-files.service'
+} from '../../packages/host/src/services/project-files.ts'
 
 /**
  * 重命名的**写盘**部分。

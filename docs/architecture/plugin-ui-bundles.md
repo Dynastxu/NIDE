@@ -126,7 +126,6 @@ pnpm build:plugin-demo
 
 ```powershell
 pnpm build:plugin-demo
-$env:NIDE_HOST='1'
 pnpm dev
 ```
 

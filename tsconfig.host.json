@@ -12,5 +12,10 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["packages/host/**/*.ts", "packages/boot/**/*.ts", "packages/hello/**/*.ts"]
+  "include": [
+    "packages/host/**/*.ts",
+    "packages/boot/**/*.ts",
+    "packages/hello/**/*.ts",
+    "test/host/**/*.ts"
+  ]
 }

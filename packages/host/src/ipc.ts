@@ -103,7 +103,41 @@ export function attachHostIpc(options: HostIpcOptions): HostIpcHandle {
   const rendererPorts = new Set<MessagePortLike>()
   let shuttingDown = false
 
-  /** renderer 发来的消息：MVP 只回 ping，其余留 TODO。 */
+  /**
+   * 分发一条 RPC，并把结果交给指定的出口。
+   *
+   * 两个调用方：renderer 直连的 MessagePort，以及 shell 的父端口（`invokeHost`）。
+   * 出口不同，请求/响应形状完全相同 —— 所以只写一份，避免两条通道各自长出自己的
+   * 错误包装。
+   */
+  const dispatchRpc = (request: RpcRequest, send: (response: RpcResponse) => void): void => {
+    if (!options.onRpc) {
+      send({
+        type: 'rpc-result',
+        id: request.id,
+        ok: false,
+        error: { code: 'not-implemented', message: 'host RPC is not implemented yet' }
+      })
+      return
+    }
+
+    void options
+      .onRpc(request)
+      .then(send)
+      .catch((error: unknown) => {
+        send({
+          type: 'rpc-result',
+          id: request.id,
+          ok: false,
+          error: {
+            code: 'rpc-failed',
+            message: error instanceof Error ? error.message : String(error)
+          }
+        })
+      })
+  }
+
+  /** renderer 发来的消息：ping / rpc。 */
   const handleRendererMessage = (port: MessagePortLike, raw: unknown): void => {
     if (!raw || typeof raw !== 'object') return
     const message = raw as { type?: string; id?: string }
@@ -114,30 +148,7 @@ export function attachHostIpc(options: HostIpcOptions): HostIpcHandle {
     }
 
     if (message.type === 'rpc') {
-      const request = raw as RpcRequest
-      if (!options.onRpc) {
-        port.postMessage({
-          type: 'rpc-result',
-          id: message.id,
-          ok: false,
-          error: { code: 'not-implemented', message: 'host RPC is not implemented yet' }
-        })
-        return
-      }
-      void options
-        .onRpc(request)
-        .then((response) => port.postMessage(response))
-        .catch((error: unknown) => {
-          port.postMessage({
-            type: 'rpc-result',
-            id: message.id,
-            ok: false,
-            error: {
-              code: 'rpc-failed',
-              message: error instanceof Error ? error.message : String(error)
-            }
-          })
-        })
+      dispatchRpc(raw as RpcRequest, (response) => port.postMessage(response))
     }
   }
 
@@ -167,6 +178,17 @@ export function attachHostIpc(options: HostIpcOptions): HostIpcHandle {
         id: (message as { id?: string }).id,
         ts: Date.now()
       })
+      return
+    }
+
+    /**
+     * shell → host 的 RPC（`invokeHost`）。
+     *
+     * 走父端口而不是 renderer 的 port：项目创建时的 `config.initialize` 由主进程发起，
+     * 那时窗口可能还没建出来。和 renderer 共用同一个 `onRpc` 注册表。
+     */
+    if (type === 'rpc') {
+      dispatchRpc(message as RpcRequest, (response) => transport.postMessage(response))
       return
     }
 

@@ -9,8 +9,8 @@ import {
   projectConfigPath,
   projectLegacyGalleryRegistryPath,
   updateGalleryRegistry
-} from '../../../src/main/services/project-config.service'
-import { readProjectGalleries } from '../../../src/main/services/project-files.service'
+} from '../../packages/host/src/services/project-config.ts'
+import { readProjectGalleries } from '../../packages/host/src/services/project-files.ts'
 import {
   DEFAULT_CHARACTER_GALLERY_FIELDS,
   DEFAULT_GALLERY_REGISTRY,
@@ -18,7 +18,7 @@ import {
   parseGalleryConfig,
   parseProjectConfig,
   serializeProjectConfig
-} from '@shared/project'
+} from '../../src/shared/project/index.ts'
 
 /**
  * `.nide/config.yml` 里的角色图鉴，以及「新建项目时默认建一个角色图鉴」这条要求。
