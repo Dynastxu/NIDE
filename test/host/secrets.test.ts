@@ -6,8 +6,8 @@ import {
   SecretDecryptError,
   SecretStorageUnavailableError,
   SecretVault
-} from '../../packages/host/src/services/secrets.ts'
-import type { SecretsBackend } from '../../packages/host/src/services/secrets.ts'
+} from '../../packages/services/secrets/src/secrets.ts'
+import type { SecretsBackend } from '../../packages/services/secrets/src/secrets.ts'
 
 /**
  * 密钥仓（host 侧）。

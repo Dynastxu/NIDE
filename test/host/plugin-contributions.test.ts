@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   readPluginContributions,
   setContributionsLogger
-} from '../../packages/host/src/services/plugin-contributions.ts'
+} from '../../packages/services/plugins/src/plugin-contributions.ts'
 import type {
   ContributionsLogger,
   PluginContributionSet
-} from '../../packages/host/src/services/plugin-contributions.ts'
+} from '../../packages/services/plugins/src/plugin-contributions.ts'
 import { isReservedHostId } from '../../packages/contracts/src/plugin-api/view.ts'
 import {
   createPluginFixture,

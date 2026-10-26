@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ShellBridge } from '../../packages/host/src/shell.ts'
+import { ShellBridge } from '../../packages/kernel/src/shell.ts'
 import type { ShellCall, ShellCallResult } from '../../packages/contracts/src/host-rpc/index.ts'
 
 /**

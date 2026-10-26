@@ -9,7 +9,7 @@ import {
   DEFAULT_THEME,
   findBuiltinTheme
 } from '../../../../packages/contracts/src/theme/builtin.ts'
-import { shell } from '../shell.ts'
+import { shell } from '../../../kernel/src/shell.ts'
 import type {
   AppearancePreference,
   AppearanceState

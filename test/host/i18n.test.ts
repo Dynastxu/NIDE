@@ -6,8 +6,8 @@ import {
   HostI18n,
   LanguagePackRegistry,
   resolvePluginTitle
-} from '../../packages/host/src/services/i18n.ts'
-import type { LanguagePackEntry } from '../../packages/host/src/services/i18n.ts'
+} from '../../packages/services/i18n/src/i18n.ts'
+import type { LanguagePackEntry } from '../../packages/services/i18n/src/i18n.ts'
 import { parsePlaceholder } from '../../packages/contracts/src/plugin-api/manifest-nls.ts'
 import type { PluginManifestNls } from '../../packages/contracts/src/plugin-api/contributions.ts'
 

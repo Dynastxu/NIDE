@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   AiProviderService,
   AiProviderServiceError
-} from '../../packages/host/src/services/ai-provider.ts'
-import { ProviderConfigStore } from '../../packages/host/src/services/ai-provider-config.ts'
-import { SecretVault } from '../../packages/host/src/services/secrets.ts'
-import type { SecretsBackend } from '../../packages/host/src/services/secrets.ts'
+} from '../../packages/services/ai/src/ai-provider.ts'
+import { ProviderConfigStore } from '../../packages/services/ai/src/ai-provider-config.ts'
+import { SecretVault } from '../../packages/services/secrets/src/secrets.ts'
+import type { SecretsBackend } from '../../packages/services/secrets/src/secrets.ts'
 import { AI_PROVIDER_ERROR_CODES } from '../../packages/contracts/src/ai-provider/index.ts'
 
 /**

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { isSafePathSegment } from '../../../../packages/contracts/src/ai-provider/index.ts'
-import { shell } from '../shell.ts'
+import { shell } from '../../../kernel/src/shell.ts'
 import type {
   SafeStoragePlaintext,
   SafeStorageStatus

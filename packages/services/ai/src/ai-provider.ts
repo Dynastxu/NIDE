@@ -27,7 +27,7 @@ import {
   type TestProviderResult
 } from '../../../../packages/contracts/src/ai-provider/index.ts'
 
-import { SecretDecryptError, type SecretVault } from './secrets.ts'
+import { SecretDecryptError, type SecretVault } from '../../secrets/src/secrets.ts'
 import { ProviderConfigStore } from './ai-provider-config.ts'
 import {
   ProviderRequestError,

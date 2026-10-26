@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { builtinViews } from '../../packages/host/src/services/builtin-views.ts'
+import { builtinViews } from '../../packages/services/plugins/src/builtin-views.ts'
 import {
   HOST_COMMIT_VIEW_ID,
   HOST_EXPLORER_VIEW_ID,

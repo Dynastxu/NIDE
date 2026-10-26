@@ -15,38 +15,22 @@ import { RpcRegistry } from '../../kernel/src/rpc.ts'
 import { installNideContext, type HostEnvironment } from '../../kernel/src/context.ts'
 import { projectService } from '../../services/project/src/index.ts'
 import type { HostProjectStore } from '../../services/project/src/host-project-store.ts'
+import type { PluginManager } from '../../services/plugins/src/plugins.ts'
 import {
   initializeProjectDirectory,
   loadProjectConfig,
   updateProjectConfig
 } from '../../services/config/src/project-config.ts'
 import { contentService } from '../../services/content/src/index.ts'
-import { PluginManager, pluginPreferencePath } from './services/plugins.ts'
-import { builtinViews } from './services/builtin-views.ts'
-import { HostI18n } from './services/i18n.ts'
-import { HostAppearance } from './services/appearance.ts'
-import { AiProviderService, AiProviderServiceError } from './services/ai-provider.ts'
-import { ProviderConfigStore } from './services/ai-provider-config.ts'
-import { SecretVault } from './services/secrets.ts'
-import { shell } from './shell.ts'
-import type { TitleResolver } from './services/plugins.ts'
-import {
-  AI_PROVIDER_ERROR_CODES,
-  type ChatOpenRequest,
-  type ChatStreamEvent,
-  type ProviderError,
-  type SaveProviderRequest,
-  type TestProviderRequest
-} from '../../../packages/contracts/src/ai-provider/index.ts'
+import { shell } from '../../kernel/src/shell.ts'
+import { configService } from '../../services/config/src/index.ts'
+import { pluginsService } from '../../services/plugins/src/index.ts'
+import { i18nService } from '../../services/i18n/src/index.ts'
+import { appearanceService } from '../../services/appearance/src/index.ts'
+import { secretsService } from '../../services/secrets/src/index.ts'
+import { aiService, type AiService } from '../../services/ai/src/index.ts'
+import type { ChatStreamEvent } from '../../../packages/contracts/src/ai-provider/index.ts'
 
-/** 把服务抛出的错误收敛成给渲染进程看的领域错误 */
-function toProviderError(error: unknown): ProviderError {
-  if (error instanceof AiProviderServiceError) return error.providerError
-  return {
-    code: AI_PROVIDER_ERROR_CODES.internal,
-    message: error instanceof Error ? error.message : 'AI 供应商操作失败'
-  }
-}
 import type {
   ProjectConfig,
   ProjectConfigUpdateResult
@@ -188,48 +172,10 @@ const userDataDir = options.userData
 fs.mkdirSync(userDataDir, { recursive: true })
 
 /**
- * 插件目录。
- *
- * 内置插件在**应用根**下（dev = 仓库根，打包 = `resources/app`），由 shell 通过
- * `--app-root` 传进来；第三方插件在 userData 下，用户可写。独立运行 host 时没有
- * `--app-root`，回落到仓库根。
+ * 内置插件与应用根的关系由 plugins 服务自己从 `ctx.env.appRoot` 读；
+ * 这里仍保留 appRoot 给 ready 报文用。
  */
 const appRoot = options.appRoot ? path.resolve(options.appRoot) : REPO_ROOT
-const plugins = new PluginManager({
-  builtinDir: path.join(appRoot, 'plugins', 'builtin'),
-  thirdPartyDir: path.join(userDataDir, 'plugins'),
-  preferencePath: pluginPreferencePath(userDataDir)
-})
-
-/**
- * 本地化。
- *
- * 语言包来自插件目录（`plugins.contributions().locales`），偏好文件也在 userData —
- * 所以「用哪个语言」这件事完全在 host 里决定，shell 只传系统语言候选（那只有
- * Electron 知道）。每次 i18n 调用前重灌一遍语言包：安装 / 卸载插件之后集合会变。
- */
-const i18n = new HostI18n({ userDataDir })
-
-/**
- * 主题 / 外观。
- *
- * 偏好文件（`appearance.json`）与「哪套主题生效」的解析都在这里；`nativeTheme`
- * 那一下通过反向桥请 shell 做。shell 缓存一份状态，因为开窗要同步拿窗口底色。
- */
-const appearance = new HostAppearance({ userDataDir })
-
-/**
- * AI 供应商。
- *
- * 服务本身是**插件后端的替身**（`builtin.ai-provider` 的 `main` 侧还没做），
- * 但它依赖的数据都在 host 的 userData 下：`ai-provider/providers.json` 与
- * `secrets/<owner>/<id>.bin`（密文）。密钥的加解密走反向桥（`safeStorage`）。
- */
-const secrets = new SecretVault(path.join(userDataDir, 'secrets'))
-const ai = new AiProviderService(
-  new ProviderConfigStore(path.join(userDataDir, 'ai-provider', 'providers.json')),
-  secrets
-)
 
 /**
  * 流式事件出口。
@@ -238,14 +184,6 @@ const ai = new AiProviderService(
  * 先放一个空实现，等接上再换。AI 对话的 SSE 分片走这条通道，和请求-响应分开。
  */
 let emitStreamEvent: (event: ChatStreamEvent) => void = () => {}
-
-function syncLanguagePacks(): void {
-  i18n.setPacks(plugins.contributions().locales)
-}
-
-/** 贡献点的标题解析器：交给 `HostI18n`，它知道当前语言与 manifest 词条 */
-const resolveTitle: TitleResolver = (pluginId, titleSpec, fallback) =>
-  i18n.resolveTitle(plugins.manifestNls(pluginId), titleSpec) || fallback
 
 /**
  * 第一批 namespace。
@@ -286,12 +224,28 @@ const hostCtx = installNideContext(host.ctx, {
  * 顺序只对「谁先 provide」有影响；服务之间一律在**调用时**用
  * `ctx.services.require(...)` 取，所以顺序不构成依赖。
  */
-for (const service of [projectService, contentService]) {
+const services = [
+  projectService,
+  contentService,
+  configService,
+  pluginsService,
+  i18nService,
+  appearanceService,
+  secretsService,
+  aiService
+]
+
+for (const service of services) {
   service.apply(hostCtx)
 }
 
 /** 项目生命周期服务（`provide('project', …)` 在它的 apply 里做过） */
 const projects = hostCtx.services.require<HostProjectStore>('project')
+
+/** AI 的分片出口：接到父端口的 `stream-event`（IPC attach 之后才真正可用） */
+hostCtx.services.require<AiService>('ai').setStreamSink((event) => {
+  emitStreamEvent(event)
+})
 
 // 第一个走 ctx.rpc 的命名空间：服务包照这个形状注册自己的 namespace
 hostCtx.rpc.register('host', {
@@ -303,23 +257,10 @@ hostCtx.rpc.register('host', {
     userData: userDataDir,
     appRoot,
     projects: projects.list().length,
-    plugins: plugins.list().length
+    plugins: hostCtx.services.require<PluginManager>('plugins').list().length
   })
 })
 
-/**
- * 「打开过的项目」。
- *
- * 这份 `projects.json` 的**唯一**实现：读、写、当前项目都在这里。shell 不再碰这个
- * 文件，它只负责目录对话框、二次确认与窗口；窗口要的「当前项目」由本 namespace 给。
- *
- * - `startup`：启动时该默认打开哪个（它同时把「当前项目」定下来）
- * - `open` / `forget` / `close`：打开 / 从列表移除 / 结束这次会话
- * - `setCurrent`：窗口绑定同步（端口建立后 preload 把建窗时的 `--nide-project=` 送上来）
- *
- * 只认**列表里已有**的记录这一点只在 `setCurrent` 里：`open` 是唯一会新增记录的方法，
- * 其余入口都不该凭空造出一个项目。
- */
 /**
 /**
  * 项目文件读写。
@@ -355,134 +296,6 @@ rpc.register('config', {
     if (target.length === 0) return null
 
     return initializeProjectDirectory(target)
-  }
-})
-
-/**
- * 插件：装了哪些、哪些被禁用、浏览器半在哪、界面里有哪些视图与设置页。
- *
- * 读盘、收敛、**标题解析**都在 host：视图 / 设置页描述符直接给已解析的 `title`，
- * 语言来自上面的 `i18n`。shell 只做两件事：把内建视图拼在视图表前面（那几条标题是
- * 宿主的词条，用 shell 缓存的载荷翻），以及按需转发。
- */
-rpc.register('plugins', {
-  list: () => plugins.list(),
-  disabled: () => plugins.disabled(),
-  setEnabled: (pluginId, enabled) => {
-    plugins.setEnabled(String(pluginId ?? ''), enabled === true)
-    return plugins.disabled()
-  },
-  clientBundles: () => plugins.clientBundles(),
-
-  /** 视图表：内建视图（文件树 / 版本控制 / 提交）在前，插件视图在后，标题都已解析 */
-  views: () => [...builtinViews((key) => i18n.message(key)), ...plugins.views(resolveTitle)],
-
-  /** 设置页，已滤掉被禁用插件的页，标题已解析 */
-  settings: () => plugins.settings(resolveTitle),
-
-  install: (sourceDir) => {
-    const result = plugins.install(String(sourceDir ?? ''))
-    syncLanguagePacks()
-    return result
-  },
-  remove: (pluginId) => {
-    const result = plugins.remove(String(pluginId ?? ''))
-    syncLanguagePacks()
-    return result
-  },
-
-  /** 重新扫描目录（安装 / 卸载之后由 shell 调用） */
-  rescan: () => {
-    plugins.scan()
-    syncLanguagePacks()
-    return plugins.list()
-  }
-})
-
-/**
- * 本地化。
- *
- * `init` 由 shell 在启动时调用一次（它把 Electron 才知道的系统语言候选传进来），
- * `setLocale` 是设置页切语言走的路 —— 落盘与重建载荷在 host，重建窗口在 shell。
- * `payload` 给渲染进程与 shell 的 `t()` 用（shell 缓存一份，见 `src/main/i18n`）。
- */
-rpc.register('i18n', {
-  init: (request) => {
-    syncLanguagePacks()
-    const system = (request as { system?: unknown } | undefined)?.system
-    return i18n.init(Array.isArray(system) ? system.map((tag) => String(tag)) : [])
-  },
-  setLocale: (locale) => {
-    syncLanguagePacks()
-    return i18n.setLocale(String(locale ?? ''))
-  },
-  payload: () => i18n.payload()
-})
-
-/**
- * 主题 / 外观。
- *
- * `setTheme` 落盘并更新原生明暗，返回新状态；主题不存在时回 null（shell 据此
- * 告诉设置页「没改成」）。`payload` 给 shell 缓存与渲染进程的查询用。
- */
-rpc.register('appearance', {
-  init: () => appearance.init(),
-  payload: () => appearance.payload(),
-  setTheme: (request) => {
-    const payload = (request ?? {}) as { theme?: unknown; followSystem?: unknown }
-    return appearance.setTheme(String(payload.theme ?? ''), payload.followSystem === true)
-  }
-})
-
-/**
- * AI 供应商：设置页的读写 + Agent 的透明转发。
- *
- * `save` / `remove` 把**领域错误**当成返回值（`{ ok:false, error:{ code, message } }`），
- * 而不是抛出去：错误码是给渲染进程看的数据（`keyRequired` / `baseUrlConflict` …），
- * RPC 的错误包装只剩一个 message，跨进程后就分不清了。
- *
- * `open` 返回 `requestId`，之后的 SSE 分片走 `stream-event`（见 `emitStreamEvent`）。
- */
-rpc.register('ai', {
-  list: async () => {
-    try {
-      return await ai.list()
-    } catch (error) {
-      console.warn('[nide-host] failed to list AI providers', { error })
-      return []
-    }
-  },
-
-  save: async (request) => {
-    try {
-      return { ok: true, provider: await ai.save(request as SaveProviderRequest) }
-    } catch (error) {
-      return { ok: false, error: toProviderError(error) }
-    }
-  },
-
-  remove: async (providerId) => {
-    try {
-      await ai.remove(String(providerId ?? ''))
-      return { ok: true }
-    } catch (error) {
-      return { ok: false, error: toProviderError(error) }
-    }
-  },
-
-  test: (request) => ai.test(request as TestProviderRequest),
-
-  open: (request) =>
-    ai.open(request as ChatOpenRequest, (event) => {
-      emitStreamEvent(event)
-    }),
-
-  abort: (requestId) => {
-    ai.abort(String(requestId ?? ''))
-  },
-
-  abortAll: () => {
-    ai.abortAll()
   }
 })
 
