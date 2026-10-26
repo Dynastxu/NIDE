@@ -61,12 +61,22 @@ export type ShellMethod =
   | 'nativeTheme.setSource'
   /** 系统当前是不是深色 */
   | 'nativeTheme.shouldUseDarkColors'
-  /** `safeStorage` 可用吗（不可用时拒绝加解密） */
-  | 'safeStorage.isAvailable'
+  /** 系统安全存储能用吗（含 Linux 上「退化成明文」的判定） */
+  | 'safeStorage.status'
   /** 明文 -> base64 密文 */
   | 'safeStorage.encrypt'
-  /** base64 密文 -> 明文；解不开时抛错 */
+  /** base64 密文 -> { 明文, 是否需要重新加密 }；解不开时抛错 */
   | 'safeStorage.decrypt'
+
+/** `safeStorage.decrypt` 的结果：Electron 会提示系统密钥轮换过，该重写这份密文 */
+export interface SafeStoragePlaintext {
+  plaintext: string
+  shouldReEncrypt: boolean
+}
+
+export interface SafeStorageStatus {
+  available: boolean
+}
 
 export interface ShellCall {
   type: 'shell-call'
@@ -108,4 +118,23 @@ export function isRpcResponse(value: unknown): value is RpcResponse {
     typeof candidate.id === 'string' &&
     typeof candidate.ok === 'boolean'
   )
+}
+
+/**
+ * host -> shell 的**流式事件**（一次 RPC 之后陆续到来的分片）。
+ *
+ * 只有流式 API 用它（现在只有 AI 对话的 SSE）。`requestId` 由 host 在 `open` 时
+ * 生成，shell 拿它找到发起那次请求的窗口，再转给渲染进程 —— 所以它和 `rpc-result`
+ * 是两条并行的通道，同一个请求会先回 `rpc-result`（带 requestId），再持续来事件。
+ */
+export interface HostStreamEvent {
+  type: 'stream-event'
+  requestId: string
+  event: unknown
+}
+
+export function isHostStreamEvent(value: unknown): value is HostStreamEvent {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as { type?: unknown; requestId?: unknown }
+  return candidate.type === 'stream-event' && typeof candidate.requestId === 'string'
 }

@@ -99,7 +99,7 @@ describe('ShellBridge', () => {
     const harness = capture()
     bridge.attach((message) => harness.sent.push(message as ShellCall))
 
-    const promise = bridge.call<number>('safeStorage.isAvailable')
+    const promise = bridge.call<number>('safeStorage.status')
     const result = harness.ok(1)
 
     expect(bridge.settle(result)).toBe(true)

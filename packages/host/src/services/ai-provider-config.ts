@@ -1,35 +1,36 @@
-import { app } from 'electron'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   PROVIDER_CONFIG_VERSION,
-  parseAiProviderConfigFile,
-  type AiProviderConfigFile
-} from '@shared/ai-provider'
-import { loggerFor } from '../../logger'
-
-const logger = loggerFor('ai-provider')
+  parseAiProviderConfigFile
+} from '../../../../src/shared/ai-provider/index.ts'
+import type { AiProviderConfigFile } from '../../../../src/shared/ai-provider/index.ts'
 
 /**
- * 供应商**非密**配置的落盘。
+ * 供应商**非密**配置的落盘（host 侧）。
  *
  * 和密钥分开：这个文件里只有 baseURL / model / thinking 这些可以随便读的东西，
- * 密钥在 `secrets/<pluginId>/<providerId>.bin`（密文）。分开的好处是设置页
- * 展示列表时不需要碰密钥仓，读配置的代码也永远不会顺手把 key 带出去。
+ * 密钥在 `secrets/<pluginId>/<providerId>.bin`（密文）。分开的好处是设置页展示列表
+ * 时不需要碰密钥仓，读配置的代码也永远不会顺手把 key 带出去。
  *
  * 写入串行化 + 原子替换：两个设置窗口同时保存时不会出现半份 JSON。
+ * 路径由 host 入口注入（`<userData>/ai-provider/providers.json`，与搬迁前一致）。
  */
+
+function warn(message: string, fields?: Record<string, unknown>): void {
+  if (fields) console.warn(`[nide-host] ${message}`, fields)
+  else console.warn(`[nide-host] ${message}`)
+}
+
 export class ProviderConfigStore {
   private cache: AiProviderConfigFile | null = null
   private writeChain: Promise<void> = Promise.resolve()
+  // 显式字段而不是参数属性：host 直接跑 .ts，Node 的类型剥离不支持 `constructor(private x)`
+  private readonly filePath: string
 
-  constructor(
-    private readonly filePath: string = path.join(
-      app.getPath('userData'),
-      'ai-provider',
-      'providers.json'
-    )
-  ) {}
+  constructor(filePath: string) {
+    this.filePath = filePath
+  }
 
   async read(): Promise<AiProviderConfigFile> {
     if (this.cache) return structuredClone(this.cache)
@@ -40,7 +41,7 @@ export class ProviderConfigStore {
     } catch (err) {
       // 首次启动（文件不存在）与文件损坏走同一条：空配置不是错误
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.error('Failed to read the AI provider config, using defaults', { error: err })
+        warn('Failed to read the AI provider config, using defaults', { error: err })
       }
       this.cache = {
         version: PROVIDER_CONFIG_VERSION,
@@ -75,7 +76,7 @@ export class ProviderConfigStore {
       await fs.rename(tmp, target)
     } catch (err) {
       await fs.rm(tmp, { force: true })
-      logger.error('Failed to write the AI provider config', { error: err })
+      warn('Failed to write the AI provider config', { error: err })
       throw err
     }
   }

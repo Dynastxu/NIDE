@@ -11,7 +11,7 @@ Cordis/DSH 架构的**核心竖切已经跑通**：Electron shell → 独立 hos
 语言包 / manifest 词条** / **本地化（语言包瀑布、语言偏好、标题解析）** 的实现只有
 一份，在 host；插件清单 / 启停 / 本地安装 / 卸载 / 信任确认也在 host。现有界面外观未改。
 
-**但旧实现没有全部迁完**：AI / secrets、核心 UI 组件仍在 shell 或旧路径
+**但旧实现没有全部迁完**：核心 UI 组件仍在 shell（D1），theme/AI/secrets 已迁完
 （逐项见 §4.1）。下一步不是继续加新功能，而是在 §4 里挑一条搬完。
 
 ## 1. 目标与已锁定决策
@@ -190,15 +190,29 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - 协议在 [src/shared/host-rpc/index.ts](src/shared/host-rpc/index.ts)：
   `shell-call` / `shell-result`，方法名是白名单 `ShellMethod`
   （`nativeTheme.setSource` / `nativeTheme.shouldUseDarkColors` /
-  `safeStorage.isAvailable|encrypt|decrypt`）；
+  `safeStorage.status|encrypt|decrypt`；密文走 base64，解密结果带 `shouldReEncrypt`）；
 - host 侧 [packages/host/src/shell.ts](packages/host/src/shell.ts) 的 `ShellBridge`：
   `call(method, args, timeoutMs)`，没挂在 shell 下时直接 reject（独立运行不假装成功），
   shell 退出时 `detach()` 把挂着的调用全部拒掉；
 - shell 侧 [src/main/host/capabilities.ts](src/main/host/capabilities.ts)：
   `handleShellCall` 按白名单执行并回包，参数逐个校验；`attachShellCapabilities(proc)`
   在 `process.ts` 启 host 时挂上；
-- 这套东西是给 **theme / appearance 与 secrets 搬进 host** 铺路的：业务在 host，
-  `nativeTheme` / `safeStorage` 只有 Electron 有。
+- 使用者：`services/appearance.ts`（主题）与 `services/secrets.ts`（密钥仓）。
+
+### AI 供应商 / 密钥（host）
+- [packages/host/src/services/ai-provider.ts](packages/host/src/services/ai-provider.ts)：
+  配置读写、测试连接、`open` 的 SSE 转发（逻辑与搬迁前逐条一致，含「改 Base URL
+  必须重输 key」这条防转发规则）；
+- 配置在 `<userData>/ai-provider/providers.json`（[ai-provider-config.ts](packages/host/src/services/ai-provider-config.ts)），
+  密钥在 `<userData>/secrets/<owner>/<id>.bin`（[secrets.ts](packages/host/src/services/secrets.ts)，
+  加解密走 `safeStorage` 反向桥，测试注入假后端）；
+- HTTP 在 [ai-provider-http.ts](packages/host/src/services/ai-provider-http.ts)（从 shell 原样搬来）；
+- **流式事件**：`ai.open` 返回 `requestId`，之后的分片走 host → shell 的
+  `stream-event`（[host-rpc](../../src/shared/host-rpc/index.ts) 的 `HostStreamEvent`），
+  shell 的 `subscribeHostStream` 按 requestId 找到发起窗口再转给渲染进程；
+- shell 的 [ai-provider.ipc.ts](src/main/ipc/ai-provider.ipc.ts) 只剩三件事：
+  插件启用检查、窗口归属（分片只回发起者、窗口销毁即取消）、载荷形状校验。
+  领域错误码以 `{ ok:false, error }` 的形式跨进程（RPC 的错误包装只剩 message）。
 
 ### 客户端 Cordis / slots
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；
@@ -253,10 +267,15 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - 第十批 `68fac0e`：`ctx.shell` 反向能力桥 —— `shell-call` / `shell-result` 协议、
   host 的 `ShellBridge`、shell 的 `capabilities.ts`（`nativeTheme` / `safeStorage`
   白名单）；`test/host/shell-bridge.test.ts`。
-- 第十一批（未提交）：theme / appearance 搬进 host —— `services/appearance.ts`
+- 第十一批 `e60325e`：theme / appearance 搬进 host —— `services/appearance.ts`
   持有偏好与解析，`nativeTheme` 走反向桥；shell 只缓存 `AppearanceState`（窗口底色 /
   启动参数要同步）。共享层 `theme/builtin.ts` 改成纯数据、`appearance/preference.ts`
   独立，host 才能加载。`test/host/appearance.test.ts`、`test/shared/theme/theme-data.test.ts`。
+- 第十二批（未提交）：AI 供应商 + 密钥仓搬进 host —— `services/ai-provider*.ts`、
+  `services/secrets.ts`（`safeStorage` 反向桥，测试注入假后端）；RPC 增加
+  `stream-event` 流式通道与 `subscribeHostStream`；shell 的 `ai-provider.ipc.ts`
+  只剩启用检查 / 窗口归属 / 形状校验。`test/host/ai-provider.test.ts`、
+  `test/host/secrets.test.ts`。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -276,8 +295,9 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
    仍剩 D10（每包 `locale/*.json`，让插件自带 locale 目录而不是 manifest 里声明文件）。
 6. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
 7. ~~**theme / appearance 服务化**~~ —— 已完成（第十一批）。
-8. **剩余迁移**：AI / secrets 服务化（secrets 走 `safeStorage` 反向桥，AI 的流式
-   响应要先给 RPC 加事件通道）；核心 UI 组件搬进 `client-ui-*`；D10；视觉回归。
+8. ~~**AI / secrets 服务化**~~ —— 已完成（第十二批，含 `stream-event` 流式通道）。
+9. **剩余迁移**：核心 UI 组件搬进 `client-ui-*`（D1）；D10（每包 `locale/*.json`）；
+   视觉回归；最后删掉 shell 的 IPC 转发回退、禁用集合镜像、`host-views` 表。
 
 ### 4.1 迁移完成度（哪些还在旧实现）
 
@@ -285,14 +305,12 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 项目生命周期（列表 / 打开 / 移除 / 关闭 / 启动恢复）；插件清单 / 启停 / 本地安装 /
 卸载 / 信任确认 / **视图 / 设置页 / 语言包 / manifest 词条的读取**；
 **本地化（语言包瀑布 / 语言偏好 / 标题解析）**；**主题 / 外观（偏好 + 解析，
-nativeTheme 走反向桥）**；通用 RPC；host 启动必需。
+nativeTheme 走反向桥）**；**AI 供应商 / 密钥仓**；通用 RPC；host 启动必需。
 
 **仍在 shell / 旧实现**：
 - `src/main/plugin-host/` 只剩 `host-views`（三条内建视图）与 `preference`
   （禁用集合的镜像，host 不可达时兜底）—— 前者因为标题要用 shell 缓存的载荷翻；
 - logger（日志文件归 shell，host 的 stdout 由它接管，不打算搬）；
-- AI provider / secrets（`secrets/vault.ts` 走 `safeStorage` 反向桥；AI 的流式响应
-  要先给 RPC 加事件通道）；
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell）；
 - 核心 UI 组件（`client-ui-*` 目前只是把 `@renderer/App` 等包一层 slot）；
 - 编译 host / asar / 签名、视觉回归、D10。
@@ -376,6 +394,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
 | `packages/host/src/services/i18n.ts` | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析 |
 | `packages/host/src/services/appearance.ts` | host 侧主题 / 外观：`appearance.json` 偏好 + 主题解析（nativeTheme 走反向桥） |
+| `packages/host/src/services/ai-provider.ts` | host 侧 AI 供应商：配置 / 测试连接 / SSE 转发 |
+| `packages/host/src/services/secrets.ts` | host 侧密钥仓（密文落盘；加解密走 `safeStorage` 反向桥） |
+| `src/main/ipc/ai-provider.ipc.ts` | shell 边界：启用检查 + 把分片转给发起窗口（`subscribeHostStream`） |
 | `src/main/appearance/index.ts` | shell 的 `AppearanceState` 缓存（窗口底色 / 启动参数要同步） |
 | `src/main/plugin-host/host-views.ts` | 三条内建视图（文件树 / 版本控制 / 提交），标题用 shell 缓存的载荷翻 |
 | `src/main/plugin-host/preference.ts` | 禁用集合的 shell 镜像（host 是写入方，这里兜底） |
@@ -492,31 +513,33 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
 > 当前状态：项目文件 / 章节 / 伏笔 / 图鉴 / 概述 / 配置 / **项目生命周期（列表 /
 > 打开 / 移除 / 关闭）** / **插件的视图 / 设置页 / 语言包 / manifest 词条** /
-> **本地化（语言包瀑布 / 偏好 / 标题解析）** / **主题 / 外观** 的
-> **实现只有一份**，在 host。客户端 slots 与运行时 bundle 在 **dev 与打包后都可用**
-> （后者走 `nide-plugin://`），UI 未变。打包 `asar: false` + 源码 host 已用
-> `electron.exe <resources/app>` 验证过；`nide.exe` 未签名会被 SmartScreen 拦。
-> **旧实现没有全部迁完**：AI/secrets、核心 UI 组件仍在 shell（见 §4.1）。
-> 下一步按 §4：① AI / secrets 搬 host（先给 RPC 加事件通道）；② 核心 UI 插件化
-> （D1）+ D10；③ 发布化（编译 host + asar + 签名）。npm 安装来源已明确跳过。
-> 第十一批可能还没 commit，先看 `git status`。
+> **本地化（语言包瀑布 / 偏好 / 标题解析）** / **主题 / 外观** / **AI 供应商与
+> 密钥仓** 的 **实现只有一份**，在 host。客户端 slots 与运行时 bundle 在
+> **dev 与打包后都可用**（后者走 `nide-plugin://`），UI 未变。打包 `asar: false` +
+> 源码 host 已用 `electron.exe <resources/app>` 验证过；`nide.exe` 未签名会被
+> SmartScreen 拦。
+> **旧实现没有全部迁完**：核心 UI 组件仍在 shell（D1），见 §4.1。
+> 下一步按 §4：① 核心 UI 插件化（D1）+ D10；② 发布化（编译 host + asar + 签名）；
+> ③ 收尾删掉 shell 的回退路径。npm 安装来源已明确跳过。
+> 第十二批可能还没 commit，先看 `git status`。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
 
 - [x] `pnpm typecheck` / `pnpm typecheck:host` 绿（host 工程现在包含
-      [test/host](../../test/host) 的 14 份用例）
-- [ ] `pnpm test` 重跑：第十批之前是 36 文件；第十 / 十一批新增
+      [test/host](../../test/host) 的 16 份用例）
+- [ ] `pnpm test` 重跑：第十批之前是 36 文件；第十 / 十一 / 十二批新增
       `test/host/shell-bridge.test.ts`、`test/host/appearance.test.ts`、
+      `test/host/secrets.test.ts`、`test/host/ai-provider.test.ts`、
       `test/shared/theme/theme-data.test.ts`，还没在用户终端跑过
 - [x] `pnpm dev` 手工验证：从文件夹安装 → 默认禁用 → 启用信任确认 → 卸载；
       视图 / 设置树同步更新，UI 插件启用后不重启即可显示
 - [x] `pnpm dev`：启动自动拉起 host；新建项目生成 `.nide` + 默认图鉴 / 概述预设
 - [x] `pnpm dev` 复验第六批（项目生命周期）：启动进主窗口、换项目、关闭项目回欢迎窗口、
       从列表移除、关掉主窗口后重开（不该再问「切换项目」）
-- [ ] `pnpm dev` 复验第七 / 九 / 十一批（插件贡献点 + 本地化 + 主题）：视图标题、
-      设置树子页、语言切换（中文 <-> English）、换主题（深/浅，窗口底色不该露异色）
-      都正常，英文下没有裸 key
+- [ ] `pnpm dev` 复验第七 / 九 / 十一 / 十二批（插件贡献点 + 本地化 + 主题 + AI）：
+      视图标题、设置树子页、语言切换（中文 <-> English）、换主题（深/浅，窗口底色
+      不该露异色）、AI 供应商设置页的读写与测试连接（需要真 key 才测连通）都正常
 - [x] **打包后插件 UI**：`pnpm build:unpack` 产物用 `electron.exe
       resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
       `nide-plugin://plugin/builtin.demo/client.js`，随后 `view served by client modules`
@@ -532,5 +555,5 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第十一批改动未提交**（theme/appearance 搬 host），先 commit 再开工
+- [ ] **第十二批改动未提交**（AI 供应商 / 密钥仓搬 host），先 commit 再开工
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

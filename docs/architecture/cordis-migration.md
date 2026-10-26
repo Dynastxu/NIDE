@@ -43,10 +43,10 @@
   - **本地化也搬到 host 了**：[services/i18n.ts](../../packages/host/src/services/i18n.ts) 持有语言包注册表（逐 key 瀑布：第三方 -> 内置 -> 中文基础表）、语言偏好（`<userData>/locale.json`）与 manifest 标题解析；RPC 是 `i18n.init({system})` / `setLocale` / `payload`。`plugins.views` / `plugins.settings` 直接下发**已解析标题**的描述符，shell 的 `language-packs` / `preference` / `manifest-nls` 与四张缓存表全删，只剩一份 `I18nPayload` 缓存（窗口标题、菜单、对话框要同步取文案）。`test/host/i18n.test.ts` 覆盖瀑布与偏好。
   - **主题 / 外观也搬到 host 了**：[services/appearance.ts](../../packages/host/src/services/appearance.ts) 持有 `appearance.json` 偏好与主题解析，`nativeTheme` 通过反向桥（`shell.call`）设置；shell 只缓存一份 `AppearanceState`（窗口底色与启动参数要同步）。共享层为此把 `theme/builtin.ts` 改成纯数据、`appearance/preference.ts` 独立成自包含文件。
   - **`ctx.shell` 反向桥已接**：`shell-call` / `shell-result` 协议 + host 的 `ShellBridge` + shell 的 `capabilities.ts`（`nativeTheme` / `safeStorage` 白名单）。这是 D7 的第一块，也是 AI/secrets 搬家的前置。
+  - **AI 供应商与密钥仓也搬到 host 了**：[services/ai-provider.ts](../../packages/host/src/services/ai-provider.ts) + [secrets.ts](../../packages/host/src/services/secrets.ts)（密文落盘，加解密走 `safeStorage` 反向桥，测试注入假后端）。RPC 因此多了 `stream-event` 流式通道（`ai.open` 返回 requestId，分片由 host 推给 shell 再转给发起窗口）；shell 的 `ai-provider.ipc.ts` 只剩启用检查、窗口归属与形状校验。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
-- 下一步：**继续搬旧实现**。① AI provider 与 secrets 搬 host（先给 RPC 加事件通道
-  解决流式响应）；② 核心 UI 插件化（D1）与 D10；③ 发布化（编译 host + 恢复 asar +
-  签名）。npm 安装来源用户已明确跳过。
+- 下一步：**继续搬旧实现**。① 核心 UI 插件化（D1）与 D10；② 发布化（编译 host +
+  恢复 asar + 签名）；③ 收尾删掉 shell 的回退路径。npm 安装来源用户已明确跳过。
 
 ## 0. 已锁定决策
 

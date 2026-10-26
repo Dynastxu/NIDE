@@ -4,22 +4,26 @@ import {
   parseModelsResponse,
   type ModelInfo,
   type ProviderError
-} from '@shared/ai-provider'
+} from '../../../../src/shared/ai-provider/index.ts'
 
 /**
  * 供应商请求失败。`status` 为 0 表示网络层失败（没拿到 HTTP 响应）。
  */
 export class ProviderRequestError extends Error {
-  constructor(
-    readonly status: number,
-    readonly providerError: ProviderError
-  ) {
+  // 显式字段而不是参数属性：host 直接跑 .ts，Node 的类型剥离不支持 `constructor(readonly x)`
+  readonly status: number
+  readonly providerError: ProviderError
+
+  constructor(status: number, providerError: ProviderError) {
     super(providerError.message)
+    this.status = status
+    this.providerError = providerError
     this.name = 'ProviderRequestError'
   }
 }
 
-function authHeaders(apiKey: string, accept: string): HeadersInit {
+// host 的 tsconfig 没有 DOM lib（`HeadersInit` 在那边），这里用等价的普通对象类型
+function authHeaders(apiKey: string, accept: string): Record<string, string> {
   return {
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',

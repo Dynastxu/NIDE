@@ -25,23 +25,45 @@ import {
   type SaveProviderRequest,
   type TestProviderRequest,
   type TestProviderResult
-} from '@shared/ai-provider'
-import { loggerFor } from '../../logger'
-import { SecretDecryptError, type SecretVault } from '../../secrets/vault'
-import { ProviderConfigStore } from './config-store'
+} from '../../../../src/shared/ai-provider/index.ts'
+
+import { SecretDecryptError, type SecretVault } from './secrets.ts'
+import { ProviderConfigStore } from './ai-provider-config.ts'
 import {
   ProviderRequestError,
   fetchModels,
   openChatCompletion,
   readResponseStream
-} from './deepseek'
+} from './ai-provider-http.ts'
 
-const logger = loggerFor('ai-provider')
+/** 日志出口：host 的 console 会被 shell 的 stdout 接管，落进同一份日志文件 */
+const logger = {
+  info: (message: string, fields?: Record<string, unknown>): void => {
+    if (fields) console.info(`[nide-host] ${message}`, fields)
+    else console.info(`[nide-host] ${message}`)
+  },
+  warn: (message: string, fields?: Record<string, unknown>): void => {
+    if (fields) console.warn(`[nide-host] ${message}`, fields)
+    else console.warn(`[nide-host] ${message}`)
+  },
+  error: (message: string, fields?: Record<string, unknown>): void => {
+    if (fields) console.error(`[nide-host] ${message}`, fields)
+    else console.error(`[nide-host] ${message}`)
+  },
+  debug: (message: string, fields?: Record<string, unknown>): void => {
+    if (fields) console.debug(`[nide-host] ${message}`, fields)
+    else console.debug(`[nide-host] ${message}`)
+  }
+}
 
 /** 服务层错误：带上可以直接交给渲染进程的 code/message */
 export class AiProviderServiceError extends Error {
-  constructor(readonly providerError: ProviderError) {
+  // 显式字段而不是参数属性：host 直接跑 .ts，Node 的类型剥离不支持 `constructor(readonly x)`
+  readonly providerError: ProviderError
+
+  constructor(providerError: ProviderError) {
     super(providerError.message)
+    this.providerError = providerError
     this.name = 'AiProviderServiceError'
   }
 }
@@ -78,12 +100,20 @@ function toError(err: unknown): ProviderError {
  */
 export class AiProviderService {
   private readonly inflight = new Map<string, InflightChat>()
+  // 显式字段而不是参数属性：host 直接跑 .ts，Node 的类型剥离不支持 `constructor(private x)`
+  private readonly store: ProviderConfigStore
+  private readonly vault: SecretVault
+  private readonly owner: string
 
   constructor(
-    private readonly store: ProviderConfigStore,
-    private readonly vault: SecretVault,
-    private readonly owner: string = AI_PROVIDER_PLUGIN_ID
-  ) {}
+    store: ProviderConfigStore,
+    vault: SecretVault,
+    owner: string = AI_PROVIDER_PLUGIN_ID
+  ) {
+    this.store = store
+    this.vault = vault
+    this.owner = owner
+  }
 
   async list(): Promise<ProviderSummary[]> {
     const config = await this.store.read()

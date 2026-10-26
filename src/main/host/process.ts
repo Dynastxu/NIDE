@@ -8,7 +8,9 @@ import {
   type WebContents
 } from 'electron'
 import { loggerFor } from '../logger'
+import { isHostStreamEvent } from '@shared/host-rpc'
 import { attachShellCapabilities } from './capabilities'
+import type { HostStreamEvent } from '@shared/host-rpc'
 
 /**
  * Electron shell 侧的 host 进程管理（MVP）。
@@ -45,9 +47,28 @@ interface PendingHostCall {
 const pendingCalls = new Map<string, PendingHostCall>()
 let callSeq = 0
 
-/** 把一条 host 回包交给等着的调用；不是 rpc-result 就忽略 */
+/**
+ * 流式事件的订阅者（现在只有一个：AI 对话的转发层）。
+ *
+ * 返回退订函数：模块热替换 / 测试里要能摘掉，否则同一个事件会被转发多次。
+ */
+const streamListeners = new Set<(event: HostStreamEvent) => void>()
+
+export function subscribeHostStream(listener: (event: HostStreamEvent) => void): () => void {
+  streamListeners.add(listener)
+  return () => {
+    streamListeners.delete(listener)
+  }
+}
+
+/** 把一条 host 回包交给等着的调用；流式事件先分发给订阅者，其余忽略 */
 function settleHostMessage(message: unknown): void {
   if (!message || typeof message !== 'object') return
+
+  if (isHostStreamEvent(message)) {
+    for (const listener of streamListeners) listener(message)
+    return
+  }
 
   const data = message as {
     type?: string

@@ -1,0 +1,4 @@
+{
+  "//": "shared/ai-provider 是纯数据契约（没有任何 import），host 的纯 Node ESM 直接加载它。",
+  "type": "module"
+}

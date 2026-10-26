@@ -39,8 +39,28 @@ import {
 import { PluginManager, pluginPreferencePath } from './services/plugins.ts'
 import { HostI18n } from './services/i18n.ts'
 import { HostAppearance } from './services/appearance.ts'
+import { AiProviderService, AiProviderServiceError } from './services/ai-provider.ts'
+import { ProviderConfigStore } from './services/ai-provider-config.ts'
+import { SecretVault } from './services/secrets.ts'
 import { shell } from './shell.ts'
 import type { TitleResolver } from './services/plugins.ts'
+import {
+  AI_PROVIDER_ERROR_CODES,
+  type ChatOpenRequest,
+  type ChatStreamEvent,
+  type ProviderError,
+  type SaveProviderRequest,
+  type TestProviderRequest
+} from '../../../src/shared/ai-provider/index.ts'
+
+/** 把服务抛出的错误收敛成给渲染进程看的领域错误 */
+function toProviderError(error: unknown): ProviderError {
+  if (error instanceof AiProviderServiceError) return error.providerError
+  return {
+    code: AI_PROVIDER_ERROR_CODES.internal,
+    message: error instanceof Error ? error.message : 'AI 供应商操作失败'
+  }
+}
 import { filePathKey } from '../../../src/shared/project/files.ts'
 import type {
   CreateEntryRequest,
@@ -204,6 +224,27 @@ const i18n = new HostI18n({ userDataDir })
  * 那一下通过反向桥请 shell 做。shell 缓存一份状态，因为开窗要同步拿窗口底色。
  */
 const appearance = new HostAppearance({ userDataDir })
+
+/**
+ * AI 供应商。
+ *
+ * 服务本身是**插件后端的替身**（`builtin.ai-provider` 的 `main` 侧还没做），
+ * 但它依赖的数据都在 host 的 userData 下：`ai-provider/providers.json` 与
+ * `secrets/<owner>/<id>.bin`（密文）。密钥的加解密走反向桥（`safeStorage`）。
+ */
+const secrets = new SecretVault(path.join(userDataDir, 'secrets'))
+const ai = new AiProviderService(
+  new ProviderConfigStore(path.join(userDataDir, 'ai-provider', 'providers.json')),
+  secrets
+)
+
+/**
+ * 流式事件出口。
+ *
+ * 由 host 入口在 IPC 就绪后注入（`ipc.send`）—— RPC 注册先于 attach，所以这里
+ * 先放一个空实现，等接上再换。AI 对话的 SSE 分片走这条通道，和请求-响应分开。
+ */
+let emitStreamEvent: (event: ChatStreamEvent) => void = () => {}
 
 function syncLanguagePacks(): void {
   i18n.setPacks(plugins.contributions().locales)
@@ -688,6 +729,58 @@ rpc.register('appearance', {
 })
 
 /**
+ * AI 供应商：设置页的读写 + Agent 的透明转发。
+ *
+ * `save` / `remove` 把**领域错误**当成返回值（`{ ok:false, error:{ code, message } }`），
+ * 而不是抛出去：错误码是给渲染进程看的数据（`keyRequired` / `baseUrlConflict` …），
+ * RPC 的错误包装只剩一个 message，跨进程后就分不清了。
+ *
+ * `open` 返回 `requestId`，之后的 SSE 分片走 `stream-event`（见 `emitStreamEvent`）。
+ */
+rpc.register('ai', {
+  list: async () => {
+    try {
+      return await ai.list()
+    } catch (error) {
+      console.warn('[nide-host] failed to list AI providers', { error })
+      return []
+    }
+  },
+
+  save: async (request) => {
+    try {
+      return { ok: true, provider: await ai.save(request as SaveProviderRequest) }
+    } catch (error) {
+      return { ok: false, error: toProviderError(error) }
+    }
+  },
+
+  remove: async (providerId) => {
+    try {
+      await ai.remove(String(providerId ?? ''))
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: toProviderError(error) }
+    }
+  },
+
+  test: (request) => ai.test(request as TestProviderRequest),
+
+  open: (request) =>
+    ai.open(request as ChatOpenRequest, (event) => {
+      emitStreamEvent(event)
+    }),
+
+  abort: (requestId) => {
+    ai.abort(String(requestId ?? ''))
+  },
+
+  abortAll: () => {
+    ai.abortAll()
+  }
+})
+
+/**
  * 如果挂在 Electron shell 下，先挂 IPC 再宣告 ready。
  * 独立运行时 attached=false，行为和之前完全一致。
  */
@@ -716,6 +809,14 @@ const ipc = attachHostIpc({
 if (ipc.attached) {
   shell.attach((message) => ipc.send(message))
   logger.info('shell capabilities attached')
+
+  /**
+   * 流式事件出口接上：`ipc.send` 走父端口，shell 按 requestId 找到发起那次请求的
+   * 窗口再转给渲染进程（见 `src/main/host/process.ts` 的 stream-event 分发）。
+   */
+  emitStreamEvent = (event) => {
+    ipc.send({ type: 'stream-event', requestId: event.requestId, event })
+  }
 }
 
 logger.info(

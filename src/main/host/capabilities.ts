@@ -32,25 +32,47 @@ const handlers: Record<string, Handler> = {
 
   'nativeTheme.shouldUseDarkColors': () => nativeTheme.shouldUseDarkColors,
 
-  'safeStorage.isAvailable': () => safeStorage.isEncryptionAvailable(),
-
-  'safeStorage.encrypt': (args) => {
-    const plaintext = args[0]
-    if (typeof plaintext !== 'string') throw new Error('safeStorage.encrypt expects a string')
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error('safeStorage is not available on this machine')
+  /**
+   * 系统安全存储能不能用。
+   *
+   * 判定照搬搬迁前 `SecretVault` 的那一套：Linux 上没有 secret store 时 Electron 会
+   * 退回硬编码密码的 `basic_text`，那等于没加密 —— 宁可不存，也不写一份假密文。
+   */
+  'safeStorage.status': async () => {
+    let available: boolean
+    try {
+      available = await safeStorage.isAsyncEncryptionAvailable()
+    } catch {
+      // 老 Electron / 平台不支持异步 API 时退回同步探测
+      available = safeStorage.isEncryptionAvailable()
     }
-    // 只传 base64：Buffer 跨进程会被结构化克隆成 Uint8Array，两端类型对不上
-    return safeStorage.encryptString(plaintext).toString('base64')
+
+    if (available && process.platform === 'linux') {
+      try {
+        if (safeStorage.getSelectedStorageBackend() === 'basic_text') available = false
+      } catch {
+        available = false
+      }
+    }
+
+    return { available }
   },
 
-  'safeStorage.decrypt': (args) => {
+  'safeStorage.encrypt': async (args) => {
+    const plaintext = args[0]
+    if (typeof plaintext !== 'string') throw new Error('safeStorage.encrypt expects a string')
+
+    // 只传 base64：Buffer 跨进程会被结构化克隆成 Uint8Array，两端类型对不上
+    const encrypted = await safeStorage.encryptStringAsync(plaintext)
+    return encrypted.toString('base64')
+  },
+
+  'safeStorage.decrypt': async (args) => {
     const ciphertext = args[0]
     if (typeof ciphertext !== 'string') throw new Error('safeStorage.decrypt expects a string')
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error('safeStorage is not available on this machine')
-    }
-    return safeStorage.decryptString(Buffer.from(ciphertext, 'base64'))
+
+    const decrypted = await safeStorage.decryptStringAsync(Buffer.from(ciphertext, 'base64'))
+    return { plaintext: decrypted.result, shouldReEncrypt: decrypted.shouldReEncrypt }
   }
 }
 
