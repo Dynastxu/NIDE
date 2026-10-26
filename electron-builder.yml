@@ -3,19 +3,25 @@ productName: NIDE
 directories:
   buildResources: build
 
-# host 现在跑**编译产物**（`out/host/**`，由 `pnpm build:host` 生成），源码里的
+# host 跑**编译产物**（`out/host/**`，由 `pnpm build:host` 生成），源码里的
 # `packages/host` / `packages/boot` / `packages/hello` / `src/shared` 不再随包。
 #
-# asar 仍然关着：`utilityProcess.fork()` 的入口在 asar 里是已知的坑（ESM +
-# asar 虚拟文件系统的组合），profile 里的插件路径也还是绝对路径。等「profile 用
-# 包标识符 + host 入口从 asar 解到临时目录」之后再打开。
-asar: false
+# asar 已恢复：主进程 / 预加载 / 渲染进程都在 asar 里（Electron 正常路径）。
+# host 是 `utilityProcess.fork()` 出来的独立 Node 进程 —— 入口、profile、要动态
+# import 的插件必须是**真实文件**，所以下面这几样通过 `asarUnpack` 放到
+# `resources/app.asar.unpacked/`；shell 侧按 `app.asar` → `app.asar.unpacked/`
+# 换根（见 `src/main/host/process.ts` 的 packagedRoot）。
+asar: true
+
+# 这些是「host 进程要直接读 / 执行的文件」，不能留在 asar 里
+asarUnpack:
+  - out/host/**
+  - plugins/**
 
 files:
   # 渲染进程 / 主进程 / 预加载的构建产物 + 编译后的 host（out/host）
   - out/**
-  # profile 模板与内建插件（host 的 --app-root 指向这里）
-  - profiles/**
+  # 内建插件（manifest 与 dist/client.js）
   - plugins/**
   - package.json
   # 杂项

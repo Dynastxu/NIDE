@@ -295,8 +295,11 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   `packages/host/src/index.ts`，行为不变；
 - `electron-builder.yml` 的 `files` 因此只留 `out/**` + `profiles/**` + `plugins/**`
   + `package.json` —— 源码形式的 `packages/*` 与 `src/shared` 不再进包；
-- **asar 仍然关着**：`utilityProcess.fork()` 的入口在 asar 里是已知的坑，profile 里
-  的插件路径也还是绝对路径。等「profile 用包标识符 + 入口解到临时目录」再开；
+- **asar 已恢复**：主进程 / 预加载 / 渲染进程都在 asar 里；host 是
+  `utilityProcess.fork()` 出来的独立进程，它的入口、profile、要动态 import 的插件
+  必须是真实文件，所以 `out/host/**` 与 `plugins/**` 走 `asarUnpack` 放到
+  `resources/app.asar.unpacked/`，shell 侧按 `app.asar` → `app.asar.unpacked` 换根
+  （`packagedRoot()`），`--app-root` 与子进程 cwd 也用它；
 - **签名**：证书不进仓库，走 electron-builder 的标准环境变量
   `CSC_LINK` / `CSC_KEY_PASSWORD`；没配时产物未签名（Windows 会拦 `nide.exe`）。
 
@@ -373,9 +376,8 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 5. ~~**i18n 服务化**~~ —— 已完成（第九批）。语言包瀑布 / 偏好 / 标题解析都在 host，
    shell 只缓存一份载荷；`src/main/plugin-host` 的四张表随之删除。
    仍剩 D10（每包 `locale/*.json`，让插件自带 locale 目录而不是 manifest 里声明文件）。
-6. **发布化**：~~编译 host~~（第十六批，已完成，`build:host` + `--dist-root`）；
-   剩下 asar（要先解决 `utilityProcess.fork` 的 asar 入口与 profile 包标识符）、
-   `build:win` 实跑、签名证书。
+6. ~~**发布化**~~ —— 编译 host（第十六批）、asar + `asarUnpack`（第十六批后半）。
+   剩下：`build:win` 实跑验收、签名证书（`CSC_LINK` / `CSC_KEY_PASSWORD`）。
 7. ~~**theme / appearance 服务化**~~ —— 已完成（第十一批）。
 8. ~~**AI / secrets 服务化**~~ —— 已完成（第十二批，含 `stream-event` 流式通道）。
 9. ~~**核心 UI 插件化（D1）**~~ —— 已完成（第十三 / 十四 / 十五批）：共享层
@@ -647,7 +649,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 - [ ] **第十六批改动未提交**（编译 host + 打包配置），先 commit 再开工
 - [x] 编译产物实跑：`node out/host/packages/host/src/index.js --dist-root out/host --once`
       通过（profile 从产物里取、hello 插件加载、内建插件扫描到 3 个）
-- [ ] `pnpm build:unpack` 复跑：产物里应只有 `out/** / profiles/** / plugins/**`，
-      `resources/app/out/host/...` 存在；用 `electron.exe resources/app` 起，
-      日志里的 host 入口是 `out/host/packages/host/src/index.js`
+- [ ] `pnpm build:unpack` 复跑（asar 已开）：`resources/app.asar` 存在，
+      `resources/app.asar.unpacked/out/host/...` 与 `.../plugins/builtin/...` 存在；
+      用 `electron.exe` 起（不能再直接 `electron.exe resources/app`，asar 要走
+      `resources/app.asar`），日志里的 host 入口是 unpacked 里的
+      `out/host/packages/host/src/index.js`
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

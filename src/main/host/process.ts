@@ -113,21 +113,33 @@ export interface StartHostOptions {
 }
 
 /**
+ * 打包版里「真实文件」的根。
+ *
+ * 恢复 asar 之后 `app.getAppPath()` 是 `.../app.asar` —— 一个虚拟路径。host 是
+ * `utilityProcess.fork()` 出来的独立 Node 进程，它的入口、profile、要动态 import 的
+ * 插件都必须是**真实文件**，所以这些目录用 `asarUnpack` 放到 `app.asar.unpacked/`，
+ * 这里给出那个真实根。
+ */
+function packagedRoot(): string {
+  const appPath = app.getAppPath()
+  return appPath.endsWith('.asar') ? `${appPath}.unpacked` : appPath
+}
+
+/**
  * host 入口。
  *
  * - 开发（`app.isPackaged === false`）：直接跑源码 `packages/host/src/index.ts`，
  *   Electron 自带的 Node 做类型剥离，改代码不用先构建；
- * - 打包版：跑编译产物 `out/host/packages/host/src/index.js`，并把
+ * - 打包版：跑编译产物 `out/host/packages/host/src/index.js`（asar 外），并把
  *   `--dist-root` 指过去（profile 模板与 `{{NIDE_ROOT}}` 都在那边）。
  *
  * 找不到时只记一条错误：`startHost()` 接下来的失败会带着这条上下文，比一个孤零零的
  * spawn 错误容易查得多。
  */
 export function resolveHostEntry(): string {
-  const appRoot = app.getAppPath()
   const entry = app.isPackaged
-    ? path.join(appRoot, 'out', 'host', 'packages', 'host', 'src', 'index.js')
-    : path.join(appRoot, 'packages', 'host', 'src', 'index.ts')
+    ? path.join(packagedRoot(), 'out', 'host', 'packages', 'host', 'src', 'index.js')
+    : path.join(app.getAppPath(), 'packages', 'host', 'src', 'index.ts')
 
   if (!fs.existsSync(entry)) {
     logger.error('host entry not found; the packaged app is missing out/host', { entry })
@@ -137,7 +149,17 @@ export function resolveHostEntry(): string {
 
 /** 打包版才有编译产物根；开发时返回 null，host 用源码树里的 profiles */
 function resolveHostDistRoot(): string | null {
-  return app.isPackaged ? path.join(app.getAppPath(), 'out', 'host') : null
+  return app.isPackaged ? path.join(packagedRoot(), 'out', 'host') : null
+}
+
+/**
+ * 传给 host 的 `--app-root`：内建插件（`<root>/plugins/builtin`）的根。
+ *
+ * 打包版用 asar 外的真实根 —— host 要读插件的 manifest 与 `dist/client.js`，
+ * 这些也都是 asarUnpack 出去的。
+ */
+function resolveHostAppRoot(): string {
+  return app.isPackaged ? packagedRoot() : app.getAppPath()
 }
 
 function resolveHostHome(explicit?: string): string {
@@ -176,16 +198,17 @@ export function startHost(options: StartHostOptions = {}): Promise<void> {
       home,
       '--user-data',
       app.getPath('userData'),
-      // 内置插件目录在 app 根下；dev 与打包版语义一致（见 resolveHostEntry）
+      // 内置插件目录的根；打包版是 asar 外的真实路径（见 resolveHostAppRoot）
       '--app-root',
-      app.getAppPath(),
+      resolveHostAppRoot(),
       // 编译产物根：打包版才传，host 用它找 profile 模板与 {{NIDE_ROOT}}
       ...(distRoot ? ['--dist-root', distRoot] : [])
     ],
     {
       serviceName: 'nide-host',
       stdio: 'pipe',
-      cwd: app.getAppPath(),
+      // 工作目录用真实路径：asar 里的路径不能当子进程的 cwd
+      cwd: resolveHostAppRoot(),
       env: childEnv(home)
     }
   )
