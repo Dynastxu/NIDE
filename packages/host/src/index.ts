@@ -10,8 +10,9 @@ import {
   resolveProfile,
   shutdown
 } from '../../boot/src/index.ts'
-import { attachHostIpc } from './ipc.ts'
-import { RpcRegistry } from './rpc.ts'
+import { attachHostIpc } from '../../kernel/src/ipc.ts'
+import { RpcRegistry } from '../../kernel/src/rpc.ts'
+import { installNideContext, type HostEnvironment } from '../../kernel/src/context.ts'
 import { HostProjectStore } from './services/project-store.ts'
 import {
   checkProjectOverviewDocument,
@@ -292,7 +293,27 @@ function caseInsensitivePaths(): boolean {
  * TODO: 从 ctx 服务自动注册；参数 schema 校验。
  */
 const rpc = new RpcRegistry()
-rpc.register('host', {
+
+/**
+ * 把 `ctx.rpc` / `ctx.services` / `ctx.env` 挂到 Cordis 上下文上。
+ *
+ * 这是「一切皆插件」的接入点：服务包只需要 `{ name, apply(ctx) }`，不 import 内核。
+ * 现阶段装配仍在本文件，但它已经不需要知道服务怎么实现 —— 只负责把它们挂上 ctx。
+ */
+const env: HostEnvironment = {
+  profileDir: paths.profileDir,
+  profileName: paths.profileName,
+  home: paths.home,
+  userDataDir,
+  appRoot
+}
+const hostCtx = installNideContext(host.ctx, {
+  rpc: { register: (namespace, handlers) => rpc.register(namespace, handlers) },
+  env
+})
+
+// 第一个走 ctx.rpc 的命名空间：服务包照这个形状注册自己的 namespace
+hostCtx.rpc.register('host', {
   ping: () => ({ pong: Date.now() }),
   info: () => ({
     profile: paths.profileName,

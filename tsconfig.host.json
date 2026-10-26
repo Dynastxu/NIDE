@@ -29,6 +29,7 @@
     "packages/host/**/*.ts",
     "packages/boot/**/*.ts",
     "packages/hello/**/*.ts",
+    "packages/kernel/**/*.ts",
     "test/host/**/*.ts"
   ]
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { RpcRegistry } from '../../packages/host/src/rpc.ts'
+import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
 
 /**
  * host 的 RPC 注册表。

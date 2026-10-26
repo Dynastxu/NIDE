@@ -55,7 +55,7 @@ profiles/desktop/cordis.yml  # 唯一的装配点
 | 0 | 写下这份约定 + 目标树，代码不动 | 极低 | 完成 |
 | 1 | `src/shared` → `packages/contracts/src`（别名名暂留，见阶段 2） | 低（纯搬运） | 完成 |
 | 2 | 别名 `@shared` → `@nide/contracts`，删掉旧名字 | 低（机械替换） | 完成 |
-| 3 | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配 | 中 | 待做 |
+| 3 | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配 | 中 | 进行中（内核已完成） |
 | 4 | `src/main` → `packages/shell`：窗口 / 菜单 / 对话框 / 日志 / 协议变成 `ctx.shell.*` 服务 | 中 | 待做 |
 | 5 | `client-kit` 拆成 `sdk` + `ui/*`；`client-runtime` 按声明装配窗口 | 中高 | 待做 |
 | 6 | `apps/desktop` 只剩 bootstrap；`cordis.yml` 列全所有包 | 低 | 待做 |
@@ -71,6 +71,58 @@ profiles/desktop/cordis.yml  # 唯一的装配点
 - host 的运行时导入是**相对路径**（`../../../packages/contracts/src/...`），
   所以搬目录必须跟着改；`scripts/build-host.mts` 里复制 `imports` 映射的目标
   也跟着改成 `out/host/packages/contracts/src/...`。
+
+## 3.1 阶段 3 的设计（内核 + 服务）
+
+### 内核（`packages/kernel`）
+
+只做三件事：RPC 注册表、父端口 / renderer 端口 transport、**上下文扩展**。
+
+```ts
+// packages/kernel/src/context.ts
+interface NideContext extends Context {
+  rpc:      { register(namespace, handlers): () => void }
+  services: { provide(name, value), require<T>(name), has(name) }
+  env:      HostEnvironment   // profileDir / profileName / home / userDataDir / appRoot
+}
+```
+
+- `installNideContext(ctx, { rpc, env })` 把这三样挂上去（不可枚举、只读）；
+- **服务名重复 provide 抛错**，`require` 找不到也抛 —— 装配错误在启动期暴露，
+  而不是拖到第一次 RPC；
+- 刻意不碰 Cordis 的 `provide` / `inject`：那套语义还在演进，先用一层 40 行、
+  看得懂的注册表；等 loader 支持包标识符后可以平滑替换。
+
+### 服务包
+
+```ts
+// packages/services/project/src/index.ts
+export const projectService = {
+  name: 'nide:service:project',
+  apply(ctx: NideContext): void {
+    const store = new HostProjectStore(ctx.env.userDataDir)
+    ctx.services.provide('project', store)
+    ctx.rpc.register('project', { list: () => store.list(), /* … */ })
+  }
+}
+```
+
+约定：
+
+1. **服务只 import `@nide/contracts` 与 `@nide/kernel` 的类型**，不 import 宿主入口，
+   也不互相 import —— 互相取用一律走 `ctx.services`；
+2. **每个服务自己注册 RPC 命名空间**（namespace 与包名一一对应）；
+3. `host/src/index.ts` 最后只剩：解析参数 → `boot(paths)` → `installNideContext` →
+   `ctx.plugin(service)` 若干 → `attachHostIpc`。
+
+### 已经落地的部分（本阶段第一步）
+
+- `packages/kernel/src/{rpc,ipc,context}.ts`：RPC 注册表与 transport 从
+  `packages/host/src/` 搬进来；`installNideContext` 新增；
+- `host/src/index.ts` 里 `host` 命名空间改走 `hostCtx.rpc.register(...)`，
+  作为「服务怎么写」的样板；其余 namespace 仍是本地 `rpc.register`，逐批迁；
+- `test/host/kernel-context.test.ts` 钉住：三样都在、注册真的落到同一张表、
+  重复 provide / 缺失 require 抛错、扩展属性只读且不可枚举。
 
 ## 4. 阶段 3 之后 `cordis.yml` 的样子（示意）
 
