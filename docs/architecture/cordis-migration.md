@@ -15,7 +15,7 @@
   - 依赖已 pin：`@deepseek-ai/cordis@4.0.5`、`cordis-plugin-loader@1.0.6`、`include@1.0.10`、`group@1.0.5`、`timer@1.1.7`、`js-yaml@4.3.2`；npm 走 npmmirror。
   - **shell ↔ host 握手已接上**：[src/main/host/process.ts](../../packages/shell/src/main/host/process.ts) 用 `utilityProcess.fork` 拉起 host，等 `ready`，支持 `ping/pong` 与 `shutdown`。**host 现在是启动必需**：文件 / 配置的实现全在它里面；另有 `invokeHost` 走父端口做 shell → host RPC（新建项目时的 `config.initialize`）。
   - [packages/host/src/ipc.ts](../../packages/host/src/ipc.ts) 同时支持 Electron `process.parentPort` 与 Node `child_process.fork` 的 IPC 载体。
-  - 冒烟脚本：[scripts/host-ipc-node-smoke.mjs](../../scripts/host-ipc-node-smoke.mjs)（纯 Node；已通过）。真实 Electron 启动用 `pnpm dev` 验证，日志里能看到 `host process is ready`、`ipc=true` 与 `Host port attached`。
+  - 冒烟脚本：[scripts/host-ipc-node-smoke.mts](../../scripts/host-ipc-node-smoke.mts)（纯 Node；已通过）。真实 Electron 启动用 `pnpm dev` 验证，日志里能看到 `host process is ready`、`ipc=true` 与 `Host port attached`。
   - **renderer ↔ host 直连 port 已接**：主进程在 `did-finish-load` 后用 `MessageChannelMain` 把 port 分给 host 与 renderer；preload 暴露 `window.nideHost.invoke(namespace, method, ...args)`。
   - **通用 RPC 骨架已跑通**：协议在 [src/shared/host-rpc](../../src/shared/host-rpc/index.ts)，host 侧 [RpcRegistry](../../packages/host/src/rpc.ts) 负责分发/错误包装，首个 namespace 是 `host.info`；renderer 启动后调用它。
   - **第一个业务 namespace 已接**：`project.list` / `current` / `startup`。纯数据模型从 `src/shared/project` 拆到 [store.ts](../../src/shared/project/store.ts)（无 `@nide/contracts` 别名，host 可直接 import），Electron 侧的 `projects.json` 由 shell 通过 `--user-data` 传给 host。

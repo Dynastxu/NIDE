@@ -21,6 +21,7 @@
     "vitest.config.*",
     "packages/shell/src/**/*",
     "packages/contracts/src/**/*",
+    "scripts/**/*.mts",
     "test/main/**/*",
     "test/shared/**/*",
     "test/fixtures/**/*"

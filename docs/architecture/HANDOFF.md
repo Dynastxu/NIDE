@@ -671,8 +671,8 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       —— 说明协议、CSP、host 清单三处都对上了
 - [x] 图鉴 / 概述 / 角色图鉴 / 项目配置读路径正常
 - [x] `EditorPanes` 的 ResizeObserver 修复已验证：持续刷屏消失（只剩首次布局的一条）
-- [ ] `pnpm lint`：只剩 `scripts/host-ipc-node-smoke.mjs` 的两个
-      `explicit-function-return-type`（迁移前就有，与本次改动无关）
+- [x] `pnpm lint`：0 error（`scripts/host-ipc-node-smoke` 改成 `.mts` 并补返回类型后，
+      `pnpm ci` 的 lint 门槛才真正通过）；剩 17 个迁移前就有的 warning（React 19 惯用法）
 - [x] `pnpm build:unpack` 通过：用 `electron.exe dist\win-unpacked\resources\app`
       启动，host ready、新建项目初始化、读写正常（当前 `asar: false` + 源码 host）
 - [ ] 代码签名：`nide.exe` 未签名会被 SmartScreen 拦；发布前配 `win.certificateFile`
