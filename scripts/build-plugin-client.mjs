@@ -104,10 +104,13 @@ for (const job of jobs) {
           replacement: `${path.resolve(root, 'packages/client-kit/src')}/`
         },
         {
+          find: /^@nide\/client-ui-main\//,
+          replacement: `${path.resolve(root, 'packages/client-ui-main/src')}/`
+        },
+        {
           find: /^@nide\/client-ui-settings\//,
           replacement: `${path.resolve(root, 'packages/client-ui-settings/src')}/`
         },
-        { find: '@renderer', replacement: path.resolve(root, 'src/renderer/src') },
         { find: '@shared', replacement: path.resolve(root, 'src/shared') }
       ]
     },

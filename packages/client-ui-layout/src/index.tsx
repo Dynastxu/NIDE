@@ -1,7 +1,7 @@
 import { createElement, type JSX } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import { slotsOf } from '@nide/client-ui-slots'
-import { ToolZone } from '@renderer/layout/ToolZone'
+import { ToolZone } from '@nide/client-ui-main/layout/ToolZone'
 import type { ZoneId } from '@nide/client-kit/stores/layout.store'
 
 /**

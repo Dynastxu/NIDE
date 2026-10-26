@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { initMonacoNls } from './monaco-env'
+import { initMonacoNls } from '@nide/client-kit/monaco-env'
 import { installRendererLogger, loggerFor } from '@nide/client-kit/logger'
 import './assets/index.css'
 import type { JSX } from 'react'
@@ -46,7 +46,7 @@ const logger = loggerFor('renderer')
  * 注意：加窗口种类时这里要补一条，而**不是**在下面 boot() 里加 if。
  */
 const ROOTS: Record<WindowType, () => Promise<{ default: () => JSX.Element }>> = {
-  main: () => import('./App'),
+  main: () => import('@nide/client-ui-main/App'),
   welcome: () => import('@nide/client-ui-welcome').then((m) => ({ default: m.WelcomeApp })),
   settings: () => import('@nide/client-ui-settings').then((m) => ({ default: m.SettingsApp }))
 }
@@ -94,7 +94,7 @@ async function boot(): Promise<void> {
    * 先按默认浅色画一帧再跳。
    */
   if (windowType === 'main') {
-    const { initMonacoTheme } = await import('./editor/monaco-theme')
+    const { initMonacoTheme } = await import('@nide/client-ui-main/editor/monaco-theme')
     initMonacoTheme()
   }
 

@@ -22,6 +22,10 @@ export default defineConfig({
     alias: [
       { find: /^@nide\/client-kit\//, replacement: `${resolve('packages/client-kit/src')}/` },
       {
+        find: /^@nide\/client-ui-main\//,
+        replacement: `${resolve('packages/client-ui-main/src')}/`
+      },
+      {
         find: /^@nide\/client-ui-settings\//,
         replacement: `${resolve('packages/client-ui-settings/src')}/`
       },
@@ -30,7 +34,6 @@ export default defineConfig({
         replacement: `${resolve('packages/client-ui-welcome/src')}/`
       },
       { find: '@shared', replacement: resolve('src/shared') },
-      { find: '@renderer', replacement: resolve('src/renderer/src') },
       { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') }
     ]
   },

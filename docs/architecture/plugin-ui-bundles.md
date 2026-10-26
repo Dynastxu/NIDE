@@ -100,7 +100,7 @@ pnpm build:plugin-demo             # 只构建 demo（--only demo，迭代时用
 - `build.lib` + `formats: ['iife']`；
 - `external: ['react', 'react-dom']` + `output.globals`；
 - `esbuild.jsx = 'transform'`，强制 classic JSX；
-- 别名与主工程一致（`@renderer` / `@shared`）；
+- 别名与主工程一致（`@nide/client-kit` / `@nide/client-ui-main` / `@shared`）；
 - `emptyOutDir: false` —— bundle 有可能声明在插件根上，清目录会删掉源码。
 
 打包前必须先跑它：`dist/` 是 gitignore 的，electron-builder 只带磁盘上已有的文件。

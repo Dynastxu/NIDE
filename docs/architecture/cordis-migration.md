@@ -45,11 +45,11 @@
   - **`ctx.shell` 反向桥已接**：`shell-call` / `shell-result` 协议 + host 的 `ShellBridge` + shell 的 `capabilities.ts`（`nativeTheme` / `safeStorage` 白名单）。这是 D7 的第一块，也是 AI/secrets 搬家的前置。
   - **AI 供应商与密钥仓也搬到 host 了**：[services/ai-provider.ts](../../packages/host/src/services/ai-provider.ts) + [secrets.ts](../../packages/host/src/services/secrets.ts)（密文落盘，加解密走 `safeStorage` 反向桥，测试注入假后端）。RPC 因此多了 `stream-event` 流式通道（`ai.open` 返回 requestId，分片由 host 推给 shell 再转给发起窗口）；shell 的 `ai-provider.ipc.ts` 只剩启用检查、窗口归属与形状校验。
   - **客户端共享层已抽出**：[packages/client-kit](../../packages/client-kit/src)（stores / ui / window 外壳 / logger / icons / palette / 插件视图渲染管线），别名 `@nide/client-kit/*`；渲染进程的窗口级代码改为 import 它，kit 不反向依赖渲染进程。
-  - **欢迎 / 设置两个窗口已进包**：`client-ui-welcome` 与 `client-ui-settings` 里现在是真的组件（不再包一层 `@renderer/*`），引导壳按包名动态 import；主窗口与它的编辑器 / 文件树 / 布局还在 `src/renderer/src`，是 D1 的最后一块。
+  - **欢迎 / 设置两个窗口已进包**：`client-ui-welcome` 与 `client-ui-settings` 里现在是真的组件（不再包一层 `@renderer/*`），引导壳按包名动态 import。
+  - **D1 完成**：主窗口的 `App` / `MainApp` / 编辑器 / 文件树 / 布局 / 内建视图表 / 文件菜单也进了 `client-ui-main`，`monaco-env` 进 kit；`src/renderer/src` 只剩 `main.tsx`（引导壳）+ `assets` + `env.d.ts`。旧的 `@renderer` 别名已从所有配置里删除。仍可选的后续优化是把主窗口内部拆成 `zone.*` / `editor.*` 子 slot。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
-- 下一步：**继续搬旧实现**。① 主窗口组件搬进 `client-ui-main`（`src/renderer/src`
-  只剩引导壳）；② 发布化（编译 host + 恢复 asar + 签名）；③ D10 与收尾删掉
-  shell 的回退路径。npm 安装来源用户已明确跳过。
+- 下一步：**继续搬旧实现**。① 发布化（编译 host + 恢复 asar + 签名）；
+  ② D10；③ 收尾删掉 shell 的回退路径。npm 安装来源用户已明确跳过。
 
 ## 0. 已锁定决策
 

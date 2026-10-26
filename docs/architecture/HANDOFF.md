@@ -61,8 +61,11 @@ Host（packages/host，纯 Node ESM）
    （`nativeTheme` / `safeStorage`，见 §3「ctx.shell」）
 
 Client（renderer，HTTP 页面里的第二棵 Cordis 树）
+├─ src/renderer/src/main.tsx：引导壳（按窗口种类 import 三个包、挂 slot）
 ├─ packages/client-runtime：Context + slots + modules + bundle loader
-├─ packages/client-ui-*：main / welcome / settings / layout
+├─ packages/client-kit：共享层（stores / ui / 窗口外壳 / 插件视图管线）
+├─ packages/client-ui-main / client-ui-welcome / client-ui-settings：窗口 UI 本体
+├─ packages/client-ui-layout：六个工具区的 slot 插件
 ├─ packages/client-ui-slots / client-ui-renderer
 └─ packages/client-modules：viewId -> Component
 ```
@@ -228,7 +231,7 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   等主窗口整体搬走；
 - Tailwind 的 `@source` 加了 `packages`（类名在包里的文件也要被扫到，否则样式会丢）。
 
-### 窗口包（D1 进行中）
+### 窗口包（D1 完成）
 - **welcome**：`packages/client-ui-welcome/src` 里是 `WelcomeApp` / `ProjectsPanel` /
   `SettingsButton` 本体；插件入口 `index.ts` 注册 `welcome.root`，同时导出
   `WelcomeApp` 给渲染进程的引导壳用；
@@ -236,13 +239,16 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   各设置页 / `RestartDialog` / `PluginsBrowser` / `PluginSettingsSlot`；
   表单入口注册 `settings.root`，并导出 `PluginsBrowser`（欢迎窗口的「插件」页复用它）
   与 `RestartDialog`（欢迎窗口也会用）；
-- **main**：仍然 `@renderer/App` 包一层（还没搬），`HostSlot`（内建视图表：文件树 /
-  版本控制 / 提交）也还在 `src/renderer/src/plugins`，它依赖 explorer / git / view；
-- 别名：`@nide/client-ui-settings/*`、`@nide/client-ui-welcome/*` 是**正则子路径**
-  别名，必须排在精确别名前面 —— 字符串别名会把 `pkg/sub` 拼成 `index.ts/sub`；
-- 目前 `src/renderer/src` 只剩：`main.tsx`（引导壳）、`App.tsx` / `MainApp.tsx`、
-  `editor/ explorer/ entry/ git/ host-view/ layout/ plugins/(HostSlot) view/ window/(MainMenu)`、
-  `stores/entry-action.store.ts`。
+- **main**：`packages/client-ui-main/src` 里是 `App`（启动编排）/ `MainApp`（窗口外观）
+  / `layout` / `editor` / `explorer` / `entry` / `git` / `host-view` / `view` /
+  `plugins/HostSlot` / `window/MainMenu` / `stores/entry-action.store`；
+- **`src/renderer/src` 只剩引导壳**：`main.tsx` + `assets/`（Tailwind 入口与浅色表）
+  + `env.d.ts`。引导壳按 `windowType` 动态 import 三个包里的窗口组件，然后挂
+  client-runtime 的 slot；
+- 别名：`@nide/client-ui-*` / `@nide/client-kit` 的子路径是**正则**别名，必须排在
+  精确别名前面 —— 字符串别名会把 `pkg/sub` 拼成 `index.ts/sub`；
+- 旧的 `@renderer` 别名（tsconfig.node / tsconfig.web / vite / vitest / bundle 脚本）
+  已全部删除：仓库里不再有这个路径映射。
 
 ### 客户端 Cordis / slots
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；
@@ -309,11 +315,16 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - 第十三批 `bbaa09f`：D1 第一步 —— 抽出 `packages/client-kit`（stores / ui /
   window 外壳 / logger / icons / palette），别名 `@nide/client-kit/*`，Tailwind
   `@source` 覆盖 packages；渲染进程的窗口级代码改 import kit，kit 不反向依赖渲染进程。
-- 第十四批（未提交）：D1 第二步 —— welcome / settings 两个窗口的组件搬进各自的包
+- 第十四批 `8280b8b`：D1 第二步 —— welcome / settings 两个窗口的组件搬进各自的包
   （`client-ui-welcome` 三个文件、`client-ui-settings` 十个文件 + `PluginsBrowser` /
   `PluginSettingsSlot` / `RestartDialog`）；插件视图渲染管线（`PluginSlot` /
   `PluginHostProvider` / `host-context`）进 kit 的 `plugin-views/`；引导壳按包名
   动态 import 窗口组件。窗口包别名是**正则子路径**，必须排在精确别名之前。
+- 第十五批（未提交）：D1 收尾 —— 主窗口的 `App` / `MainApp` / editor / explorer /
+  entry / git / host-view / layout / view / `HostSlot` / `MainMenu` /
+  `entry-action.store` 全部进 `client-ui-main`，`monaco-env` 进 kit；
+  `src/renderer/src` 只剩 `main.tsx` + `assets` + `env.d.ts`；
+  **`@renderer` 别名已从 tsconfig.node / tsconfig.web / vite / vitest / bundle 脚本里全部删除**。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -334,11 +345,9 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 6. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
 7. ~~**theme / appearance 服务化**~~ —— 已完成（第十一批）。
 8. ~~**AI / secrets 服务化**~~ —— 已完成（第十二批，含 `stream-event` 流式通道）。
-9. **核心 UI 插件化（D1）** —— 进行中：共享层 `@nide/client-kit`（第十三批）、
-   welcome / settings 两个窗口的组件（第十四批）都已搬进包。
-   剩下：`client-ui-main`（主窗口的 `App` / `MainApp` / 编辑器 / 文件树 / 布局 /
-   `HostSlot` / `MainMenu` / `entry-action.store`），最后 `src/renderer/src`
-   只留 `main.tsx` 这个引导壳。
+9. ~~**核心 UI 插件化（D1）**~~ —— 已完成（第十三 / 十四 / 十五批）：共享层
+   `@nide/client-kit`、三个窗口的组件都在各自包里，`src/renderer/src` 只剩引导壳。
+   仍剩的可选优化：把主窗口内部拆成 `zone.*` / `editor.*` 子 slot（现在是一个根组件）。
 10. **D10**（每包 `locale/*.json`）、视觉回归；
     最后删掉 shell 的 IPC 转发回退、禁用集合镜像、`host-views` 表。
 
@@ -355,9 +364,8 @@ nativeTheme 走反向桥）**；**AI 供应商 / 密钥仓**；通用 RPC；host
   （禁用集合的镜像，host 不可达时兜底）—— 前者因为标题要用 shell 缓存的载荷翻；
 - logger（日志文件归 shell，host 的 stdout 由它接管，不打算搬）；
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell）；
-- 核心 UI 组件：共享层与 welcome / settings 两个窗口已在包里；**主窗口的组件**
-  （`App` / `MainApp` / editor / explorer / layout / `HostSlot` / `MainMenu`）还在
-  `src/renderer/src`；
+- 核心 UI 组件：**已全部进包**（`client-kit` + 三个窗口包），`src/renderer/src`
+  只剩 `main.tsx` / `assets` / `env.d.ts`；
 - 编译 host / asar / 签名、视觉回归、D10。
 
 **旧实现里也没有的**：插件后端（`manifest.main`）、依赖解析、profile bundle /
@@ -601,5 +609,5 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第十四批改动未提交**（welcome / settings 搬进各自包），先 commit 再开工
+- [ ] **第十五批改动未提交**（主窗口搬进 `client-ui-main`），先 commit 再开工
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

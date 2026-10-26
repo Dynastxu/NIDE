@@ -12,7 +12,7 @@ import {
   resolveDocumentMode,
   type DocumentView,
   type DocumentViewInput
-} from '@renderer/editor/document-mode'
+} from '@nide/client-ui-main/editor/document-mode'
 import {
   CHAPTER_CATEGORY,
   DEFAULT_GALLERY_FIELDS,

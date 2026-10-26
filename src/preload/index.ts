@@ -101,7 +101,7 @@ ipcRenderer.on(HOST_CHANNELS.event, (_event, channel: string, ...args: unknown[]
  * 求值之前获取语言设置，而该初始化路径上不存在执行 await 的时机。
  * 完整的词条表仍通过 host:get-i18n 异步获取，两者互不冲突：此处仅返回
  * 一个语言标识字符串。
- * @see src/renderer/src/monaco-env.ts
+ * @see packages/client-kit/src/monaco-env.ts
  */
 function readBootLocale(): LocaleId {
   const arg = process.argv.find((item) => item.startsWith(LOCALE_ARG_PREFIX))

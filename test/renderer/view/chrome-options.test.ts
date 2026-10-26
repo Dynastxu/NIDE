@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_VIEW_CHROME } from '@shared/plugin-api'
-import { buildChromeConfig, resolveChromeOptions } from '@renderer/view/chrome-options'
+import { buildChromeConfig, resolveChromeOptions } from '@nide/client-ui-main/view/chrome-options'
 
 /**
  * 视图外壳开关的合并规则与默认值。
@@ -10,7 +10,7 @@ import { buildChromeConfig, resolveChromeOptions } from '@renderer/view/chrome-o
  * 一个点了没反应的「更多」按钮）。所以默认值本身也要被断言，不能只测合并。
  *
  * 放在 test/renderer 而不是 test/shared/plugin-api：这一份断言的是**渲染进程那一侧**
- * 的合并逻辑（`@renderer/view/chrome-options`），只有默认值来自 shared。测试跟被测的
+ * 的合并逻辑（`@nide/client-ui-main/view/chrome-options`），只有默认值来自 shared。测试跟被测的
  * 东西走同一个编译单元 —— 跟着 shared 走的话，这个 import 在 IDE 的项目检查里会报
  * TS6307（见 tsconfig.node.json 与 tsconfig.web.json 的 include 划分）。
  */
