@@ -18,20 +18,60 @@ export default defineConfig({
   },
   renderer: {
     resolve: {
-      alias: {
-        '@shared': shared,
-        '@renderer': resolve('src/renderer/src'),
-        // 客户端共享层：用前缀别名，`@nide/client-kit/stores/i18n.store` 直接落到 src 下
-        '@nide/client-kit': resolve('packages/client-kit/src'),
-        '@nide/client-runtime': resolve('packages/client-runtime/src/index.ts'),
-        '@nide/client-modules': resolve('packages/client-modules/src/index.ts'),
-        '@nide/client-ui-slots': resolve('packages/client-ui-slots/src/index.ts'),
-        '@nide/client-ui-main': resolve('packages/client-ui-main/src/index.ts'),
-        '@nide/client-ui-layout': resolve('packages/client-ui-layout/src/index.tsx'),
-        '@nide/client-ui-settings': resolve('packages/client-ui-settings/src/index.ts'),
-        '@nide/client-ui-welcome': resolve('packages/client-ui-welcome/src/index.ts'),
-        '@nide/client-ui-renderer': resolve('packages/client-ui-renderer/src/index.tsx')
-      }
+      /*
+       * 数组形式：子路径的正则别名要排在精确别名**前面**。
+       *
+       * 字符串别名在 rollup 里是「精确匹配或前缀 + '/'」——所以
+       * `'@nide/client-ui-settings' -> src/index.ts` 会把
+       * `@nide/client-ui-settings/PluginsBrowser` 错误地拼成
+       * `.../index.ts/PluginsBrowser`。子路径必须先用正则接住。
+       */
+      alias: [
+        { find: /^@nide\/client-kit\//, replacement: `${resolve('packages/client-kit/src')}/` },
+        {
+          find: /^@nide\/client-ui-settings\//,
+          replacement: `${resolve('packages/client-ui-settings/src')}/`
+        },
+        {
+          find: /^@nide\/client-ui-welcome\//,
+          replacement: `${resolve('packages/client-ui-welcome/src')}/`
+        },
+        { find: '@shared', replacement: shared },
+        { find: '@renderer', replacement: resolve('src/renderer/src') },
+        { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') },
+        {
+          find: '@nide/client-runtime',
+          replacement: resolve('packages/client-runtime/src/index.ts')
+        },
+        {
+          find: '@nide/client-modules',
+          replacement: resolve('packages/client-modules/src/index.ts')
+        },
+        {
+          find: '@nide/client-ui-slots',
+          replacement: resolve('packages/client-ui-slots/src/index.ts')
+        },
+        {
+          find: '@nide/client-ui-main',
+          replacement: resolve('packages/client-ui-main/src/index.ts')
+        },
+        {
+          find: '@nide/client-ui-layout',
+          replacement: resolve('packages/client-ui-layout/src/index.tsx')
+        },
+        {
+          find: '@nide/client-ui-settings',
+          replacement: resolve('packages/client-ui-settings/src/index.ts')
+        },
+        {
+          find: '@nide/client-ui-welcome',
+          replacement: resolve('packages/client-ui-welcome/src/index.ts')
+        },
+        {
+          find: '@nide/client-ui-renderer',
+          replacement: resolve('packages/client-ui-renderer/src/index.tsx')
+        }
+      ]
     },
     plugins: [tailwindcss(), react(), reactClickToComponent()],
     server: {

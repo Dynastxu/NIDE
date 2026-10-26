@@ -1,6 +1,6 @@
 import { JSX, useState } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import type { SettingsNode } from '@renderer/settings/pages'
+import type { SettingsNode } from '@nide/client-ui-settings/pages'
 
 /**
  * 左侧设置选项树。

@@ -1,6 +1,6 @@
 import { JSX } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import type { SettingsNode } from '@renderer/settings/pages'
+import type { SettingsNode } from '@nide/client-ui-settings/pages'
 
 /**
  * 默认设置页 —— **没有定义页面的设置项**点开时显示的内容。

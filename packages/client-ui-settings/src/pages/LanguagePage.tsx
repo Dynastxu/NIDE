@@ -1,6 +1,6 @@
 import { JSX, useEffect } from 'react'
 import { useI18nStore, useT } from '@nide/client-kit/stores/i18n.store'
-import type { SettingsPageProps } from '@renderer/settings/pages'
+import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
 
 /**
  * 设置 -> 语言。

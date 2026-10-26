@@ -92,10 +92,24 @@ for (const job of jobs) {
     root,
     logLevel: 'info',
     resolve: {
-      alias: {
-        '@renderer': path.resolve(root, 'src/renderer/src'),
-        '@shared': path.resolve(root, 'src/shared')
-      }
+      /*
+       * 与 electron.vite.config.ts 的 renderer 别名保持一致。
+       *
+       * 插件 UI 会 import `@nide/client-kit/...` 这类包内路径，所以子路径必须用正则
+       * 接住（字符串别名会把 `pkg/sub` 拼成 `index.ts/sub`）。
+       */
+      alias: [
+        {
+          find: /^@nide\/client-kit\//,
+          replacement: `${path.resolve(root, 'packages/client-kit/src')}/`
+        },
+        {
+          find: /^@nide\/client-ui-settings\//,
+          replacement: `${path.resolve(root, 'packages/client-ui-settings/src')}/`
+        },
+        { find: '@renderer', replacement: path.resolve(root, 'src/renderer/src') },
+        { find: '@shared', replacement: path.resolve(root, 'src/shared') }
+      ]
     },
     esbuild: {
       jsx: 'transform',

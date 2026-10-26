@@ -1,11 +1,11 @@
 import { JSX } from 'react'
-import { PluginsBrowser } from '@renderer/plugins/PluginsBrowser'
-import type { SettingsPageProps } from '@renderer/settings/pages'
+import { PluginsBrowser } from '@nide/client-ui-settings/PluginsBrowser'
+import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
 
 /**
  * 设置 -> 插件。
  *
- * 界面本身在 `@renderer/plugins/PluginsBrowser` 里 —— 欢迎窗口的「插件」页用的
+ * 界面本身在 `@nide/client-ui-settings/PluginsBrowser` 里 —— 欢迎窗口的「插件」页用的
  * 是同一个组件（那里 `mode: 'immediate'`，勾选立刻生效）。这一层只做一件事：
  * 把设置窗口的草稿模型（脏标记、提交 / 丢弃、重启提示）接到那个组件上。
  *

@@ -131,9 +131,9 @@ export const SETTINGS_PAGES: Record<
   HostSettingsPageId,
   () => Promise<{ default: (props: SettingsPageProps) => JSX.Element }>
 > = {
-  language: () => import('@renderer/settings/pages/LanguagePage'),
-  appearance: () => import('@renderer/settings/pages/AppearancePage'),
-  plugins: () => import('@renderer/settings/pages/PluginsPage')
+  language: () => import('@nide/client-ui-settings/pages/LanguagePage'),
+  appearance: () => import('@nide/client-ui-settings/pages/AppearancePage'),
+  plugins: () => import('@nide/client-ui-settings/pages/PluginsPage')
 }
 
 export interface SettingsPageProps {

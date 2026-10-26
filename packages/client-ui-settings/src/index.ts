@@ -1,12 +1,19 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { slotsOf } from '@nide/client-ui-slots'
-import { SettingsApp } from '@renderer/settings/SettingsApp'
+import { SettingsApp } from './SettingsApp'
 
 /**
- * 设置窗口的 slot 插件（MVP）。
+ * 设置窗口的 client 插件。
  *
- * 注册的是现有 `SettingsApp`（具名导出）；设置树、页面、外观都不改。
+ * 组件本体就在这个包里：设置树 / 各设置页 / 插件浏览 / 重启提示。欢迎窗口的
+ * 「插件」页复用的 `PluginsBrowser` 也从这里导出（它和设置页里的插件页是同一个
+ * 组件，`mode` 决定有没有「确定 / 取消」那一条）。
  */
+export { SettingsApp } from './SettingsApp'
+export { PluginsBrowser } from './PluginsBrowser'
+export { RestartDialog } from './RestartDialog'
+export { PluginSettingsSlot } from './PluginSettingsSlot'
+
 export const settingsPlugin = {
   name: 'nide-client-ui-settings',
   inject: ['slots'],

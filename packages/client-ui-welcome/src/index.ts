@@ -1,13 +1,18 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { slotsOf } from '@nide/client-ui-slots'
-import WelcomeApp from '@renderer/welcome/WelcomeApp'
+import WelcomeApp from './WelcomeApp'
 
 /**
- * 欢迎窗口的 slot 插件（MVP）。
+ * 欢迎窗口的 client 插件。
  *
- * 这一版只是把**现有的** `WelcomeApp` 注册到 `welcome.root`，不改它的任何一行；
- * 等 slot 链路稳定后，再把组件真正搬进这个包。
+ * 组件本体就在这个包里（`WelcomeApp` / `ProjectsPanel` / `SettingsButton`）——
+ * 此前它只是把渲染进程的 `@renderer/welcome/*` 包装一层 slot。窗口种类与挂载点
+ * 仍然由渲染进程的引导壳决定（`ROOTS.welcome` 也 import 这里的组件）。
  */
+export { default as WelcomeApp } from './WelcomeApp'
+export { ProjectsPanel } from './ProjectsPanel'
+export { SettingsButton } from './SettingsButton'
+
 export const welcomePlugin = {
   name: 'nide-client-ui-welcome',
   inject: ['slots'],

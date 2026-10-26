@@ -218,14 +218,31 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 ### 客户端共享层（@nide/client-kit）
 - [packages/client-kit/src](packages/client-kit/src)：`stores/`（zustand 的十张表）、
   `ui/`（基础组件）、`window/`（窗口外壳：`WindowFrame` / `WindowControls` /
-  `useWindowTitle`）、`logger`、`icons.tsx`、`appearance/palette.ts`；
+  `useWindowTitle`）、`logger`、`icons.tsx`、`appearance/palette.ts`、
+  `plugin-views/`（`PluginSlot` / `PluginHostProvider` / `host-context`：插件视图的渲染管线）；
 - 别名 `@nide/client-kit/*` → `packages/client-kit/src/*`
   （tsconfig.web / electron.vite.config / vitest.config 三处一致）；Vite 的 alias
   按前缀匹配，所以子路径直接可用；
-- **依赖方向**：kit 不许 import `@renderer/*`（渲染进程的窗口级代码）。唯一例外是
-  反向：渲染进程的窗口插件 import kit。`entry-action.store` 与 `window/MainMenu`
-  因为依赖 explorer / editor 的功能代码，留在 `src/renderer/src` 等主窗口整体搬走；
+- **依赖方向**：kit 不许 import `@renderer/*`。`entry-action.store` 与
+  `window/MainMenu` 因为依赖 explorer / editor 的功能代码，留在 `src/renderer/src`
+  等主窗口整体搬走；
 - Tailwind 的 `@source` 加了 `packages`（类名在包里的文件也要被扫到，否则样式会丢）。
+
+### 窗口包（D1 进行中）
+- **welcome**：`packages/client-ui-welcome/src` 里是 `WelcomeApp` / `ProjectsPanel` /
+  `SettingsButton` 本体；插件入口 `index.ts` 注册 `welcome.root`，同时导出
+  `WelcomeApp` 给渲染进程的引导壳用；
+- **settings**：`packages/client-ui-settings/src` 里是 `SettingsApp` / 设置树 /
+  各设置页 / `RestartDialog` / `PluginsBrowser` / `PluginSettingsSlot`；
+  表单入口注册 `settings.root`，并导出 `PluginsBrowser`（欢迎窗口的「插件」页复用它）
+  与 `RestartDialog`（欢迎窗口也会用）；
+- **main**：仍然 `@renderer/App` 包一层（还没搬），`HostSlot`（内建视图表：文件树 /
+  版本控制 / 提交）也还在 `src/renderer/src/plugins`，它依赖 explorer / git / view；
+- 别名：`@nide/client-ui-settings/*`、`@nide/client-ui-welcome/*` 是**正则子路径**
+  别名，必须排在精确别名前面 —— 字符串别名会把 `pkg/sub` 拼成 `index.ts/sub`；
+- 目前 `src/renderer/src` 只剩：`main.tsx`（引导壳）、`App.tsx` / `MainApp.tsx`、
+  `editor/ explorer/ entry/ git/ host-view/ layout/ plugins/(HostSlot) view/ window/(MainMenu)`、
+  `stores/entry-action.store.ts`。
 
 ### 客户端 Cordis / slots
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；
@@ -289,10 +306,14 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
   `stream-event` 流式通道与 `subscribeHostStream`；shell 的 `ai-provider.ipc.ts`
   只剩启用检查 / 窗口归属 / 形状校验。`test/host/ai-provider.test.ts`、
   `test/host/secrets.test.ts`。
-- 第十三批（未提交）：D1 第一步 —— 抽出 `packages/client-kit`（stores / ui /
+- 第十三批 `bbaa09f`：D1 第一步 —— 抽出 `packages/client-kit`（stores / ui /
   window 外壳 / logger / icons / palette），别名 `@nide/client-kit/*`，Tailwind
   `@source` 覆盖 packages；渲染进程的窗口级代码改 import kit，kit 不反向依赖渲染进程。
-  这一步只是**搬运**，组件与 class 一行没改。
+- 第十四批（未提交）：D1 第二步 —— welcome / settings 两个窗口的组件搬进各自的包
+  （`client-ui-welcome` 三个文件、`client-ui-settings` 十个文件 + `PluginsBrowser` /
+  `PluginSettingsSlot` / `RestartDialog`）；插件视图渲染管线（`PluginSlot` /
+  `PluginHostProvider` / `host-context`）进 kit 的 `plugin-views/`；引导壳按包名
+  动态 import 窗口组件。窗口包别名是**正则子路径**，必须排在精确别名之前。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -313,9 +334,10 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 6. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
 7. ~~**theme / appearance 服务化**~~ —— 已完成（第十一批）。
 8. ~~**AI / secrets 服务化**~~ —— 已完成（第十二批，含 `stream-event` 流式通道）。
-9. **核心 UI 插件化（D1）** —— 进行中：共享层已抽成 `@nide/client-kit`（第十三批）。
-   剩下：`client-ui-welcome` / `client-ui-settings` / `client-ui-main` 三个包各自
-   接管自己的窗口组件（现在还是 `@renderer/*` 的包装），最后 `src/renderer/src`
+9. **核心 UI 插件化（D1）** —— 进行中：共享层 `@nide/client-kit`（第十三批）、
+   welcome / settings 两个窗口的组件（第十四批）都已搬进包。
+   剩下：`client-ui-main`（主窗口的 `App` / `MainApp` / 编辑器 / 文件树 / 布局 /
+   `HostSlot` / `MainMenu` / `entry-action.store`），最后 `src/renderer/src`
    只留 `main.tsx` 这个引导壳。
 10. **D10**（每包 `locale/*.json`）、视觉回归；
     最后删掉 shell 的 IPC 转发回退、禁用集合镜像、`host-views` 表。
@@ -333,8 +355,9 @@ nativeTheme 走反向桥）**；**AI 供应商 / 密钥仓**；通用 RPC；host
   （禁用集合的镜像，host 不可达时兜底）—— 前者因为标题要用 shell 缓存的载荷翻；
 - logger（日志文件归 shell，host 的 stdout 由它接管，不打算搬）；
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell）；
-- 核心 UI 组件（`client-ui-*` 目前只是把 `@renderer/App` 等包一层 slot；共享层已
-  抽成 `@nide/client-kit`，但三个窗口的组件本体还在 `src/renderer/src`）；
+- 核心 UI 组件：共享层与 welcome / settings 两个窗口已在包里；**主窗口的组件**
+  （`App` / `MainApp` / editor / explorer / layout / `HostSlot` / `MainMenu`）还在
+  `src/renderer/src`；
 - 编译 host / asar / 签名、视觉回归、D10。
 
 **旧实现里也没有的**：插件后端（`manifest.main`）、依赖解析、profile bundle /
@@ -578,5 +601,5 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       `spawn EPERM`）；打包后能加载 bundle 证明**已有**的 `dist/client.js` 是好的
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] **第十三批改动未提交**（`@nide/client-kit` 抽取），先 commit 再开工
+- [ ] **第十四批改动未提交**（welcome / settings 搬进各自包），先 commit 再开工
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

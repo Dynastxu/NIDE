@@ -15,11 +15,24 @@ import { defineConfig } from 'vitest/config'
  */
 export default defineConfig({
   resolve: {
-    alias: {
-      '@shared': resolve('src/shared'),
-      '@renderer': resolve('src/renderer/src'),
-      '@nide/client-kit': resolve('packages/client-kit/src')
-    }
+    /*
+     * 与 electron.vite.config.ts 同一条规则：子路径用正则接住，精确别名在后。
+     * 测试只用到 kit 与 settings 的 pages（`test/renderer/**` 跟着被测代码走）。
+     */
+    alias: [
+      { find: /^@nide\/client-kit\//, replacement: `${resolve('packages/client-kit/src')}/` },
+      {
+        find: /^@nide\/client-ui-settings\//,
+        replacement: `${resolve('packages/client-ui-settings/src')}/`
+      },
+      {
+        find: /^@nide\/client-ui-welcome\//,
+        replacement: `${resolve('packages/client-ui-welcome/src')}/`
+      },
+      { find: '@shared', replacement: resolve('src/shared') },
+      { find: '@renderer', replacement: resolve('src/renderer/src') },
+      { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') }
+    ]
   },
   test: {
     // 被测模块是主进程/共享层/渲染进程的纯逻辑，没有 DOM

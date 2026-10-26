@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ComponentType, type JSX } from 'react'
-import { PluginHostProvider } from './PluginHostProvider'
+import { PluginHostProvider } from '@nide/client-kit/plugin-views/PluginHostProvider'
 import { useI18nStore, useT } from '@nide/client-kit/stores/i18n.store'
 import type { PluginSettingsDescriptor } from '@shared/plugin-api'
-import type { SettingsPageProps } from '@renderer/settings/pages'
+import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
 
 /**
  * 构建期由 Vite 展开成一张静态映射表：

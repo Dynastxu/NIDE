@@ -1,4 +1,4 @@
-import type { SettingsNode } from '@renderer/settings/pages'
+import type { SettingsNode } from '@nide/client-ui-settings/pages'
 
 /**
  * 设置树的纯查询工具。

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { getT } from '@nide/client-kit/stores/i18n.store'
 import { loggerFor } from '@nide/client-kit/logger'
-import { buildSettingsTree, type SettingsNode } from '@renderer/settings/pages'
+import { buildSettingsTree, type SettingsNode } from '@nide/client-ui-settings/pages'
 
 const logger = loggerFor('settings')
 

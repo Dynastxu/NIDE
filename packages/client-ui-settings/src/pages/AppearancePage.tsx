@@ -2,7 +2,7 @@ import { JSX, useEffect, useState } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { useAppearanceStore } from '@nide/client-kit/stores/appearance.store'
 import type { ThemeId } from '@shared/theme'
-import type { SettingsPageProps } from '@renderer/settings/pages'
+import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
 
 /**
  * 设置 -> 外观与行为 -> 外观。

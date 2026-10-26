@@ -1,6 +1,6 @@
 import { JSX } from 'react'
 import { HostSlot } from '@renderer/plugins/HostSlot'
-import { PluginSlot } from '@renderer/plugins/PluginSlot'
+import { PluginSlot } from '@nide/client-kit/plugin-views/PluginSlot'
 import { useActiveView } from '@renderer/layout/zone-state'
 import { ViewDescriptorContext } from '@renderer/view/view-descriptor'
 import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'

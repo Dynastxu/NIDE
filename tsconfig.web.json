@@ -35,6 +35,8 @@
         "src/renderer/src/*"
       ],
       "@nide/client-kit/*": ["packages/client-kit/src/*"],
+      "@nide/client-ui-settings/*": ["packages/client-ui-settings/src/*"],
+      "@nide/client-ui-welcome/*": ["packages/client-ui-welcome/src/*"],
       "@shared/*": ["src/shared/*"],
       "@nide/client-runtime": ["packages/client-runtime/src/index.ts"],
       "@nide/client-modules": ["packages/client-modules/src/index.ts"],

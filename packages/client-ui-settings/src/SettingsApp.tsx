@@ -7,17 +7,17 @@ import {
   useState,
   type LazyExoticComponent
 } from 'react'
-import { SettingsTreeNav } from '@renderer/settings/SettingsTreeNav'
-import { SettingsIndexPage } from '@renderer/settings/SettingsIndexPage'
-import { findNode, firstPageNodeId } from '@renderer/settings/tree-utils'
-import { RestartDialog } from '@renderer/settings/RestartDialog'
-import { useSettingsTreeStore } from '@renderer/settings/settings-tree.store'
-import { PluginSettingsSlot } from '@renderer/plugins/PluginSettingsSlot'
+import { SettingsTreeNav } from '@nide/client-ui-settings/SettingsTreeNav'
+import { SettingsIndexPage } from '@nide/client-ui-settings/SettingsIndexPage'
+import { findNode, firstPageNodeId } from '@nide/client-ui-settings/tree-utils'
+import { RestartDialog } from '@nide/client-ui-settings/RestartDialog'
+import { useSettingsTreeStore } from '@nide/client-ui-settings/settings-tree.store'
+import { PluginSettingsSlot } from '@nide/client-ui-settings/PluginSettingsSlot'
 import {
   SETTINGS_PAGES,
   type HostSettingsPageId,
   type SettingsPageProps
-} from '@renderer/settings/pages'
+} from '@nide/client-ui-settings/pages'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { WindowFrame } from '@nide/client-kit/window/WindowFrame'
 import { useWindowTitle } from '@nide/client-kit/window/useWindowTitle'

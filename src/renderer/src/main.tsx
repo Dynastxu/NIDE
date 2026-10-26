@@ -47,8 +47,8 @@ const logger = loggerFor('renderer')
  */
 const ROOTS: Record<WindowType, () => Promise<{ default: () => JSX.Element }>> = {
   main: () => import('./App'),
-  welcome: () => import('./welcome/WelcomeApp'),
-  settings: () => import('./settings/SettingsApp').then((m) => ({ default: m.SettingsApp }))
+  welcome: () => import('@nide/client-ui-welcome').then((m) => ({ default: m.WelcomeApp })),
+  settings: () => import('@nide/client-ui-settings').then((m) => ({ default: m.SettingsApp }))
 }
 
 async function boot(): Promise<void> {
