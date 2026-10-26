@@ -1,7 +1,7 @@
-import { parseYamlTextValue, quoteYamlValue } from '@shared/yaml'
-import { parseDocumentFields } from './frontmatter'
-import { baseNameOf, extensionOf } from './files'
-import type { DirReadFailureReason } from './files'
+import { parseYamlTextValue, quoteYamlValue } from '#project/yaml'
+import { parseDocumentFields } from '#project/frontmatter'
+import { baseNameOf, extensionOf } from '#project/files'
+import type { DirReadFailureReason } from '#project/files'
 
 /**
  * 伏笔 YAML 的契约：**整份文件就是这一条伏笔的属性**，没有正文。

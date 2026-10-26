@@ -1,9 +1,9 @@
 /**
  * `.nide` 项目配置的契约：配置形状、默认值、校验、以及 config.yml 的读写文本。
  *
- * 这一层被主进程（落盘）与渲染进程（消费配置）共用，所以**不能** import
+ * 这一层被 host（落盘）与渲染进程（消费配置）共用，所以**不能** import
  * electron / fs / DOM：这里只有纯函数，测试不必起 electron，也不必碰盘。
- * 「什么时候建目录、坏配置怎么回落」留给主进程的 project-config.service。
+ * 「什么时候建目录、坏配置怎么回落」留给 host 的 project-config 服务。
  *
  * 配置里只放**相对项目根**的路径。绝对路径一旦落盘，项目被移动或换一台机器就
  * 指向了别处，而这份文件是要跟项目一起进版本库的。
@@ -35,13 +35,13 @@
  * 都不存在；用户标记之后才写进来。旧项目的 config.yml 因此不需要迁移 —— 缺这两个键
  * 就是「还没标记」。缺 `path` 仍然整份作废。
  *
- * YAML 那一档写法（标量与引号）在 `@shared/yaml`：章节 Markdown 的 frontmatter 用的是
+ * YAML 那一档写法（标量与引号）在 `#project/yaml`：章节 Markdown 的 frontmatter 用的是
  * 同一档，两处共用同一份实现，才不会出现「config.yml 读得出、frontmatter 读不出」
  * 这类只在运行时才看得见的分叉。
  */
 
-import { parseYamlScalar, quoteYamlValue } from '@shared/yaml'
-import { isMarkdownPath } from './files'
+import { parseYamlScalar, quoteYamlValue } from '#project/yaml'
+import { isMarkdownPath } from '#project/files'
 
 /** 配置项：四个内容分区 */
 export const PROJECT_CONFIG_KEYS = ['chapters', 'gallery', 'foreshadowing', 'overview'] as const
@@ -139,8 +139,8 @@ export const PROJECT_CONFIG_FILE_NAME = 'config.yml'
 /**
  * 合并之前的图鉴注册表文件名。
  *
- * 只用于**读取旧项目**：主进程读到旧格式的配置时把它并进 `config.yml`，随后删掉它
- * （见 project-config.service 的 loadProjectConfig）。新项目不会写这份文件。
+ * 只用于**读取旧项目**：host 读到旧格式的配置时把它并进 `config.yml`，随后删掉它
+ * （见 project-config 服务的 loadProjectConfig）。新项目不会写这份文件。
  */
 export const LEGACY_GALLERY_REGISTRY_FILE_NAME = 'gallery.yml'
 
@@ -504,7 +504,7 @@ export type ProjectConfigUpdateResult =
 /**
  * config.yml 的写法：**只有两层的映射**，每个值都是字符串。
  *
- * 标量与引号那一档实现在 `@shared/yaml`（章节 frontmatter 用的是同一档）。这里只留
+ * 标量与引号那一档实现在 `#project/yaml`（章节 frontmatter 用的是同一档）。这里只留
  * 本文件特有的三样：落盘顺序、缩进与注释头。手改过的 config.yml 用了锚点、多行块、
  * 流式集合这类结构时判为坏配置，由调用方回落成默认值（见 loadProjectConfig）。
  */

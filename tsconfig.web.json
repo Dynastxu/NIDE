@@ -3,9 +3,9 @@
   /*
    * 渲染进程的编译单元，含**测渲染进程那一侧的用例**。
    *
-   * `test/renderer/**` 只放 import 了 `@renderer/*` 的用例：工程的 `composite` 要求
+   * `test/renderer/**` 只放 import 了 `@nide/client-ui-*` / `@nide/client-kit` 的用例：工程的 `composite` 要求
    * 文件清单必须自证，所以一个用例跟着它被测的东西走 —— 留在 node 那一侧的话，
-   * 那个 `@renderer/*` 的 import 会报 TS6307（详见 tsconfig.node.json 的说明）。
+   * 那种包内 import 会报 TS6307（详见 tsconfig.node.json 的说明）。
    */
   "include": [
     "src/renderer/src/env.d.ts",
@@ -13,6 +13,15 @@
     "src/renderer/src/**/*.tsx",
     "src/preload/*.d.ts",
     "src/shared/**/*",
+    "packages/client-runtime/src/**/*",
+    "packages/client-modules/src/**/*",
+    "packages/client-kit/src/**/*",
+    "packages/client-ui-slots/src/**/*",
+    "packages/client-ui-main/src/**/*",
+    "packages/client-ui-layout/src/**/*",
+    "packages/client-ui-settings/src/**/*",
+    "packages/client-ui-welcome/src/**/*",
+    "packages/client-ui-renderer/src/**/*",
     "plugins/builtin/*/src/ui/**/*",
     "plugins/builtin/*/src/settings/**/*",
     "test/renderer/**/*"
@@ -22,10 +31,19 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@renderer/*": [
-        "src/renderer/src/*"
-      ],
-      "@shared/*": ["src/shared/*"]
+      "@nide/client-kit/*": ["packages/client-kit/src/*"],
+      "@nide/client-ui-main/*": ["packages/client-ui-main/src/*"],
+      "@nide/client-ui-settings/*": ["packages/client-ui-settings/src/*"],
+      "@nide/client-ui-welcome/*": ["packages/client-ui-welcome/src/*"],
+      "@shared/*": ["src/shared/*"],
+      "@nide/client-runtime": ["packages/client-runtime/src/index.ts"],
+      "@nide/client-modules": ["packages/client-modules/src/index.ts"],
+      "@nide/client-ui-slots": ["packages/client-ui-slots/src/index.ts"],
+      "@nide/client-ui-main": ["packages/client-ui-main/src/index.ts"],
+      "@nide/client-ui-layout": ["packages/client-ui-layout/src/index.tsx"],
+      "@nide/client-ui-settings": ["packages/client-ui-settings/src/index.ts"],
+      "@nide/client-ui-welcome": ["packages/client-ui-welcome/src/index.ts"],
+      "@nide/client-ui-renderer": ["packages/client-ui-renderer/src/index.tsx"]
     }
   }
 }

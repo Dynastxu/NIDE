@@ -1,0 +1,138 @@
+import { create } from 'zustand'
+import { BASE_MESSAGES, DEFAULT_LOCALE, createTranslator } from '@shared/i18n'
+import { loggerFor } from '../logger'
+import type {
+  I18nPayload,
+  LocaleDescriptor,
+  LocaleDiagnostics,
+  LocaleId,
+  MessageTable,
+  Translator
+} from '@shared/i18n'
+
+const logger = loggerFor('i18n')
+
+interface I18nState {
+  /** 词条表是否已就位。为 false 时 t() 只会给出中文基础表 */
+  ready: boolean
+  locale: LocaleId
+  messages: MessageTable
+  available: LocaleDescriptor[]
+  /** 有值表示「想要的语言没装包、被迫回落」，界面应该提示 */
+  fallbackFrom?: LocaleId
+  diagnostics: LocaleDiagnostics
+  /**
+   * 翻译函数**存在 store 里**，而不是每次渲染现造一个。
+   *
+   * 这样组件 `useI18nStore((s) => s.t)` 只订阅一个引用，语言变化时引用换新、
+   * 自动重渲染；没变时引用稳定，不会白白重渲染。
+   */
+  t: Translator
+
+  load: () => Promise<void>
+  requestLocale: (locale: LocaleId) => Promise<void>
+}
+
+/** 空体检报告。providers 是新加的字段，这里给一个和主进程一致的空形状 */
+function emptyDiagnostics(): LocaleDiagnostics {
+  return { locale: DEFAULT_LOCALE, missing: [], extra: [], conflicts: [], providers: {} }
+}
+
+/** 模块级 in-flight promise：多个组件同时触发加载时只打一次 IPC */
+let inflight: Promise<void> | null = null
+
+/**
+ * 造一个会**报告缺失 key** 的 t()。
+ *
+ * `createTranslator` 的最后一级回落是 key 本身 —— 界面上于是出现裸 key，而它
+ * 不会报错。这在迁移期间格外危险：文案散落在几个包里，某个 `t('host.xxx')` 用了
+ * 一个词条表里没有的 key，只有肉眼能发现。
+ *
+ * 所以这里包一层：两侧表都没有这个 key 时，**每个 key 只记一次** warn（含 key 名），
+ * 返回值仍是 createTranslator 的结果（行为不变）。
+ */
+const reportedMissingKeys = new Set<string>()
+
+function createReportingTranslator(messages: MessageTable): Translator {
+  const translate = createTranslator(messages)
+  return (key, params) => {
+    if (!(key in messages) && !(key in BASE_MESSAGES) && !reportedMissingKeys.has(key)) {
+      reportedMissingKeys.add(key)
+      logger.warn('Missing message key; the interface will show the raw key', { key })
+    }
+    return translate(key, params)
+  }
+}
+
+function hydrate(payload: I18nPayload): Partial<I18nState> {
+  const state: Partial<I18nState> = {
+    ready: true,
+    locale: payload.locale,
+    messages: payload.messages,
+    available: payload.available,
+    diagnostics: payload.diagnostics,
+    t: createReportingTranslator(payload.messages)
+  }
+
+  if (payload.fallbackFrom) {
+    state.fallbackFrom = payload.fallbackFrom
+    logger.warn('Language pack not found, the interface falls back', {
+      requested: payload.fallbackFrom,
+      fallback: payload.locale
+    })
+  }
+
+  if (payload.diagnostics.missing.length > 0) {
+    logger.warn('Some messages are not translated and will be displayed in the base language', {
+      locale: payload.locale,
+      count: payload.diagnostics.missing.length
+    })
+  }
+
+  return state
+}
+
+export const useI18nStore = create<I18nState>((set) => ({
+  ready: false,
+  locale: DEFAULT_LOCALE,
+  messages: BASE_MESSAGES,
+  available: [],
+  diagnostics: emptyDiagnostics(),
+  t: createReportingTranslator(BASE_MESSAGES),
+
+  load: async () => {
+    if (inflight) return inflight
+
+    inflight = window.hostAPI
+      .getI18n()
+      .then((payload) => set(hydrate(payload)))
+      .catch((err: unknown) => {
+        // 拿不到词条表不该白屏：中文基础表已经在 store 里了，界面照常可用
+        logger.error('Failed to load the message table, keeping the base table', { error: err })
+      })
+      .finally(() => {
+        inflight = null
+      })
+
+    return inflight
+  },
+
+  requestLocale: async (locale) => {
+    // 主进程会先弹确认框（重建窗口会丢掉未保存内容），确认后才真正切换并重建
+    await window.hostAPI.setLocale(locale)
+  }
+}))
+
+/**
+ * 组件里取 t()。
+ *
+ * 订阅的是 `t` 这个引用本身，语言一变引用就换，组件自然重渲染。
+ */
+export function useT(): Translator {
+  return useI18nStore((s) => s.t)
+}
+
+/** 非组件代码（插件加载器、事件回调）里取 t() —— 注意这条路**不会**触发重渲染 */
+export function getT(): Translator {
+  return useI18nStore.getState().t
+}

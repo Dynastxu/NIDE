@@ -1,5 +1,5 @@
-import type { ProjectConfig } from './config'
-import type { DirReadFailureReason } from './files'
+import type { ProjectConfig } from '#project/config'
+import type { DirReadFailureReason } from '#project/files'
 
 /**
  * 概述的契约：内容目录（`.nide/config.yml` 的 `overview.path`）里是**一堆普通

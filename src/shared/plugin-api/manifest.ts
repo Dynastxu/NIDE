@@ -1,5 +1,6 @@
-import type { LocaleContribution } from '@shared/i18n'
-import type { ViewChromeOptions, ViewLocation } from './view'
+// host 也要用这里的类型：NodeNext 要求显式扩展名（`.js` 映射到 `.ts`），纯类型导入运行时会被擦除
+import type { LocaleContribution } from '../i18n/types.js'
+import type { ViewChromeOptions, ViewLocation } from './view.js'
 
 export interface PluginManifest {
   /** 插件唯一标识，例如 "builtin.demo" */
@@ -13,6 +14,21 @@ export interface PluginManifest {
    * 当前阶段宿主不启动插件后端，可以先不提供。
    */
   main?: string
+
+  /**
+   * 插件「浏览器半」的运行时声明。
+   *
+   * 构建产物必须是 IIFE：加载时通过 `window.__NIDE_REGISTER__(viewId, Component)`
+   * 把视图组件注册进客户端模块表。React / ReactDOM 由宿主以全局变量提供，
+   * 插件 bundle 里不打包它们（见 scripts/build-plugin-client.mjs）。
+   *
+   * 只声明「有没有、在哪儿」，具体视图仍由 contributes.views 声明。
+   */
+  client?: {
+    platform: 'web'
+    /** 相对插件目录的 bundle 路径，例如 "dist/client.js" */
+    bundle: string
+  }
 
   /** 激活事件：何时加载此插件。例如 "onStartup" */
   activationEvents?: string[]
@@ -66,8 +82,8 @@ export interface PluginManifest {
      *
      * 语言包是**纯数据插件**：它不需要 UI 入口、不需要激活事件、也不需要权限，
      * 宿主只从它的目录里读一个 JSON 词条文件。之所以能这么轻，是因为宿主本来
-     * 就不启动插件后端（见 plugin-host/loader.ts），语言包正好完全落在
-     * 「主进程读盘 -> 作为纯数据下发渲染进程」这条既有链路上。
+     * 就不启动插件后端（见 packages/host/src/services/plugin-contributions.ts），
+     * 语言包正好完全落在「宿主读盘 -> 作为纯数据下发」这条既有链路上。
      *
      * 优先级：同一个 locale 被多个包提供时，**第三方覆盖内置**。
      */
@@ -155,8 +171,8 @@ export interface PluginCommandContribution {
  * manifest 里的一个设置页声明。
  *
  * `title` 和视图标题共用同一套 `%key%` 解析链：package.nls.json ->
- * package.nls.<locale>.json -> 原样占位符。解析发生在查询时，而不是扫描时，
- * 因为扫描早于 initI18n()。
+ * package.nls.<locale>.json -> 原样占位符。解析发生在**查询时**、由 host 做
+ * （扫描时还不知道当前语言；语言与词条表都在 host 手里）。
  */
 export interface PluginSettingsContribution {
   /** 设置页唯一 ID，例如 "ai-provider.providers" */

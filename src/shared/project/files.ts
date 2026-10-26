@@ -254,7 +254,15 @@ export const PROJECT_FILE_CHANNELS = {
   /** 给一个已存在的文件 / 文件夹改名（invoke），参数见 RenameEntryRequest */
   renameEntry: 'host:project-rename-entry',
   /** 删除一个文件 / 文件夹（invoke），参数见 DeleteEntryRequest */
-  deleteEntry: 'host:project-delete-entry'
+  deleteEntry: 'host:project-delete-entry',
+  /**
+   * 删除前的二次确认（invoke），参数：DeleteEntryRequest + ConfirmOptions，返回 boolean。
+   *
+   * 只在 preload 走 host 写路径时使用：删除本身在 host 上执行，而 **host 没有窗口**，
+   * 问不出确认框。所以顺序是「shell 先问 -> host 再删」，这一条是那个「先问」。
+   * 用户拒绝时 preload 直接回 `cancelled`，不会调到 host。
+   */
+  confirmDelete: 'host:project-confirm-delete'
 } as const
 
 // ============ 新建文件 / 文件夹 ============

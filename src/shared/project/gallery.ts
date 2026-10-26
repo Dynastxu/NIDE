@@ -1,8 +1,8 @@
-import { parseYamlTextValue, quoteYamlValue } from '@shared/yaml'
-import { baseNameOf, extensionOf } from './files'
-import { DEFAULT_PROJECT_CONFIG, normalizeDirectorySegment } from './config'
-import { parseDocumentFields, type FrontmatterCell } from './frontmatter'
-import type { CreateEntryFailureReason, DirReadFailureReason } from './files'
+import { parseYamlTextValue, quoteYamlValue } from '#project/yaml'
+import { baseNameOf, extensionOf } from '#project/files'
+import { DEFAULT_PROJECT_CONFIG, normalizeDirectorySegment } from '#project/config'
+import { parseDocumentFields, type FrontmatterCell } from '#project/frontmatter'
+import type { CreateEntryFailureReason, DirReadFailureReason } from '#project/files'
 
 /**
  * 图鉴的契约：一个图鉴是什么、它的字段从哪儿来、条目文件长什么样。

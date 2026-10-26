@@ -1,0 +1,5 @@
+{
+  "//": "ESM 标记：host（纯 Node ESM）会直接加载本目录的 locale-tag.ts。",
+  "//2": "注意：只有「自身没有任何 import」的文件才允许被 host 加载（见 locale-tag.ts 的说明）。",
+  "type": "module"
+}

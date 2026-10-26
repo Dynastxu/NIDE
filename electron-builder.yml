@@ -2,17 +2,44 @@ appId: com.github.dynastxu.nide
 productName: NIDE
 directories:
   buildResources: build
+
+# host 跑**编译产物**（`out/host/**`，由 `pnpm build:host` 生成），源码里的
+# `packages/host` / `packages/boot` / `packages/hello` / `src/shared` 不再随包。
+#
+# asar 已恢复：主进程 / 预加载 / 渲染进程都在 asar 里（Electron 正常路径）。
+# host 是 `utilityProcess.fork()` 出来的独立 Node 进程 —— 入口、profile、要动态
+# import 的插件必须是**真实文件**，所以下面这几样通过 `asarUnpack` 放到
+# `resources/app.asar.unpacked/`；shell 侧按 `app.asar` → `app.asar.unpacked/`
+# 换根（见 `src/main/host/process.ts` 的 packagedRoot）。
+asar: true
+
+# 这些是「host 进程要直接读 / 执行的文件」，不能留在 asar 里
+asarUnpack:
+  - out/host/**
+  - plugins/**
+
 files:
+  # 渲染进程 / 主进程 / 预加载的构建产物 + 编译后的 host（out/host）
+  - out/**
+  # 内建插件（manifest 与 dist/client.js）
+  - plugins/**
+  - package.json
+  # 杂项
   - '!**/.vscode/*'
-  - '!src/*'
+  - '!**/*.map'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-asarUnpack:
-  - resources/**
+  - '!{tsconfig.json,tsconfig.host.json,tsconfig.node.json,tsconfig.web.json}'
 win:
   executableName: nide
+  # 代码签名：证书**不进仓库**，走 electron-builder 的标准环境变量
+  #   CSC_LINK            证书文件路径或 base64
+  #   CSC_KEY_PASSWORD    证书密码
+  # 没设这两个变量时构建照常，只是产物未签名（Windows 会拦 nide.exe）。
+  # 需要强制签名（CI 里防止「忘了配」）时加：
+  #   signAndEditExecutable: true
+  #   forceCodeSigning: true
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

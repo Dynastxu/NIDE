@@ -1,11 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { initMonacoNls } from './monaco-env'
-import { installRendererLogger, loggerFor } from './logger'
+import { initMonacoNls } from '@nide/client-kit/monaco-env'
+import { installRendererLogger, loggerFor } from '@nide/client-kit/logger'
 import './assets/index.css'
 import type { JSX } from 'react'
 import { systemWindowTitle, type WindowType } from '@shared/window'
-import { ConfirmHost } from './ui/ConfirmHost'
+import { ConfirmHost } from '@nide/client-kit/ui/ConfirmHost'
+import type { ClientRuntime } from '@nide/client-runtime'
 
 /**
  * 启动序列。顺序**都有理由，不能调换**：
@@ -28,6 +29,10 @@ import { ConfirmHost } from './ui/ConfirmHost'
  */
 installRendererLogger()
 
+// 插件 IIFE bundle 通过全局拿 React / ReactDOM；必须在任何 bundle 注入之前挂好。
+;(window as unknown as { React?: typeof React }).React = React
+;(window as unknown as { ReactDOM?: typeof ReactDOM }).ReactDOM = ReactDOM
+
 const logger = loggerFor('renderer')
 
 /**
@@ -40,15 +45,15 @@ const logger = loggerFor('renderer')
  * 注意：加窗口种类时这里要补一条，而**不是**在下面 boot() 里加 if。
  */
 const ROOTS: Record<WindowType, () => Promise<{ default: () => JSX.Element }>> = {
-  main: () => import('./App'),
-  welcome: () => import('./welcome/WelcomeApp'),
-  settings: () => import('./settings/SettingsApp').then((m) => ({ default: m.SettingsApp }))
+  main: () => import('@nide/client-ui-main/App'),
+  welcome: () => import('@nide/client-ui-welcome').then((m) => ({ default: m.WelcomeApp })),
+  settings: () => import('@nide/client-ui-settings').then((m) => ({ default: m.SettingsApp }))
 }
 
 async function boot(): Promise<void> {
   await initMonacoNls()
 
-  const { useI18nStore, getT } = await import('./stores/i18n.store')
+  const { useI18nStore, getT } = await import('@nide/client-kit/stores/i18n.store')
   await useI18nStore.getState().load()
 
   const { locale } = useI18nStore.getState()
@@ -75,7 +80,7 @@ async function boot(): Promise<void> {
    *
    * 界面拉进来之前完成，保证首帧颜色就是对的。
    */
-  const { initAppearance } = await import('./stores/appearance.store')
+  const { initAppearance } = await import('@nide/client-kit/stores/appearance.store')
   initAppearance()
 
   /**
@@ -88,11 +93,41 @@ async function boot(): Promise<void> {
    * 先按默认浅色画一帧再跳。
    */
   if (windowType === 'main') {
-    const { initMonacoTheme } = await import('./editor/monaco-theme')
+    const { initMonacoTheme } = await import('@nide/client-ui-main/editor/monaco-theme')
     initMonacoTheme()
   }
 
-  const { default: Root } = await ROOTS[windowType]()
+  /**
+   * 根组件。
+   *
+   * main / welcome 走 slot：对应 root 插件由客户端 Cordis 树注册，渲染的还是
+   * 现有 `App` / `WelcomeApp`（组件一行没改）。settings 仍走旧路径。
+   */
+  let Root: () => JSX.Element
+  const slotName =
+    windowType === 'main'
+      ? 'main.root'
+      : windowType === 'welcome'
+        ? 'welcome.root'
+        : 'settings.root'
+
+  if (slotName) {
+    const slot = slotName
+    const runtime = await loadClientRuntime()
+    if (runtime) {
+      const { Slot, SlotProvider } = await import('@nide/client-ui-renderer')
+      logger.info('Window slot ready', { slot, occupants: runtime.slots.count(slot) })
+      Root = () => (
+        <SlotProvider registry={runtime.slots}>
+          <Slot name={slot} />
+        </SlotProvider>
+      )
+    } else {
+      Root = (await ROOTS[windowType]()).default
+    }
+  } else {
+    Root = (await ROOTS[windowType]()).default
+  }
 
   logger.info('Renderer boot completed', { windowType, locale })
 
@@ -112,4 +147,35 @@ async function boot(): Promise<void> {
   )
 }
 
+/**
+ * 启动客户端 Cordis 树（MVP），并缓存同一个 Promise。
+ *
+ * 欢迎窗口要等它注册好 `welcome.root` 才能渲染；主窗口只是并行启动，不阻塞。
+ */
+let clientRuntimePromise: Promise<ClientRuntime | null> | null = null
+
+function loadClientRuntime(): Promise<ClientRuntime | null> {
+  if (!clientRuntimePromise) {
+    clientRuntimePromise = import('@nide/client-runtime')
+      .then(({ createClientRuntime }) =>
+        createClientRuntime({ windowType: window.__NIDE_BOOT__.windowType })
+      )
+      .then((runtime) => {
+        ;(window as unknown as { __NIDE_CLIENT__?: unknown }).__NIDE_CLIENT__ = runtime
+        logger.info('Client Cordis runtime ready')
+        return runtime
+      })
+      .catch((error: unknown) => {
+        logger.warn('Client Cordis runtime failed', { error })
+        return null
+      })
+  }
+  return clientRuntimePromise
+}
+
+function bootClientRuntime(): void {
+  void loadClientRuntime()
+}
+
+void bootClientRuntime()
 void boot()

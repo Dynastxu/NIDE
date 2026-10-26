@@ -7,8 +7,12 @@ import {
   type EntryActionHandlers,
   type EntryActionTarget,
   type EntryMenuContext
-} from '@renderer/entry/entry-menu'
-import type { ContextMenuEntry, ContextMenuItem, ContextSubmenuItem } from '@renderer/ui/menu-items'
+} from '@nide/client-ui-main/entry/entry-menu'
+import type {
+  ContextMenuEntry,
+  ContextMenuItem,
+  ContextSubmenuItem
+} from '@nide/client-kit/ui/menu-items'
 import type { Translator } from '@shared/i18n'
 
 /**

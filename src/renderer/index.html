@@ -7,10 +7,14 @@
     dev 阶段必须放开 inline：@vitejs/plugin-react 会注入一段 inline module script（HMR preamble），
     Tailwind 也是运行时注入 <style>。原模板的 script-src 'self' 会把它们全拦掉，
     症状是白屏或 "can't detect preamble"。发布前可以按需收紧。
+
+    `nide-plugin:` 是打包后插件 UI bundle 的来源（shell 注册的自定义协议，见
+    src/main/protocol/plugin-bundles.ts）。开发期用不到它（走 Vite 的 /@fs/），
+    留着不影响 dev —— CSP 里多列一个 scheme 不会放宽别的来源。
   -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: http://localhost:*"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' nide-plugin:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: http://localhost:*"
     />
   </head>
 

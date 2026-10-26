@@ -11,8 +11,8 @@
  * 「根目录一行子项都不显示」这种问题唯一会漏掉的地方。
  */
 
-import { isInsideProject } from './files'
-import type { DirReadFailureReason, FileTreeEntry } from './files'
+import { isInsideProject } from '#project/files'
+import type { DirReadFailureReason, FileTreeEntry } from '#project/files'
 
 /** 一张行表里的一行 */
 export type TreeRow =

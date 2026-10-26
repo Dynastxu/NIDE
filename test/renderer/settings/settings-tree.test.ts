@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSettingsTree } from '@renderer/settings/pages'
+import { buildSettingsTree } from '@nide/client-ui-settings/pages'
 import type { PluginSettingsDescriptor } from '@shared/plugin-api'
 import type { Translator } from '@shared/i18n'
 

@@ -35,7 +35,8 @@ const logger = loggerFor('confirm')
  * 这一侧是**可以自己声明**的。这是刻意的取舍：这条豁免必须存在（设置窗口的
  * 「立即重启」正是靠它避免问两遍），而主进程现在还认不出调用方是谁（插件没有
  * 后端通道，所有调用都来自同一个渲染进程）。等到插件后端接上、IPC 能分辨调用方，
- * 这里应当按插件权限收口（见 plugin-host/permission.ts）。
+ * 这里应当按调用方的身份收口（插件权限登记随旧 loader 一起删掉了；D6 的结论是
+ * 插件拥有完整 Node 权限，不做沙箱）。
  */
 
 /**
@@ -123,6 +124,23 @@ export const CONFIRM_SPECS = {
     titleKey: 'host.explorer.delete.title.folder',
     messageKey: 'host.explorer.delete.message.folder',
     confirmKey: 'host.explorer.delete.confirm',
+    danger: true
+  },
+  /**
+   * 启用第三方插件：第三方代码拥有完整 Node 权限（见 D6），装进来只代表「有了」，
+   * 启用是一次明确的信任决定。内置插件不走这一问。
+   */
+  enableThirdPartyPlugin: {
+    titleKey: 'host.plugins.trust.title',
+    messageKey: 'host.plugins.trust.message',
+    confirmKey: 'host.plugins.trust.confirm',
+    danger: true
+  },
+  /** 卸载第三方插件：删的是用户装进来的目录，删掉要重新安装 */
+  uninstallPlugin: {
+    titleKey: 'host.plugins.uninstall.title',
+    messageKey: 'host.plugins.uninstall.message',
+    confirmKey: 'host.plugins.uninstall.confirm',
     danger: true
   }
 } as const satisfies Record<string, ConfirmSpec>

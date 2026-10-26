@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
-import { usePluginTranslator } from '@renderer/plugins/host-context'
-import type { SettingsPageProps } from '@renderer/settings/pages'
+import { usePluginTranslator } from '@nide/client-kit/plugin-views/host-context'
+import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
 import {
   DEFAULT_DEEPSEEK_BASE_URL,
   DEFAULT_DEEPSEEK_MODEL,

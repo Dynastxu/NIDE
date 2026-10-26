@@ -1,8 +1,8 @@
 import { useState, type JSX } from 'react'
-import { usePluginTranslator } from '@renderer/plugins/host-context'
-import { useViewChrome } from '@renderer/view/chrome-context'
-import { ViewFrame } from '@renderer/view/ViewFrame'
-import { BuiltinIcon } from '@renderer/ui/BuiltinIcon'
+import { usePluginTranslator } from '@nide/client-kit/plugin-views/host-context'
+import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
+import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
+import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import type { ViewChromeSlots, ViewMoreItem, ViewTab, ViewTabStrip } from '@shared/plugin-api'
 import type { MessageTable } from '@shared/i18n'
 

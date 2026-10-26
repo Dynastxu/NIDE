@@ -1,6 +1,6 @@
-import { parseYamlTextValue, quoteYamlValue, unquoteYamlValue } from '@shared/yaml'
-import { parseFrontmatterFields, splitFrontmatter } from './frontmatter'
-import type { DirReadFailureReason } from './files'
+import { parseYamlTextValue, quoteYamlValue, unquoteYamlValue } from '#project/yaml'
+import { parseFrontmatterFields, splitFrontmatter } from '#project/frontmatter'
+import type { DirReadFailureReason } from '#project/files'
 
 /**
  * 章节 Markdown 的开头属性（frontmatter，也就是正文之前那一段 `---` 包起来的 YAML）。
@@ -35,7 +35,7 @@ import type { DirReadFailureReason } from './files'
  * 2. **`index: 0` 是序章。** 所以「正整数或 0」是这个字段合法的全部取值，而
  *    `null`（没有这个键、读不出来、不是整数）才是「还没编号」。不把「没编号」也写成
  *    0，是为了让列表上的 `0`（序章）与 `—`（还没编号）分得开。
- * 3. **写出来的是双引号字符串**（`index: "003"`）。这一档 YAML 在 `@shared/yaml`
+ * 3. **写出来的是双引号字符串**（`index: "003"`）。这一档 YAML 在 `#project/yaml`
  *    里刻意不把裸标量里的数字当字符串（配置里的目录名写成数字是没有意义的），而编号
  *    要的就是数字，所以这里由写的一侧负责加引号，读的一侧两种写法都收（`index: 3`
  *    是人手写的，照样读得出来）。

@@ -23,8 +23,9 @@ export const HOST_CHANNELS = {
   /**
    * 界面上有哪些视图（宿主内建视图接在插件视图前面）。
    *
-   * 渲染进程拿到的只是这份纯数据，组件怎么加载由渲染进程自己决定。manifest 的
-   * 标题在**查询时**按当时语言解析，而不是扫描时 —— 扫描发生在 initI18n() 之前。
+   * 渲染进程拿到的只是这份纯数据，组件怎么加载由渲染进程自己决定。插件视图的标题
+   * 由 **host 在查询时**按当时语言解析（它持有语言包与当前 locale）；内建视图的标题
+   * 是宿主自己的词条，由 shell 用缓存的载荷翻。
    */
   getPluginViews: 'host:get-plugin-views',
   /**
@@ -44,6 +45,12 @@ export const HOST_CHANNELS = {
    * 哪些插件」。纯数据插件（语言包）只有后者认得。
    */
   getPlugins: 'host:get-plugins',
+  /**
+   * 已启用插件的浏览器半 bundle 清单（纯数据：pluginId / platform / 绝对路径）。
+   *
+   * 开发期绝对路径由渲染进程转成 Vite `/@fs/` URL；生产环境会换成 app 协议。
+   */
+  getClientBundles: 'host:get-client-bundles',
   /** 启用 / 禁用插件。禁用后它的视图从工具区消失，状态由宿主落盘 */
   setPluginEnabled: 'host:set-plugin-enabled',
   /** 当前被禁用的插件 id（宿主持久化过的那份） */
@@ -56,8 +63,10 @@ export const HOST_CHANNELS = {
   setLocale: 'host:set-locale',
   /** 工具区按钮条的右键菜单，返回「显示标题」的最新勾选状态 */
   showStripeMenu: 'host:show-stripe-menu',
-  /** 插件重载（占位，等插件后端接上再实现） */
-  reloadPlugin: 'host:reload-plugin',
+  /** 从本地文件夹安装插件（invoke）；目录由 shell 的对话框选 */
+  installPlugin: 'host:install-plugin',
+  /** 卸载一个第三方插件（invoke），参数是 pluginId；内置插件会被拒绝 */
+  removePlugin: 'host:remove-plugin',
 
   // ============ 渲染进程 -> 宿主：单向 send ============
 

@@ -1,0 +1,5 @@
+{
+  "//": "ESM 标记：host（纯 Node ESM）直接加载 builtin.ts 里的主题数据。",
+  "//2": "builtin.ts 只有类型 import（./types.js，运行时擦除），所以可以被 host 加载。",
+  "type": "module"
+}

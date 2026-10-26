@@ -4,31 +4,35 @@ import {
   AI_PROVIDER_ERROR_CODES,
   AI_PROVIDER_PLUGIN_ID,
   type ChatOpenRequest,
+  type ChatOpenResult,
   type ChatStreamEvent,
   type ProviderError,
+  type ProviderSummary,
   type RemoveProviderResult,
   type SaveProviderRequest,
   type SaveProviderResult,
-  type TestProviderRequest
+  type TestProviderRequest,
+  type TestProviderResult
 } from '@shared/ai-provider'
 import { loggerFor } from '../logger'
-import { getDisabledPlugins } from '../plugin-host/preference'
-import { secretVault } from '../secrets/vault'
-import { ProviderConfigStore } from '../services/ai-provider/config-store'
-import { AiProviderService, AiProviderServiceError } from '../services/ai-provider'
+import { invokeHost, subscribeHostStream } from '../host/process'
 
 const logger = loggerFor('ai-provider')
 
 /**
- * 服务是懒创建的：`ProviderConfigStore` 的默认路径要调 app.getPath('userData')，
- * 这个模块可能在 app ready 之前就被 import。第一次 IPC 调用一定在 ready 之后。
+ * AI 供应商的 **shell 边界**。
+ *
+ * 服务本身已经搬进 host（`packages/host/src/services/ai-provider.ts`）：配置、
+ * 密钥、SSE 都在那边。这一层只剩三件事：
+ *
+ * 1. **可用性**：插件被禁用时不转发（设置页已经消失，但 Agent 可能还拿着旧 requestId）；
+ * 2. **窗口归属**：`open` 返回的 requestId 记下发起它的窗口，后面的分片只回给那个
+ *    窗口（不是广播）；窗口在请求中途被关掉就取消；
+ * 3. **形状校验**：IPC 载荷来自渲染进程，先挡掉明显不合法的形状。
+ *
+ * 流式分片走 `subscribeHostStream`：host 用父端口发 `stream-event`，这里按
+ * requestId 找到窗口再转给渲染进程 —— 和搬迁前「本地服务直接回调」的时序一致。
  */
-let service: AiProviderService | null = null
-
-function getService(): AiProviderService {
-  if (!service) service = new AiProviderService(new ProviderConfigStore(), secretVault)
-  return service
-}
 
 /** requestId -> 发起这次请求的窗口。只回给发起者，不广播 */
 const targets = new Map<string, WebContents>()
@@ -44,13 +48,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * 插件被禁用时服务也停用。
+ * 插件是否启用。
  *
- * 设置页在禁用后已经从树上消失，但 Agent / 其它调用方仍可能拿旧 requestId 打
- * 过来。这里挡在 IPC 入口，比在每个方法里判断更不容易漏。
+ * 启用集合只在 host 有一份（和清单一起维护），所以这里问它 —— shell 不再保留
+ * 镜像。问不到时按**启用**处理：真正的失败会在后续调用里以 `internal` 错误暴露，
+ * 比在这里静默把插件当停用更有用。
  */
-function isProviderEnabled(): boolean {
-  return !getDisabledPlugins().includes(AI_PROVIDER_PLUGIN_ID)
+async function isProviderEnabled(): Promise<boolean> {
+  try {
+    const disabled = await invokeHost<string[]>('plugins', 'disabled', [])
+    return !disabled.includes(AI_PROVIDER_PLUGIN_ID)
+  } catch (error) {
+    logger.warn('Failed to read the plugin preference through host', { error })
+    return true
+  }
 }
 
 function pluginUnavailable(): ProviderError {
@@ -60,10 +71,16 @@ function pluginUnavailable(): ProviderError {
   }
 }
 
-function errorPayload(err: unknown): ProviderError {
-  if (err instanceof AiProviderServiceError) return err.providerError
+function invalidRequest(): { ok: false; error: ProviderError } {
+  return {
+    ok: false,
+    error: { code: AI_PROVIDER_ERROR_CODES.invalidRequest, message: '请求格式不合法' }
+  }
+}
 
-  logger.error('AI provider operation failed', { error: err })
+/** host 不可达时的兜底错误 */
+function hostUnavailable(error: unknown): ProviderError {
+  logger.error('AI provider call failed', { error })
   return { code: AI_PROVIDER_ERROR_CODES.internal, message: 'AI 供应商操作失败' }
 }
 
@@ -112,7 +129,7 @@ function watchSender(sender: WebContents): void {
     watched.delete(sender)
     for (const [requestId, target] of targets) {
       if (target !== sender) continue
-      service?.abort(requestId)
+      void invokeHost('ai', 'abort', [requestId]).catch(() => undefined)
       cancelled.add(requestId)
       targets.delete(requestId)
       buffered.delete(requestId)
@@ -121,25 +138,34 @@ function watchSender(sender: WebContents): void {
 }
 
 export function registerAiProviderIPC(): void {
-  ipcMain.handle(AI_PROVIDER_CHANNELS.list, () =>
-    isProviderEnabled() ? getService().list() : Promise.resolve([])
-  )
+  /**
+   * host 的分片：`event.requestId` 决定转给哪个窗口。订阅放在注册时（只一次），
+   * 而不是每次 open 都订一遍。
+   */
+  subscribeHostStream((message) => {
+    deliver(message.event as ChatStreamEvent)
+  })
+
+  ipcMain.handle(AI_PROVIDER_CHANNELS.list, async (): Promise<ProviderSummary[]> => {
+    if (!(await isProviderEnabled())) return []
+    try {
+      return await invokeHost<ProviderSummary[]>('ai', 'list', [])
+    } catch (error) {
+      logger.error('Failed to list AI providers through host', { error })
+      return []
+    }
+  })
 
   ipcMain.handle(
     AI_PROVIDER_CHANNELS.save,
     async (_event, payload: unknown): Promise<SaveProviderResult> => {
-      if (!isRecord(payload)) {
-        return {
-          ok: false,
-          error: { code: AI_PROVIDER_ERROR_CODES.invalidRequest, message: '请求格式不合法' }
-        }
-      }
-      if (!isProviderEnabled()) return { ok: false, error: pluginUnavailable() }
+      if (!isRecord(payload)) return invalidRequest()
+      if (!(await isProviderEnabled())) return { ok: false, error: pluginUnavailable() }
 
       try {
-        return { ok: true, provider: await getService().save(payload as SaveProviderRequest) }
-      } catch (err) {
-        return { ok: false, error: errorPayload(err) }
+        return await invokeHost<SaveProviderResult>('ai', 'save', [payload as SaveProviderRequest])
+      } catch (error) {
+        return { ok: false, error: hostUnavailable(error) }
       }
     }
   )
@@ -147,77 +173,79 @@ export function registerAiProviderIPC(): void {
   ipcMain.handle(
     AI_PROVIDER_CHANNELS.remove,
     async (_event, providerId: unknown): Promise<RemoveProviderResult> => {
-      if (typeof providerId !== 'string' || providerId.length === 0) {
-        return {
-          ok: false,
-          error: { code: AI_PROVIDER_ERROR_CODES.invalidRequest, message: '供应商 id 不合法' }
-        }
-      }
-      if (!isProviderEnabled()) return { ok: false, error: pluginUnavailable() }
+      if (typeof providerId !== 'string' || providerId.length === 0) return invalidRequest()
+      if (!(await isProviderEnabled())) return { ok: false, error: pluginUnavailable() }
 
       try {
-        await getService().remove(providerId)
-        return { ok: true }
-      } catch (err) {
-        return { ok: false, error: errorPayload(err) }
+        return await invokeHost<RemoveProviderResult>('ai', 'remove', [providerId])
+      } catch (error) {
+        return { ok: false, error: hostUnavailable(error) }
       }
     }
   )
 
-  ipcMain.handle(AI_PROVIDER_CHANNELS.test, (_event, payload: unknown) => {
-    if (!isRecord(payload)) {
-      return {
-        ok: false,
-        error: { code: AI_PROVIDER_ERROR_CODES.invalidRequest, message: '请求格式不合法' }
+  ipcMain.handle(
+    AI_PROVIDER_CHANNELS.test,
+    async (_event, payload: unknown): Promise<TestProviderResult> => {
+      if (!isRecord(payload)) return invalidRequest()
+      if (!(await isProviderEnabled())) return { ok: false, error: pluginUnavailable() }
+
+      try {
+        return await invokeHost<TestProviderResult>('ai', 'test', [payload as TestProviderRequest])
+      } catch (error) {
+        return { ok: false, error: hostUnavailable(error) }
       }
     }
-    if (!isProviderEnabled()) return { ok: false, error: pluginUnavailable() }
-    return getService().test(payload as TestProviderRequest)
-  })
+  )
 
-  ipcMain.handle(AI_PROVIDER_CHANNELS.open, async (event, payload: unknown) => {
-    if (!isRecord(payload)) {
-      return {
-        ok: false,
-        error: { code: AI_PROVIDER_ERROR_CODES.invalidRequest, message: '请求格式不合法' }
+  ipcMain.handle(
+    AI_PROVIDER_CHANNELS.open,
+    async (event, payload: unknown): Promise<ChatOpenResult> => {
+      if (!isRecord(payload)) return invalidRequest()
+      if (!(await isProviderEnabled())) return { ok: false, error: pluginUnavailable() }
+
+      const sender = event.sender
+      watchSender(sender)
+
+      let result: ChatOpenResult
+      try {
+        result = await invokeHost<ChatOpenResult>('ai', 'open', [
+          payload as unknown as ChatOpenRequest
+        ])
+      } catch (error) {
+        return { ok: false, error: hostUnavailable(error) }
       }
-    }
-    if (!isProviderEnabled()) return { ok: false, error: pluginUnavailable() }
 
-    const sender = event.sender
-    watchSender(sender)
+      if (result.ok) {
+        // 窗口在 open 等待期间被关掉：请求已经启动，立刻取消，别让它在后台跑完
+        if (sender.isDestroyed()) {
+          void invokeHost('ai', 'abort', [result.requestId]).catch(() => undefined)
+          cancelled.add(result.requestId)
+          buffered.delete(result.requestId)
+          return {
+            ok: false,
+            error: { code: AI_PROVIDER_ERROR_CODES.aborted, message: '请求窗口已关闭' }
+          }
+        }
 
-    const result = await getService().open(payload as unknown as ChatOpenRequest, deliver)
+        cancelled.delete(result.requestId)
+        targets.set(result.requestId, sender)
 
-    if (result.ok) {
-      // 窗口在 open 等待期间被关掉：请求已经启动，立刻取消，别让它在后台跑完
-      if (sender.isDestroyed()) {
-        getService().abort(result.requestId)
-        cancelled.add(result.requestId)
-        buffered.delete(result.requestId)
-        return {
-          ok: false,
-          error: { code: AI_PROVIDER_ERROR_CODES.aborted, message: '请求窗口已关闭' }
+        // open 返回前到达的分片按顺序补发；补发完再删队列
+        const queued = buffered.get(result.requestId)
+        if (queued) {
+          buffered.delete(result.requestId)
+          for (const item of queued) deliver(item)
         }
       }
 
-      cancelled.delete(result.requestId)
-      targets.set(result.requestId, sender)
-
-      // open 返回前到达的分片按顺序补发；补发完再删队列
-      const queued = buffered.get(result.requestId)
-      if (queued) {
-        buffered.delete(result.requestId)
-        for (const item of queued) deliver(item)
-      }
+      return result
     }
-
-    return result
-  })
+  )
 
   ipcMain.handle(AI_PROVIDER_CHANNELS.abort, (_event, requestId: unknown) => {
     if (typeof requestId !== 'string') return
-    getService().abort(requestId)
+    void invokeHost('ai', 'abort', [requestId]).catch(() => undefined)
     cancelled.add(requestId)
     targets.delete(requestId)
     buffered.delete(requestId)
@@ -226,7 +254,7 @@ export function registerAiProviderIPC(): void {
 
 /** 退出 / 重建窗口前调用：把所有还在跑的 SSE 全部取消，别把 fetch 挂在后台 */
 export function shutdownAiProviderIPC(): void {
-  service?.abortAll()
+  void invokeHost('ai', 'abortAll').catch(() => undefined)
   targets.clear()
   buffered.clear()
   cancelled.clear()

@@ -8,6 +8,7 @@ import {
   encodeAppearancePreference
 } from '@shared/appearance'
 import { PROJECT_ARG_PREFIX } from '@shared/project'
+import type { ProjectRecord } from '@shared/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
   WINDOW_ARG_PREFIX,
@@ -17,10 +18,12 @@ import {
 import icon from '../../resources/icon.png?asset'
 import { createMainTranslator, getCurrentLocale } from './i18n'
 import { getAppearancePreference, getCurrentPalette, getCurrentWindowColor } from './appearance'
-import { getLogLevel } from './logger'
-import { getCurrentProject, resolveStartupProject } from './services/project-store'
+import { getLogLevel, loggerFor } from './logger'
+import { startupProject } from './host/project'
 import { trackWindowState } from './ipc/window.ipc'
 import { gateWindowClose } from './lifecycle'
+
+const logger = loggerFor('window')
 
 /**
  * 建窗。
@@ -121,6 +124,26 @@ let welcomeWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
 
 /**
+ * 主窗口**绑定的**项目路径。
+ *
+ * 这不是第二份「打开过的项目」：`projects.json` 的唯一实现在 host，这里只记「这个
+ * 窗口是在哪个项目上建出来的」。项目路径经 `additionalArguments` 在建窗时固定，
+ * reload 改不动它 —— 所以重建窗口（切语言、点重启）时必须原样再用一次，而那时没有
+ * 机会再问一次 host（重建是同步的）。
+ *
+ * 写入点只有两处，都带着 host 给的记录：启动时的 `openStartupWindow()`、打开 / 换
+ * 项目时的 `activateMainWindow()`。清空发生在「主窗口没了」的那两个时刻：回到欢迎
+ * 窗口（关闭项目）与主窗口被关掉。它因此**不会**比 host 多知道什么，只可能短暂
+ * 落后 —— 新窗口的 preload 一挂上就会用这个路径调 `project.setCurrent`，两边随即对齐。
+ */
+let boundProjectPath: string | null = null
+
+/** 主窗口当前绑定的项目路径；停在欢迎窗口时为 null。给换项目的二次确认用 */
+export function getBoundProjectPath(): string | null {
+  return boundProjectPath
+}
+
+/**
  * 登记一个根窗口（主窗口 / 欢迎窗口）。
  *
  * 两个根窗口是**互斥**的：有项目就进主窗口，没有就进欢迎窗口。把「赋值 + 在关闭
@@ -131,7 +154,17 @@ function trackRoot(type: 'main' | 'welcome', window: BrowserWindow): void {
   if (type === 'main') {
     mainWindow = window
     window.on('closed', () => {
-      if (mainWindow === window) mainWindow = null
+      if (mainWindow !== window) return
+      mainWindow = null
+      /**
+       * 主窗口没了，「当前项目」也就不在了。
+       *
+       * 不清的话，用户关掉主窗口、回到欢迎窗口之后从列表里打开同一批项目时，会被
+       * 问一句「要切换项目吗」—— 而那个会丢东西的窗口刚刚已经被关掉了。
+       * 重建窗口那条路不受影响：新窗口先登记，旧窗口的 closed 回调此时已经对不上
+       * `mainWindow`，不会把新值清掉。
+       */
+      boundProjectPath = null
     })
     return
   }
@@ -165,7 +198,8 @@ function buildWindow(type: WindowType, options: BuildOptions = {}): BrowserWindo
   const spec = WINDOW_SPECS[type]
   const t = createMainTranslator()
   const { bounds, maximized = false, parent } = options
-  const projectPath = type === 'main' ? (getCurrentProject()?.path ?? null) : null
+  // 只有主窗口认项目；欢迎 / 设置窗口不该因为「上一个项目还在」而带上项目标题
+  const projectPath = type === 'main' ? boundProjectPath : null
 
   const window = new BrowserWindow({
     width: bounds?.width ?? spec.width,
@@ -263,11 +297,16 @@ export function getWelcomeWindow(): BrowserWindow | null {
 }
 
 /**
- * 打开主窗口（当前项目已经在 project-store 里）。
+ * 打开主窗口 —— **必须**带着 host 给的记录进来。
+ *
+ * 项目路径要同时写进窗口标题与 `additionalArguments`，两者都是建窗时固定的，所以
+ * 「打开哪个项目」不能等窗口起来之后再问。
  *
  * 谁调它、什么时候调，见 `openStartupWindow()` 与 `src/main/ipc/project.ipc.ts`。
  */
-export function createMainWindow(): BrowserWindow {
+export function createMainWindow(project: ProjectRecord): BrowserWindow {
+  boundProjectPath = project.path
+
   const window = buildWindow('main')
   trackRoot('main', window)
   return window
@@ -281,18 +320,39 @@ export function createWelcomeWindow(): BrowserWindow {
 }
 
 /**
- * 启动 / 重新激活时开哪个根窗口 —— 宿主只在这一个地方做这个决定。
+ * 启动时该打开哪个项目：问 host。
  *
- * 「默认打开上次打开的文件夹」就落在这里：`resolveStartupProject()` 同时把当前
- * 项目定下来（主窗口的标题与启动参数都要它），拿不到就回落成欢迎窗口。
+ * host 是 `projects.json` 的唯一实现，也是「那条记录的目录还在不在」的判断方，
+ * 所以这里没有本地判断可做。host 起不来时给 null（回落欢迎窗口），并且把原因记进
+ * 日志 —— 那种情况下窗口本身还开得出来，只是没有任何项目可读。
  */
-export function openStartupWindow(): BrowserWindow {
-  return resolveStartupProject() ? createMainWindow() : createWelcomeWindow()
+async function startupProjectOrNull(): Promise<ProjectRecord | null> {
+  try {
+    return await startupProject()
+  } catch (error) {
+    logger.error('Failed to resolve the startup project through host', { error })
+    return null
+  }
 }
 
 /**
- * 切到主窗口 —— 「当前项目」已经由调用方写好了（启动时是 resolveStartupProject，
- * 其余时候是打开 / 切换项目）。
+ * 启动 / 重新激活时开哪个根窗口 —— 宿主只在这一个地方做这个决定。
+ *
+ * 「默认打开上次打开的文件夹」落在 host：`projects.json` 的唯一实现在那边，它也
+ * 判断「那条记录的目录还在不在」。所以这一步是**异步**的，窗口要等 host ready 之后
+ * 才建得出来 —— 换来的是 shell 不再读第二份 `projects.json`。
+ *
+ * host 起不来时回落成欢迎窗口：那种情况下任何项目都读不了（文件 / 配置全在 host），
+ * 给一个能重新选目录的入口，比开一个打不开任何文件的主窗口有用。
+ */
+export async function openStartupWindow(): Promise<BrowserWindow> {
+  const project = await startupProjectOrNull()
+  return project ? createMainWindow(project) : createWelcomeWindow()
+}
+
+/**
+ * 切到主窗口 —— 项目记录由调用方从 host 拿到（启动时是 openStartupWindow，其余时候
+ * 是打开 / 切换项目的结果）。
  *
  * 两条路径：
  * - 主窗口还没开（从欢迎窗口打开项目）：建主窗口，再拆欢迎窗口；
@@ -302,13 +362,15 @@ export function openStartupWindow(): BrowserWindow {
  * 顺序约束与 `recreateRootWindow()` 相同：**先建新窗、再拆旧窗**，否则拆的那一
  * 瞬间可能一个窗口都不剩，触发 window-all-closed 让应用直接退出。
  */
-export function activateMainWindow(): void {
+export function activateMainWindow(project: ProjectRecord): void {
+  boundProjectPath = project.path
+
   if (mainWindow && !mainWindow.isDestroyed()) {
     recreateRootWindow()
     return
   }
 
-  createMainWindow()
+  createMainWindow(project)
   destroyWelcomeWindow()
 }
 
@@ -317,8 +379,11 @@ export function activateMainWindow(): void {
  *
  * 只换窗口，**不动**「打开过的项目」那份记录 —— 它还留在列表里，也仍然是下次启动
  * 时要打开的那个（见 shared/project）。「关闭项目」是这一次会话的事，不是把记录删掉。
+ *
+ * 绑定的项目路径在这里清掉：欢迎窗口没有项目，之后重建任何窗口都不该再带上它。
  */
 export function returnToWelcomeWindow(): void {
+  boundProjectPath = null
   createWelcomeWindow()
 
   const window = mainWindow
@@ -437,6 +502,10 @@ function centerOn(window: BrowserWindow, reference: BrowserWindow): void {
  *
  * 重建会丢掉渲染进程的未保存状态，所以调用方应当先征求用户同意。
  *
+ * 主窗口的项目路径取自 `boundProjectPath`（这个窗口建出来时用的那个）—— 重建是同步
+ * 的，没有机会再问一次 host。换项目走 `activateMainWindow()`，它先把新路径写进去
+ * 再重建，所以这里拿到的永远是这个窗口该有的那个项目。
+ *
  * 设置窗口会跟着一起消失（它是旧根窗口的子窗口）。这是**刻意的**：它的界面文案
  * 是切换前的语言，留着就会「主窗口是英文、设置窗口还是中文」。代价是切语言时
  * 设置窗口被关掉，这比半新半旧好。
@@ -446,7 +515,7 @@ export function recreateRootWindow(): void {
   const type: 'main' | 'welcome' = mainWindow ? 'main' : 'welcome'
 
   if (!previous || previous.isDestroyed()) {
-    openStartupWindow()
+    void openStartupWindow()
     return
   }
 

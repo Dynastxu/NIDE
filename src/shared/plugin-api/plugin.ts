@@ -31,8 +31,8 @@ export interface PluginDescriptor {
    * 改动这个插件的启用状态后，是否需要重建窗口才能完全生效。
    *
    * 由**插件自己在 manifest 里声明**，宿主不猜：只有插件知道自己的东西是不是
-   * 在启动时就被读进了某个不会再刷新的地方。语言包就是典型 —— 词条表在
-   * initI18n() 时构建成载荷并缓存在主进程里，热改只会得到一份半新半旧的界面。
+   * 在启动时就被读进了某个不会再刷新的地方。语言包就是典型 —— 词条表在启动时
+   * 被 host 构建成载荷、shell 缓存了一份，热改只会得到一份半新半旧的界面。
    */
   requiresRestart: boolean
   /** 插件自述。manifest 还没这个字段，当前一律为空 */
@@ -47,3 +47,28 @@ export interface PluginDescriptor {
  * 合成一个对象就得在启用状态变化时伪造一份新清单。
  */
 export type PluginEnabledMap = Record<string, boolean>
+
+/**
+ * 安装 / 卸载的失败原因。
+ *
+ * `cancelled` 只在 shell 侧出现（用户关掉了选择目录 / 卸载确认框），host 不会返回它。
+ */
+export type PluginMutationFailureReason =
+  /** 目录里没有合法 manifest，或 manifest 被保留 id / 坏字段拒绝 */
+  | 'invalid-plugin'
+  /** 目标目录 / 插件 id 已经存在 */
+  | 'already-exists'
+  /** 内置插件随宿主分发，不能卸载 */
+  | 'builtin'
+  /** 清单里找不到这个 id */
+  | 'not-found'
+  /** 复制 / 删除 / 扫描失败 */
+  | 'unreadable'
+  /** 用户取消了目录选择或卸载确认 */
+  | 'cancelled'
+
+export type PluginInstallResult =
+  { ok: true; plugin: PluginDescriptor } | { ok: false; reason: PluginMutationFailureReason }
+
+export type PluginRemoveResult =
+  { ok: true; plugin: PluginDescriptor } | { ok: false; reason: PluginMutationFailureReason }

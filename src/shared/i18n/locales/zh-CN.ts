@@ -105,6 +105,7 @@ export const zhCN = {
   'host.welcome.projects.dialog.button': '选择此文件夹',
   'host.welcome.projects.error.missing': '目录不存在：{path}',
   'host.welcome.projects.error.not-a-directory': '这不是一个文件夹：{path}',
+  'host.welcome.projects.error.unreadable': '宿主进程没有响应，读不到这个项目：{path}',
 
   // ---- 设置 ----
   'host.settings.button': '设置',
@@ -172,9 +173,22 @@ export const zhCN = {
   'host.settings.plugins.menu.uninstall': '卸载',
   'host.settings.plugins.notImplemented': '尚未实现',
   'host.settings.plugins.builtinUndeletable': '内置插件不可卸载',
+  'host.settings.plugins.install': '从文件夹安装',
+  'host.settings.plugins.install.failed':
+    '安装失败：目录里没有可用的 manifest.json，或者同名插件已经存在。',
   'host.settings.plugins.disabledWarning': '该插件已禁用：它的视图不会出现在工作台里。',
   'host.settings.plugins.note':
-    '启用状态会保存到用户配置目录，重启后仍然有效；卸载功能尚未实现，磁盘上的插件文件不会被删除。',
+    '启用状态会保存到用户配置目录，重启后仍然有效；卸载会删除用户安装的插件目录，内置插件不可卸载。',
+
+  // 插件安装 / 卸载（主进程的动作出口）
+  'host.plugins.install.title': '选择插件文件夹',
+  'host.plugins.trust.title': '启用第三方插件',
+  'host.plugins.trust.message':
+    '插件「{name}」拥有完整的 Node 权限，可以读写你的文件和网络。只启用你信任的插件。',
+  'host.plugins.trust.confirm': '启用',
+  'host.plugins.uninstall.title': '卸载插件',
+  'host.plugins.uninstall.message': '卸载「{name}」会删除它的插件目录，之后可以重新安装。',
+  'host.plugins.uninstall.confirm': '卸载',
   'host.diff.title': 'Diff 对比',
   'host.diff.close': '关闭',
 
@@ -205,7 +219,7 @@ export const zhCN = {
 
   // 条目右键菜单：一项「新建」，展开是两个名词。落点由被右键的条目决定
   // （目录 -> 内部，文件 -> 同级），所以菜单上不必写位置。
-  // 这一块由条目动作层装配，文件树与章节列表共用（见 renderer/src/entry/entry-menu.ts）
+  // 这一块由条目动作层装配，文件树与章节列表共用（见 client-ui-main 的 entry/entry-menu.ts）
   'host.explorer.menu.new': '新建',
   'host.explorer.menu.newFolder': '文件夹',
   'host.explorer.menu.newFile': '文件',

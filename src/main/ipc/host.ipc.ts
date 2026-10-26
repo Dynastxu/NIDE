@@ -3,22 +3,20 @@ import { WINDOW_CHANNELS } from '@shared/window'
 import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
 import { AI_PROVIDER_PLUGIN_ID } from '@shared/ai-provider'
 import { normalizeAppearancePreference } from '@shared/appearance'
-import { HOST_VIEW_PLUGIN_ID } from '@shared/plugin-api'
-import { uiRegistry } from '../plugin-host/ui-registry'
-import { settingsRegistry } from '../plugin-host/settings-registry'
-import { HOST_VIEWS } from '../plugin-host/host-views'
-import { pluginRegistry } from '../plugin-host/plugin-registry'
-import { getDisabledPlugins, setPluginEnabled } from '../plugin-host/preference'
 import { getAppearancePreference, getThemePayload, setThemePreference } from '../appearance'
-import { createMainTranslator, getCurrentLocale, getI18nPayload, switchLocale } from '../i18n'
-import { manifestNlsRegistry } from '../i18n/manifest-nls'
+import { createMainTranslator, getI18nPayload, switchLocale } from '../i18n'
 import { loggerFor, toLogRecord } from '../logger'
 import { getMainWindow, recreateRootWindow } from '../window'
+import { invokeHost } from '../host/process'
+import { CONFIRM_SPECS, isActionConfirmed } from '../confirm'
 import { shutdownAiProviderIPC } from './ai-provider.ipc'
 import type { I18nPayload, LocaleId } from '@shared/i18n'
 import type { ThemePayload } from '@shared/theme'
 import type {
+  ClientBundleDescriptor,
   PluginDescriptor,
+  PluginInstallResult,
+  PluginRemoveResult,
   PluginSettingsDescriptor,
   PluginViewDescriptor
 } from '@shared/plugin-api'
@@ -79,7 +77,7 @@ async function applyLocaleSwitch(locale: LocaleId): Promise<void> {
 
   if (response !== CONFIRM) return
 
-  if (!switchLocale(locale)) {
+  if (!(await switchLocale(locale))) {
     const failed = { type: 'error' as const, message: t('host.locale.switch.failed', { locale }) }
     if (parent) await dialog.showMessageBox(parent, failed)
     else await dialog.showMessageBox(failed)
@@ -94,59 +92,37 @@ export function registerHostIPC(): void {
    * 渲染进程拿到的只是「有哪些视图」这份纯数据，
    * 组件怎么加载由渲染进程自己决定（构建期 import.meta.glob）。
    *
-   * manifest 的标题在这里**按当前语言解析**，而不是在插件扫描时。
-   * 原因是时序：扫描 manifest 发生在 initI18n() 之前，那时还不知道用哪个语言。
-   * 放到查询时解析还有个附带好处 —— 切语言重建窗口后渲染进程重新取一次
-   * 视图列表，标题就跟着变了，不需要任何重载逻辑。
+   * 内建视图（文件树 / 版本控制 / 提交）也在 host 的视图表里：它们的标题是宿主
+   * 词条，而词条表与当前语言都在 host —— 放在 shell 拼会让同一次查询跨两份翻译。
+   * 顺序由 host 保证：内建视图在前，插件视图在后。
    *
-   * 宿主内建视图（文件树）接在同一张表的**前面**：它们不走 manifest，
-   * 但必须和插件视图一起参与「一个区展示谁」的既有机制（见 host-views.ts）。
-   * 排在前面是为了让它们成为各自区的**第一个视图**，也就是该区 activeViewId
+   * 顺序有实际意义：排在前面的视图是各自区的**第一个**，也就是该区 activeViewId
    * 为 null 时默认展示的那一个 —— 打开工作台就该看见文件树，而不是演示面板。
    */
-  ipcMain.handle(HOST_CHANNELS.getPluginViews, (): PluginViewDescriptor[] => {
-    const locale = getCurrentLocale()
-    const t = createMainTranslator()
-
-    const hostViews: PluginViewDescriptor[] = HOST_VIEWS.map((view) => ({
-      id: view.id,
-      title: t(view.titleKey),
-      location: view.location,
-      icon: view.icon,
-      pluginId: HOST_VIEW_PLUGIN_ID,
-      // 内建视图的组件编译在宿主里，没有插件目录，也没有入口文件
-      dir: '',
-      entry: ''
-    }))
-
-    const pluginViews = uiRegistry.getAll().map(({ titleSpec, ...view }) => ({
-      ...view,
-      title: manifestNlsRegistry.resolve(view.pluginId, titleSpec, locale) ?? view.id
-    }))
-
-    return [...hostViews, ...pluginViews]
+  ipcMain.handle(HOST_CHANNELS.getPluginViews, async (): Promise<PluginViewDescriptor[]> => {
+    try {
+      return await invokeHost<PluginViewDescriptor[]>('plugins', 'views', [])
+    } catch (error) {
+      // host 是启动必需的；走到这里说明它刚崩了。返回空表让界面进「没有视图」的
+      // 状态，比让渲染进程的 await 永不落地好查。
+      logger.error('Failed to read the plugin views through host', { error })
+      return []
+    }
   })
 
   /**
    * 全局设置里的插件子设置。
    *
-   * 标题在这里按当前语言解析（和视图同一个理由：扫描早于 initI18n）。
-   * 被禁用的插件直接过滤掉：它的设置页由插件自己贡献，插件都不启用，
-   * 页面留在树上只会点开一个报错。启用状态变化后主进程会广播
-   * `plugin:enabled-changed`，设置窗口据此重拉这份列表。
+   * host 只回**已启用**插件的页，并按 order / 标题排好；这里不再筛、不再排。
+   * 启用状态变化后 shell 会广播 `plugin:enabled-changed`，设置窗口据此重拉。
    */
-  ipcMain.handle(HOST_CHANNELS.getPluginSettings, (): PluginSettingsDescriptor[] => {
-    const locale = getCurrentLocale()
-    const disabled = new Set(getDisabledPlugins())
-
-    return settingsRegistry
-      .getAll()
-      .filter((page) => !disabled.has(page.pluginId))
-      .map(({ titleSpec, ...page }) => ({
-        ...page,
-        title: manifestNlsRegistry.resolve(page.pluginId, titleSpec, locale) ?? page.id
-      }))
-      .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title, locale))
+  ipcMain.handle(HOST_CHANNELS.getPluginSettings, async (): Promise<PluginSettingsDescriptor[]> => {
+    try {
+      return await invokeHost<PluginSettingsDescriptor[]>('plugins', 'settings', [])
+    } catch (error) {
+      logger.error('Failed to read the plugin settings pages through host', { error })
+      return []
+    }
   })
 
   /**
@@ -164,29 +140,37 @@ export function registerHostIPC(): void {
    * 「磁盘上有哪些插件」。纯数据插件（语言包）只有后者认得，而设置界面必须
    * 把它们列出来 —— 用户装了个语言包却在插件列表里找不到，那是最容易踩的坑。
    */
-  ipcMain.handle(HOST_CHANNELS.getPlugins, (): PluginDescriptor[] => {
-    return pluginRegistry
-      .getAll()
-      .map((plugin) => ({
-        id: plugin.id,
-        name: plugin.name,
-        version: plugin.version,
-        builtin: plugin.source === 'builtin',
-        dir: plugin.dir,
-        permissions: plugin.permissions,
-        views: plugin.views,
-        requiresRestart: plugin.requiresRestart,
-        ...(plugin.description ? { description: plugin.description } : {})
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+  ipcMain.handle(HOST_CHANNELS.getPlugins, async (): Promise<PluginDescriptor[]> => {
+    try {
+      return await invokeHost<PluginDescriptor[]>('plugins', 'list', [])
+    } catch (error) {
+      // 清单的唯一来源是 host。读不到就给空列表，而不是拿一份可能过期的镜像顶上
+      logger.error('Failed to read the plugin list through host', { error })
+      return []
+    }
+  })
+
+  /**
+   * 已启用插件的浏览器半 bundle。
+   *
+   * 只返回纯数据；绝对路径仅用于开发期的 Vite `/@fs/`，生产环境会换成
+   * app 协议（见 docs/architecture/plugin-ui-bundles.md）。
+   */
+  ipcMain.handle(HOST_CHANNELS.getClientBundles, async (): Promise<ClientBundleDescriptor[]> => {
+    try {
+      return await invokeHost<ClientBundleDescriptor[]>('plugins', 'clientBundles', [])
+    } catch (error) {
+      logger.error('Failed to read the client bundles through host', { error })
+      return []
+    }
   })
 
   /**
    * 启用 / 禁用插件。
    *
    * 「禁用」的效果**立刻可见**，因为它落在渲染进程侧：被禁用的插件，它的视图
-   * 会从工具区消失（见 renderer 的 plugin.store）。宿主这边记状态并**落盘**
-   * （见 plugin-host/preference.ts），重启后仍然有效。
+   * 会从工具区消失（见 renderer 的 plugin.store）。状态由 host 持有并**落盘**，
+   * 重启后仍然有效 —— shell 不保留副本，需要时问 host。
    *
    * 刻意**不做**的一件事：不重建窗口。禁用是高频的试错操作，每次都重建窗口会
    * 丢掉编辑器里未保存的内容 —— 而语言切换之所以能那样做，是因为它低频且真的
@@ -194,8 +178,41 @@ export function registerHostIPC(): void {
    */
   ipcMain.handle(
     HOST_CHANNELS.setPluginEnabled,
-    (_event, pluginId: string, enabled: boolean): void => {
-      setPluginEnabled(pluginId, enabled)
+    async (event, pluginId: string, enabled: boolean, options: unknown): Promise<boolean> => {
+      /**
+       * 第三方插件启用前先问一次信任。
+       *
+       * 内置插件不走这一问：它们随宿主分发，用户没有「装不装」的选择。第三方代码
+       * 拥有完整 Node 权限（D6），装进来只代表「有了」，启用才是信任决定。
+       *
+       * 「是不是第三方」只有 host 的清单知道；读不到清单时**不问**（与搬迁前
+       * 「清单里找不到这个 id」同一条行为），因为那时启用也不会成功。
+       */
+      const record = await findPlugin(pluginId)
+      if (enabled && record && !record.builtin) {
+        const ok = await isActionConfirmed(event.sender, options, {
+          ...CONFIRM_SPECS.enableThirdPartyPlugin,
+          params: { name: record.name }
+        })
+        if (!ok) {
+          pluginLogger.info('Third-party plugin enable cancelled by the user', { pluginId })
+          return false
+        }
+      }
+
+      /**
+       * 启用状态由 host 持有并落盘（和清单、bundle、语言包同一处维护）。
+       *
+       * shell 不再保留镜像：视图表、禁用集合、语言包都由 host 按这份状态算好，
+       * 什么时候要就什么时候问。失败时**不假装成功** —— 返回 false，界面上的勾选
+       * 会回到原状，而不是「看起来禁用了、其实没有」。
+       */
+      try {
+        await invokeHost('plugins', 'setEnabled', [pluginId, enabled])
+      } catch (error) {
+        logger.error('host plugins.setEnabled failed', { error, pluginId })
+        return false
+      }
 
       // 供应商插件被禁用时，把它还在跑的 SSE 全部取消；否则用户以为停用了，
       // 后台仍然在读流。
@@ -211,11 +228,86 @@ export function registerHostIPC(): void {
        * pushEventToRenderer 是既有的宿主 -> 全窗口广播通道，这里正好是它的用途。
        */
       pushEventToRenderer(HOST_EVENT_CHANNELS.pluginEnabledChanged, pluginId, enabled)
+      return true
     }
   )
 
   /** 当前被禁用的插件。渲染进程启动时取一次，用来过滤视图列表 */
-  ipcMain.handle(HOST_CHANNELS.getDisabledPlugins, (): string[] => getDisabledPlugins())
+  ipcMain.handle(HOST_CHANNELS.getDisabledPlugins, async (): Promise<string[]> => {
+    try {
+      return await invokeHost<string[]>('plugins', 'disabled', [])
+    } catch (error) {
+      // 问不到当作「全部启用」：宁可多显示一个视图，也不要把插件静默关掉
+      logger.error('host plugins.disabled failed', { error })
+      return []
+    }
+  })
+
+  /**
+   * 从本地文件夹安装插件。
+   *
+   * shell 只负责选目录（host 没有窗口），实际复制 / 校验 / 落盘 / 重扫都在 host。
+   * 装进来默认禁用，启用时还要过 `enableThirdPartyPlugin` 那道信任确认。
+   *
+   * 装完要重扫 shell 自己的视图 / 设置页 / 语言包注册表 —— 它们仍在 shell：
+   * 新插件的视图与设置页要立刻出现在界面上，不能等重启。
+   */
+  ipcMain.handle(HOST_CHANNELS.installPlugin, async (event): Promise<PluginInstallResult> => {
+    const t = createMainTranslator()
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: t('host.plugins.install.title'),
+      properties: ['openDirectory']
+    }
+
+    const picked = parent
+      ? await dialog.showOpenDialog(parent, options)
+      : await dialog.showOpenDialog(options)
+
+    const source = picked.canceled ? undefined : picked.filePaths[0]
+    if (!source) return { ok: false, reason: 'cancelled' }
+
+    try {
+      const result = await invokeHost<PluginInstallResult>('plugins', 'install', [source])
+      if (result.ok) notifyPluginCatalogChanged()
+      return result
+    } catch (error) {
+      logger.warn('host plugins.install failed', { error })
+      return { ok: false, reason: 'unreadable' }
+    }
+  })
+
+  /**
+   * 卸载一个第三方插件。
+   *
+   * 内置插件在 host 里也会被拒；这里提前挡一次是为了先给出「内置插件不可卸载」，
+   * 而不是让用户回答一个注定失败的确认框。
+   */
+  ipcMain.handle(
+    HOST_CHANNELS.removePlugin,
+    async (event, pluginId: unknown): Promise<PluginRemoveResult> => {
+      const id = String(pluginId ?? '')
+      if (id.length === 0) return { ok: false, reason: 'not-found' }
+
+      const record = await findPlugin(id)
+      if (record?.builtin) return { ok: false, reason: 'builtin' }
+
+      const confirmed = await isActionConfirmed(event.sender, undefined, {
+        ...CONFIRM_SPECS.uninstallPlugin,
+        params: { name: record?.name ?? id }
+      })
+      if (!confirmed) return { ok: false, reason: 'cancelled' }
+
+      try {
+        const result = await invokeHost<PluginRemoveResult>('plugins', 'remove', [id])
+        if (result.ok) notifyPluginCatalogChanged()
+        return result
+      } catch (error) {
+        logger.warn('host plugins.remove failed', { error })
+        return { ok: false, reason: 'unreadable' }
+      }
+    }
+  )
 
   /** 当前主题的完整载荷。渲染进程启动后拉一次，用来填设置页的主题列表 */
   ipcMain.handle(HOST_CHANNELS.getTheme, (): ThemePayload => getThemePayload())
@@ -230,7 +322,7 @@ export function registerHostIPC(): void {
    * 与 set-locale 的关键差别：这里不重建窗口、不确认。换主题不需要重建（词条表在
    * 首帧前就固定了），也就不会丢掉未保存的内容。
    */
-  ipcMain.handle(HOST_CHANNELS.setTheme, (_e, payload: unknown): boolean => {
+  ipcMain.handle(HOST_CHANNELS.setTheme, async (_e, payload: unknown): Promise<boolean> => {
     const preference = normalizeAppearancePreference(payload)
     /**
      * `followSystem` 刻意**不**从载荷里取：它当前恒为 false（设置页把这一项摆成
@@ -265,11 +357,6 @@ export function registerHostIPC(): void {
      * 记录冲掉。要排查它时把 NIDE_LOG_LEVEL 设成 debug。
      */
     logger.debug('Editor content changed', { filePath, chars: content.length })
-  })
-
-  // 插件重载（占位，等插件后端接上再实现）
-  ipcMain.handle(HOST_CHANNELS.reloadPlugin, (_e, pluginId: string) => {
-    pluginLogger.info('Plugin reload requested', { pluginId, implemented: false })
   })
 
   /**
@@ -320,6 +407,33 @@ export function registerHostIPC(): void {
       })
     })
   })
+}
+
+/**
+ * 插件目录变了（安装 / 卸载）之后的通知。
+ *
+ * host 在 install / remove 里已经重扫过目录（视图、设置页、语言包、禁用集合都在
+ * 那边），所以 shell 只需要广播一次「该刷新了」—— 主窗口重拉视图，设置窗口重拉
+ * 设置树。它不携带语义，也就没有需要 shell 同步的副本。
+ */
+function notifyPluginCatalogChanged(): void {
+  pushEventToRenderer(HOST_EVENT_CHANNELS.pluginEnabledChanged, '', false)
+}
+
+/**
+ * 从 host 的清单里找一条插件记录；读不到时给 null。
+ *
+ * 「是不是第三方」只由 host 的清单回答 —— shell 不再自己扫目录，所以这里没有第二
+ * 份名单可查。读不到时调用方按「不知道」处理（不弹信任确认、让 host 自己去拒绝）。
+ */
+async function findPlugin(pluginId: string): Promise<PluginDescriptor | null> {
+  try {
+    const plugins = await invokeHost<PluginDescriptor[]>('plugins', 'list', [])
+    return plugins.find((plugin) => plugin.id === pluginId) ?? null
+  } catch (error) {
+    logger.warn('Failed to look up a plugin through host', { pluginId, error })
+    return null
+  }
 }
 
 /** 宿主 -> 渲染进程：推送事件 */

@@ -34,7 +34,10 @@ import type {
 } from '@shared/project'
 import type {
   Disposable,
+  ClientBundleDescriptor,
   PluginDescriptor,
+  PluginInstallResult,
+  PluginRemoveResult,
   PluginSettingsDescriptor,
   PluginViewDescriptor
 } from '@shared/plugin-api'
@@ -94,6 +97,18 @@ export interface RendererLoggerAPI {
   warn: (text: string, fields?: Record<string, unknown>) => void
   info: (text: string, fields?: Record<string, unknown>) => void
   debug: (text: string, fields?: Record<string, unknown>) => void
+}
+
+/**
+ * renderer ↔ host 直连通道（MVP）。
+ *
+ * 由主进程在窗口 `did-finish-load` 后送入一个 MessagePort；
+ * `available()` 在 port 到达前是 false。阶段 2 会换成通用 RPC。
+ */
+export interface NideHostAPI {
+  available: () => boolean
+  invoke: <T = unknown>(namespace: string, method: string, ...args: unknown[]) => Promise<T>
+  ping: () => Promise<unknown>
 }
 
 /**
@@ -296,7 +311,21 @@ export interface HostAPI {
   /** 全局设置里的插件子设置页；被禁用插件贡献的页面不会出现在这里 */
   getPluginSettings: () => Promise<PluginSettingsDescriptor[]>
   getPlugins: () => Promise<PluginDescriptor[]>
-  setPluginEnabled: (pluginId: string, enabled: boolean) => Promise<void>
+  /** 已启用插件的浏览器半 bundle（开发期绝对路径） */
+  getClientBundles: () => Promise<ClientBundleDescriptor[]>
+  /**
+   * 启用 / 禁用插件；返回 false 表示用户在「启用第三方插件」的信任确认里取消了。
+   * `{ confirm: false }` 让已经问过用户的调用方跳过那一问。
+   */
+  setPluginEnabled: (
+    pluginId: string,
+    enabled: boolean,
+    options?: ConfirmOptions
+  ) => Promise<boolean>
+  /** 从本地文件夹安装插件（shell 弹目录对话框）；装进来默认禁用 */
+  installPlugin: () => Promise<PluginInstallResult>
+  /** 卸载第三方插件；内置插件返回 `builtin`，取消返回 `cancelled` */
+  removePlugin: (pluginId: string) => Promise<PluginRemoveResult>
   getDisabledPlugins: () => Promise<string[]>
   onPluginEnabledChanged: (handler: (pluginId: string, enabled: boolean) => void) => Disposable
   getI18n: () => Promise<I18nPayload>
@@ -318,13 +347,13 @@ export interface HostAPI {
   aiProvider: AiProviderAPI
   /** 行为级二次确认的渲染侧端口（只有 ConfirmHost 用） */
   confirm: ConfirmAPI
-  reloadPlugin: (pluginId: string) => Promise<void>
 }
 
 declare global {
   interface Window {
     electron: ElectronAPI
     hostAPI: HostAPI
+    nideHost: NideHostAPI
     __NIDE_BOOT__: NideBootInfo
   }
 }

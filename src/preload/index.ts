@@ -16,6 +16,7 @@ import {
   normalizeAppearancePreference
 } from '@shared/appearance'
 import { CONFIRM_CHANNELS } from '@shared/confirm'
+import { HOST_PORT_CHANNEL, isRpcResponse } from '@shared/host-rpc'
 import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
 import { AI_PROVIDER_CHANNELS } from '@shared/ai-provider'
 import {
@@ -78,7 +79,13 @@ import type {
   RenameEntryResult,
   WriteFileRequest
 } from '@shared/project'
-import type { Disposable, PluginDescriptor } from '@shared/plugin-api'
+import type {
+  Disposable,
+  PluginDescriptor,
+  ClientBundleDescriptor,
+  PluginInstallResult,
+  PluginRemoveResult
+} from '@shared/plugin-api'
 
 // 通用事件总线（渲染进程侧）
 const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
@@ -94,7 +101,7 @@ ipcRenderer.on(HOST_CHANNELS.event, (_event, channel: string, ...args: unknown[]
  * 求值之前获取语言设置，而该初始化路径上不存在执行 await 的时机。
  * 完整的词条表仍通过 host:get-i18n 异步获取，两者互不冲突：此处仅返回
  * 一个语言标识字符串。
- * @see src/renderer/src/monaco-env.ts
+ * @see packages/client-kit/src/monaco-env.ts
  */
 function readBootLocale(): LocaleId {
   const arg = process.argv.find((item) => item.startsWith(LOCALE_ARG_PREFIX))
@@ -261,9 +268,53 @@ const windowAPI = {
  * 能力（欢迎窗口与「欢迎 -> 主窗口」的切换都靠它）。所有判断都在主进程 ——
  * 目录存不存在这类事实只有主进程看得到。
  */
+/**
+ * host 侧 `project.list` 的延迟绑定。
+ *
+ * port 到达前为 null —— 此时走旧 IPC，host 未启用或尚未连接都不影响界面。
+ * 这是阶段 2 的绞杀者接缝：调用方（projectAPI.list）不认识 host，只认这个函数。
+ */
+let hostProjectList: (() => Promise<ProjectListItem[]>) | null = null
+
+/** host 侧文件读写的延迟绑定；port 未到 / host 未启用时为 null。 */
+let hostReadDir: ((dirPath: string) => Promise<DirReadResult>) | null = null
+let hostReadFile: ((filePath: string) => Promise<FileReadResult>) | null = null
+let hostWriteFile: ((request: WriteFileRequest) => Promise<FileWriteResult>) | null = null
+let hostCreateEntry: ((request: CreateEntryRequest) => Promise<CreateEntryResult>) | null = null
+let hostRenameEntry: ((request: RenameEntryRequest) => Promise<RenameEntryResult>) | null = null
+let hostDeleteEntry: ((request: DeleteEntryRequest) => Promise<DeleteEntryResult>) | null = null
+let hostReadChapters: ((dirPath: string) => Promise<ChapterListResult>) | null = null
+let hostReadForeshadowing: ((dirPath: string) => Promise<ForeshadowingListResult>) | null = null
+let hostReadGalleries: ((galleryRoot: string) => Promise<GalleryListResult>) | null = null
+let hostCreateGallery: ((request: GalleryCreateRequest) => Promise<GalleryCreateResult>) | null =
+  null
+let hostUpdateGalleryRegistry:
+  ((request: GalleryRegistryUpdateRequest) => Promise<GalleryRegistryUpdateResult | null>) | null =
+  null
+let hostReadOverview: ((overviewRoot: string) => Promise<OverviewListResult>) | null = null
+let hostSetOverviewRole:
+  ((request: OverviewRoleUpdateRequest) => Promise<OverviewRoleUpdateResult>) | null = null
+let hostReadConfig: (() => Promise<ProjectConfig | null>) | null = null
+let hostUpdateConfig:
+  ((patch: ProjectConfigPatch) => Promise<ProjectConfigUpdateResult | null>) | null = null
+let hostGetPlugins: (() => Promise<PluginDescriptor[]>) | null = null
+let hostGetDisabledPlugins: (() => Promise<string[]>) | null = null
+let hostGetClientBundles: (() => Promise<ClientBundleDescriptor[]>) | null = null
+
 const projectAPI = {
   /** 「打开过的项目」列表，最近打开的在前 */
-  list: (): Promise<ProjectListItem[]> => ipcRenderer.invoke(PROJECT_CHANNELS.list),
+  list: async (): Promise<ProjectListItem[]> => {
+    if (hostProjectList) {
+      try {
+        const projects = await hostProjectList()
+        preloadLogger.info('project.list served by host', { count: projects.length })
+        return projects
+      } catch (error) {
+        preloadLogger.warn('host project.list failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_CHANNELS.list)
+  },
 
   /**
    * 打开列表里的某一条。目录已经不在时返回带原因的结果，不抛异常。
@@ -302,12 +353,28 @@ const projectAPI = {
    * 失败不抛异常，返回带原因的结果 —— 目录被删、没权限都是常见状态，
    * 界面要按原因说话，而不是接到一个 rejected promise。
    */
-  readDir: (dirPath: string): Promise<DirReadResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readDir, dirPath),
+  readDir: async (dirPath: string): Promise<DirReadResult> => {
+    if (hostReadDir) {
+      try {
+        return await hostReadDir(dirPath)
+      } catch (error) {
+        preloadLogger.warn('host files.readDir failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readDir, dirPath)
+  },
 
   /** 读项目里的一个纯文本 / Markdown 文件。失败同样返回带原因的结果 */
-  readFile: (filePath: string): Promise<FileReadResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readFile, filePath),
+  readFile: async (filePath: string): Promise<FileReadResult> => {
+    if (hostReadFile) {
+      try {
+        return await hostReadFile(filePath)
+      } catch (error) {
+        preloadLogger.warn('host files.readFile failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readFile, filePath)
+  },
 
   /**
    * 读一个内容目录里的章节列表（含每一章的编号）。
@@ -315,8 +382,16 @@ const projectAPI = {
    * 与 readDir 分开：这一步会只读每个文件的**开头**（frontmatter）取章节号，
    * 而渲染进程没有「只读一段」这个能力 —— 那是主进程的活。
    */
-  readChapters: (dirPath: string): Promise<ChapterListResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readChapters, dirPath),
+  readChapters: async (dirPath: string): Promise<ChapterListResult> => {
+    if (hostReadChapters) {
+      try {
+        return await hostReadChapters(dirPath)
+      } catch (error) {
+        preloadLogger.warn('host files.readChapters failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readChapters, dirPath)
+  },
 
   /**
    * 读一个内容目录里的伏笔列表（名称 / 起始章节 / 结束章节 / 描述）。
@@ -324,8 +399,16 @@ const projectAPI = {
    * 与 readChapters 同一条理由：列表要扫一个目录并逐份取出字段；交给渲染进程就
    * 只有「一次读一个文件」这一条路。读不出字段的 yml 仍然列出来，只是名称回落到文件名。
    */
-  readForeshadowing: (dirPath: string): Promise<ForeshadowingListResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readForeshadowing, dirPath),
+  readForeshadowing: async (dirPath: string): Promise<ForeshadowingListResult> => {
+    if (hostReadForeshadowing) {
+      try {
+        return await hostReadForeshadowing(dirPath)
+      } catch (error) {
+        preloadLogger.warn('host files.readForeshadowing failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.readForeshadowing, dirPath)
+  },
 
   /**
    * 新建文件 / 文件夹。
@@ -334,8 +417,16 @@ const projectAPI = {
    * 条目推导，渲染进程因此无法指定任意写入位置。已存在时返回
    * `{ ok: false, reason: 'already-exists' }`，**不会覆盖**。
    */
-  createEntry: (request: CreateEntryRequest): Promise<CreateEntryResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.createEntry, request),
+  createEntry: async (request: CreateEntryRequest): Promise<CreateEntryResult> => {
+    if (hostCreateEntry) {
+      try {
+        return await hostCreateEntry(request)
+      } catch (error) {
+        preloadLogger.warn('host files.createEntry failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.createEntry, request)
+  },
 
   /**
    * 把正文写回一个文件（保存）。
@@ -347,48 +438,107 @@ const projectAPI = {
    * 失败不抛异常，返回带原因的结果：磁盘满、文件被别的程序独占都是常见状态，
    * 界面要按原因说话（保存对话框据此留在原地）。
    */
-  writeFile: (request: WriteFileRequest): Promise<FileWriteResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.writeFile, request),
+  writeFile: async (request: WriteFileRequest): Promise<FileWriteResult> => {
+    if (hostWriteFile) {
+      try {
+        return await hostWriteFile(request)
+      } catch (error) {
+        preloadLogger.warn('host files.writeFile failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.writeFile, request)
+  },
 
   /**
    * 给一个文件 / 文件夹改名。
    *
    * 只报「被右键了谁」+「新名字」，不报「改到哪儿」—— 目录就是那个条目自己
-   * 所在的那一层，由主进程推导。同名条目已存在时返回
+   * 所在的那一层，由主进程 / host 推导。同名条目已存在时返回
    * `{ ok: false, reason: 'already-exists' }`，**不会覆盖**。
+   *
+   * host 改名成功之后会顺手改概述映射（大纲 / 写作风格的标记在 `.nide/config.yml`
+   * 里）——配置服务已经在 host，这一步不再是 shell 的后续动作。
    */
-  renameEntry: (request: RenameEntryRequest): Promise<RenameEntryResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.renameEntry, request),
+  renameEntry: async (request: RenameEntryRequest): Promise<RenameEntryResult> => {
+    if (hostRenameEntry) {
+      try {
+        return await hostRenameEntry(request)
+      } catch (error) {
+        preloadLogger.warn('host files.renameEntry failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.renameEntry, request)
+  },
 
   /**
-   * 删除一个文件 / 文件夹。目录连同里面的东西一起删，**不可撤销** ——
-   * 二次确认由**主进程**在动作出口处问（见 main/confirm.ts），无论谁发起都会问，
-   * 界面不必自己弹框。用户拒了时返回 `{ ok: false, reason: 'cancelled' }`。
+   * 删除一个文件 / 文件夹。目录连同里面的东西一起删，**不可撤销**。
+   *
+   * 二次确认仍然问在 shell（见 main/confirm.ts）：host 没有窗口，问不出浮层。
+   * 所以顺序是「先问 shell -> 再让 host 删」，用户拒了就回 `cancelled`，不会碰盘。
+   *
+   * 回退：确认本身失败时走旧 IPC（它会自己再问一次）；host 删除失败时也走旧 IPC，
+   * 但带 `{ confirm: false }` —— 用户刚刚已经答过一次，不能问第二遍。
    */
-  deleteEntry: (
+  deleteEntry: async (
     request: DeleteEntryRequest,
     options?: ConfirmOptions
-  ): Promise<DeleteEntryResult> =>
-    ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, options),
+  ): Promise<DeleteEntryResult> => {
+    if (hostDeleteEntry) {
+      let confirmed: boolean
+      try {
+        confirmed = await ipcRenderer.invoke(PROJECT_FILE_CHANNELS.confirmDelete, request, options)
+      } catch (error) {
+        preloadLogger.warn('delete confirmation failed, falling back to IPC', { error })
+        return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, options)
+      }
+
+      if (!confirmed) return { ok: false, reason: 'cancelled' }
+
+      try {
+        return await hostDeleteEntry(request)
+      } catch (error) {
+        preloadLogger.warn('host files.deleteEntry failed, falling back to IPC', { error })
+        return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, { confirm: false })
+      }
+    }
+
+    return ipcRenderer.invoke(PROJECT_FILE_CHANNELS.deleteEntry, request, options)
+  },
 
   /**
    * 读图鉴：内容目录下每个子目录一个图鉴（各自的字段表与条目），外加 `.nide` 里的
    * 注册表（哪个图鉴是角色图鉴）。
    *
-   * 传的是图鉴内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在主进程：
+   * 传的是图鉴内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在 host：
    * 渲染进程只声明「我想读这个图鉴目录」，声明不了「哪个目录算图鉴目录」。
    */
-  readGalleries: (galleryRoot: string): Promise<GalleryListResult> =>
-    ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.readGalleries, galleryRoot),
+  readGalleries: async (galleryRoot: string): Promise<GalleryListResult> => {
+    if (hostReadGalleries) {
+      try {
+        return await hostReadGalleries(galleryRoot)
+      } catch (error) {
+        preloadLogger.warn('host gallery.read failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.readGalleries, galleryRoot)
+  },
 
   /**
    * 新建一个图鉴：一个目录 + 它的 `config.yml`。
    *
-   * 落点（`request.targetPath`）同样必须是配置里那个图鉴内容目录，主进程会核对；
+   * 落点（`request.targetPath`）同样必须是配置里那个图鉴内容目录，host 会核对；
    * 目录已存在时**不覆盖**，返回 `already-exists`。
    */
-  createGallery: (request: GalleryCreateRequest): Promise<GalleryCreateResult> =>
-    ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.createGallery, request),
+  createGallery: async (request: GalleryCreateRequest): Promise<GalleryCreateResult> => {
+    if (hostCreateGallery) {
+      try {
+        return await hostCreateGallery(request)
+      } catch (error) {
+        preloadLogger.warn('host gallery.create failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.createGallery, request)
+  },
 
   /**
    * 改图鉴注册表（把某一个图鉴设成角色图鉴）。
@@ -396,10 +546,18 @@ const projectAPI = {
    * 名字指向的目录不在时返回 `unknown-gallery`：注册表指向一个不存在的图鉴，章节表单
    * 的出场角色就永远选不出东西，而那在界面上看不出任何原因。
    */
-  updateGalleryRegistry: (
+  updateGalleryRegistry: async (
     request: GalleryRegistryUpdateRequest
-  ): Promise<GalleryRegistryUpdateResult | null> =>
-    ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.updateRegistry, request),
+  ): Promise<GalleryRegistryUpdateResult | null> => {
+    if (hostUpdateGalleryRegistry) {
+      try {
+        return await hostUpdateGalleryRegistry(request)
+      } catch (error) {
+        preloadLogger.warn('host gallery.updateRegistry failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_GALLERY_CHANNELS.updateRegistry, request)
+  },
 
   /**
    * 读概述：内容目录里平铺的 Markdown。
@@ -407,36 +565,71 @@ const projectAPI = {
    * 「哪份是大纲 / 写作风格」不在这份结果里：那是项目配置里的标记，渲染进程手里
    * 已经有 `config.overview`，照着它认即可。
    *
-   * 传的是概述内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在主进程：
+   * 传的是概述内容目录的绝对路径，而它必须**正是**配置里那一个 —— 判据在 host：
    * 渲染进程只声明「我想读这个概述目录」，声明不了「哪个目录算概述目录」。
    */
-  readOverview: (overviewRoot: string): Promise<OverviewListResult> =>
-    ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.readOverview, overviewRoot),
+  readOverview: async (overviewRoot: string): Promise<OverviewListResult> => {
+    if (hostReadOverview) {
+      try {
+        return await hostReadOverview(overviewRoot)
+      } catch (error) {
+        preloadLogger.warn('host overview.read failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.readOverview, overviewRoot)
+  },
 
   /**
    * 把概述里的某份 Markdown 标记成大纲 / 写作风格。
    *
    * 改的是**项目配置**的概述那一段，不是那份文档本身。文件不在了、或者不是 Markdown
-   * 时主进程拒绝并给出原因。
+   * 时 host 拒绝并给出原因。
    */
-  setOverviewRole: (request: OverviewRoleUpdateRequest): Promise<OverviewRoleUpdateResult> =>
-    ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.setRole, request),
+  setOverviewRole: async (
+    request: OverviewRoleUpdateRequest
+  ): Promise<OverviewRoleUpdateResult> => {
+    if (hostSetOverviewRole) {
+      try {
+        return await hostSetOverviewRole(request)
+      } catch (error) {
+        preloadLogger.warn('host overview.setRole failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_OVERVIEW_CHANNELS.setRole, request)
+  },
 
   /**
    * 读当前项目的配置（`.nide/config.yml`）。
    *
-   * 不传路径：读的就是当前项目，写到哪儿也由主进程决定。`.nide` 被删或配置文件
-   * 坏掉时主进程会静默重建默认配置，所以这里不会返回「没有配置」这种状态 ——
+   * 不传路径：读的就是当前项目，写到哪儿也由 host 决定。`.nide` 被删或配置文件
+   * 坏掉时 host 会静默重建默认配置，所以这里不会返回「没有配置」这种状态 ——
    * 只有「当前没有项目」时给 null。
    */
-  readConfig: (): Promise<ProjectConfig | null> => ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.read),
+  readConfig: async (): Promise<ProjectConfig | null> => {
+    if (hostReadConfig) {
+      try {
+        return await hostReadConfig()
+      } catch (error) {
+        preloadLogger.warn('host config.read failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.read)
+  },
 
   /**
    * 更新当前项目的配置。补丁里只放要改的分区（`{ chapters: { path: 'manuscript' } }`）；
-   * 校验不合格时主进程**一项都不写**，返回的 config 是磁盘上那份没被改动的配置。
+   * 校验不合格时 host **一项都不写**，返回的 config 是磁盘上那份没被改动的配置。
    */
-  updateConfig: (patch: ProjectConfigPatch): Promise<ProjectConfigUpdateResult | null> =>
-    ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.update, patch)
+  updateConfig: async (patch: ProjectConfigPatch): Promise<ProjectConfigUpdateResult | null> => {
+    if (hostUpdateConfig) {
+      try {
+        return await hostUpdateConfig(patch)
+      } catch (error) {
+        preloadLogger.warn('host config.update failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(PROJECT_CONFIG_CHANNELS.update, patch)
+  }
 }
 
 /**
@@ -571,14 +764,64 @@ const api = {
   getI18n: (): Promise<I18nPayload> => ipcRenderer.invoke(HOST_CHANNELS.getI18n),
 
   /** 「设置 -> 插件」用的插件清单。和 getPluginViews 是两件事：那个是视图，这个是插件本体 */
-  getPlugins: (): Promise<PluginDescriptor[]> => ipcRenderer.invoke(HOST_CHANNELS.getPlugins),
+  getPlugins: async (): Promise<PluginDescriptor[]> => {
+    if (hostGetPlugins) {
+      try {
+        return await hostGetPlugins()
+      } catch (error) {
+        preloadLogger.warn('host plugins.list failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(HOST_CHANNELS.getPlugins)
+  },
 
-  /** 启用 / 禁用插件。禁用后它的视图会从工具区消失；状态由宿主落盘，重启后仍然有效 */
-  setPluginEnabled: (pluginId: string, enabled: boolean): Promise<void> =>
-    ipcRenderer.invoke(HOST_CHANNELS.setPluginEnabled, pluginId, enabled),
+  /** 已启用插件的浏览器半 bundle 清单（开发期是绝对路径，生产环境换 app 协议） */
+  getClientBundles: async (): Promise<ClientBundleDescriptor[]> => {
+    if (hostGetClientBundles) {
+      try {
+        return await hostGetClientBundles()
+      } catch (error) {
+        preloadLogger.warn('host plugins.clientBundles failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(HOST_CHANNELS.getClientBundles)
+  },
+
+  /**
+   * 启用 / 禁用插件。禁用后它的视图会从工具区消失；状态由宿主落盘，重启后仍然有效。
+   *
+   * 返回 false 表示用户在「启用第三方插件」的信任确认里取消了 —— 状态没有变。
+   * `options: { confirm: false }` 供已经问过用户的调用方跳过那一问。
+   */
+  setPluginEnabled: (
+    pluginId: string,
+    enabled: boolean,
+    options?: ConfirmOptions
+  ): Promise<boolean> =>
+    ipcRenderer.invoke(HOST_CHANNELS.setPluginEnabled, pluginId, enabled, options),
+
+  /**
+   * 从本地文件夹安装插件：shell 弹目录对话框，host 负责复制 / 校验 / 重扫。
+   * 装进来默认禁用；启用来的时候会过一道信任确认。
+   */
+  installPlugin: (): Promise<PluginInstallResult> =>
+    ipcRenderer.invoke(HOST_CHANNELS.installPlugin),
+
+  /** 卸载一个第三方插件；内置插件返回 `builtin`，用户取消返回 `cancelled` */
+  removePlugin: (pluginId: string): Promise<PluginRemoveResult> =>
+    ipcRenderer.invoke(HOST_CHANNELS.removePlugin, pluginId),
 
   /** 当前被禁用的插件 id（宿主持久化过的那份）。渲染进程启动时取一次，用来过滤视图列表 */
-  getDisabledPlugins: (): Promise<string[]> => ipcRenderer.invoke(HOST_CHANNELS.getDisabledPlugins),
+  getDisabledPlugins: async (): Promise<string[]> => {
+    if (hostGetDisabledPlugins) {
+      try {
+        return await hostGetDisabledPlugins()
+      } catch (error) {
+        preloadLogger.warn('host plugins.disabled failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(HOST_CHANNELS.getDisabledPlugins)
+  },
 
   /**
    * 订阅「插件启用状态变了」。
@@ -698,10 +941,9 @@ const api = {
    * 送来的问题画成浮层，再把用户的回答送回去。别的组件不需要碰这两个函数 ——
    * 要确认的是**动作**（主进程那边管），不是某个按钮。
    */
-  confirm: confirmAPI,
+  confirm: confirmAPI
 
   /** 插件管理（占位） */
-  reloadPlugin: (pluginId: string) => ipcRenderer.invoke(HOST_CHANNELS.reloadPlugin, pluginId)
 }
 
 /**
@@ -743,10 +985,132 @@ function sendRaw(level: LogMessage['level'], data: unknown[]): void {
   })
 }
 
+/**
+ * renderer ↔ host 直连 port（MVP）。
+ *
+ * 主进程在 `did-finish-load` 后通过 `webContents.postMessage(HOST_PORT_CHANNEL)`
+ * 送来一个 MessagePort；renderer 直接与 host 通信，不经过 shell 转发。
+ *
+ * 协议：`{ type: 'rpc', id, namespace, method, args }`，
+ * host 回 `{ type: 'rpc-result', id, ok, result | error }`。
+ * TODO: 事件推送、取消、超时策略、schema 校验。
+ */
+let hostPort: MessagePort | null = null
+let hostRequestSeq = 0
+const hostPending = new Map<
+  string,
+  {
+    resolve: (value: unknown) => void
+    reject: (error: Error) => void
+    timer: ReturnType<typeof setTimeout>
+  }
+>()
+
+ipcRenderer.on(HOST_PORT_CHANNEL, (event) => {
+  const port = event.ports[0]
+  if (!port) return
+
+  hostPort = port
+  hostProjectList = () => hostInvoke('project', 'list') as Promise<ProjectListItem[]>
+  hostReadDir = (dirPath) => hostInvoke('files', 'readDir', [dirPath]) as Promise<DirReadResult>
+  hostReadFile = (filePath) =>
+    hostInvoke('files', 'readFile', [filePath]) as Promise<FileReadResult>
+  hostWriteFile = (request) =>
+    hostInvoke('files', 'writeFile', [request]) as Promise<FileWriteResult>
+  hostCreateEntry = (request) =>
+    hostInvoke('files', 'createEntry', [request]) as Promise<CreateEntryResult>
+  hostRenameEntry = (request) =>
+    hostInvoke('files', 'renameEntry', [request]) as Promise<RenameEntryResult>
+  // 删一棵大树可能比默认的 5s 久：给删除单独放宽，别在它删到一半时切回旧路径
+  hostDeleteEntry = (request) =>
+    hostInvoke('files', 'deleteEntry', [request], 30_000) as Promise<DeleteEntryResult>
+  hostReadChapters = (dirPath) =>
+    hostInvoke('files', 'readChapters', [dirPath]) as Promise<ChapterListResult>
+  hostReadForeshadowing = (dirPath) =>
+    hostInvoke('files', 'readForeshadowing', [dirPath]) as Promise<ForeshadowingListResult>
+  hostReadGalleries = (galleryRoot) =>
+    hostInvoke('gallery', 'read', [galleryRoot]) as Promise<GalleryListResult>
+  hostCreateGallery = (request) =>
+    hostInvoke('gallery', 'create', [request]) as Promise<GalleryCreateResult>
+  hostUpdateGalleryRegistry = (request) =>
+    hostInvoke('gallery', 'updateRegistry', [
+      request
+    ]) as Promise<GalleryRegistryUpdateResult | null>
+  hostReadOverview = (overviewRoot) =>
+    hostInvoke('overview', 'read', [overviewRoot]) as Promise<OverviewListResult>
+  hostSetOverviewRole = (request) =>
+    hostInvoke('overview', 'setRole', [request]) as Promise<OverviewRoleUpdateResult>
+  hostReadConfig = () => hostInvoke('config', 'read', []) as Promise<ProjectConfig | null>
+  hostUpdateConfig = (patch) =>
+    hostInvoke('config', 'update', [patch]) as Promise<ProjectConfigUpdateResult | null>
+  hostGetPlugins = () => hostInvoke('plugins', 'list', []) as Promise<PluginDescriptor[]>
+  hostGetDisabledPlugins = () => hostInvoke('plugins', 'disabled', []) as Promise<string[]>
+  hostGetClientBundles = () =>
+    hostInvoke('plugins', 'clientBundles', []) as Promise<ClientBundleDescriptor[]>
+
+  // 窗口知道自己绑定的是哪个项目；换项目后 host 需要跟着切。
+  const bootProject = readBootProjectPath()
+  if (bootProject) {
+    void hostInvoke('project', 'setCurrent', [bootProject]).catch((error: unknown) => {
+      preloadLogger.warn('failed to sync the host current project', { error })
+    })
+  }
+
+  port.onmessage = (message) => {
+    const data = message.data
+    if (!isRpcResponse(data)) return
+
+    const pending = hostPending.get(data.id)
+    if (!pending) return
+
+    clearTimeout(pending.timer)
+    hostPending.delete(data.id)
+
+    if (data.ok) {
+      pending.resolve(data.result)
+      return
+    }
+
+    const error = new Error(data.error.message) as Error & { code?: string }
+    error.code = data.error.code
+    pending.reject(error)
+  }
+  port.start()
+  preloadLogger.info('Host port attached')
+})
+
+function hostInvoke(
+  namespace: string,
+  method: string,
+  args: unknown[] = [],
+  timeoutMs = 5000
+): Promise<unknown> {
+  const port = hostPort
+  if (!port) return Promise.reject(new Error('host port is not attached'))
+
+  const id = `renderer-${++hostRequestSeq}`
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      hostPending.delete(id)
+      reject(new Error(`${namespace}.${method} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+    hostPending.set(id, { resolve, reject, timer })
+    port.postMessage({ type: 'rpc', id, namespace, method, args })
+  })
+}
+
+const nideHost = {
+  available: (): boolean => hostPort !== null,
+  invoke: <T = unknown>(namespace: string, method: string, ...args: unknown[]): Promise<T> =>
+    hostInvoke(namespace, method, args) as Promise<T>,
+  ping: (): Promise<unknown> => hostInvoke('host', 'ping', [])
+}
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('hostAPI', api)
+    contextBridge.exposeInMainWorld('nideHost', nideHost)
     contextBridge.exposeInMainWorld('__NIDE_BOOT__', {
       locale: readBootLocale(),
       appearance: readBootAppearance(),
@@ -767,6 +1131,8 @@ if (process.contextIsolated) {
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.hostAPI = api
+  // @ts-ignore (define in dts)
+  window.nideHost = nideHost
   // @ts-ignore (define in dts)
   window.__NIDE_BOOT__ = {
     locale: readBootLocale(),

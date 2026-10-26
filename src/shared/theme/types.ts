@@ -27,11 +27,12 @@
  */
 export type ThemeId = string
 
-export const BUILTIN_DARK_THEME: ThemeId = 'builtin.dark'
-export const BUILTIN_LIGHT_THEME: ThemeId = 'builtin.light'
-
-/** 没有偏好、或偏好指向的主题不存在时用它 */
-export const DEFAULT_THEME: ThemeId = BUILTIN_DARK_THEME
+/**
+ * 三个 id 常量在 `builtin.ts` 里。
+ *
+ * 那边是**唯一**定义它们的地方：`builtin.ts` 只做纯数据（无运行时 import），host
+ * 的纯 Node ESM 能直接加载它；而本文件只放类型 + 那一份「色彩事实」的类型定义。
+ */
 
 /**
  * 这套配色是深是浅。

@@ -67,6 +67,7 @@
   "host.welcome.projects.dialog.button": "Select this folder",
   "host.welcome.projects.error.missing": "The folder does not exist: {path}",
   "host.welcome.projects.error.not-a-directory": "This is not a folder: {path}",
+  "host.welcome.projects.error.unreadable": "The host process is not responding, so this project cannot be read: {path}",
 
   "host.settings.button": "Settings",
   "host.settings.menu.global": "Global Settings",
@@ -126,8 +127,18 @@
   "host.settings.plugins.menu.uninstall": "Uninstall",
   "host.settings.plugins.notImplemented": "Not implemented yet",
   "host.settings.plugins.builtinUndeletable": "Built-in plugins cannot be uninstalled",
+  "host.settings.plugins.install": "Install from folder",
+  "host.settings.plugins.install.failed": "Install failed: the folder has no usable manifest.json, or a plugin with the same id already exists.",
   "host.settings.plugins.disabledWarning": "This plugin is disabled: its views will not appear in the workbench.",
-  "host.settings.plugins.note": "The enabled state is saved to the user configuration directory and survives a restart; uninstalling is not implemented yet, so the plugin files stay on disk.",
+  "host.settings.plugins.note": "The enabled state is saved to the user configuration directory and survives a restart; uninstalling removes the user-installed plugin directory, built-in plugins cannot be uninstalled.",
+
+  "host.plugins.install.title": "Select a plugin folder",
+  "host.plugins.trust.title": "Enable third-party plugin",
+  "host.plugins.trust.message": "The plugin \"{name}\" has full Node permissions and can read/write your files and network. Only enable plugins you trust.",
+  "host.plugins.trust.confirm": "Enable",
+  "host.plugins.uninstall.title": "Uninstall plugin",
+  "host.plugins.uninstall.message": "Uninstalling \"{name}\" will delete its plugin directory; you can install it again later.",
+  "host.plugins.uninstall.confirm": "Uninstall",
 
   "host.diff.title": "Diff comparison",
   "host.diff.close": "Close",

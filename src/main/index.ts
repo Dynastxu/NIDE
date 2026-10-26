@@ -8,10 +8,12 @@ import { registerHostIPC, pushEventToRenderer } from './ipc/host.ipc'
 import { registerProjectIPC } from './ipc/project.ipc'
 import { registerWindowIPC, registerWindowActions } from './ipc/window.ipc'
 import { registerAiProviderIPC, shutdownAiProviderIPC } from './ipc/ai-provider.ipc'
-import { initPluginHost } from './plugin-host'
+import { startHost, stopHost, attachHostPort } from './host/process'
 import { initI18n } from './i18n'
 import { initAppearance, registerAppearanceBroadcast } from './appearance'
+import { registerPluginBundleProtocol, registerPluginBundleScheme } from './protocol/plugin-bundles'
 import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './window'
+import { applyCompatibilitySwitches, noteChildProcessGone } from './compat'
 
 /**
  * 日志必须最先安装，且早于 app.whenReady()。
@@ -22,14 +24,39 @@ import { createSettingsWindow, openStartupWindow, recreateRootWindow } from './w
  */
 const logger = installLogger()
 
-app.whenReady().then(() => {
+/**
+ * 兼容性开关（软件渲染等）也必须在 ready 之前应用，且要在日志装好之后 ——
+ * 它自己会记一条 warn 说明为什么关掉了硬件加速。
+ */
+applyCompatibilitySwitches()
+app.on('child-process-gone', (_event, details) => noteChildProcessGone(details))
+
+/**
+ * 自定义 scheme 的权限位只能在 ready **之前**登记，所以这一句刻意放在模块顶层。
+ * 处理器本身在 ready 之后挂（见下面的 `registerPluginBundleProtocol`）。
+ */
+registerPluginBundleScheme()
+
+app.whenReady().then(async () => {
   // 必须和 electron-builder.yml 的 appId 保持一致：Windows 靠 AppUserModelID
   // 归组任务栏图标、关联通知，两边不一致时通知会挂到别的应用名下。
   // Electron 没有在运行时读 appId 的 API，所以只能硬编码，改动时两处一起改。
   electronApp.setAppUserModelId('com.github.dynastxu.nide')
 
+  // 打包后插件 UI 靠它取 bundle（开发期走 Vite 的 /@fs/，用不到）
+  registerPluginBundleProtocol()
+
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+    /**
+     * 每个窗口加载完成后，把 host 的直连 port 交给它。
+     *
+     * 放在 `did-finish-load` 而不是建窗时：preload 要先注册好接收器，
+     * 否则 port 会被丢掉。host 还没 ready 时 attachHostPort 会等它。
+     */
+    window.webContents.once('did-finish-load', () => {
+      attachHostPort(window.webContents, `window-${window.id}`)
+    })
   })
 
   ipcMain.on('ping', () => console.log('pong'))
@@ -56,12 +83,25 @@ app.whenReady().then(() => {
     openers: { settings: createSettingsWindow },
     restart: recreateRootWindow
   })
-  // 2) 插件宿主只扫描 manifest、同步执行；语言包是随 manifest 一起注册进
-  //    languagePackRegistry 的，所以 i18n 必须排在它后面，否则注册表还是空的，
-  //    所有 locale 都会回落成中文
-  initPluginHost()
-  // 3) 定下语言：窗口标题、原生菜单、以及要传给渲染进程的启动参数都依赖它
-  initI18n()
+  /**
+   * 宿主进程 —— 从这里开始，启动**串行**了。
+   *
+   * 项目文件 / 配置 / 插件目录 / 本地化的实现全部在 host，所以它不再是开关：启动时
+   * 无条件拉起。而且后面两步都要等它：语言载荷（语言包在插件目录里）与「开哪个
+   * 根窗口」（`projects.json`）都只有 host 知道。
+   *
+   * host 起不来时**不阻塞启动**：i18n 保持中文兜底、`openStartupWindow` 回落成
+   * 欢迎窗口，日志里有原因。窗口照常出现，只是什么都读不了。
+   */
+  try {
+    await startHost()
+    logger.info('host process is ready')
+  } catch (error) {
+    logger.error('host process failed', { error })
+  }
+
+  // 2) 定下语言：窗口标题、原生菜单、以及要传给渲染进程的启动参数都依赖它
+  await initI18n()
   /**
    * 3.5) 定下主题：必须在开窗**之前**（窗口底色与启动参数都用得到），
    * 且广播出口在这里注入 —— appearance 模块不直接依赖 IPC 模块，
@@ -70,17 +110,18 @@ app.whenReady().then(() => {
    * 放在 initI18n 之后只是为了让日志顺序与"语言 -> 主题"的阅读顺序一致，
    * 两者之间没有依赖。
    */
-  initAppearance()
+  await initAppearance()
   registerAppearanceBroadcast((payload) => pushEventToRenderer(APPEARANCE_CHANNEL, payload))
   // 4) 最后开窗：窗口一打开，渲染进程就能拿到完整的视图列表和词条表。
-  //    开哪个窗口由「打开过的项目」决定：有可用的上次项目就进主窗口，
-  //    否则进欢迎窗口（见 window.ts 的 openStartupWindow）
-  openStartupWindow()
-
-  logger.info('Startup sequence completed')
+  //    开哪个窗口由「打开过的项目」决定 —— 那份记录现在只有 host 在读，
+  //    所以这一步是异步的：host ready 之后才知道该进主窗口还是欢迎窗口
+  //    （见 window.ts 的 openStartupWindow）
+  void openStartupWindow()
+    .then(() => logger.info('Startup sequence completed'))
+    .catch((error) => logger.error('Failed to open the startup window', { error }))
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) openStartupWindow()
+    if (BrowserWindow.getAllWindows().length === 0) void openStartupWindow()
   })
 })
 
@@ -102,6 +143,8 @@ app.on('window-all-closed', () => {
  * 拿它当「应用结束」的信号会漏记。这里只写日志，不干预退出流程。
  */
 app.on('will-quit', () => {
+  // 先给 host 一个优雅退出的机会；app 退出本身不会等它，超时由 stopHost 内部 kill。
+  void stopHost()
   // SSE 是长连接，退出时主动取消，别让 fetch 把进程拖在后台
   shutdownAiProviderIPC()
   loggerFor('app').info('Application is quitting')
