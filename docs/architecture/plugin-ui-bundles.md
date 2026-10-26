@@ -100,7 +100,7 @@ pnpm build:plugin-demo             # 只构建 demo（--only demo，迭代时用
 - `build.lib` + `formats: ['iife']`；
 - `external: ['react', 'react-dom']` + `output.globals`；
 - `esbuild.jsx = 'transform'`，强制 classic JSX；
-- 别名与主工程一致（`@nide/client-kit` / `@nide/client-ui-main` / `@shared`）；
+- 别名与主工程一致（`@nide/client-kit` / `@nide/client-ui-main` / `@nide/contracts`）；
 - `emptyOutDir: false` —— bundle 有可能声明在插件根上，清目录会删掉源码。
 
 打包前必须先跑它：`dist/` 是 gitignore 的，electron-builder 只带磁盘上已有的文件。
@@ -121,7 +121,7 @@ pnpm build:plugin-demo             # 只构建 demo（--only demo，迭代时用
   id 去 host 的 `plugins.clientBundles` 里查绝对路径，读到文件后以
   `text/javascript` 返回；
 - 所以「允许清单」就是 host 那份清单，渲染进程拼不出一个能读到别处的 URL；
-- CSP（`src/renderer/index.html`）里 `script-src` 加了 `nide-plugin:`，否则
+- CSP（`apps/desktop/renderer/index.html`）里 `script-src` 加了 `nide-plugin:`，否则
   Chromium 会拦掉这个来源的脚本。
 
 `loaded` 集合按 URL 去重：dev 是绝对路径、打包后是 pluginId，两种形态都成立。

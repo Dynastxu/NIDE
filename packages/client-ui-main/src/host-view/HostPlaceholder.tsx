@@ -1,6 +1,6 @@
 import { type JSX } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import type { HostMessageKey } from '@shared/i18n'
+import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**
  * 宿主内建视图的**占位页**：整个视图只有一行文字。

@@ -3,7 +3,7 @@ import { ZoneIcon } from '@nide/client-ui-main/layout/ZoneIcon'
 import { builtinIconNames, getBuiltinIcon } from '@nide/client-kit/icons'
 import { loggerFor } from '@nide/client-kit/logger'
 import { isZoneId } from '@nide/client-kit/stores/layout.store'
-import type { PluginViewDescriptor } from '@shared/plugin-api'
+import type { PluginViewDescriptor } from '@nide/contracts/plugin-api'
 
 const logger = loggerFor('layout')
 

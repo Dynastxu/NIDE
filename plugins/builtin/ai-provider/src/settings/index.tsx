@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
-import { usePluginTranslator } from '@nide/client-kit/plugin-views/host-context'
+import { usePluginTranslator } from '@nide/sdk/plugin-views/host-context'
 import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
 import {
   DEFAULT_DEEPSEEK_BASE_URL,
@@ -8,8 +8,8 @@ import {
   type ProviderSummary,
   type ReasoningEffort,
   type ThinkingMode
-} from '@shared/ai-provider'
-import type { MessageTable } from '@shared/i18n'
+} from '@nide/contracts/ai-provider'
+import type { MessageTable } from '@nide/contracts/i18n'
 
 /**
  * 插件自己的词条表。

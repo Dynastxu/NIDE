@@ -3,12 +3,12 @@ import {
   MAX_GALLERY_FIELDS,
   validateGalleryField,
   type InvalidGalleryFieldReason
-} from '@shared/project'
+} from '@nide/contracts/project'
 import { applyGalleryConfig, syncGalleryForm } from '@nide/client-ui-main/editor/gallery-metadata'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import type { EditorTab } from '@nide/client-kit/stores/editor.store'
-import type { HostMessageKey } from '@shared/i18n'
+import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**
  * 图鉴字段表的表单（`config.yml`）：一行一个字段，可加可删。

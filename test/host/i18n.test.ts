@@ -6,15 +6,15 @@ import {
   HostI18n,
   LanguagePackRegistry,
   resolvePluginTitle
-} from '../../packages/host/src/services/i18n.ts'
-import type { LanguagePackEntry } from '../../packages/host/src/services/i18n.ts'
-import { parsePlaceholder } from '../../src/shared/plugin-api/manifest-nls.ts'
-import type { PluginManifestNls } from '../../src/shared/plugin-api/contributions.ts'
+} from '../../packages/services/i18n/src/i18n.ts'
+import type { LanguagePackEntry } from '../../packages/services/i18n/src/i18n.ts'
+import { parsePlaceholder } from '../../packages/contracts/src/plugin-api/manifest-nls.ts'
+import type { PluginManifestNls } from '../../packages/contracts/src/plugin-api/contributions.ts'
 
 /**
  * host 侧的本地化：语言包注册表 + 逐 key 瀑布 + manifest 文案解析 + 偏好。
  *
- * 这一整块从 shell 搬过来（原来在 `src/main/i18n`），搬迁时逐条保留了行为，
+ * 这一整块从 shell 搬过来（原来在 `packages/shell/src/main/i18n`），搬迁时逐条保留了行为，
  * 所以这里覆盖的仍是同一批承诺：第三方优先、缺的往下降级、conflict 只记输家、
  * missing / extra 的诊断，以及「中文永远可选」。
  */

@@ -14,8 +14,8 @@ import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
 import { useDocumentViewStore } from '@nide/client-kit/stores/document-view.store'
 import { getT, useT } from '@nide/client-kit/stores/i18n.store'
 import { useEditorStore } from '@nide/client-kit/stores/editor.store'
-import { type FileWriteFailureReason } from '@shared/project'
-import type { HostMessageKey } from '@shared/i18n'
+import { type FileWriteFailureReason } from '@nide/contracts/project'
+import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**
  * 工作台中间的主编辑区：上面一条标签页（由通用视图外壳画），下面一个 Monaco 实例。

@@ -1,0 +1,7 @@
+{
+  "name": "@nide/contracts",
+  "private": true,
+  "type": "module",
+  "//": "跨进程契约：类型、纯函数、词条基础表。host / shell / renderer 三方共用，",
+  "//2": "不含 Electron、DOM、IO —— 谁 import 它都不会因此多一个运行时依赖。"
+}

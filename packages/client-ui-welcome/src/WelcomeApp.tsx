@@ -7,7 +7,7 @@ import { ProjectsPanel } from '@nide/client-ui-welcome/ProjectsPanel'
 import { SettingsButton } from '@nide/client-ui-welcome/SettingsButton'
 import { WindowFrame } from '@nide/client-kit/window/WindowFrame'
 import { useWindowTitle } from '@nide/client-kit/window/useWindowTitle'
-import type { HostMessageKey } from '@shared/i18n'
+import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**
  * 欢迎窗口 —— 没有可用项目时的入口。

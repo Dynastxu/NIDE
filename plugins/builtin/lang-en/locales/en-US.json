@@ -341,5 +341,6 @@
 
   "host.locale.fallback.notice": "No language pack found for \"{locale}\"; falling back to Chinese.",
   "host.locale.diagnostics.missing": "\"{locale}\" has {count} untranslated strings; they fall back to Chinese.",
+  "host.startup.clientRuntimeFailed": "The client runtime failed to start, so this window cannot render. Check the log and restart the app.",
   "host.locale.diagnostics.conflict": "\"{locale}\" has {count} strings provided by multiple language packs; the third-party one wins."
 }

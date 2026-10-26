@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { builtinViews } from '../../packages/host/src/services/builtin-views.ts'
+import { builtinViews } from '../../packages/services/plugins/src/builtin-views.ts'
 import {
   HOST_COMMIT_VIEW_ID,
   HOST_EXPLORER_VIEW_ID,
   HOST_GIT_VIEW_ID,
   HOST_VIEW_PLUGIN_ID
-} from '../../src/shared/plugin-api/view.ts'
+} from '../../packages/contracts/src/plugin-api/view.ts'
 
 /**
  * 内建视图表（host 侧）。

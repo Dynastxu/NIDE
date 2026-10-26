@@ -1,10 +1,15 @@
 import { useState, type JSX } from 'react'
-import { usePluginTranslator } from '@nide/client-kit/plugin-views/host-context'
+import { usePluginTranslator } from '@nide/sdk/plugin-views/host-context'
 import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
 import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
-import type { ViewChromeSlots, ViewMoreItem, ViewTab, ViewTabStrip } from '@shared/plugin-api'
-import type { MessageTable } from '@shared/i18n'
+import type {
+  ViewChromeSlots,
+  ViewMoreItem,
+  ViewTab,
+  ViewTabStrip
+} from '@nide/contracts/plugin-api'
+import type { MessageTable } from '@nide/contracts/i18n'
 
 /**
  * 这个演示插件**自己**维护词条表。

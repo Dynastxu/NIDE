@@ -1,10 +1,10 @@
 import { create } from 'zustand'
-import { DEFAULT_APPEARANCE } from '@shared/appearance'
-import { DEFAULT_THEME } from '@shared/theme'
+import { DEFAULT_APPEARANCE } from '@nide/contracts/appearance'
+import { DEFAULT_THEME } from '@nide/contracts/theme'
 import { applyPalette as applyPaletteToDom } from '../appearance/palette'
 import { loggerFor } from '../logger'
-import type { AppearancePreference } from '@shared/appearance'
-import type { ThemeDescriptor, ThemeId, ThemePalette, ThemePayload } from '@shared/theme'
+import type { AppearancePreference } from '@nide/contracts/appearance'
+import type { ThemeDescriptor, ThemeId, ThemePalette, ThemePayload } from '@nide/contracts/theme'
 
 const logger = loggerFor('appearance')
 

@@ -6,7 +6,7 @@ import {
   normalizeFields,
   parseLogLevel,
   type LogMessage
-} from '@shared/logger'
+} from '@nide/contracts/logger'
 
 /**
  * 日志门面的纯逻辑测试。

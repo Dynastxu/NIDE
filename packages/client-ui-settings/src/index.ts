@@ -14,6 +14,9 @@ export { PluginsBrowser } from './PluginsBrowser'
 export { RestartDialog } from './RestartDialog'
 export { PluginSettingsSlot } from './PluginSettingsSlot'
 
+/** 这个包负责的窗口种类（client-runtime 按它装配，不再用 switch） */
+export const windowTypes = ['settings'] as const
+
 export const settingsPlugin = {
   name: 'nide-client-ui-settings',
   inject: ['slots'],

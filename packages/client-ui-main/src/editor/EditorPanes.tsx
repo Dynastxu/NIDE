@@ -20,7 +20,7 @@ import {
 import { saveActiveTab } from '@nide/client-ui-main/editor/editor-save'
 import { loggerFor } from '@nide/client-kit/logger'
 import { useEditorStore, type EditorTab } from '@nide/client-kit/stores/editor.store'
-import { chapterBodyOf, splitFrontmatter } from '@shared/project'
+import { chapterBodyOf, splitFrontmatter } from '@nide/contracts/project'
 import type { DocumentView } from '@nide/client-ui-main/editor/document-mode'
 import type { DocumentViewMode } from '@nide/client-kit/stores/document-view.store'
 

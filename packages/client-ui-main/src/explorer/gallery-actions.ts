@@ -10,8 +10,8 @@ import {
   languageForPath,
   type GalleryFolder,
   type GalleryRegistry
-} from '@shared/project'
-import type { HostMessageKey } from '@shared/i18n'
+} from '@nide/contracts/project'
+import type { HostMessageKey } from '@nide/contracts/i18n'
 
 const logger = loggerFor('gallery')
 

@@ -16,8 +16,8 @@ import {
   type CreateScope,
   type EntryActionTarget
 } from '@nide/client-ui-main/entry/entry-menu'
-import type { CreateEntryKind, DeleteEntryFailureReason } from '@shared/project'
-import type { HostMessageKey } from '@shared/i18n'
+import type { CreateEntryKind, DeleteEntryFailureReason } from '@nide/contracts/project'
+import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**
  * 条目动作的**执行**与「正在问用户什么」。

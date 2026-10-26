@@ -13,15 +13,15 @@ import {
   languageForPath,
   sortTreeEntries,
   validateEntryName
-} from '@shared/project'
-import type { FileTreeEntry } from '@shared/project'
+} from '@nide/contracts/project'
+import type { FileTreeEntry } from '@nide/contracts/project'
 
 /**
  * 项目文件树的纯逻辑。
  *
  * 覆盖的都是**会静默出错**的地方：把「不支持的格式」判成支持（点开一屏乱码）、
  * 把项目外的路径判成项目内（沙箱形同虚设）、把 `D:\Novel2` 判成 `D:\Novel` 之内。
- * 读盘部分（`packages/host/src/services/project-files.ts`）依赖 fs，不在这里。
+ * 读盘部分（`packages/services/content/src/project-files.ts`）依赖 fs，不在这里。
  */
 
 describe('extensionOf / baseNameOf', () => {

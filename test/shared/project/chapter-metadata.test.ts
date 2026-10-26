@@ -13,7 +13,7 @@ import {
   readChapterMetadata,
   writeChapterMetadata,
   type ChapterMetadata
-} from '@shared/project'
+} from '@nide/contracts/project'
 
 /**
  * 章节元数据（frontmatter 里的 `category` + `data` 那一段）。
@@ -66,9 +66,15 @@ describe('readChapterMetadata', () => {
     expect(readChapterMetadata('---\ncategory: chapter\ndata:\n  index: "0"\n---\n').index).toBe(0)
     expect(readChapterMetadata('---\ncategory: chapter\ndata:\n  index: 12\n---\n').index).toBe(12)
     expect(readChapterMetadata('---\ncategory: chapter\ndata:\n---\n').index).toBeNull()
-    expect(readChapterMetadata('---\ncategory: chapter\ndata:\n  index: 序\n---\n').index).toBeNull()
-    expect(readChapterMetadata('---\ncategory: chapter\ndata:\n  index: -1\n---\n').index).toBeNull()
-    expect(readChapterMetadata('---\ncategory: chapter\ndata:\n  index: 1.5\n---\n').index).toBeNull()
+    expect(
+      readChapterMetadata('---\ncategory: chapter\ndata:\n  index: 序\n---\n').index
+    ).toBeNull()
+    expect(
+      readChapterMetadata('---\ncategory: chapter\ndata:\n  index: -1\n---\n').index
+    ).toBeNull()
+    expect(
+      readChapterMetadata('---\ncategory: chapter\ndata:\n  index: 1.5\n---\n').index
+    ).toBeNull()
   })
 
   it('角色列表去掉重复，保留原来的先后', () => {

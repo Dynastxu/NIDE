@@ -12,16 +12,15 @@
    * 所以这个划分只有 IDE 与 `tsc -p tsconfig.node.json`（不带那个开关）才知道对错。
    * 加用例之前先想清楚它测的是哪一侧。
    *
-   * 别名两个都要能解析：这一侧的用例会用 `@shared/*`，将来也可能用到 `@renderer/*`
+   * 别名两个都要能解析：这一侧的用例会用 `@nide/contracts/*`，将来也可能用到 `@renderer/*`
    * 的**类型**（只 import type 不会把文件拉进工程，所以不会触发 TS6307）。
    */
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
     "electron.vite.config.*",
     "vitest.config.*",
-    "src/main/**/*",
-    "src/preload/**/*",
-    "src/shared/**/*",
+    "packages/shell/src/**/*",
+    "packages/contracts/src/**/*",
     "test/main/**/*",
     "test/shared/**/*",
     "test/fixtures/**/*"
@@ -31,7 +30,7 @@
     "types": ["electron-vite/node"],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"]
+      "@nide/contracts/*": ["packages/contracts/src/*"]
     }
   }
 }

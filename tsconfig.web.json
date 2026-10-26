@@ -8,14 +8,15 @@
    * 那种包内 import 会报 TS6307（详见 tsconfig.node.json 的说明）。
    */
   "include": [
-    "src/renderer/src/env.d.ts",
-    "src/renderer/src/**/*",
-    "src/renderer/src/**/*.tsx",
-    "src/preload/*.d.ts",
-    "src/shared/**/*",
+    "apps/desktop/renderer/src/env.d.ts",
+    "apps/desktop/renderer/src/**/*",
+    "apps/desktop/renderer/src/**/*.tsx",
+    "packages/shell/src/preload/*.d.ts",
+    "packages/contracts/src/**/*",
     "packages/client-runtime/src/**/*",
     "packages/client-modules/src/**/*",
     "packages/client-kit/src/**/*",
+    "packages/sdk/src/**/*",
     "packages/client-ui-slots/src/**/*",
     "packages/client-ui-main/src/**/*",
     "packages/client-ui-layout/src/**/*",
@@ -32,10 +33,11 @@
     "baseUrl": ".",
     "paths": {
       "@nide/client-kit/*": ["packages/client-kit/src/*"],
+      "@nide/sdk/*": ["packages/sdk/src/*"],
       "@nide/client-ui-main/*": ["packages/client-ui-main/src/*"],
       "@nide/client-ui-settings/*": ["packages/client-ui-settings/src/*"],
       "@nide/client-ui-welcome/*": ["packages/client-ui-welcome/src/*"],
-      "@shared/*": ["src/shared/*"],
+      "@nide/contracts/*": ["packages/contracts/src/*"],
       "@nide/client-runtime": ["packages/client-runtime/src/index.ts"],
       "@nide/client-modules": ["packages/client-modules/src/index.ts"],
       "@nide/client-ui-slots": ["packages/client-ui-slots/src/index.ts"],

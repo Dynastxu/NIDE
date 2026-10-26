@@ -2,8 +2,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { PluginManager, pluginPreferencePath } from '../../packages/host/src/services/plugins.ts'
-import { parsePluginPreference } from '../../src/shared/plugin-api/preference.ts'
+import { PluginManager, pluginPreferencePath } from '../../packages/services/plugins/src/plugins.ts'
+import { parsePluginPreference } from '../../packages/contracts/src/plugin-api/preference.ts'
 
 /**
  * host 侧插件清单与启用状态。

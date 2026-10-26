@@ -1,0 +1,7 @@
+{
+  "name": "@nide/sdk",
+  "private": true,
+  "type": "module",
+  "//": "插件开发者 API：视图渲染管线（PluginSlot / HostSlot 宿主）、插件上下文（usePluginTranslator 等）。",
+  "//2": "插件 UI 只允许依赖这里；宿主窗口包与 client-runtime 也可以用它来挂视图。"
+}

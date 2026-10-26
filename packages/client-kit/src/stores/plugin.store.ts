@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { PluginViewDescriptor } from '@shared/plugin-api'
+import type { PluginViewDescriptor } from '@nide/contracts/plugin-api'
 
 interface PluginState {
   /**

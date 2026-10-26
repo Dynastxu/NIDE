@@ -6,13 +6,13 @@ import {
   isGalleryEntryDocument,
   isGalleryEntryPath,
   isMarkdownPath
-} from '@shared/project'
+} from '@nide/contracts/project'
 import type {
   ChapterMetadata,
   ForeshadowingMetadata,
   GalleryConfig,
   GalleryEntryDocument
-} from '@shared/project'
+} from '@nide/contracts/project'
 import type { DocumentViewMode } from '@nide/client-kit/stores/document-view.store'
 
 /**

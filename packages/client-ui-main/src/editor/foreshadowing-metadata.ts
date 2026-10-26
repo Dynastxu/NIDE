@@ -1,4 +1,4 @@
-import { formatForeshadowingEntry, type ForeshadowingMetadata } from '@shared/project'
+import { formatForeshadowingEntry, type ForeshadowingMetadata } from '@nide/contracts/project'
 import {
   ensureModel,
   modelFor,

@@ -1,0 +1,7 @@
+{
+  "name": "@nide/service-config",
+  "private": true,
+  "type": "module",
+  "//": "项目配置：nide.json 的读 / 更新 / 初始化 + 图鉴注册表。",
+  "//2": "同时被内容服务当作纯函数库使用（路径解析、注册表）。"
+}

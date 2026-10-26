@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildSettingsTree } from '@nide/client-ui-settings/pages'
-import type { PluginSettingsDescriptor } from '@shared/plugin-api'
-import type { Translator } from '@shared/i18n'
+import type { PluginSettingsDescriptor } from '@nide/contracts/plugin-api'
+import type { Translator } from '@nide/contracts/i18n'
 
 /** 测试只关心“label 有没有被解析”，不关心具体词条内容 */
 const t = ((key: string) => `label:${key}`) as unknown as Translator

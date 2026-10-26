@@ -10,7 +10,7 @@ import { defineConfig } from 'vitest/config'
  * 它同样被写成纯函数，所以能在这里跑。真正的集成面（窗口重建、原生菜单、
  * Monaco NLS、IPC）不在这里，那些得靠手动跑应用验证。
  *
- * 别名必须和 electron.vite.config.ts 保持一致：被测模块内部就用 '@shared/...'
+ * 别名必须和 electron.vite.config.ts 保持一致：被测模块内部就用 '@nide/contracts/...'
  * 互相引用，少一个别名测试直接解析失败。
  */
 export default defineConfig({
@@ -21,6 +21,7 @@ export default defineConfig({
      */
     alias: [
       { find: /^@nide\/client-kit\//, replacement: `${resolve('packages/client-kit/src')}/` },
+      { find: /^@nide\/sdk\//, replacement: `${resolve('packages/sdk/src')}/` },
       {
         find: /^@nide\/client-ui-main\//,
         replacement: `${resolve('packages/client-ui-main/src')}/`
@@ -33,7 +34,7 @@ export default defineConfig({
         find: /^@nide\/client-ui-welcome\//,
         replacement: `${resolve('packages/client-ui-welcome/src')}/`
       },
-      { find: '@shared', replacement: resolve('src/shared') },
+      { find: '@nide/contracts', replacement: resolve('packages/contracts/src') },
       { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') }
     ]
   },

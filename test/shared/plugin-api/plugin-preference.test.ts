@@ -6,8 +6,8 @@ import {
   normalizePluginId,
   parsePluginPreference,
   setPluginEnabled
-} from '@shared/plugin-api'
-import type { PluginPreference } from '@shared/plugin-api'
+} from '@nide/contracts/plugin-api'
+import type { PluginPreference } from '@nide/contracts/plugin-api'
 
 /**
  * 插件启用状态这份数据的纯逻辑。

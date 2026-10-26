@@ -25,6 +25,14 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 export interface ProfileRow {
   id: string
   name: string
+  /**
+   * 这一行是**插件**（Cordis 插件，由 loader 装）还是**服务**（host 的业务服务，
+   * 由宿主入口按顺序 `apply`）。
+   *
+   * 默认 `plugin`：老 profile 不受影响。服务不交给 loader，是因为它们之间是
+   * 「先 provide 后 require」的顺序语义，而 loader 的激活是并行的。
+   */
+  kind?: 'plugin' | 'service'
   config?: unknown
   disabled?: boolean
 }
@@ -44,6 +52,39 @@ export const REPO_ROOT = path.resolve(HERE, '..', '..', '..')
 export function resolveHome(): string {
   const fromEnv = process.env.NIDE_HOME?.trim()
   return fromEnv && fromEnv.length > 0 ? path.resolve(fromEnv) : path.join(os.homedir(), '.nide')
+}
+
+/** 读 profile 目录里的模板版本；没有 `profile.json` 视为 1（迁移期的老 profile） */
+function readProfileVersion(dir: string): number {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, 'profile.json'), 'utf8')) as {
+      version?: unknown
+    }
+    return typeof raw.version === 'number' ? raw.version : 1
+  } catch {
+    return 1
+  }
+}
+
+function writeProfileVersion(dir: string, version: number): void {
+  const target = path.join(dir, 'profile.json')
+  try {
+    const raw = JSON.parse(fs.readFileSync(target, 'utf8')) as Record<string, unknown>
+    raw.version = version
+    fs.writeFileSync(
+      target,
+      `${JSON.stringify(raw, null, 2)}
+`,
+      'utf8'
+    )
+  } catch {
+    fs.writeFileSync(
+      target,
+      `${JSON.stringify({ version }, null, 2)}
+`,
+      'utf8'
+    )
+  }
 }
 
 export function resolveProfile(name: string): NidePaths {
@@ -77,12 +118,33 @@ export function ensureProfile(paths: NidePaths, reset = false, templateRoot?: st
   }
 
   fs.mkdirSync(paths.profileDir, { recursive: true })
+
+  /**
+   * 模板升级：`cordis.yml` 是**装配点**，宿主靠它决定装哪些服务 —— 老用户机器上
+   * 那份是旧的（只补缺失文件的策略不会更新它），于是服务会缺。
+   *
+   * 规则：模板版本比本地新时，覆盖 `cordis.yml`（旧的留成 `cordis.yml.bak`）。
+   * 只动这一个文件：`cordis.patch.yml` 与 `package.json` 是用户的地盘。
+   */
+  const templateVersion = readProfileVersion(template)
+  const localVersion = readProfileVersion(paths.profileDir)
+  const upgrading = templateVersion > localVersion
+
   for (const file of fs.readdirSync(template)) {
     const source = path.join(template, file)
     const target = path.join(paths.profileDir, file)
+
+    if (file === 'cordis.yml' && upgrading && fs.existsSync(target)) {
+      fs.cpSync(target, `${target}.bak`, { force: true })
+      fs.cpSync(source, target, { force: true })
+      continue
+    }
+
     if (fs.existsSync(target)) continue
     fs.cpSync(source, target, { recursive: true })
   }
+
+  if (upgrading) writeProfileVersion(paths.profileDir, templateVersion)
   fs.mkdirSync(path.join(paths.profileDir, 'node_modules'), { recursive: true })
 
   // TODO: 读取 package.json 的 nide.profile.bundles 并合成 bundle patch 层
@@ -118,16 +180,21 @@ function normalizeRow(raw: unknown, index: number, file: string): ProfileRow {
   if (typeof row.id !== 'string' || row.id.length === 0) {
     throw new Error(`${file}: row #${index} is missing "id"`)
   }
+  if (row.kind !== undefined && row.kind !== 'plugin' && row.kind !== 'service') {
+    throw new Error(`${file}: row #${index} has an unknown kind: ${String(row.kind)}`)
+  }
+
   return {
     id: row.id,
     name: row.name,
+    ...(row.kind === 'service' ? { kind: 'service' as const } : {}),
     ...(row.config === undefined ? {} : { config: row.config }),
     ...(row.disabled === true ? { disabled: true } : {})
   }
 }
 
 /** 把 profile 里的路径/URL 变成 loader 能 import 的 specifier。 */
-function toImportSpecifier(name: string): string {
+export function toImportSpecifier(name: string): string {
   if (name.startsWith('file:') || name.startsWith('node:') || name.startsWith('cordis:')) {
     return name
   }
@@ -142,6 +209,7 @@ export function dumpRows(rows: ProfileRow[]): string {
     ...rows.flatMap((row) => [
       `- id: ${row.id}`,
       `  name: ${row.name}`,
+      ...(row.kind === 'service' ? ['  kind: service'] : []),
       ...(row.disabled ? ['  disabled: true'] : [])
     ])
   ]
@@ -151,6 +219,8 @@ export function dumpRows(rows: ProfileRow[]): string {
 export interface BootedHost {
   ctx: Context
   entryIds: string[]
+  /** `kind: service` 的行，按 profile 顺序；由宿主入口逐个 apply */
+  services: ProfileRow[]
 }
 
 export async function boot(paths: NidePaths): Promise<BootedHost> {
@@ -172,8 +242,13 @@ export async function boot(paths: NidePaths): Promise<BootedHost> {
   await ctx.plugin(Loader, { baseUrl })
 
   const entryIds: string[] = []
+  const services: ProfileRow[] = []
   for (const row of rows) {
     if (row.disabled) continue
+    if (row.kind === 'service') {
+      services.push(row)
+      continue
+    }
     const entryId = await ctx.loader.create({
       name: toImportSpecifier(row.name),
       ...(row.config === undefined ? {} : { config: row.config })
@@ -184,7 +259,7 @@ export async function boot(paths: NidePaths): Promise<BootedHost> {
   // 等所有条目的 import / 激活完成；optional 条目的失败由 loader 记录。
   await ctx.loader.await()
 
-  return { ctx, entryIds }
+  return { ctx, entryIds, services }
 }
 
 export async function shutdown(host: BootedHost): Promise<void> {

@@ -10,7 +10,7 @@
  * 时拿不到。改写时仍调用**原始** console 方法，所以 DevTools 里照旧能看到。
  */
 
-import { createLogger, isLevelEnabled, type LogLevel, type Logger } from '@shared/logger'
+import { createLogger, isLevelEnabled, type LogLevel, type Logger } from '@nide/contracts/logger'
 
 /** 出口形状与 preload 暴露的 RendererLoggerAPI 一致，缺失时退化成「什么都不发」 */
 interface LogBridge {

@@ -4,7 +4,11 @@ import { CommitView } from '@nide/client-ui-main/git/CommitView'
 import { GitView } from '@nide/client-ui-main/git/GitView'
 import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
 import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
-import { HOST_COMMIT_VIEW_ID, HOST_EXPLORER_VIEW_ID, HOST_GIT_VIEW_ID } from '@shared/plugin-api'
+import {
+  HOST_COMMIT_VIEW_ID,
+  HOST_EXPLORER_VIEW_ID,
+  HOST_GIT_VIEW_ID
+} from '@nide/contracts/plugin-api'
 
 /**
  * 宿主**内建**视图的组件表：视图 id -> 组件。

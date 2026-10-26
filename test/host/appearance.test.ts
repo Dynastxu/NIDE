@@ -2,12 +2,12 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { HostAppearance } from '../../packages/host/src/services/appearance.ts'
+import { HostAppearance } from '../../packages/services/appearance/src/appearance.ts'
 
 /**
  * 主题 / 外观（host 侧）。
  *
- * 这一块从 shell 搬过来（原来在 `src/main/appearance`），行为逐条保留：偏好文件、
+ * 这一块从 shell 搬过来（原来在 `packages/shell/src/main/appearance`），行为逐条保留：偏好文件、
  * 「认不出来的主题只回落不写盘」、`fallbackFrom` 的语义、切换时的校验。
  *
  * `nativeTheme` 那一下走反向桥（`shell.call`），独立运行时桥没挂 —— 这里的用例正好

@@ -6,9 +6,9 @@ import {
   validateEntryName,
   type CreateEntryKind,
   type InvalidNameReason
-} from '@shared/project'
+} from '@nide/contracts/project'
 import type { CreateScope, EntryActionTarget } from '@nide/client-ui-main/entry/entry-menu'
-import type { HostMessageKey } from '@shared/i18n'
+import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**
  * 「新建文件 / 文件夹」与「重命名」的名字输入框。

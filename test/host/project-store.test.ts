@@ -2,8 +2,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { HostProjectStore } from '../../packages/host/src/services/project-store.ts'
-import { PROJECTS_FILE_NAME } from '../../src/shared/project/store.ts'
+import { HostProjectStore } from '../../packages/services/project/src/host-project-store.ts'
+import { PROJECTS_FILE_NAME } from '../../packages/contracts/src/project/store.ts'
 
 /**
  * host 侧的「打开过的项目」。

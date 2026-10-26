@@ -7,8 +7,8 @@ import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { DropdownMenu } from '@nide/client-kit/ui/DropdownMenu'
 import type { MenuItem } from '@nide/client-kit/ui/MenuItem'
 import { ProjectSelector } from '@nide/client-kit/window/ProjectSelector'
-import type { HostMessageKey } from '@shared/i18n'
-import { HOST_COMMIT_VIEW_ID } from '@shared/plugin-api'
+import type { HostMessageKey } from '@nide/contracts/i18n'
+import { HOST_COMMIT_VIEW_ID } from '@nide/contracts/plugin-api'
 
 /**
  * 主窗口标题栏上「应用名右边那一条」。

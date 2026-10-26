@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { PluginViewDescriptor } from '@shared/plugin-api'
+import type { PluginViewDescriptor } from '@nide/contracts/plugin-api'
 
 /**
  * 「我现在画的是哪个视图」的上下文。

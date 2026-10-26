@@ -12,7 +12,7 @@ import {
   type ForeshadowingMetadata,
   type GalleryConfig,
   type GalleryEntryDocument
-} from '@shared/project'
+} from '@nide/contracts/project'
 
 /**
  * 主编辑区的状态：**打开了哪些文件、当前看的是哪一个**。

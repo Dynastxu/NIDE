@@ -1,4 +1,4 @@
-import type { ThemePalette } from '@shared/theme'
+import type { ThemePalette } from '@nide/contracts/theme'
 
 /**
  * 当前配色的**最小**状态：它只有一个值，加一组订阅者。

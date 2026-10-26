@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_APPEARANCE, normalizeAppearancePreference } from '@shared/appearance'
+import { DEFAULT_APPEARANCE, normalizeAppearancePreference } from '@nide/contracts/appearance'
 import {
   BUILTIN_THEMES,
   DEFAULT_THEME,
   THEME_WINDOW_COLORS,
   findBuiltinTheme,
   paletteOf
-} from '@shared/theme'
+} from '@nide/contracts/theme'
 
 /**
  * 主题数据的一致性。

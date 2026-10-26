@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@shared/host'
+import { HOST_CHANNELS, HOST_EVENT_CHANNELS } from '@nide/contracts/host'
 
 /**
  * 宿主通道名的契约。

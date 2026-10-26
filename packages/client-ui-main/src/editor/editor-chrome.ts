@@ -3,7 +3,7 @@ import { saveActiveTab } from '@nide/client-ui-main/editor/editor-save'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { useEditorStore } from '@nide/client-kit/stores/editor.store'
 import { useViewChrome, type ViewChromeConfig } from '@nide/client-ui-main/view/chrome-context'
-import type { ViewMoreItem, ViewTab } from '@shared/plugin-api'
+import type { ViewMoreItem, ViewTab } from '@nide/contracts/plugin-api'
 
 /**
  * 把主编辑区的文件标签页接到视图外壳上。

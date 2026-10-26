@@ -1,7 +1,7 @@
 import { JSX, useMemo } from 'react'
 import { renderMarkdown } from '@nide/client-ui-main/editor/markdown'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { chapterBodyOf } from '@shared/project'
+import { chapterBodyOf } from '@nide/contracts/project'
 
 /**
  * Markdown 预览。

@@ -6,7 +6,7 @@ import {
   createProjectEntry,
   readProjectChapters,
   type RootsOptions
-} from '../../packages/host/src/services/project-files.ts'
+} from '../../packages/services/content/src/project-files.ts'
 
 /**
  * 章节列表与「带初始内容的新建」的**读盘**部分。

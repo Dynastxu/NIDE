@@ -14,7 +14,7 @@ import {
   type ForeshadowingListResult,
   type ProjectConfig,
   type RenameEntryResult
-} from '@shared/project'
+} from '@nide/contracts/project'
 import { loggerFor } from '@nide/client-kit/logger'
 import { useEditorStore } from './editor.store'
 import { useGalleryStore } from './gallery.store'

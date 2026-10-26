@@ -1,4 +1,4 @@
-import { writeChapterMetadata, type ChapterMetadata } from '@shared/project'
+import { writeChapterMetadata, type ChapterMetadata } from '@nide/contracts/project'
 import { modelFor, writeModelSilently } from '@nide/client-ui-main/editor/model-registry'
 import { useEditorStore } from '@nide/client-kit/stores/editor.store'
 

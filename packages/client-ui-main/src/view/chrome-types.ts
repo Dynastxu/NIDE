@@ -4,7 +4,7 @@ import type {
   ViewTab,
   ViewTabCloseIcon,
   ViewTabStrip
-} from '@shared/plugin-api'
+} from '@nide/contracts/plugin-api'
 
 /**
  * 视图外壳的**类型**。

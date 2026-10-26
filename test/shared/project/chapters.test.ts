@@ -17,8 +17,8 @@ import {
   takenChapterFileNumbers,
   usedChapterNumbers,
   writeChapterBody
-} from '@shared/project'
-import type { ChapterFile } from '@shared/project'
+} from '@nide/contracts/project'
+import type { ChapterFile } from '@nide/contracts/project'
 
 /**
  * 章节 Markdown 的开头属性（frontmatter）里的**编号**。
@@ -76,7 +76,9 @@ describe('parseChapterNumber', () => {
 
   it('没有 frontmatter / 没有这个键 / 值不是整数时都给 null', () => {
     expect(parseChapterNumber('# 第一章\n\n正文')).toBeNull()
-    expect(parseChapterNumber('---\ncategory: chapter\ndata:\n  outline: 只有细纲\n---\n')).toBeNull()
+    expect(
+      parseChapterNumber('---\ncategory: chapter\ndata:\n  outline: 只有细纲\n---\n')
+    ).toBeNull()
     expect(parseChapterNumber('---\ndata:\n  index: 零\n---\n')).toBeNull()
     expect(parseChapterNumber('---\ndata:\n  index: -1\n---\n')).toBeNull()
     expect(parseChapterNumber('---\ndata:\n  index: 1.5\n---\n')).toBeNull()
@@ -244,9 +246,9 @@ describe('formatChapterNumber', () => {
 
 describe('chapterBodyOf', () => {
   it('摘掉 frontmatter，并吃掉分隔用的那个空行', () => {
-    expect(chapterBodyOf('---\ncategory: chapter\ndata:\n  index: "1"\n---\n\n# 标题\n\n正文')).toBe(
-      '# 标题\n\n正文'
-    )
+    expect(
+      chapterBodyOf('---\ncategory: chapter\ndata:\n  index: "1"\n---\n\n# 标题\n\n正文')
+    ).toBe('# 标题\n\n正文')
   })
 
   it('没有 frontmatter 时整篇就是正文', () => {

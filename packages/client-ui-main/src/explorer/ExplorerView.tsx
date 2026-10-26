@@ -20,10 +20,10 @@ import {
   isMarkdownPath,
   type FileTreeEntry,
   type TreeRow
-} from '@shared/project'
-import type { HostMessageKey } from '@shared/i18n'
-import type { ViewTab } from '@shared/plugin-api'
-import type { DirReadFailureReason, FileUnsupportedReason } from '@shared/project'
+} from '@nide/contracts/project'
+import type { HostMessageKey } from '@nide/contracts/i18n'
+import type { ViewTab } from '@nide/contracts/plugin-api'
+import type { DirReadFailureReason, FileUnsupportedReason } from '@nide/contracts/project'
 
 /**
  * 文件树（宿主内建视图，挂在左上工具区）。

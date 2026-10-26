@@ -13,7 +13,7 @@ import type {
   ContextMenuItem,
   ContextSubmenuItem
 } from '@nide/client-kit/ui/menu-items'
-import type { Translator } from '@shared/i18n'
+import type { Translator } from '@nide/contracts/i18n'
 
 /**
  * 条目动作层里那一半「判断」的测试：什么目标得到哪些项、哪一项该置灰。

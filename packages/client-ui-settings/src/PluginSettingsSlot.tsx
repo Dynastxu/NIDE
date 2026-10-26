@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ComponentType, type JSX } from 'react'
-import { PluginHostProvider } from '@nide/client-kit/plugin-views/PluginHostProvider'
+import { PluginHostProvider } from '@nide/sdk/plugin-views/PluginHostProvider'
 import { useI18nStore, useT } from '@nide/client-kit/stores/i18n.store'
-import type { PluginSettingsDescriptor } from '@shared/plugin-api'
+import type { PluginSettingsDescriptor } from '@nide/contracts/plugin-api'
 import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
 
 /**

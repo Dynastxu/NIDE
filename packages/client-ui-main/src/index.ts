@@ -15,6 +15,9 @@ import App from './App'
 export { default as App } from './App'
 export { MainApp } from './MainApp'
 
+/** 这个包负责的窗口种类（client-runtime 按它装配，不再用 switch） */
+export const windowTypes = ['main'] as const
+
 export const mainPlugin = {
   name: 'nide-client-ui-main',
   inject: ['slots'],

@@ -9,8 +9,8 @@ import {
   projectPathKey,
   removeProject,
   upsertProject
-} from '@shared/project'
-import type { ProjectStore } from '@shared/project'
+} from '@nide/contracts/project'
+import type { ProjectStore } from '@nide/contracts/project'
 
 /**
  * 「打开过的文件夹」这份数据的纯逻辑。
