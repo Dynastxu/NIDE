@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest'
 const repoRoot = path.resolve(import.meta.dirname, '..', '..')
 
 const targets = [
-  { file: 'packages/client-kit/src/plugin-views/PluginSlot.tsx' },
+  { file: 'packages/sdk/src/plugin-views/PluginSlot.tsx' },
   { file: 'packages/client-ui-settings/src/PluginSettingsSlot.tsx' }
 ] as const
 
