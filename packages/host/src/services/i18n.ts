@@ -415,6 +415,24 @@ export class HostI18n {
     return resolvePluginTitle(tables, spec, this.currentLocale)
   }
 
+  /**
+   * 宿主**自己的**词条（`host.*`）。
+   *
+   * 和 `resolveTitle` 是两条路：那个解析插件 manifest 的 `%key%` 占位符（没有 `%`
+   * 就原样返回）。内建视图 / 菜单 / 对话框的标题直接就是宿主词条表的 key，走错那条
+   * 会把 `host.git.title` 当普通字符串显示在界面上（迁移到 host 后就这么错过一次）。
+   *
+   * 缺 key 时返回 key 本身（和渲染进程的回落一致），并留一条 warn 便于发现漏词条。
+   */
+  message(key: string): string {
+    const value = this.currentPayload.messages[key] ?? BASE_MESSAGES[key]
+    if (value === undefined) {
+      warn('Missing host message key', { key, locale: this.currentLocale })
+      return key
+    }
+    return value
+  }
+
   private preferencePath(): string {
     return path.join(this.userDataDir, PREFERENCE_FILE_NAME)
   }

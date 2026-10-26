@@ -605,10 +605,14 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     `app.whenReady()` **之前**登记（ready 之后登记无效），而页面里的 `<script>` 要能
     加载它，`src/renderer/index.html` 的 `script-src` 里必须有 `nide-plugin:`。
     少任何一处，症状都是「打包后插件视图一片白、Console 里 CSP 或 net::ERR_UNKNOWN_URL_SCHEME」。
-18. **`HostI18n` 在 `i18n.init` 之前是中文**：它构造时的 payload 只是中文兜底
+18. **`host.*` 词条不要走 `resolveTitle`**：那个函数解析的是插件 manifest 的
+    `%key%` 占位符，拿不到 `%` 就把字符串原样返回 —— 内建视图的标题因此在界面上
+    显示成 `host.git.title`（迁移到 host 后真踩过）。宿主自己的词条用
+    `HostI18n.message(key)`；两者不要混用。
+19. **`HostI18n` 在 `i18n.init` 之前是中文**：它构造时的 payload 只是中文兜底
     （`locale = zh-CN`）。启动顺序写错（比如先取视图标题、后初始化语言）不会报错，
     只会让第一屏用中文标题 —— shell 那边 `await initI18n()` 必须在开窗之前。
-19. **`plugins.views` / `plugins.settings` 的标题依赖当前语言**：切语言后**必须**重建
+20. **`plugins.views` / `plugins.settings` 的标题依赖当前语言**：切语言后**必须**重建
     窗口（渲染进程会重新拉一次），否则视图标题停在旧语言。切语言那条路已经在
     `recreateRootWindow()` 里，别在别处缓存视图列表。
 

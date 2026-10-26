@@ -14,7 +14,6 @@ import type { zhCN } from '../../../../src/shared/i18n/locales/zh-CN.ts'
  * 用了免扩展名 import，host 的 NodeNext 解析不了，所以这里从词条表本身取）。
  */
 type HostMessageKey = keyof typeof zhCN
-import type { TitleResolver } from './plugins.ts'
 
 /**
  * 宿主**内建**视图的登记表。
@@ -92,13 +91,17 @@ export const HOST_VIEWS: readonly HostViewSpec[] = [
 /**
  * 表格 → 视图描述符（`PluginViewDescriptor`），标题在这里解析。
  *
+ * `message` 必须是**宿主词条表**的查询（`HostI18n.message`），不是插件 manifest 的
+ * `%key%` 解析器：内建视图的 `titleKey` 是 `host.*`，交给后者会被当成普通字符串原样
+ * 返回，界面上直接出现裸 key。
+ *
  * 位置与调用点：host 的 `plugins.views` RPC 把它放在插件视图**前面** —— 排在前面的
  * 视图是各自区的第一个，也就是该区 `activeViewId` 为 null 时默认展示的那一个。
  */
-export function builtinViews(resolve: TitleResolver): PluginViewDescriptor[] {
+export function builtinViews(message: (key: string) => string): PluginViewDescriptor[] {
   return HOST_VIEWS.map((view) => ({
     id: view.id,
-    title: resolve(HOST_VIEW_PLUGIN_ID, view.titleKey, view.id),
+    title: message(view.titleKey),
     location: view.location,
     icon: view.icon,
     pluginId: HOST_VIEW_PLUGIN_ID,

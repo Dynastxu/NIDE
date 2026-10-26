@@ -15,7 +15,8 @@ import {
  * 所以这里把三项都钉住，顺序也钉住（第一个视图是区的默认展示项）。
  */
 describe('builtinViews', () => {
-  const resolve = (pluginId: string, key: string): string => `${pluginId}:${key}`
+  // 宿主词条表的假查询：真实实现是 `HostI18n.message(key)`
+  const resolve = (key: string): string => `zh:${key}`
 
   it('三张内建视图：文件树 / 版本控制 / 提交，顺序固定', () => {
     expect(builtinViews(resolve).map((view) => view.id)).toEqual([
@@ -38,7 +39,8 @@ describe('builtinViews', () => {
   it('标题走宿主词条表，pluginId 是 host，且没有插件目录 / 入口文件', () => {
     for (const view of builtinViews(resolve)) {
       expect(view.pluginId).toBe(HOST_VIEW_PLUGIN_ID)
-      expect(view.title.startsWith(`${HOST_VIEW_PLUGIN_ID}:host.`)).toBe(true)
+      // 传进去的 key 必须是 `host.*`，并且标题就是词条表给的值（不是 key 本身）
+      expect(view.title.startsWith('zh:host.')).toBe(true)
       expect(view.dir).toBe('')
       expect(view.entry).toBe('')
     }
