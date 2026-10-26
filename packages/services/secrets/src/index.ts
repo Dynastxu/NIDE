@@ -16,3 +16,6 @@ export const secretsService = {
     ctx.services.provide('secrets', new SecretVault(path.join(ctx.env.userDataDir, 'secrets')))
   }
 }
+
+/** profile 通过 `kind: service` 行指向本文件，宿主入口取 default 后 apply */
+export default secretsService

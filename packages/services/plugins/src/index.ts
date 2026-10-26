@@ -72,3 +72,6 @@ export const pluginsService = {
     })
   }
 }
+
+/** profile 通过 `kind: service` 行指向本文件，宿主入口取 default 后 apply */
+export default pluginsService

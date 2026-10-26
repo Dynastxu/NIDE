@@ -4,6 +4,7 @@ import process from 'node:process'
 import {
   REPO_ROOT,
   boot,
+  toImportSpecifier,
   dumpRows,
   ensureProfile,
   loadRows,
@@ -13,7 +14,6 @@ import {
 import { attachHostIpc } from '../../kernel/src/ipc.ts'
 import { RpcRegistry } from '../../kernel/src/rpc.ts'
 import { installNideContext, type HostEnvironment } from '../../kernel/src/context.ts'
-import { projectService } from '../../services/project/src/index.ts'
 import type { HostProjectStore } from '../../services/project/src/host-project-store.ts'
 import type { PluginManager } from '../../services/plugins/src/plugins.ts'
 import {
@@ -21,14 +21,8 @@ import {
   loadProjectConfig,
   updateProjectConfig
 } from '../../services/config/src/project-config.ts'
-import { contentService } from '../../services/content/src/index.ts'
 import { shell } from '../../kernel/src/shell.ts'
-import { configService } from '../../services/config/src/index.ts'
-import { pluginsService } from '../../services/plugins/src/index.ts'
-import { i18nService } from '../../services/i18n/src/index.ts'
-import { appearanceService } from '../../services/appearance/src/index.ts'
-import { secretsService } from '../../services/secrets/src/index.ts'
-import { aiService, type AiService } from '../../services/ai/src/index.ts'
+import type { AiService } from '../../services/ai/src/index.ts'
 import type { ChatStreamEvent } from '../../../packages/contracts/src/ai-provider/index.ts'
 
 import type {
@@ -224,18 +218,23 @@ const hostCtx = installNideContext(host.ctx, {
  * 顺序只对「谁先 provide」有影响；服务之间一律在**调用时**用
  * `ctx.services.require(...)` 取，所以顺序不构成依赖。
  */
-const services = [
-  projectService,
-  contentService,
-  configService,
-  pluginsService,
-  i18nService,
-  appearanceService,
-  secretsService,
-  aiService
-]
+/**
+ * `kind: service` 的行由 profile 决定（`cordis.yml`），顺序就是 apply 顺序。
+ *
+ * 服务模块很薄（一个 `{ name, apply }` 对象），动态 import 只是为了跟 loader 用
+ * 同一种「由 profile 指向文件」的装配方式 —— 加一个服务 = 加一行，不改这里。
+ */
+interface HostService {
+  name: string
+  apply(ctx: typeof hostCtx): void
+}
 
-for (const service of services) {
+for (const row of host.services) {
+  const module = (await import(toImportSpecifier(row.name))) as { default?: HostService }
+  const service = module.default
+  if (!service || typeof service.apply !== 'function') {
+    throw new Error(`profile row "${row.id}" is marked as a service but does not export one`)
+  }
   service.apply(hostCtx)
 }
 

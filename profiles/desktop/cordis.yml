@@ -13,3 +13,38 @@
   name: '{{NIDE_ROOT}}/packages/hello/src/index.ts'
   config:
     greeting: 'nide host skeleton is alive'
+
+# ---- 宿主服务（kind: service）----
+# 每条由宿主编译产物里的入口按顺序 apply。顺序即依赖顺序：靠前的先 provide。
+- id: project
+  name: '{{NIDE_ROOT}}/packages/services/project/src/index.ts'
+  kind: service
+  # 项目生命周期（projects.json 的唯一实现）
+- id: content
+  name: '{{NIDE_ROOT}}/packages/services/content/src/index.ts'
+  kind: service
+  # 内容读写：文件树 / 图鉴 / 概述
+- id: config
+  name: '{{NIDE_ROOT}}/packages/services/config/src/index.ts'
+  kind: service
+  # 项目配置 nide.json 的读 / 更新 / 初始化
+- id: plugins
+  name: '{{NIDE_ROOT}}/packages/services/plugins/src/index.ts'
+  kind: service
+  # 插件清单 / 启停 / 贡献点 / 内建视图表
+- id: i18n
+  name: '{{NIDE_ROOT}}/packages/services/i18n/src/index.ts'
+  kind: service
+  # 本地化：语言包瀑布 / 语言偏好 / 标题解析
+- id: appearance
+  name: '{{NIDE_ROOT}}/packages/services/appearance/src/index.ts'
+  kind: service
+  # 主题 / 外观：偏好 + 主题解析（nativeTheme 走 shell 反桥）
+- id: secrets
+  name: '{{NIDE_ROOT}}/packages/services/secrets/src/index.ts'
+  kind: service
+  # 密钥仓（无 RPC，由 ai 服务 require）
+- id: ai
+  name: '{{NIDE_ROOT}}/packages/services/ai/src/index.ts'
+  kind: service
+  # AI 供应商：配置 / 测试连接 / SSE 转发
