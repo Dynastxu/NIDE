@@ -31,6 +31,15 @@ export default defineConfig({
      * 会打不开 index.html。
      */
     root: resolve('apps/desktop/renderer'),
+    /*
+     * electron-vite 只在**默认**的 `src/renderer/index.html` 存在时才自动填
+     * `rollupOptions.input`；根目录搬走之后必须显式给，否则它会先警告
+     * 「index.html file is not found in /src/renderer」，再抛
+     * `build.rollupOptions.input option is required`。
+     */
+    build: {
+      rollupOptions: { input: resolve('apps/desktop/renderer/index.html') }
+    },
     resolve: {
       /*
        * 数组形式：子路径的正则别名要排在精确别名**前面**。
