@@ -64,6 +64,10 @@ export const HOST_CHANNELS = {
   showStripeMenu: 'host:show-stripe-menu',
   /** 插件重载（占位，等插件后端接上再实现） */
   reloadPlugin: 'host:reload-plugin',
+  /** 从本地文件夹安装插件（invoke）；目录由 shell 的对话框选 */
+  installPlugin: 'host:install-plugin',
+  /** 卸载一个第三方插件（invoke），参数是 pluginId；内置插件会被拒绝 */
+  removePlugin: 'host:remove-plugin',
 
   // ============ 渲染进程 -> 宿主：单向 send ============
 

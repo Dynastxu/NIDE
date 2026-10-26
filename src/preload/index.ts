@@ -79,7 +79,13 @@ import type {
   RenameEntryResult,
   WriteFileRequest
 } from '@shared/project'
-import type { Disposable, PluginDescriptor, ClientBundleDescriptor } from '@shared/plugin-api'
+import type {
+  Disposable,
+  PluginDescriptor,
+  ClientBundleDescriptor,
+  PluginInstallResult,
+  PluginRemoveResult
+} from '@shared/plugin-api'
 
 // 通用事件总线（渲染进程侧）
 const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
@@ -291,6 +297,9 @@ let hostSetOverviewRole:
 let hostReadConfig: (() => Promise<ProjectConfig | null>) | null = null
 let hostUpdateConfig:
   ((patch: ProjectConfigPatch) => Promise<ProjectConfigUpdateResult | null>) | null = null
+let hostGetPlugins: (() => Promise<PluginDescriptor[]>) | null = null
+let hostGetDisabledPlugins: (() => Promise<string[]>) | null = null
+let hostGetClientBundles: (() => Promise<ClientBundleDescriptor[]>) | null = null
 
 const projectAPI = {
   /** 「打开过的项目」列表，最近打开的在前 */
@@ -755,18 +764,64 @@ const api = {
   getI18n: (): Promise<I18nPayload> => ipcRenderer.invoke(HOST_CHANNELS.getI18n),
 
   /** 「设置 -> 插件」用的插件清单。和 getPluginViews 是两件事：那个是视图，这个是插件本体 */
-  getPlugins: (): Promise<PluginDescriptor[]> => ipcRenderer.invoke(HOST_CHANNELS.getPlugins),
+  getPlugins: async (): Promise<PluginDescriptor[]> => {
+    if (hostGetPlugins) {
+      try {
+        return await hostGetPlugins()
+      } catch (error) {
+        preloadLogger.warn('host plugins.list failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(HOST_CHANNELS.getPlugins)
+  },
 
   /** 已启用插件的浏览器半 bundle 清单（开发期是绝对路径，生产环境换 app 协议） */
-  getClientBundles: (): Promise<ClientBundleDescriptor[]> =>
-    ipcRenderer.invoke(HOST_CHANNELS.getClientBundles),
+  getClientBundles: async (): Promise<ClientBundleDescriptor[]> => {
+    if (hostGetClientBundles) {
+      try {
+        return await hostGetClientBundles()
+      } catch (error) {
+        preloadLogger.warn('host plugins.clientBundles failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(HOST_CHANNELS.getClientBundles)
+  },
 
-  /** 启用 / 禁用插件。禁用后它的视图会从工具区消失；状态由宿主落盘，重启后仍然有效 */
-  setPluginEnabled: (pluginId: string, enabled: boolean): Promise<void> =>
-    ipcRenderer.invoke(HOST_CHANNELS.setPluginEnabled, pluginId, enabled),
+  /**
+   * 启用 / 禁用插件。禁用后它的视图会从工具区消失；状态由宿主落盘，重启后仍然有效。
+   *
+   * 返回 false 表示用户在「启用第三方插件」的信任确认里取消了 —— 状态没有变。
+   * `options: { confirm: false }` 供已经问过用户的调用方跳过那一问。
+   */
+  setPluginEnabled: (
+    pluginId: string,
+    enabled: boolean,
+    options?: ConfirmOptions
+  ): Promise<boolean> =>
+    ipcRenderer.invoke(HOST_CHANNELS.setPluginEnabled, pluginId, enabled, options),
+
+  /**
+   * 从本地文件夹安装插件：shell 弹目录对话框，host 负责复制 / 校验 / 重扫。
+   * 装进来默认禁用；启用来的时候会过一道信任确认。
+   */
+  installPlugin: (): Promise<PluginInstallResult> =>
+    ipcRenderer.invoke(HOST_CHANNELS.installPlugin),
+
+  /** 卸载一个第三方插件；内置插件返回 `builtin`，用户取消返回 `cancelled` */
+  removePlugin: (pluginId: string): Promise<PluginRemoveResult> =>
+    ipcRenderer.invoke(HOST_CHANNELS.removePlugin, pluginId),
 
   /** 当前被禁用的插件 id（宿主持久化过的那份）。渲染进程启动时取一次，用来过滤视图列表 */
-  getDisabledPlugins: (): Promise<string[]> => ipcRenderer.invoke(HOST_CHANNELS.getDisabledPlugins),
+  getDisabledPlugins: async (): Promise<string[]> => {
+    if (hostGetDisabledPlugins) {
+      try {
+        return await hostGetDisabledPlugins()
+      } catch (error) {
+        preloadLogger.warn('host plugins.disabled failed, falling back to IPC', { error })
+      }
+    }
+    return ipcRenderer.invoke(HOST_CHANNELS.getDisabledPlugins)
+  },
 
   /**
    * 订阅「插件启用状态变了」。
@@ -989,6 +1044,10 @@ ipcRenderer.on(HOST_PORT_CHANNEL, (event) => {
   hostReadConfig = () => hostInvoke('config', 'read', []) as Promise<ProjectConfig | null>
   hostUpdateConfig = (patch) =>
     hostInvoke('config', 'update', [patch]) as Promise<ProjectConfigUpdateResult | null>
+  hostGetPlugins = () => hostInvoke('plugins', 'list', []) as Promise<PluginDescriptor[]>
+  hostGetDisabledPlugins = () => hostInvoke('plugins', 'disabled', []) as Promise<string[]>
+  hostGetClientBundles = () =>
+    hostInvoke('plugins', 'clientBundles', []) as Promise<ClientBundleDescriptor[]>
 
   // 窗口知道自己绑定的是哪个项目；换项目后 host 需要跟着切。
   const bootProject = readBootProjectPath()

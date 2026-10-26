@@ -172,9 +172,22 @@ export const zhCN = {
   'host.settings.plugins.menu.uninstall': '卸载',
   'host.settings.plugins.notImplemented': '尚未实现',
   'host.settings.plugins.builtinUndeletable': '内置插件不可卸载',
+  'host.settings.plugins.install': '从文件夹安装',
+  'host.settings.plugins.install.failed':
+    '安装失败：目录里没有可用的 manifest.json，或者同名插件已经存在。',
   'host.settings.plugins.disabledWarning': '该插件已禁用：它的视图不会出现在工作台里。',
   'host.settings.plugins.note':
-    '启用状态会保存到用户配置目录，重启后仍然有效；卸载功能尚未实现，磁盘上的插件文件不会被删除。',
+    '启用状态会保存到用户配置目录，重启后仍然有效；卸载会删除用户安装的插件目录，内置插件不可卸载。',
+
+  // 插件安装 / 卸载（主进程的动作出口）
+  'host.plugins.install.title': '选择插件文件夹',
+  'host.plugins.trust.title': '启用第三方插件',
+  'host.plugins.trust.message':
+    '插件「{name}」拥有完整的 Node 权限，可以读写你的文件和网络。只启用你信任的插件。',
+  'host.plugins.trust.confirm': '启用',
+  'host.plugins.uninstall.title': '卸载插件',
+  'host.plugins.uninstall.message': '卸载「{name}」会删除它的插件目录，之后可以重新安装。',
+  'host.plugins.uninstall.confirm': '卸载',
   'host.diff.title': 'Diff 对比',
   'host.diff.close': '关闭',
 

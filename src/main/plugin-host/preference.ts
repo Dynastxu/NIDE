@@ -63,6 +63,17 @@ function ensureStore(): PluginPreference {
 }
 
 /**
+ * 丢掉内存镜像，下一次读取重新读盘。
+ *
+ * 用在安装 / 卸载之后：这两件事由 host 写偏好文件，shell 这份镜像不会自己知道。
+ * 视图过滤读的是 `getDisabledPlugins()`，不刷新的话新装的插件（默认禁用）会先以
+ * 「启用」的样子出现在工具区里。
+ */
+export function reloadPluginPreference(): void {
+  store = null
+}
+
+/**
  * 当前被禁用的插件 id。
  *
  * 返回**副本**：调用方（IPC 层）会把它交给结构化克隆发给渲染进程，把内部数组

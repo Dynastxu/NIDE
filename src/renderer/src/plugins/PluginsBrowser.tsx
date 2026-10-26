@@ -68,6 +68,8 @@ export function PluginsBrowser({
   const [draft, setDraft] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; pluginId: string } | null>(null)
+  /** 安装 / 卸载失败时的一行说明；成功或取消后清空 */
+  const [notice, setNotice] = useState<string | null>(null)
 
   /** 界面上呈现（并用于算脏）的那份状态：immediate 模式没有草稿，只有已生效值 */
   const shown = mode === 'immediate' ? applied : draft
@@ -79,27 +81,36 @@ export function PluginsBrowser({
     [plugins, draft, applied]
   )
 
+  /**
+   * 重拉清单 + 启用状态。安装 / 卸载之后也走这一条，避免「界面有、磁盘没有」
+   * 这种只在下次启动才自愈的中间态。
+   */
+  const reloadPlugins = useCallback(async (): Promise<void> => {
+    const [list, off] = await Promise.all([
+      window.hostAPI.getPlugins(),
+      window.hostAPI.getDisabledPlugins()
+    ])
+
+    setPlugins(list)
+    setApplied(off)
+    setDraft(off)
+    setSelectedId((current) =>
+      current && list.some((plugin) => plugin.id === current) ? current : (list[0]?.id ?? null)
+    )
+  }, [])
+
   // 拉清单 + 当前启用状态。两者一起取，避免先渲染一版错的勾选状态
   useEffect(() => {
     let cancelled = false
 
-    void Promise.all([window.hostAPI.getPlugins(), window.hostAPI.getDisabledPlugins()]).then(
-      ([list, off]) => {
-        if (cancelled) return
-
-        setPlugins(list)
-        setApplied(off)
-        setDraft(off)
-        setLoading(false)
-        // 默认选中第一个插件，右侧不至于空着
-        setSelectedId(list[0]?.id ?? null)
-      }
-    )
+    void reloadPlugins().finally(() => {
+      if (!cancelled) setLoading(false)
+    })
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reloadPlugins])
 
   useEffect(() => {
     // immediate 模式没有草稿，也就没有「脏」这个概念
@@ -132,18 +143,34 @@ export function PluginsBrowser({
    * 那个 effect 会反复重跑（每次勾选都多一轮注册 + setState）。
    */
   const applyChanges = useCallback(
-    (next: string[]): void => {
+    async (next: string[]): Promise<void> => {
       const { plugins: list, applied: current } = latest.current
       const changed = list.filter(
         (plugin) => isEnabled(plugin.id, next) !== isEnabled(plugin.id, current)
       )
 
       if (changed.length > 0) {
-        // 单向推送：宿主记状态并广播（主窗口会据此重拉视图列表，被禁用的插件
-        // 视图随之消失）。不等回执 —— 真相在主进程，本地只是镜像。
+        /**
+         * 逐条等回执：启用第三方插件要过一次信任确认，用户可能取消。全部推完再
+         * 落地本地状态，取消的那一条才不会在界面上先变成「已启用」。
+         */
+        let allApplied = true
         for (const plugin of changed) {
-          void window.hostAPI.setPluginEnabled(plugin.id, isEnabled(plugin.id, next))
+          const appliedNow = await window.hostAPI.setPluginEnabled(
+            plugin.id,
+            isEnabled(plugin.id, next)
+          )
+          if (!appliedNow) allApplied = false
         }
+
+        if (!allApplied) {
+          // 用户取消了一次信任确认：以宿主为准，把界面拉回真实状态
+          const off = await window.hostAPI.getDisabledPlugins()
+          setApplied(off)
+          setDraft(off)
+          return
+        }
+
         if (changed.some((plugin) => plugin.requiresRestart)) onRestartRequired?.()
       }
 
@@ -157,7 +184,9 @@ export function PluginsBrowser({
     if (mode !== 'deferred' || !registerActions) return
 
     registerActions(
-      () => applyChanges(latest.current.draft),
+      () => {
+        void applyChanges(latest.current.draft)
+      },
       () => setDraft(latest.current.applied)
     )
   }, [mode, registerActions, applyChanges])
@@ -183,30 +212,78 @@ export function PluginsBrowser({
       : [...new Set([...current, pluginId])]
 
     // immediate 模式没有按钮条可等，直接落下去
-    if (mode === 'immediate') applyChanges(updated)
+    if (mode === 'immediate') void applyChanges(updated)
     else setDraft(updated)
+  }
+
+  /** 选目录并安装；装进来默认禁用，用户再决定要不要信任它 */
+  const installPlugin = async (): Promise<void> => {
+    setNotice(null)
+
+    const result = await window.hostAPI.installPlugin()
+    if (!result.ok) {
+      if (result.reason !== 'cancelled') {
+        setNotice(t('host.settings.plugins.install.failed'))
+      }
+      return
+    }
+
+    await reloadPlugins()
+    setSelectedId(result.plugin.id)
+  }
+
+  /** 卸载第三方插件；内置插件在宿主侧会被拒，这里不显示入口 */
+  const uninstallPlugin = async (pluginId: string): Promise<void> => {
+    setNotice(null)
+
+    const result = await window.hostAPI.removePlugin(pluginId)
+    if (!result.ok) {
+      if (result.reason === 'cancelled') return
+      setNotice(
+        t(
+          result.reason === 'builtin'
+            ? 'host.settings.plugins.builtinUndeletable'
+            : 'host.settings.plugins.install.failed'
+        )
+      )
+      return
+    }
+
+    await reloadPlugins()
   }
 
   return (
     <section className="flex h-full min-h-0 flex-col">
-      {/* 标签页 */}
-      <div
-        role="tablist"
-        className="flex shrink-0 items-center gap-1 border-b border-zinc-800 px-4"
-      >
-        <Tab
-          id="marketplace"
-          label={t('host.settings.plugins.tab.marketplace')}
-          active={tab === 'marketplace'}
-          onSelect={() => setTab('marketplace')}
-        />
-        <Tab
-          id="installed"
-          label={t('host.settings.plugins.tab.installed')}
-          active={tab === 'installed'}
-          onSelect={() => setTab('installed')}
-        />
+      {/* 标签页 + 安装入口（按钮不放进 tablist：它不是 tab） */}
+      <div className="flex shrink-0 items-center gap-1 border-b border-zinc-800 px-4">
+        <div role="tablist" className="flex items-center gap-1">
+          <Tab
+            id="marketplace"
+            label={t('host.settings.plugins.tab.marketplace')}
+            active={tab === 'marketplace'}
+            onSelect={() => setTab('marketplace')}
+          />
+          <Tab
+            id="installed"
+            label={t('host.settings.plugins.tab.installed')}
+            active={tab === 'installed'}
+            onSelect={() => setTab('installed')}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => void installPlugin()}
+          className="ml-auto rounded border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+        >
+          {t('host.settings.plugins.install')}
+        </button>
       </div>
+
+      {notice && (
+        <p className="shrink-0 border-b border-zinc-800 px-4 py-2 text-xs text-amber-400">
+          {notice}
+        </p>
+      )}
 
       {tab === 'marketplace' ? (
         <p className="p-6 text-xs text-zinc-500">
@@ -270,6 +347,10 @@ export function PluginsBrowser({
           plugins={plugins}
           shownEnabled={shownEnabled}
           onToggle={toggle}
+          onUninstall={(pluginId) => {
+            setMenu(null)
+            void uninstallPlugin(pluginId)
+          }}
           onClose={() => setMenu(null)}
         />
       )}
@@ -488,11 +569,8 @@ function DetailRow({ label, value }: { label: string; value: string }): JSX.Elem
 /**
  * 插件列表的右键菜单。
  *
- * 「卸载」一律置灰，原因分两种，提示文案也不同：
- * - 内置插件：宿主分发的一部分，删了下次启动又回来，所以根本不给这个能力；
- * - 用户插件：能力还没实现（宿主目前只在启动时扫目录，没有删除流程）。
- *
- * 把两种原因分开说，比笼统的「暂不支持」有用 —— 前者是永久设计，后者是待办。
+ * 「卸载」对用户安装的插件可用；内置插件置灰并说明原因 —— 它们随宿主分发，
+ * 删了下次启动又回来，所以根本不给这个能力。
  */
 function PluginContextMenu({
   x,
@@ -501,6 +579,7 @@ function PluginContextMenu({
   plugins,
   shownEnabled,
   onToggle,
+  onUninstall,
   onClose
 }: {
   x: number
@@ -509,6 +588,7 @@ function PluginContextMenu({
   plugins: PluginDescriptor[]
   shownEnabled: Record<string, boolean>
   onToggle: (id: string, next: boolean) => void
+  onUninstall: (id: string) => void
   onClose: () => void
 }): JSX.Element | null {
   const t = useT()
@@ -528,13 +608,16 @@ function PluginContextMenu({
     {
       id: 'uninstall',
       label: t('host.settings.plugins.menu.uninstall'),
-      onSelect: () => {},
-      disabled: true,
-      disabledReason: t(
-        plugin.builtin
-          ? 'host.settings.plugins.builtinUndeletable'
-          : 'host.settings.plugins.notImplemented'
-      ),
+      onSelect: () => {
+        onUninstall(pluginId)
+        onClose()
+      },
+      ...(plugin.builtin
+        ? {
+            disabled: true,
+            disabledReason: t('host.settings.plugins.builtinUndeletable')
+          }
+        : {}),
       danger: true
     }
   ]

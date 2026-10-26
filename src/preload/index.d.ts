@@ -36,6 +36,8 @@ import type {
   Disposable,
   ClientBundleDescriptor,
   PluginDescriptor,
+  PluginInstallResult,
+  PluginRemoveResult,
   PluginSettingsDescriptor,
   PluginViewDescriptor
 } from '@shared/plugin-api'
@@ -311,7 +313,19 @@ export interface HostAPI {
   getPlugins: () => Promise<PluginDescriptor[]>
   /** 已启用插件的浏览器半 bundle（开发期绝对路径） */
   getClientBundles: () => Promise<ClientBundleDescriptor[]>
-  setPluginEnabled: (pluginId: string, enabled: boolean) => Promise<void>
+  /**
+   * 启用 / 禁用插件；返回 false 表示用户在「启用第三方插件」的信任确认里取消了。
+   * `{ confirm: false }` 让已经问过用户的调用方跳过那一问。
+   */
+  setPluginEnabled: (
+    pluginId: string,
+    enabled: boolean,
+    options?: ConfirmOptions
+  ) => Promise<boolean>
+  /** 从本地文件夹安装插件（shell 弹目录对话框）；装进来默认禁用 */
+  installPlugin: () => Promise<PluginInstallResult>
+  /** 卸载第三方插件；内置插件返回 `builtin`，取消返回 `cancelled` */
+  removePlugin: (pluginId: string) => Promise<PluginRemoveResult>
   getDisabledPlugins: () => Promise<string[]>
   onPluginEnabledChanged: (handler: (pluginId: string, enabled: boolean) => void) => Disposable
   getI18n: () => Promise<I18nPayload>

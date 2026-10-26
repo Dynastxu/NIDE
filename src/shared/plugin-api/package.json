@@ -1,0 +1,4 @@
+{
+  "//": "纯数据契约目录：host（Node ESM）会直接 import 这里的 preference / view / plugin 类型。",
+  "type": "module"
+}

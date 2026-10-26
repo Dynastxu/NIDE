@@ -27,6 +27,8 @@ describe('HOST_CHANNELS', () => {
       setLocale: 'host:set-locale',
       showStripeMenu: 'host:show-stripe-menu',
       reloadPlugin: 'host:reload-plugin',
+      installPlugin: 'host:install-plugin',
+      removePlugin: 'host:remove-plugin',
       eventEmit: 'host:event-emit',
       editorChange: 'host:editor-change',
       event: 'host:event',

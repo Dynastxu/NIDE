@@ -1,15 +1,20 @@
-# NIDE 迁移交接（2026-10-25）
+# NIDE 迁移交接（2026-10-26）
 
 > 新会话先读这份，再读 [cordis-migration.md](cordis-migration.md) 与
 > [plugin-ui-bundles.md](plugin-ui-bundles.md)。三份都是当前有效的约定，不是历史记录。
 
 ## 0. 一句话状态
 
-Cordis/DSH 架构的**竖切已经跑通**：Electron shell → 独立 host 进程 → 通用 RPC →
-客户端 Cordis 树 → slot → 运行时插件 UI bundle。现有界面外观未改，旧路径都保留了
-回退。剩余工作是横向铺业务、插件管理器和生产化，不是重新验证架构。
+Cordis/DSH 架构的**核心竖切已经跑通**：Electron shell → 独立 host 进程 → 通用 RPC →
+客户端 Cordis 树 → slot → 运行时插件 UI bundle。项目文件 / 章节 / 图鉴 / 概述 /
+项目配置的**实现只有一份**，在 host；插件清单 / 启停 / 本地安装 / 卸载 / 信任确认
+也在 host。现有界面外观未改。
 
-**所有改动都还在工作区，没有 commit。**
+**但旧实现没有全部迁完**：项目生命周期（open/close/store）、插件 loader / 视图 /
+设置页 / 语言包、i18n / theme / AI / secrets、核心 UI 组件仍在 shell 或旧路径
+（逐项见 §4.1）。下一步不是继续加新功能，而是按 §4 的顺序把这些搬完。
+
+**当前工作区有未提交的插件安装 / 卸载改动**（`git status` 为准）。
 
 ## 1. 目标与已锁定决策
 
@@ -44,8 +49,10 @@ Host（packages/host，纯 Node ESM）
 ├─ 文件读写（services/project-files.ts）：readDir / readFile / readChapters /
 │  readForeshadowing / writeFile / createEntry / renameEntry / deleteEntry /
 │  gallery / overview 的读与新建
-└─ 项目配置（services/project-config.ts）：load / update / registry / resolve /
-   remapOverviewRole
+├─ 项目配置（services/project-config.ts）：load / update / initialize / registry /
+│  resolve / remapOverviewRole
+└─ 插件清单（services/plugins.ts）：list / disabled / setEnabled / clientBundles /
+   install / remove / rescan
 
 Client（renderer，HTTP 页面里的第二棵 Cordis 树）
 ├─ packages/client-runtime：Context + slots + modules + bundle loader
@@ -93,6 +100,28 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - 改名之后的概述映射在 host 内部补（`remapOverviewRole`）；
 - `project.setCurrent` 在每个窗口 port 建立后按 `--nide-project=` 同步，换项目时 host 跟着切。
 
+### 插件清单（host）
+- [packages/host/src/services/plugins.ts](packages/host/src/services/plugins.ts) 扫描
+  `<appRoot>/plugins/builtin` 与 `<userData>/plugins`，维护 manifest 清单、禁用集合与
+  client bundle 绝对路径；
+- RPC：`plugins.list` / `disabled` / `setEnabled` / `clientBundles` / `install` /
+  `remove` / `rescan`；
+- shell 的 `getPlugins` / `getDisabledPlugins` / `getClientBundles` 已 host 优先、失败回退；
+  `setPluginEnabled` 先写 host，再同步 shell 的内存镜像（视图过滤与 i18n 仍读它），
+  然后广播 `plugin:enabled-changed`；
+- 视图 / 设置页 / 语言包的注册仍在 shell（依赖 i18n 与构建期 glob），这一层只搬了
+  「装了哪些、哪些启用、bundle 在哪」这三份纯数据；
+- **安装 / 卸载**：`plugins.install(sourceDir)` 复制到 `<userData>/plugins`、默认禁用；
+  `plugins.remove(id)` 只删第三方。shell 负责选目录（`host:install-plugin`）与卸载
+  确认（`host:remove-plugin`），成功后 `rescanPluginHost()` 重扫视图 / 设置页 / 语言包，
+  并用 `plugin:enabled-changed` 广播让所有窗口重拉；
+- **信任确认**：启用第三方插件时走 `CONFIRM_SPECS.enableThirdPartyPlugin`（内置插件
+  不问），用户取消则 `setPluginEnabled` 返回 false，界面回滚到宿主的真实禁用集合；
+- **浏览器半补加载**：`plugin:enabled-changed` 到达主窗口时先
+  `reloadClientBundles()` 再重拉视图列表，所以新装 / 启用的 UI 插件**不用重启**
+  就会出现；dev 下 Vite 的 `server.fs.strict` 已关掉，`/@fs/` 也能读 userData 里的
+  第三方 bundle。生产环境仍走 app 协议（TODO），非 dev 会跳过 bundle。
+
 ### 客户端 Cordis / slots
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；
 - `main.root` / `welcome.root` / `settings.root` 都已接入；
@@ -121,36 +150,58 @@ docs/architecture/ # 本文件 + 迁移方案 + bundle 说明
 - 第二批 `b753126`：章节 / 伏笔 / 图鉴 / 概述 / 配置搬到 host；`src/shared/project`
   改成 `#project/*` 子路径导入（原 `@shared/yaml` 与免扩展名相对导入 Node 解析不了）。
   `pnpm test` 35 files / 583 tests 全绿（Vitest 能解析 `#project/*`）。
-- 第三批（未提交）：删掉主进程两份服务实现，旧 IPC handler 改成**转发**到 host；
+- 第三批 `f1cd701`：删掉主进程两份服务实现，旧 IPC handler 改成**转发**到 host；
   `config.initialize` 由 shell 经父端口 RPC（`invokeHost`）调用；host 变成启动必需；
-  8 份服务测试从 `test/main/services` 搬到 [test/host](../../test/host)，由
-  `tsconfig.host.json` 一起 typecheck。代码净删约 4300 行。
+  8 份服务测试从 `test/main/services` 搬到 [test/host](../../test/host)。
+- 第四批 `8dbb073`：打包（`asar: false` + host 跑源码），`build:unpack` 产物已验证。
+- 第五批（未提交）：插件清单 / 禁用集合 / client bundle 收到 host；新增本地文件夹
+  安装、第三方卸载、启用前的信任确认与插件页入口；`test/host/plugins.test.ts`。
+  上一轮 592 tests 全绿，安装 / 卸载用例加进来后待重跑。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
-## 4. 未完成 / 下一步优先级
+## 4. 下一步优先级
 
-1. **收尾 host 化 / 打包**：重复实现已删、测试已切到 host。打包先走最小可用路线：
-   - `electron-builder.yml` **不启用 asar**，host 继续跑源码 `.ts`（Electron 的 Node
-     做类型剥离）；`files` 里显式带上 `packages/host|boot|hello`、`src/shared`、
-     `profiles`、`plugins`。`resolveHostEntry()` 在 dev 与打包版都指向 app 根下的
-     `packages/host/src/index.ts`，所以两者布局一致。
-   - 已验证：`pnpm build:unpack` 产物用
-     `node_modules\electron\dist\electron.exe dist\win-unpacked\resources\app` 启动正常
-     （host ready、新建项目初始化、文件读写都通过）。直接运行 `nide.exe` 会被
-     SmartScreen 按「未签名」拦掉 —— 那是发布问题，不是打包内容问题；正式分发前
-     要配代码签名。
-   - 之后才是「编译 host + 恢复 asar」：那时 profile 里的 `{{NIDE_ROOT}}/...` 要换成
-     包标识符或 resources 路径，`files` 也会缩到编译产物。不要在没有验证的情况下
-     先开 asar —— host 读不到自己的源码，文件功能会整块失效。
-   - **回退链**：preload 的旧 IPC 通道现在也转发到 host；等打包验证过、直连 port
-     足够稳定后可以删掉这一层，只留 `host:project-confirm-delete`。
-2. **插件管理器**：安装/卸载/启停、写 profile patch、第三方 bundle、信任确认。
-3. **生产 bundle 链路**：`nide-plugin://` 或 app 协议、批量构建、CSS 约定、HMR。
-4. **Profile / loader 完整语义**：bundle 组合、`cordis.patch.yml`、`!!js`、
-   required 审计、runtime resolution。
-5. **视觉回归 + 打包**：截图基线、`build:win`、asar/host 入口、pnpm 运行时。
-6. **删旧系统**：`src/main/plugin-host`、`src/shared/plugin-api`（逐步）、
-   `PluginSlot` 的 glob 兜底、settings 页面的旧加载。
+按「先搬完旧实现，再加功能」排序：
+
+1. **项目生命周期统一到 host**（当前最大的过渡期重复）
+   - shell 的 `src/main/services/project-store.ts` 与 host 的 `HostProjectStore`
+     各读一份 `projects.json`；open / forget / close 仍在 shell；
+   - 目标：host 持有 store，shell 只负责窗口、目录对话框、确认；
+   - 迁移时要处理窗口重建与 host 当前项目的同步。
+2. **插件 loader / 视图 / 设置页 / 语言包迁 host**
+   - 现在 `src/main/plugin-host/*` 全量仍在 shell：loader、permission、sandbox、
+     uiRegistry、settingsRegistry、host-views、manifest-nls、语言包；
+   - 目标：host 产出纯数据（views / settings / locales），shell 只消费；
+   - 前置：i18n 词条表要在 host 侧构建，或 host 下发 contributions 由 shell 合并。
+3. **npm 安装来源**（D6）
+   - 先定 pnpm 运行时；推荐自带 registry tarball 安装（需加 `tar` 依赖，v1 不做
+     传递依赖），替换 `plugins.install` 的 sourceDir 输入，UI 加包名输入；
+   - 插件市场标签页暂不做。
+4. **生产 bundle 协议**：`nide-plugin://` 或 app 协议 + 批量构建 + CSS 约定 + HMR。
+   现在打包版不会加载任何插件 UI（loader 非 dev 直接跳过）。
+5. **发布化**：编译 host + 恢复 asar + 代码签名 + `build:win` 验证。
+6. **剩余迁移**：i18n / theme / appearance / AI / secrets 服务化；核心 UI 组件搬进
+   `client-ui-*`；D10 per-package locale；视觉回归；最后删 `src/main/plugin-host`、
+   `src/main/services/project-store.ts`、`PluginSlot` 的 glob 兜底。
+
+### 4.1 迁移完成度（哪些还在旧实现）
+
+**已迁到 host**：项目文件 / 章节 / 伏笔 / 图鉴 / 概述 / 配置；新建项目初始化；
+插件清单 / 启停 / 本地安装 / 卸载 / 信任确认；通用 RPC；host 启动必需。
+
+**仍在 shell / 旧实现**：
+- 项目 store / open / forget / close（host 有一份只读的 list/current/setCurrent）；
+- `src/main/plugin-host/*` 全量（views / settings / locales / loader / permission /
+  sandbox / manifest-nls / host-views）；
+- i18n / theme / appearance / logger；
+- AI provider / secrets；
+- window / menu / tray / update / dialog / confirm（按 D7 属于 shell，但 `ctx.shell`
+  桥接尚未实现）；
+- 核心 UI 组件（`client-ui-*` 目前只是把 `@renderer/App` 等包一层 slot）；
+- 生产 bundle 协议、编译 host / asar / 签名、视觉回归、D10。
+
+**旧实现里也没有的**：插件后端（`manifest.main`）、依赖解析、profile bundle /
+`cordis.patch.yml` / `!!js` / required 审计 / runtime resolution。
 
 ## 5. 运行与验证
 
@@ -209,6 +260,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/project-store.ts` | host 项目列表 / 当前项目 |
 | `packages/host/src/services/project-files.ts` | host 文件 / 章节 / 伏笔 / 图鉴 / 概述的读写 |
 | `packages/host/src/services/project-config.ts` | host 项目配置（load / update / initialize / registry / remap） |
+| `packages/host/src/services/plugins.ts` | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做） |
 | `packages/client-runtime/src/index.ts` | 客户端树、slots/modules、bundle 加载 |
 | `packages/client-runtime/src/loader.ts` | `/@fs/` IIFE 注入 |
 | `packages/client-ui-slots/src/index.ts` | `SlotRegistry` / `slotsOf` |
@@ -246,9 +298,10 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 2. **Node type stripping 不支持参数属性**：`constructor(private x: string)` 会
    `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`；写成显式字段。
 3. **`src/shared` 下的 .ts 被 host 直接 import**：需要在目录里放
-   `package.json` `{"type":"module"}`（`src/shared/project/package.json` 就是为此），
-   并且目录内**不能有 `@shared/*` 或免扩展名的相对 import** —— Node ESM 只认
-   `#project/*`（由同一个 package.json 的 `imports` 映射到 `./*.ts`）。
+   `package.json` `{"type":"module"}`（`src/shared/project` 与
+   `src/shared/plugin-api` 都已经有），并且目录内**不能有 `@shared/*` 或免扩展名的
+   相对 import** —— Node ESM 只认 `#project/*`（由同一个 package.json 的 `imports`
+   映射到 `./*.ts`）。
 4. **`import.meta.env.DEV` 在 alias 源码里不可靠**：loader 改用
    `window.location.protocol === 'http:'` 判断 dev。
 5. **IIFE bundle**：必须 classic JSX（`React.createElement`），React 外置，
@@ -283,23 +336,26 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 ## 10. 建议的下一会话起手式
 
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`。
-> 当前状态：文件 / 章节 / 伏笔 / 图鉴 / 概述 / 项目配置的**实现只有一份**，在 host；
-> shell 只剩项目列表、窗口、对话框、确认框，以及转发旧 IPC 的薄层。host 启动必需。
-> 打包已配好「asar: false + host 跑源码」，`build:unpack` 产物已用
-> `electron.exe <resources/app>` 验证通过。`nide.exe` 未签名会被 SmartScreen 拦，
-> 那是发布/签名问题，不影响打包内容。
-> 下一步做**插件管理器**：安装 / 卸载 / 启停、写 profile patch、第三方 bundle、
-> 信任确认；代码签名与「编译 host + 恢复 asar」留到发布前。
+> 当前状态：项目文件 / 章节 / 伏笔 / 图鉴 / 概述 / 配置的**实现只有一份**，在 host；
+> 插件清单 / 启停 / 本地文件夹安装 / 卸载 / 信任确认也已接（host）。客户端 slots 与
+> 运行时 bundle（dev）正常，UI 未变。打包 `asar: false` + 源码 host 已用
+> `electron.exe <resources/app>` 验证过；`nide.exe` 未签名会被 SmartScreen 拦。
+> **旧实现没有全部迁完**：项目 store、`src/main/plugin-host/*`（views/settings/
+> locales/loader）、i18n/theme/AI/secrets、核心 UI 组件仍在 shell（见 §4.1）。
+> 下一步按 §4：① 项目 store 统一 host；② 插件 views/settings/locales 迁 host；
+> ③ npm 安装来源；④ 生产 bundle 协议。当前工作区可能还有未提交改动，先 commit。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
 
 - [x] `pnpm typecheck` / `pnpm typecheck:host` 绿（host 工程现在也包含
       [test/host](../../test/host) 的 8 份用例）
-- [ ] `pnpm test` 重跑：第三批（删服务、测试搬到 test/host、host 必需）之后还没跑
-- [ ] `pnpm dev` 重跑：现在不再需要 `NIDE_HOST`；重点看启动是否自动拉起 host、
-      新建项目是否生成 `.nide` + 默认图鉴 / 概述预设（走 `config.initialize`）
-- [ ] 手动点一遍图鉴 / 概述 / 角色图鉴 / 项目配置，确认读路径正常
+- [ ] `pnpm test` 重跑：最近一次 592 全绿在插件安装 / 卸载改动**之前**；
+      新增的安装 / 卸载用例还没在用户终端跑过
+- [x] `pnpm dev` 手工验证：从文件夹安装 → 默认禁用 → 启用信任确认 → 卸载；
+      视图 / 设置树同步更新，UI 插件启用后不重启即可显示
+- [x] `pnpm dev`：启动自动拉起 host；新建项目生成 `.nide` + 默认图鉴 / 概述预设
+- [x] 图鉴 / 概述 / 角色图鉴 / 项目配置读路径正常
 - [x] `EditorPanes` 的 ResizeObserver 修复已验证：持续刷屏消失（只剩首次布局的一条）
 - [ ] `pnpm lint`：只剩 `scripts/host-ipc-node-smoke.mjs` 的两个
       `explicit-function-return-type`（迁移前就有，与本次改动无关）
@@ -309,5 +365,6 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 - [ ] `pnpm build:plugin-demo` 可重复产出 `plugins/builtin/demo/dist/client.js`
 - [ ] `projects.json` 已恢复（测试欢迎窗口时改过名）
 - [ ] Demo Plugin 处于启用状态（当前 `disabled:0`）
-- [ ] 决定是否先 commit / 开分支（当前全部未提交）
+- [ ] **当前改动未提交**（插件清单 / 安装 / 卸载 / 信任 / 动态 bundle），
+      建议下个会话先 commit 再开工
 - [ ] `docs/wiki` 仍为空；需要用户自己 clone Wiki 仓库

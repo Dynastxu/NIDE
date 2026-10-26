@@ -26,6 +26,9 @@
   - **章节 / 伏笔 / 图鉴 / 概述 / 配置已切到 host**：`files.readChapters` / `readForeshadowing`、`gallery.read/create/updateRegistry`、`overview.read/setRole`、`config.read/update` 注册在 host；preload 全部 host 优先、失败回退。图鉴 / 概述「报上来的路径必须正是配置里那个目录」的核对也在 host（配置服务已搬进 [packages/host/src/services/project-config.ts](../../packages/host/src/services/project-config.ts)），改名后的概述映射由 host 的 `remapOverviewRole` 直接补。
   - **shared/project 变成 host 可直接加载**：目录内模块之间改用 `#project/*`（[src/shared/project/package.json](../../src/shared/project/package.json) 的 `imports`），不再用 `@shared/*` 或免扩展名相对路径 —— Node 的 ESM 解析器不认后者。原 `src/shared/yaml` 搬成 `src/shared/project/yaml.ts`，归到同一个包作用域里。
   - **shell 侧重复实现已删**：`src/main/services/project-{files,config}.service.ts` 删除；`project.ipc.ts` 只剩项目列表 / 打开 / 关闭、删除确认，其余旧通道全部**转发**到 host（与 preload 直连 port 共用同一张 `RpcRegistry`）。`config.initialize` 由 shell 经 `invokeHost`（utilityProcess 父端口）调用；host 启动不再受 `NIDE_HOST` 控制。8 份服务测试搬到 [test/host](../../test/host)，由 `tsconfig.host.json` 一起检查。
+  - **插件清单已切到 host**：[packages/host/src/services/plugins.ts](../../packages/host/src/services/plugins.ts) 扫描内置 / 第三方目录，维护 manifest、禁用集合与 client bundle；RPC 为 `plugins.list/disabled/setEnabled/clientBundles/install/remove/rescan`。shell 的 `getPlugins` / `getDisabledPlugins` / `getClientBundles` host 优先、失败回退，`setPluginEnabled` 先写 host 再同步 shell 内存镜像（视图过滤与 i18n 仍读它）。视图 / 设置页 / 语言包注册仍在 shell；安装 / 卸载后由 `rescanPluginHost()` 重扫并广播。
+  - **插件安装 / 卸载 / 信任确认**：`plugins.install(sourceDir)` 从本地文件夹复制进 `<userData>/plugins`、默认禁用；`plugins.remove(id)` 只删第三方。shell 的 `host:install-plugin` 负责选目录、`host:remove-plugin` 负责卸载确认；启用第三方插件时 `setPluginEnabled` 先过 `enableThirdPartyPlugin` 信任确认，取消则返回 false。npm 来源与 profile patch 还没做。
+  - **插件浏览器半补加载（dev）**：`plugin:enabled-changed` 到达主窗口时先 `reloadClientBundles()` 再重拉视图列表；dev 的 Vite `server.fs.strict=false` 允许 `/@fs/` 读 userData 里的第三方 bundle。新装 / 启用的 UI 插件不用重启。生产协议仍 TODO。
   - **客户端 Cordis 树已起**：[packages/client-runtime](../../packages/client-runtime/src/index.ts) 在 renderer 里建独立根 Context + 一个最小插件，挂到 `window.__NIDE_CLIENT__`。
   - **第一个 slot 已接**：`@nide/client-ui-slots` 提供注册表，`@nide/client-ui-renderer` 提供不产生包装 DOM 的 `<Slot>`；欢迎窗口改走 `<Slot name="welcome.root">`，渲染的仍是现有 `WelcomeApp`（组件一行没改）。
   - **主窗口 root 也已接**：`@nide/client-ui-main` 把现有 `App` 注册到 `main.root`；`client-runtime` 按 `windowType` 只加载对应插件，主窗口不会拖入 WelcomeApp，欢迎窗口也不会加载 Monaco。settings 仍走旧路径。
@@ -35,9 +38,10 @@
   - **三个窗口都走 slot 了**：`main.root` / `welcome.root` / `settings.root` 分别由 `client-ui-main` / `client-ui-welcome` / `client-ui-settings` 注册，渲染的仍是现有组件。
   - **当前项目同步**：host 启动时 `resolveStartup()`；每个窗口 port 建立后把 `--nide-project=` 的路径发 `project.setCurrent`，换项目时 host 跟着切。
   - 已知 TODO：bundle/patch 分层、`!!js`、required 审计、runtime resolution 均未做；`cordis.yml` 里的 `{{NIDE_ROOT}}` 是开发期占位符，正式形态应换成包标识符。
-- 下一步：**插件管理器**。打包内容已验证（`asar: false` + host 跑源码，用
-  `electron.exe <resources/app>` 启动）；未签名 exe 被 SmartScreen 拦是发布问题，
-  发布前再配代码签名。编译 host + 恢复 asar 同样留到发布前。
+- 下一步：**继续搬旧实现**。① 项目 store / open / forget / close 统一到 host；
+  ② `src/main/plugin-host/*` 的 loader / views / settings / locales 迁 host（i18n
+  依赖要先定）；③ npm 安装来源；④ 生产 bundle 协议。打包内容已验证
+  （`asar: false` + host 跑源码），签名与「编译 host + 恢复 asar」留到发布前。
 
 ## 0. 已锁定决策
 

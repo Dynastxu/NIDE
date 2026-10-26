@@ -69,8 +69,12 @@ function scanDir(loader: PluginLoader, dir: string, source: LocaleSourceTier): n
  * 两个目录的扫描顺序（内置在前、第三方在后）不影响语言包优先级 ——
  * 优先级由 tier 决定，不靠加载顺序，见 LanguagePackRegistry.buildMessages。
  */
+/** 当前这一轮扫描用的 loader；rescan 时用它逐个 unload */
+let activeLoader: PluginLoader | null = null
+
 export function initPluginHost(): void {
   const loader = new PluginLoader()
+  activeLoader = loader
   const builtinDir = resolveBuiltinPluginsDir()
   const thirdPartyDir = resolveThirdPartyPluginsDir()
 
@@ -92,4 +96,20 @@ export function initPluginHost(): void {
     settingsPages: settingsRegistry.getAll().length,
     languagePacks: languagePackRegistry.getAll().length
   })
+}
+
+/**
+ * 重新扫描插件目录（安装 / 卸载之后由 IPC 层调用）。
+ *
+ * 先按插件 id 把上一轮注册的视图 / 设置页 / 语言包 / 权限全部撤掉，再重新扫描。
+ * i18n 的词条表是 `initI18n()` 时构建并缓存的，重扫不会重建它 —— 带语言包的插件
+ * 安装 / 卸载后仍要重启才完全生效，界面按 `requiresRestart` 提示用户。
+ */
+export function rescanPluginHost(): void {
+  if (activeLoader) {
+    for (const plugin of pluginRegistry.getAll()) activeLoader.unload(plugin.id)
+  }
+
+  pluginRegistry.clear()
+  initPluginHost()
 }

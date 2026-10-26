@@ -67,6 +67,11 @@ export class PluginRegistry {
   unregister(pluginId: string): void {
     this.plugins.delete(pluginId)
   }
+
+  /** 重扫前清空：rescan 会重新登记当前磁盘上的全部插件 */
+  clear(): void {
+    this.plugins.clear()
+  }
 }
 
 export const pluginRegistry = new PluginRegistry()

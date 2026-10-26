@@ -34,8 +34,12 @@ export default defineConfig({
     plugins: [tailwindcss(), react(), reactClickToComponent()],
     server: {
       // 插件 UI 在 plugins/builtin/<dir>/src/ui/ 下，位于 renderer root(src/renderer) 之外，
-      // 显式放进 dev 文件白名单，避免 /@fs/ 请求被 Vite 拦截
-      fs: { allow: [projectRoot] }
+      // 显式放进 dev 文件白名单，避免 /@fs/ 请求被 Vite 拦截。
+      //
+      // 用户安装的第三方插件在 userData 下（更在 projectRoot 之外），它们的 client
+      // bundle 也走 /@fs/：strict 关掉，否则新装的 UI 插件加载不了。dev-only；生产
+      // 会换成 app 协议。
+      fs: { allow: [projectRoot], strict: false }
     }
   }
 })

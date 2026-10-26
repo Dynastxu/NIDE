@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import {
+  REPO_ROOT,
   boot,
   dumpRows,
   ensureProfile,
@@ -35,6 +36,7 @@ import {
   updateGalleryRegistry,
   updateProjectConfig
 } from './services/project-config.ts'
+import { PluginManager, pluginPreferencePath } from './services/plugins.ts'
 import { filePathKey } from '../../../src/shared/project/files.ts'
 import type {
   CreateEntryRequest,
@@ -73,6 +75,8 @@ interface Options {
   home?: string
   /** Electron 的 userData 目录；独立运行时默认落到 <home>/user-data。 */
   userData?: string
+  /** 应用根目录（Electron 的 app.getAppPath()）；用来找 <root>/plugins/builtin。 */
+  appRoot?: string
 }
 
 function parseArgs(argv: string[]): Options {
@@ -95,6 +99,9 @@ function parseArgs(argv: string[]): Options {
         break
       case '--user-data':
         options.userData = argv[++index]
+        break
+      case '--app-root':
+        options.appRoot = argv[++index]
         break
       case '--dump-config':
         options.dumpConfig = true
@@ -119,11 +126,12 @@ function parseArgs(argv: string[]): Options {
 
 function usage(): string {
   return [
-    'nide-host [--profile <name>] [--home <dir>] [--dump-config] [--once] [--reset]',
+    'nide-host [--profile <name>] [--home <dir>] [--app-root <dir>] [--dump-config] [--once] [--reset]',
     '',
     '  --profile       profile 名称，默认 desktop',
     '  --home          NIDE_HOME 目录，默认 ~/.nide（开发用 .nide-dev）',
     '  --user-data     Electron userData 目录（projects.json 等）',
+    '  --app-root      应用根目录（默认仓库根；打包时由 shell 传 resources/app）',
     '  --dump-config   只打印组合后的行，不启动插件',
     '  --once          启动后立即关闭（冒烟测试用）',
     '  --reset         先删掉 profile 目录再从模板重建（仅开发用）'
@@ -162,6 +170,20 @@ fs.mkdirSync(userDataDir, { recursive: true })
 const projects = new HostProjectStore(userDataDir)
 projects.resolveStartup()
 
+/**
+ * 插件目录。
+ *
+ * 内置插件在**应用根**下（dev = 仓库根，打包 = `resources/app`），由 shell 通过
+ * `--app-root` 传进来；第三方插件在 userData 下，用户可写。独立运行 host 时没有
+ * `--app-root`，回落到仓库根。
+ */
+const appRoot = options.appRoot ? path.resolve(options.appRoot) : REPO_ROOT
+const plugins = new PluginManager({
+  builtinDir: path.join(appRoot, 'plugins', 'builtin'),
+  thirdPartyDir: path.join(userDataDir, 'plugins'),
+  preferencePath: pluginPreferencePath(userDataDir)
+})
+
 /** 文件读取的允许根：MVP 只有当前项目一个。 */
 function allowedRoots(): string[] {
   const root = projects.getCurrent()?.path
@@ -188,7 +210,9 @@ rpc.register('host', {
     entries: host.entryIds.length,
     home: paths.home,
     userData: userDataDir,
-    projects: projects.list().length
+    appRoot,
+    projects: projects.list().length,
+    plugins: plugins.list().length
   })
 })
 
@@ -542,6 +566,32 @@ rpc.register('config', {
 })
 
 /**
+ * 插件：装了哪些、哪些被禁用、浏览器半在哪。
+ *
+ * 视图 / 设置页 / 语言包的注册仍在 shell —— 它们依赖 i18n 与渲染进程的构建期
+ * glob 表，不是「纯数据 + 一个文件路径」能表达的。这一层先把**清单与启用状态**
+ * 收到 host，安装 / 卸载才能在同一个地方落地。
+ */
+rpc.register('plugins', {
+  list: () => plugins.list(),
+  disabled: () => plugins.disabled(),
+  setEnabled: (pluginId, enabled) => {
+    plugins.setEnabled(String(pluginId ?? ''), enabled === true)
+    return plugins.disabled()
+  },
+  clientBundles: () => plugins.clientBundles(),
+
+  install: (sourceDir) => plugins.install(String(sourceDir ?? '')),
+  remove: (pluginId) => plugins.remove(String(pluginId ?? '')),
+
+  /** 重新扫描目录（安装 / 卸载之后由 shell 调用） */
+  rescan: () => {
+    plugins.scan()
+    return plugins.list()
+  }
+})
+
+/**
  * 如果挂在 Electron shell 下，先挂 IPC 再宣告 ready。
  * 独立运行时 attached=false，行为和之前完全一致。
  */
@@ -550,7 +600,8 @@ const ipc = attachHostIpc({
     profile: paths.profileName,
     entries: host.entryIds.length,
     home: paths.home,
-    userData: userDataDir
+    userData: userDataDir,
+    appRoot
   },
   onShutdown: () => {
     logger.info('shutdown requested by shell')

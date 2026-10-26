@@ -132,7 +132,17 @@ export function startHost(options: StartHostOptions = {}): Promise<void> {
 
   const proc = utilityProcess.fork(
     entry,
-    ['--profile', profile, '--home', home, '--user-data', app.getPath('userData')],
+    [
+      '--profile',
+      profile,
+      '--home',
+      home,
+      '--user-data',
+      app.getPath('userData'),
+      // 内置插件目录在 app 根下；dev 与打包版语义一致（见 resolveHostEntry）
+      '--app-root',
+      app.getAppPath()
+    ],
     {
       serviceName: 'nide-host',
       stdio: 'pipe',

@@ -1,5 +1,6 @@
 import { JSX, useEffect } from 'react'
 import { MainApp } from '@renderer/MainApp'
+import { reloadClientBundles } from '@nide/client-runtime'
 import { usePluginStore } from '@renderer/stores/plugin.store'
 
 /**
@@ -31,7 +32,12 @@ export default function App(): JSX.Element {
    */
   useEffect(() => {
     const subscription = window.hostAPI.onPluginEnabledChanged(() => {
-      void usePluginStore.getState().reload()
+      void (async () => {
+        // 先补加载新启用 / 新安装插件的浏览器半，再重拉视图列表 —— 反过来会让
+        // 新视图先按「没有组件」渲染一帧，再突然出现。
+        await reloadClientBundles()
+        await usePluginStore.getState().reload()
+      })()
     })
     return () => subscription.dispose()
   }, [])

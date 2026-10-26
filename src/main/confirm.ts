@@ -124,6 +124,23 @@ export const CONFIRM_SPECS = {
     messageKey: 'host.explorer.delete.message.folder',
     confirmKey: 'host.explorer.delete.confirm',
     danger: true
+  },
+  /**
+   * 启用第三方插件：第三方代码拥有完整 Node 权限（见 D6），装进来只代表「有了」，
+   * 启用是一次明确的信任决定。内置插件不走这一问。
+   */
+  enableThirdPartyPlugin: {
+    titleKey: 'host.plugins.trust.title',
+    messageKey: 'host.plugins.trust.message',
+    confirmKey: 'host.plugins.trust.confirm',
+    danger: true
+  },
+  /** 卸载第三方插件：删的是用户装进来的目录，删掉要重新安装 */
+  uninstallPlugin: {
+    titleKey: 'host.plugins.uninstall.title',
+    messageKey: 'host.plugins.uninstall.message',
+    confirmKey: 'host.plugins.uninstall.confirm',
+    danger: true
   }
 } as const satisfies Record<string, ConfirmSpec>
 

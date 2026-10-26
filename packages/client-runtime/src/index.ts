@@ -43,6 +43,24 @@ export function getClientRuntime(): ClientRuntime | null {
   return currentRuntime
 }
 
+/**
+ * 按宿主当前的插件清单补加载浏览器半 bundle。
+ *
+ * 用在安装 / 启用第三方 UI 插件之后：renderer 启动时只会加载当时**已启用**的
+ * bundle，之后新出现的插件若不补这一趟，就要重启窗口才能看到。`loadClientBundles`
+ * 自己按 URL 去重，重复调用是安全的。
+ */
+export async function reloadClientBundles(): Promise<void> {
+  if (!currentRuntime) return
+
+  try {
+    const descriptors = await window.hostAPI.getClientBundles()
+    await loadClientBundles(descriptors)
+  } catch (error) {
+    console.warn('[nide] failed to reload client bundles', error)
+  }
+}
+
 /** 最小客户端插件：证明激活与释放。 */
 function clientHello(ctx: Context): void {
   const logger = ctx.logger('client-hello')
