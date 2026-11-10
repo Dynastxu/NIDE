@@ -13,6 +13,8 @@ export interface BootstrapMessage {
   /** 插件主进程入口的绝对路径 */
   entry: string
   paths: PluginBackendPaths
+  /** 该插件当前的存储快照 */
+  storage: Record<string, unknown>
 }
 
 export interface InvokeMessage {
@@ -32,7 +34,20 @@ export interface UninstallMessage {
   storage: Record<string, unknown>
 }
 
-export type HostToWorker = BootstrapMessage | InvokeMessage | UninstallMessage | { t: 'dispose' }
+/** 存储写入合并窗口：宿主不会为每个 set 写一次盘 */
+export const STORAGE_FLUSH_MS = 100
+
+/** 宿主对系统交互 / 桌面能力的回复 */
+export interface HostResultMessage {
+  t: 'host-result'
+  id: number
+  ok: boolean
+  value?: unknown
+  error?: string
+}
+
+export type HostToWorker =
+  BootstrapMessage | InvokeMessage | UninstallMessage | HostResultMessage | { t: 'dispose' }
 
 export type WorkerToHost =
   | { t: 'ready'; methods: string[] }
@@ -43,5 +58,8 @@ export type WorkerToHost =
   | { t: 'result'; id: number; ok: false; error: string }
   | { t: 'uninstall-result'; ok: true }
   | { t: 'uninstall-result'; ok: false; error: string }
+  | { t: 'storage:set'; key: string; value: unknown }
+  | { t: 'storage:delete'; key: string }
+  | { t: 'host-call'; id: number; method: string; args: unknown }
   | { t: 'log'; level: 'info' | 'warn' | 'error'; message: string }
   | { t: 'disposed' }

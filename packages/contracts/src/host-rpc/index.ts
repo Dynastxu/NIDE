@@ -84,6 +84,20 @@ export type ShellMethod =
   | 'safeStorage.encrypt'
   /** base64 密文 -> { 明文, 是否需要重新加密 }；解不开时抛错 */
   | 'safeStorage.decrypt'
+  /** 用系统浏览器打开 http(s) 链接 */
+  | 'shell.openExternal'
+  /** 在系统文件管理器里打开路径 */
+  | 'shell.openPath'
+  /** 打开文件 / 目录选择框，返回选中的绝对路径数组 */
+  | 'dialog.open'
+  /** 保存文件选择框，取消返回 null */
+  | 'dialog.save'
+  /** 读系统剪贴板 */
+  | 'clipboard.readText'
+  /** 写系统剪贴板 */
+  | 'clipboard.writeText'
+  /** 发系统通知 */
+  | 'notification.show'
 
 /** `safeStorage.decrypt` 的结果：Electron 会提示系统密钥轮换过，该重写这份密文 */
 export interface SafeStoragePlaintext {

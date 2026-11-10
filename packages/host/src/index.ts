@@ -18,6 +18,7 @@ import type { HostProjectStore } from '../../services/project/src/host-project-s
 import type { PluginManager } from '../../services/plugins/src/plugins.ts'
 import type { PluginPermissionGuard } from '../../services/plugins/src/permissions.ts'
 import type { PluginBackendRuntime } from '../../services/plugins/src/backend/runtime.ts'
+import type { PluginStorage } from '../../services/plugins/src/storage.ts'
 import {
   initializeProjectDirectory,
   loadProjectConfig,
@@ -256,6 +257,8 @@ rpc.setAuthorizer((request) => permissionGuard.authorize(request))
 
 /** 插件后端子进程（manifest.main）：退出前必须停掉，否则会留下孤儿进程 */
 const pluginBackends = hostCtx.services.require<PluginBackendRuntime>('plugin-backend')
+/** 插件存储：停完后端再 flush 一次，最后几次写入不会丢 */
+const pluginStorage = hostCtx.services.require<PluginStorage>('plugin-storage')
 
 /** 统一的退出路径：先停插件后端，再按顺序卸载 Cordis 树 */
 async function stopHost(): Promise<void> {
@@ -264,6 +267,7 @@ async function stopHost(): Promise<void> {
   } catch (error) {
     logger.warn('failed to stop plugin backends', { error })
   }
+  pluginStorage.flushAll()
   await shutdown(host)
 }
 

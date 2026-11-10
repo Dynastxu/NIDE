@@ -7,6 +7,8 @@ import type { PluginBackendPaths } from '../../../../contracts/src/plugin-api/ba
 import type { ResolvedPermissions } from '../../../../contracts/src/plugin-api/permissions.ts'
 import type { PluginManager } from '../plugins.ts'
 import type { PluginPermissionGuard } from '../permissions.ts'
+import type { PluginStorage } from '../storage.ts'
+import type { PluginCapabilities } from '../capabilities.ts'
 import type { HostToWorker, WorkerToHost } from './protocol.ts'
 
 /**
@@ -47,6 +49,10 @@ export function isEagerActivation(activation: readonly string[]): boolean {
 export interface PluginBackendRuntimeOptions extends PluginBackendPathsOptions {
   manager: PluginManager
   permissions: PluginPermissionGuard
+  /** 每插件命名空间的键值存储 */
+  storage: PluginStorage
+  /** 受权限检查的桌面能力 */
+  capabilities: PluginCapabilities
   /** 覆盖 worker 入口（测试用）；默认按模块位置找同目录的 worker.js / worker.ts */
   workerEntry?: string
   log?: {
@@ -282,6 +288,7 @@ export class PluginBackendRuntime {
 
     this.workers.delete(pluginId)
     await worker.dispose()
+    this.options.storage.flush(pluginId)
     this.setState(pluginId, 'stopped', [])
   }
 
@@ -345,6 +352,10 @@ export class PluginBackendRuntime {
         paths: this.pathsFor(pluginId),
         trust: plugin.trust,
         permissions: resolved,
+        storage: this.options.storage.snapshot(pluginId),
+        onStorageSet: (key, value) => this.options.storage.set(pluginId, key, value),
+        onStorageDelete: (key) => this.options.storage.delete(pluginId, key),
+        onHostCall: (method, args) => this.dispatchHostCall(pluginId, method, args),
         onLog: (level, message) => {
           if (level === 'error') this.log.error(`[plugin:${pluginId}] ${message}`)
           else if (level === 'warn') this.log.warn(`[plugin:${pluginId}] ${message}`)
@@ -373,6 +384,43 @@ export class PluginBackendRuntime {
     return worker
   }
 
+  /**
+   * 子进程请求的桌面能力：按插件权限检查后交给 shell。
+   *
+   * 方法名是 worker 侧 `ctx.host` 的固定集合，不转发任意方法 —— 与反向桥的
+   * 白名单是两层，缺一不可。
+   */
+  private async dispatchHostCall(
+    pluginId: string,
+    method: string,
+    args: unknown
+  ): Promise<unknown> {
+    const capabilities = this.options.capabilities
+
+    switch (method) {
+      case 'openExternal':
+        await capabilities.openExternal(pluginId, String(args ?? ''))
+        return null
+      case 'openPath':
+        await capabilities.openPath(pluginId, String(args ?? ''))
+        return null
+      case 'showOpenDialog':
+        return await capabilities.showOpenDialog(pluginId, args as never)
+      case 'showSaveDialog':
+        return await capabilities.showSaveDialog(pluginId, args as never)
+      case 'readClipboard':
+        return await capabilities.readClipboard(pluginId)
+      case 'writeClipboard':
+        await capabilities.writeClipboard(pluginId, String(args ?? ''))
+        return null
+      case 'notify':
+        await capabilities.notify(pluginId, (args ?? {}) as never)
+        return null
+      default:
+        throw new Error(`插件能力 ${method} 不存在`)
+    }
+  }
+
   private setState(
     pluginId: string,
     state: BackendStatus['state'],
@@ -396,6 +444,12 @@ interface BackendWorkerOptions {
   paths: PluginBackendPaths
   trust: 'full' | 'sandboxed'
   permissions: ResolvedPermissions
+  /** 启动时交给子进程的存储快照 */
+  storage: Record<string, unknown>
+  onStorageSet: (key: string, value: unknown) => void
+  onStorageDelete: (key: string) => void
+  /** 子进程请求桌面能力；宿主按权限检查后执行 */
+  onHostCall: (method: string, args: unknown) => Promise<unknown>
   onLog: (level: 'info' | 'warn' | 'error', message: string) => void
   onExit: (code: number | null) => void
 }
@@ -479,7 +533,8 @@ class BackendWorker {
       t: 'bootstrap',
       pluginId: options.pluginId,
       entry: options.entry,
-      paths: options.paths
+      paths: options.paths,
+      storage: options.storage
     })
 
     try {
@@ -567,11 +622,34 @@ class BackendWorker {
         else entry.reject(new Error(message.error))
         return
       }
+      case 'storage:set':
+        this.options.onStorageSet(message.key, message.value)
+        return
+      case 'storage:delete':
+        this.options.onStorageDelete(message.key)
+        return
+      case 'host-call':
+        void this.handleHostCall(message)
+        return
       case 'log':
         this.options.onLog(message.level, message.message)
         return
       case 'disposed':
         return
+    }
+  }
+
+  private async handleHostCall(message: Extract<WorkerToHost, { t: 'host-call' }>): Promise<void> {
+    try {
+      const value = await this.options.onHostCall(message.method, message.args)
+      this.post({ t: 'host-result', id: message.id, ok: true, value })
+    } catch (error) {
+      this.post({
+        t: 'host-result',
+        id: message.id,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 

@@ -2,8 +2,8 @@
 
 > 新会话先读这份，再读 [cordis-migration.md](cordis-migration.md)、
 > [plugin-ui-bundles.md](plugin-ui-bundles.md)、[plugin-permissions.md](plugin-permissions.md)、
-> [plugin-backend.md](plugin-backend.md) 与 [plugin-lifecycle.md](plugin-lifecycle.md)。
-> 都是当前有效的约定，不是历史记录。
+> [plugin-backend.md](plugin-backend.md)、[plugin-capabilities.md](plugin-capabilities.md)
+> 与 [plugin-lifecycle.md](plugin-lifecycle.md)。都是当前有效的约定，不是历史记录。
 
 ## 0. 一句话状态
 
@@ -225,6 +225,17 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - 卸载：`plugins.remove` 先停后端 → 在子进程里跑 `uninstall`（10s 超时）→ 失败返回
   `uninstall-failed` 且**不删目录** → 成功才删目录并重扫；
 - 设置页：core / essential 的复选框置灰；`experimental` 已进描述符（暂未展示）。
+
+### 插件存储与桌面能力（详见 [plugin-capabilities.md](plugin-capabilities.md)）
+
+- 存储：每个插件一个命名空间（`<userData>/plugin-storage/<id>.json`），插件侧是同步
+  视图，100ms 合并写盘；停用 / 卸载 / 宿主退出前 flush；卸载时文件一起删；
+- 桌面能力：`ctx.host.openExternal/openPath/showOpenDialog/showSaveDialog/
+readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permissions.os`
+  检查（`full` 也必须声明），再经既有 `ctx.shell` 反向桥让 shell 执行；
+- shell 白名单扩了 `shell.openExternal|openPath`、`dialog.open|save`、
+  `clipboard.readText|writeText`、`notification.show`，参数在 shell 侧二次收敛；
+- 存储与能力都只给后端；渲染进程插件仍用既有 UI API。
 
 ### 本地化（host）
 
@@ -476,6 +487,11 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   安装事务（staging + 再校验 + 备份 + 原子 rename + 升级保留启用状态）；卸载脚本
   （子进程执行、失败不删目录）；设置页置灰 core / essential。设计说明见
   [plugin-lifecycle.md](plugin-lifecycle.md)。
+- 第二十二批：**插件存储与桌面能力** —— `PluginStorage`（每插件 JSON、同步视图、
+  合并写盘、卸载清理）、`PluginCapabilities`（`os.*` 权限检查 + shell 反向桥）、
+  worker 的 `ctx.storage` / `ctx.host`、bootstrap 存储快照、协议新增
+  `storage:*` / `host-call`、shell 白名单扩展（外链 / 路径 / 对话框 / 剪贴板 /
+  通知）。设计说明见 [plugin-capabilities.md](plugin-capabilities.md)。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -581,6 +597,13 @@ host 现在是启动必需的，不再需要 `NIDE_HOST`。日志里应能看到
     才出现 running（之前是 stopped）；
   - 清单加 `"uninstall": "dist/uninstall.js"`：卸载时脚本在子进程里跑；把脚本改成
     `throw new Error('x')`，卸载应返回 `uninstall-failed` 且插件目录还在。
+- 存储与桌面能力（用户终端）：
+  - 后端 `host.storage.set('k', 1)`，重启应用后 `get('k')` 仍是 1；
+    `%APPDATA%\NIDE\plugin-storage\<id>.json` 能看到内容；
+  - 声明 `"os": { "openExternal": true }` 后 `host.openExternal('https://example.com')`
+    打开浏览器；去掉声明后同一调用应 reject（`没有声明权限 os.openExternal`）；
+  - `os.dialogs: "open"` 时 `showOpenDialog()` 弹系统选择框；`os.clipboard` 为
+    `write` 时读剪贴板应被拒绝。
 
 常用命令：
 
@@ -634,6 +657,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/contracts/src/plugin-api/backend.ts`       | 后端插件类型（`PluginBackend` / `PluginBackendHost`）                                      |
 | `packages/services/plugins/src/backend/uninstall.ts` | 卸载脚本：子进程执行、超时、存储快照                                                       |
 | `packages/contracts/src/plugin-api/preference.ts`    | 启用状态：disabled / enabled / core / essential / defaultDisabled                          |
+| `packages/services/plugins/src/storage.ts`           | 插件存储：每插件 JSON、合并写盘、flush / remove                                            |
+| `packages/services/plugins/src/capabilities.ts`      | 桌面能力：`os.*` 权限检查 + 转发到 shell                                                   |
+| `packages/shell/src/main/host/capabilities.ts`       | 反向桥实现：白名单方法 + 参数收敛（外链 / 对话框 / 剪贴板 / 通知）                         |
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
 | `packages/host/src/services/i18n.ts`                 | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析                      |
 | `packages/client-kit/src`                            | 客户端共享层：stores / ui / window 外壳 / logger / icons（`@nide/client-kit/*`）           |
@@ -710,6 +736,12 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     新装默认禁用、升级保留启用状态，这两条不要合并成一条逻辑。
 22. **卸载脚本失败不删目录**：返回 `uninstall-failed`，让用户看到错误并重试；
     删了目录再报错等于把插件数据弄丢。
+23. **桌面能力永远要声明**：`trust: 'full'` 也不自动放行 `os.*` —— 完全信任约束的是
+    文件 / 子进程，不是替用户点外链、弹对话框、读剪贴板。
+24. **存储只按插件命名空间**：宿主侧 API 必须显式传 `pluginId`（`storage.set(id, ...)`），
+    不要给存储服务加「全局命名空间」的捷径；跨插件共享数据应走插件之间的 IPC。
+25. **shell 白名单是第二层**：`PluginCapabilities` 检查的是「这个插件有没有声明」，
+    shell 检查的是「参数能不能执行」。两层都不要省。
 
 ## 8. 踩过的坑（别再踩）
 
@@ -804,6 +836,10 @@ project through host`）。别再在 shell 里加一份 `projects.json` 的读�
     宿主侧必须自己拒绝，否则一次 RPC 就能禁掉内核插件。
 31. **`PluginSlot` 打开视图会触发 `plugins.activateView`**：这是 `onView` 的唯一信号，
     别在渲染循环里反复调（effect 的依赖只有 `viewId`）。
+32. **存储必须先 flush 再停进程**：worker 的写入有 100ms 合并窗口，`dispose` 前
+    不 flush 会丢掉最后几次 `set`。停用 / 卸载 / 宿主退出三条路径都做了。
+33. **`os` 能力检查不看 trust**：`allowsLegacy` 只读声明；别用权限 guard 的
+    `allows()`（它对 full 直接放行）来判断桌面能力，否则 full 插件会绕过声明。
 
 ## 9. 待定的设计问题
 
@@ -841,6 +877,8 @@ project through host`）。别再在 shell 里加一份 `projects.json` 的读�
 > `--permission` 强制；API 与限制见 `docs/architecture/plugin-backend.md`。
 > 生命周期已对齐 mics（第二十一批）：默认禁用 / 核心标记 / 激活事件 / 依赖 /
 > 安装升级事务 / 卸载脚本，见 `docs/architecture/plugin-lifecycle.md`。
+> 存储与桌面能力已接（第二十二批）：`ctx.storage` / `ctx.host`，`os.*` 权限检查后
+> 经 shell 反向桥执行，见 `docs/architecture/plugin-capabilities.md`。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
@@ -860,7 +898,7 @@ project through host`）。别再在 shell 里加一份 `projects.json` 的读�
       视图标题、设置树子页、语言切换（中文 <-> English）、换主题（深/浅，窗口底色
       不该露异色）、AI 供应商设置页的读写与测试连接（需要真 key 才测连通）都正常
 - [x] **打包后插件 UI**：`pnpm build:unpack` 产物用 `electron.exe
-  resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
+resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
       `nide-plugin://plugin/builtin.demo/client.js`，随后 `view served by client modules`
       —— 说明协议、CSP、host 清单三处都对上了
 - [x] 图鉴 / 概述 / 角色图鉴 / 项目配置读路径正常

@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import os from 'node:os'
-import path from 'node:path'
 import { fork } from 'node:child_process'
 import type { PluginManager } from '../plugins.ts'
 import type { PluginPermissionGuard } from '../permissions.ts'
+import { pluginStorageFile } from '../storage.ts'
 import type { HostToWorker, WorkerToHost } from './protocol.ts'
 import { buildBackendFlags, resolveWorkerEntry } from './runtime.ts'
 
@@ -18,11 +18,6 @@ import { buildBackendFlags, resolveWorkerEntry } from './runtime.ts'
  */
 
 export const UNINSTALL_TIMEOUT_MS = 10_000
-
-/** 插件存储文件：每个插件一个 JSON（与 storage 服务共用这一份路径规则） */
-export function pluginStorageFile(userDataDir: string, pluginId: string): string {
-  return path.join(userDataDir, 'plugin-storage', `${encodeURIComponent(pluginId)}.json`)
-}
 
 function readStorage(file: string): Record<string, unknown> {
   try {

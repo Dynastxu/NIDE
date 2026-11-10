@@ -2,9 +2,16 @@ import { pathToFileURL } from 'node:url'
 import type {
   PluginBackend,
   PluginBackendHost,
-  PluginBackendPaths
+  PluginBackendPaths,
+  PluginHostCapabilities,
+  PluginStorageApi
 } from '../../../../contracts/src/plugin-api/backend.ts'
-import type { BootstrapMessage, HostToWorker, WorkerToHost } from './protocol.ts'
+import {
+  STORAGE_FLUSH_MS,
+  type BootstrapMessage,
+  type HostToWorker,
+  type WorkerToHost
+} from './protocol.ts'
 
 /**
  * 插件后端子进程的运行时。
@@ -19,13 +26,19 @@ import type { BootstrapMessage, HostToWorker, WorkerToHost } from './protocol.ts
  */
 
 function send(message: WorkerToHost): void {
-  process.send?.(message)
+  try {
+    process.send?.(message)
+  } catch {
+    // 结构化克隆失败（例如插件往 storage 里塞了函数）不能让整个子进程崩掉
+  }
 }
 
 interface BackendState {
   host: PluginBackendHost | null
   deactivate: (() => unknown | Promise<unknown>) | null
   handlers: Map<string, (params?: unknown) => unknown | Promise<unknown>>
+  /** 把挂起的存储写入交给宿主；dispose 前必调 */
+  flushStorage: (() => void) | null
   stopping: boolean
 }
 
@@ -33,6 +46,7 @@ const state: BackendState = {
   host: null,
   deactivate: null,
   handlers: new Map(),
+  flushStorage: null,
   stopping: false
 }
 
@@ -57,10 +71,106 @@ function log(level: 'info' | 'warn' | 'error', message: string, args: unknown[])
   })
 }
 
-function createHost(pluginId: string, paths: PluginBackendPaths): PluginBackendHost {
+// ---------------------------------------------------------------------------
+// 宿主能力：请求在子进程发起，真正执行在宿主（带权限检查）
+// ---------------------------------------------------------------------------
+
+const hostPending = new Map<
+  number,
+  { resolve: (value: unknown) => void; reject: (error: Error) => void }
+>()
+let hostSeq = 0
+
+function hostCall<T>(method: string, args: unknown): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = ++hostSeq
+    hostPending.set(id, { resolve: resolve as (value: unknown) => void, reject })
+    send({ t: 'host-call', id, method, args })
+  })
+}
+
+function createCapabilities(): PluginHostCapabilities {
+  return {
+    openExternal: (url) => hostCall('openExternal', url),
+    openPath: (target) => hostCall('openPath', target),
+    showOpenDialog: (options) => hostCall('showOpenDialog', options),
+    showSaveDialog: (options) => hostCall('showSaveDialog', options),
+    readClipboard: () => hostCall('readClipboard', undefined),
+    writeClipboard: (text) => hostCall('writeClipboard', text),
+    notify: (options) => hostCall('notify', options)
+  }
+}
+
+/**
+ * 同步视图 + 合并写盘。
+ *
+ * 与 mics 的 RemoteStorageService 一致：`set` 立刻改内存，写入 100ms 合并后
+ * 通过 `storage:set` / `storage:delete` 交给宿主；`flush` 在停用前必调。
+ */
+function createStorage(snapshot: Record<string, unknown>): {
+  api: PluginStorageApi
+  flush: () => void
+} {
+  const data = new Map<string, unknown>(Object.entries(snapshot))
+  const pending = new Map<string, unknown>()
+  const removed = new Set<string>()
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  const flush = (): void => {
+    if (timer) {
+      clearTimeout(timer)
+      timer = undefined
+    }
+    for (const [key, value] of pending) send({ t: 'storage:set', key, value })
+    for (const key of removed) send({ t: 'storage:delete', key })
+    pending.clear()
+    removed.clear()
+  }
+
+  const schedule = (): void => {
+    if (timer) return
+    timer = setTimeout(() => {
+      timer = undefined
+      flush()
+    }, STORAGE_FLUSH_MS)
+    timer.unref?.()
+  }
+
+  return {
+    api: {
+      get<T>(key: string, fallback?: T): T | undefined {
+        return data.has(key) ? (data.get(key) as T) : fallback
+      },
+      set(key, value) {
+        data.set(key, value)
+        pending.set(key, value)
+        removed.delete(key)
+        schedule()
+      },
+      delete(key) {
+        if (!data.has(key)) return
+        data.delete(key)
+        pending.delete(key)
+        removed.add(key)
+        schedule()
+      },
+      keys: () => [...data.keys()]
+    },
+    flush
+  }
+}
+
+function createHost(
+  pluginId: string,
+  paths: PluginBackendPaths,
+  storage: PluginStorageApi,
+  capabilities: PluginHostCapabilities
+): PluginBackendHost {
   return {
     id: pluginId,
     paths,
+    storage,
+    host: capabilities,
     log: {
       info: (message, ...args) => log('info', message, args),
       warn: (message, ...args) => log('warn', message, args),
@@ -82,7 +192,9 @@ function createHost(pluginId: string, paths: PluginBackendPaths): PluginBackendH
 }
 
 async function bootstrap(message: BootstrapMessage): Promise<void> {
-  state.host = createHost(message.pluginId, message.paths)
+  const storage = createStorage(message.storage ?? {})
+  state.flushStorage = storage.flush
+  state.host = createHost(message.pluginId, message.paths, storage.api, createCapabilities())
 
   let module: Record<string, unknown>
   try {
@@ -156,6 +268,8 @@ async function dispose(): Promise<void> {
     log('warn', '插件 deactivate 抛错，已忽略', [error instanceof Error ? error.message : error])
   }
 
+  // 清理里可能还会写 storage，所以先 dispose 再 flush
+  state.flushStorage?.()
   state.handlers.clear()
   send({ t: 'disposed' })
   // 让最后一帧 IPC 发出去再退出
@@ -201,6 +315,13 @@ process.on('message', (message: HostToWorker) => {
   else if (message.t === 'invoke') void invoke(message)
   else if (message.t === 'uninstall') void uninstall(message)
   else if (message.t === 'dispose') void dispose()
+  else if (message.t === 'host-result') {
+    const entry = hostPending.get(message.id)
+    if (!entry) return
+    hostPending.delete(message.id)
+    if (message.ok) entry.resolve(message.value)
+    else entry.reject(new Error(String(message.error)))
+  }
 })
 
 process.on('uncaughtException', (error) => {

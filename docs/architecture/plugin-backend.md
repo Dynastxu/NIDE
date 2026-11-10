@@ -46,14 +46,14 @@ export default {
 
 `host` 的形状（类型见 `packages/contracts/src/plugin-api/backend.ts`）：
 
-| 字段                                                               | 说明                                                  |
-| ------------------------------------------------------------------ | ----------------------------------------------------- |
-| `id`                                                               | 清单里的插件 id                                       |
-| `paths.userData` / `paths.pluginDir` / `paths.temp` / `paths.home` | 绝对路径；插件不能假设 Electron API                   |
-| `log.info/warn/error`                                              | 走宿主日志（带插件 id）                               |
-| `handle(method, handler)`                                          | 注册方法，返回注销函数；插件停用时自动清空            |
-| `storage`（后续）                                                  | 每插件命名空间的键值存储                              |
-| `host`（后续）                                                     | 受权限检查的桌面能力（外链 / 对话框 / 剪贴板 / 通知） |
+| 字段                                                               | 说明                                                                            |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `id`                                                               | 清单里的插件 id                                                                 |
+| `paths.userData` / `paths.pluginDir` / `paths.temp` / `paths.home` | 绝对路径；插件不能假设 Electron API                                             |
+| `log.info/warn/error`                                              | 走宿主日志（带插件 id）                                                         |
+| `handle(method, handler)`                                          | 注册方法，返回注销函数；插件停用时自动清空                                      |
+| `storage`                                                          | 每插件命名空间的键值存储（见 [plugin-capabilities.md](plugin-capabilities.md)） |
+| `host`                                                             | 受权限检查的桌面能力：外链 / 对话框 / 剪贴板 / 通知（同上）                     |
 
 ## 3. 调用
 

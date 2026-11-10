@@ -8,6 +8,8 @@ import type { I18nService } from '../../i18n/src/index.ts'
 import { builtinViews } from './builtin-views.ts'
 import { pluginPreferencePath, PluginManager } from './plugins.ts'
 import { PluginPermissionGuard } from './permissions.ts'
+import { PluginStorage } from './storage.ts'
+import { PluginCapabilities } from './capabilities.ts'
 import { PluginBackendRuntime } from './backend/runtime.ts'
 import { runUninstallScript } from './backend/uninstall.ts'
 import type { TitleResolver } from './plugins.ts'
@@ -115,15 +117,22 @@ export const pluginsService = {
      * 启停由本服务统一同步；宿主入口在服务装配完成后调 `startEnabled()`，
      * 并在退出时 `stopAll()`。测试只构造服务、不启动后端，所以不会 fork。
      */
+    const storage = new PluginStorage({ userDataDir: ctx.env.userDataDir })
+    const capabilities = new PluginCapabilities({ manager })
+
     const backends = new PluginBackendRuntime({
       manager,
       permissions: permissionGuard,
+      storage,
+      capabilities,
       userDataDir: ctx.env.userDataDir,
       home: ctx.env.home
     })
 
     ctx.services.provide('plugins', manager)
     ctx.services.provide('plugin-permissions', permissionGuard)
+    ctx.services.provide('plugin-storage', storage)
+    ctx.services.provide('plugin-capabilities', capabilities)
     ctx.services.provide('plugin-backend', backends)
 
     /**
@@ -207,6 +216,8 @@ export const pluginsService = {
         const id = String(pluginId ?? '')
         // 先停后端再删目录：子进程可能正握着插件目录里的文件
         await backends.stop(id)
+        // 停用会 flush 一次；这里再显式落一次，确保卸载脚本读到最新快照
+        storage.flush(id)
 
         /**
          * 卸载脚本在插件停用之后、目录删除之前跑：它清理的是插件在目录外留下的
@@ -231,7 +242,10 @@ export const pluginsService = {
 
         const result = manager.remove(id)
         i18n().refresh()
-        if (result.ok) await backends.reconcile()
+        if (result.ok) {
+          storage.remove(id)
+          await backends.reconcile()
+        }
         return result
       },
 
