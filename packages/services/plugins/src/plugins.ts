@@ -530,6 +530,8 @@ export class PluginManager {
 
     const dirName = existing ? path.basename(existing.dirPath) : path.basename(source)
     const target = path.join(this.options.thirdPartyDir, dirName)
+    // 不同 id 撞同一个目录名时不能覆盖：那是另一个插件的家
+    if (!existing && fs.existsSync(target)) return { ok: false, reason: 'already-exists' }
     const stagingRoot = path.join(this.options.thirdPartyDir, '.staging')
     const stamp = Date.now().toString(36)
     const staging = path.join(stagingRoot, `${dirName}.${stamp}`)

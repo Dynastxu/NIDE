@@ -88,6 +88,7 @@ describe('host 服务装配', () => {
       'gallery',
       'overview',
       'config',
+      'plugin',
       'plugins',
       'i18n',
       'appearance',

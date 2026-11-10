@@ -491,7 +491,12 @@ export function resolvePermissions(
         unresolved.add(entry)
         continue
       }
-      scope.resolved.push(resolved.replace(/[\\/]\*\*$/, '').replace(/[\\/]+$/, ''))
+      const trimmed = resolved.replace(/[\\/]\*\*$/, '').replace(/[\\/]+$/, '')
+      // 变量值可能带反斜杠，声明里又写了 `/`：统一成宿主平台的分隔符，
+      // 免得界面和日志里出现 C:\a\b/data 这种混合形态
+      scope.resolved.push(
+        isWindowsPath(trimmed) ? trimmed.replace(/\//g, '\\') : trimmed.replace(/\\/g, '/')
+      )
     }
     return scope
   }
