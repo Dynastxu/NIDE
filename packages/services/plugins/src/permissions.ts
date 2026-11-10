@@ -187,7 +187,7 @@ export class PluginPermissionGuard {
     return {
       pluginId,
       permissions,
-      resolved: resolvePermissions(permissions, this.options.variables(pluginId))
+      resolved: this.resolvedFor(pluginId) as ResolvedPermissions
     }
   }
 
@@ -197,6 +197,18 @@ export class PluginPermissionGuard {
     if (!permissions) return false
     if (permissions.trust === 'full') return true
     return allowsLegacy(permissions, legacy)
+  }
+
+  /**
+   * 展开后的作用域；未知插件返回 undefined。
+   *
+   * 插件后端子进程启动前用它算 `--allow-fs-*` 参数，所以必须是**按插件**展开的
+   * （`${pluginDir}` 每个插件都不同）。
+   */
+  resolvedFor(pluginId: string): ResolvedPermissions | undefined {
+    const permissions = this.options.manager.permissionsOf(pluginId)
+    if (!permissions) return undefined
+    return resolvePermissions(permissions, this.options.variables(pluginId))
   }
 
   /**

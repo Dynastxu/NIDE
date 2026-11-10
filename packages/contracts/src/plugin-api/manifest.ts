@@ -11,8 +11,11 @@ export interface PluginManifest {
   /** 版本号 */
   version: string
   /**
-   * 插件「后端」入口（相对于插件目录），例如 "dist/index.js"。
-   * 当前阶段宿主不启动插件后端，可以先不提供。
+   * 插件「后端」入口（相对于插件目录的 ESM 文件），例如 "dist/main.js"。
+   *
+   * 宿主把它放在**独立子进程**里跑：默认导出 `{ activate(host), deactivate? }`
+   * （或直接一个函数）。`permissions.trust: 'sandboxed'` 时文件 / 子进程权限由
+   * Node 的 `--permission` 强制。纯 UI 插件可以不提供。
    */
   main?: string
 

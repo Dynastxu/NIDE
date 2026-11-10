@@ -17,6 +17,7 @@ import { installNideContext, type HostEnvironment } from '../../kernel/src/conte
 import type { HostProjectStore } from '../../services/project/src/host-project-store.ts'
 import type { PluginManager } from '../../services/plugins/src/plugins.ts'
 import type { PluginPermissionGuard } from '../../services/plugins/src/permissions.ts'
+import type { PluginBackendRuntime } from '../../services/plugins/src/backend/runtime.ts'
 import {
   initializeProjectDirectory,
   loadProjectConfig,
@@ -253,6 +254,19 @@ for (const row of host.services) {
 const permissionGuard = hostCtx.services.require<PluginPermissionGuard>('plugin-permissions')
 rpc.setAuthorizer((request) => permissionGuard.authorize(request))
 
+/** 插件后端子进程（manifest.main）：退出前必须停掉，否则会留下孤儿进程 */
+const pluginBackends = hostCtx.services.require<PluginBackendRuntime>('plugin-backend')
+
+/** 统一的退出路径：先停插件后端，再按顺序卸载 Cordis 树 */
+async function stopHost(): Promise<void> {
+  try {
+    await pluginBackends.stopAll()
+  } catch (error) {
+    logger.warn('failed to stop plugin backends', { error })
+  }
+  await shutdown(host)
+}
+
 /** 项目生命周期服务（`provide('project', …)` 在它的 apply 里做过） */
 const projects = hostCtx.services.require<HostProjectStore>('project')
 
@@ -327,7 +341,7 @@ const ipc = attachHostIpc({
   },
   onShutdown: () => {
     logger.info('shutdown requested by shell')
-    void shutdown(host).finally(() => process.exit(0))
+    void stopHost().finally(() => process.exit(0))
   },
   onRpc: (request) => rpc.invoke(request),
   onShellResult: (message) => {
@@ -356,8 +370,20 @@ logger.info(
   `host ready: profile=${paths.profileName} entries=${host.entryIds.length} home=${paths.home} ipc=${ipc.attached}`
 )
 
+/**
+ * 启动插件后端。
+ *
+ * 不阻塞 ready：一个后端要 fork 一个进程，慢插件不该拖住窗口。失败只记日志，
+ * 状态留在 `plugins.backends` 里（UI 要展示「后端不可用」时读它）。
+ */
+if (!options.once) {
+  void pluginBackends.startEnabled().catch((error: unknown) => {
+    logger.warn('failed to start plugin backends', { error })
+  })
+}
+
 if (options.once) {
-  await shutdown(host)
+  await stopHost()
   logger.info('host stopped (--once)')
   process.exit(0)
 }
@@ -368,7 +394,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     if (stopping) return
     stopping = true
     logger.info(`received ${signal}, shutting down`)
-    void shutdown(host).finally(() => process.exit(0))
+    void stopHost().finally(() => process.exit(0))
   })
 }
 

@@ -60,6 +60,8 @@ interface CatalogEntry {
   /** 插件目录的绝对路径；只在 host 内用来解析 bundle，不进 descriptor */
   dirPath: string
   client?: { platform: 'web'; bundle: string }
+  /** 主进程入口的绝对路径（manifest.main，已确认在插件目录内且文件存在） */
+  entryMain?: string
   /** 视图 / 设置页 / 语言包 / manifest 词条，扫目录时一并读好 */
   contributions: PluginContributionSet
 }
@@ -110,6 +112,7 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
     permissions?: unknown
     requiresRestart?: unknown
     description?: unknown
+    main?: unknown
     client?: unknown
     contributes?: unknown
   }
@@ -173,11 +176,41 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
     }
   }
 
+  /**
+   * 主进程入口。
+   *
+   * 与渲染半同样的路径守卫：必须是插件目录内、且文件真的存在。声明了却找不到
+   * 文件时**不拒绝整个插件**（视图/设置页还能用），只记一条日志并当作没有后端。
+   */
+  let entryMain: string | undefined
+  if (manifest.main !== undefined) {
+    if (typeof manifest.main !== 'string' || manifest.main.trim().length === 0) {
+      warn('Plugin main must be a non-empty relative path', { id, dir: dirPath })
+    } else {
+      const resolved = resolveInside(dirPath, manifest.main)
+      if (!resolved) {
+        warn('Plugin main escapes the plugin directory, the backend is ignored', {
+          id,
+          dir: dirPath
+        })
+      } else if (!fs.existsSync(resolved)) {
+        warn('Plugin main does not exist on disk, the backend is ignored', {
+          id,
+          dir: dirPath,
+          main: manifest.main
+        })
+      } else {
+        entryMain = resolved
+      }
+    }
+  }
+
   return {
     source,
     dirPath,
     contributions,
     ...(client ? { client } : {}),
+    ...(entryMain ? { entryMain } : {}),
     descriptor: {
       id,
       name,
@@ -185,6 +218,7 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
       builtin: source === 'builtin',
       dir: path.basename(dirPath),
       permissions,
+      hasBackend: entryMain !== undefined,
       views,
       requiresRestart: manifest.requiresRestart === true,
       ...(typeof manifest.description === 'string' && manifest.description.length > 0
@@ -294,6 +328,16 @@ export class PluginManager {
   locationOf(pluginId: string): { dirPath: string; source: PluginSource } | undefined {
     const entry = this.entries.get(pluginId)
     return entry ? { dirPath: entry.dirPath, source: entry.source } : undefined
+  }
+
+  /** 主进程入口的绝对路径；没有后端返回 undefined */
+  backendEntryOf(pluginId: string): string | undefined {
+    return this.entries.get(pluginId)?.entryMain
+  }
+
+  /** 当前是否启用（禁用集合里没有它就是启用） */
+  isEnabled(pluginId: string): boolean {
+    return !this.preference.disabled.includes(pluginId)
   }
 
   /** 被禁用的插件 id */

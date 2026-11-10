@@ -25,14 +25,15 @@ export interface PluginDescriptor {
   builtin: boolean
   /** 插件目录名，例如 'demo' / 'lang-en' */
   dir: string
-  /**
-   * 声明过的权限，已按 manifest 归一化成 v2（老字符串数组会先展开）。
-   *
-   * `trust: 'full'` 表示宿主不限制它 —— 老插件缺省就是这个，行为与迁移前一致；
-   * `sandboxed` 时宿主按 `fs` 作用域等声明拦截宿主 RPC（见
-   * packages/services/plugins/src/permissions.ts）。
-   */
+  /** 声明过的权限，已按 manifest 归一化成 v2（老字符串数组会先展开）。 */
   permissions: PluginPermissions
+  /**
+   * 是否有主进程入口（manifest 的 `main`）。
+   *
+   * 有后端不等于「现在正在跑」——按 `activation` 懒启动的插件要等触发；
+   * 实时状态问 `plugins.backends`。
+   */
+  hasBackend: boolean
   /** 这个插件贡献的视图 id 列表。纯数据插件（语言包）是空的 */
   views: string[]
   /**

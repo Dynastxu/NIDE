@@ -8,6 +8,7 @@ import type { I18nService } from '../../i18n/src/index.ts'
 import { builtinViews } from './builtin-views.ts'
 import { pluginPreferencePath, PluginManager } from './plugins.ts'
 import { PluginPermissionGuard } from './permissions.ts'
+import { PluginBackendRuntime } from './backend/runtime.ts'
 import type { TitleResolver } from './plugins.ts'
 
 /**
@@ -107,17 +108,47 @@ export const pluginsService = {
       projectRoot
     })
 
+    /**
+     * 插件后端（manifest.main）。
+     *
+     * 启停由本服务统一同步；宿主入口在服务装配完成后调 `startEnabled()`，
+     * 并在退出时 `stopAll()`。测试只构造服务、不启动后端，所以不会 fork。
+     */
+    const backends = new PluginBackendRuntime({
+      manager,
+      permissions: permissionGuard,
+      userDataDir: ctx.env.userDataDir,
+      home: ctx.env.home
+    })
+
     ctx.services.provide('plugins', manager)
     ctx.services.provide('plugin-permissions', permissionGuard)
+    ctx.services.provide('plugin-backend', backends)
+
+    /**
+     * 后端方法的统一入口：`plugin.call(pluginId, method, params)`。
+     *
+     * 单独一个命名空间而不是塞进 `plugins`，是为了让「调用插件提供的能力」和
+     * 「管理插件」分开；渲染进程（核心 UI 或插件）都走它。
+     */
+    ctx.rpc.register('plugin', {
+      call: (pluginId, method, params) =>
+        backends.invoke(String(pluginId ?? ''), String(method ?? ''), params)
+    })
 
     ctx.rpc.register('plugins', {
       list: () => manager.list(),
       disabled: () => manager.disabled(),
-      setEnabled: (pluginId, enabled) => {
-        manager.setEnabled(String(pluginId ?? ''), enabled === true)
+      setEnabled: async (pluginId, enabled) => {
+        const id = String(pluginId ?? '')
+        manager.setEnabled(id, enabled === true)
+        await backends.handleEnabled(id, enabled === true)
         return manager.disabled()
       },
       clientBundles: () => manager.clientBundles(),
+
+      /** 插件后端的实时状态（启动中 / 运行中 / 失败 + 已注册方法） */
+      backends: () => backends.status(),
 
       /**
        * 一个插件的声明 + 展开后的作用域。
@@ -149,21 +180,27 @@ export const pluginsService = {
       /** 设置页，已滤掉被禁用插件的页，标题已解析 */
       settings: () => manager.settings(resolveTitle),
 
-      install: (sourceDir) => {
+      install: async (sourceDir) => {
         const result = manager.install(String(sourceDir ?? ''))
         i18n().refresh()
+        if (result.ok) await backends.reconcile()
         return result
       },
-      remove: (pluginId) => {
-        const result = manager.remove(String(pluginId ?? ''))
+      remove: async (pluginId) => {
+        const id = String(pluginId ?? '')
+        // 先停后端再删目录：子进程可能正握着插件目录里的文件
+        await backends.stop(id)
+        const result = manager.remove(id)
         i18n().refresh()
+        if (result.ok) await backends.reconcile()
         return result
       },
 
       /** 重新扫描目录（安装 / 卸载之后由 shell 调用） */
-      rescan: () => {
+      rescan: async () => {
         manager.scan()
         i18n().refresh()
+        await backends.reconcile()
         return manager.list()
       }
     })

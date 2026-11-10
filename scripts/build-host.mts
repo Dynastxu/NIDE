@@ -31,6 +31,22 @@ const outDir = path.join(root, 'out', 'host')
 const entry = path.join(root, 'packages', 'host', 'src', 'index.ts')
 
 /**
+ * 插件后端的子进程入口。
+ *
+ * 它不是被静态 import 的（宿主按路径 `fork` 它），所以 TS 顺着依赖树走不到，
+ * 必须显式加进编译根；否则打包版里 `fork` 一个不存在的 `worker.js`。
+ */
+const backendWorker = path.join(
+  root,
+  'packages',
+  'services',
+  'plugins',
+  'src',
+  'backend',
+  'worker.ts'
+)
+
+/**
  * profile 里的插件是**动态 import** 的（loader 按 `cordis.yml` 里的路径加载），
  * TS 顺着静态依赖树走不到它们，所以显式加进编译根。
  *
@@ -85,7 +101,7 @@ const options: ts.CompilerOptions = {
   types: ['node']
 }
 
-const roots = [entry, ...profileEntries()]
+const roots = [entry, backendWorker, ...profileEntries()]
 for (const rootFile of roots) {
   if (!fs.existsSync(rootFile)) fail(`entry not found: ${rootFile}`)
 }
