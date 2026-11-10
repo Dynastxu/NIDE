@@ -39,6 +39,11 @@ export interface BackendStatus {
   error?: string
 }
 
+/** 启动时机是否为「随宿主启动」：`*` 或 `onStartup` */
+export function isEagerActivation(activation: readonly string[]): boolean {
+  return activation.includes('*') || activation.includes('onStartup')
+}
+
 export interface PluginBackendRuntimeOptions extends PluginBackendPathsOptions {
   manager: PluginManager
   permissions: PluginPermissionGuard
@@ -131,11 +136,12 @@ export class PluginBackendRuntime {
     }
   }
 
-  /** 启动所有「已启用 + 有后端」的插件；返回每个插件的启动失败（不抛出） */
+  /** 启动所有「已启用 + 有后端 + 声明了 onStartup / *」的插件 */
   async startEnabled(): Promise<void> {
     const plugins = this.options.manager.list().filter((plugin) => plugin.hasBackend)
     for (const plugin of plugins) {
       if (!this.options.manager.isEnabled(plugin.id)) continue
+      if (!isEagerActivation(plugin.activation)) continue
       try {
         await this.ensure(plugin.id)
       } catch (error) {
@@ -145,7 +151,6 @@ export class PluginBackendRuntime {
       }
     }
   }
-
   /** 重新扫描 / 安装 / 卸载之后对齐：停掉没有后端或已禁用的，拉起新启用的 */
   async reconcile(): Promise<void> {
     for (const pluginId of [...this.workers.keys()]) {
@@ -173,8 +178,41 @@ export class PluginBackendRuntime {
     }
   }
 
-  /** 确保后端已启动；已启动则直接返回 */
-  async ensure(pluginId: string): Promise<void> {
+  /**
+   * 视图被打开时由插件服务调用：命中原插件声明的 `onView:<viewId>` 才激活后端。
+   *
+   * 没有声明的（含空 `activation`）按需激活，等第一次 `plugin.call`。
+   */
+  async activateForView(viewId: string): Promise<void> {
+    const pluginId = this.options.manager.viewOwner(viewId)
+    if (!pluginId) return
+
+    const plugin = this.options.manager.pluginOf(pluginId)
+    if (!plugin || !plugin.hasBackend || !this.options.manager.isEnabled(pluginId)) return
+    if (!plugin.activation.includes(`onView:${viewId}`)) return
+
+    try {
+      await this.ensure(pluginId)
+    } catch (error) {
+      this.log.warn(`插件后端启动失败：${pluginId}`, {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  /** 确保后端已启动；已启动则直接返回。`visited` 用来斩断循环依赖 */
+  async ensure(pluginId: string, visited = new Set<string>()): Promise<void> {
+    if (visited.has(pluginId)) return
+    visited.add(pluginId)
+
+    try {
+      await this.activateDependencies(pluginId, visited)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.setState(pluginId, 'failed', [], message)
+      throw error
+    }
+
     if (this.workers.has(pluginId)) return
 
     const pending = this.starting.get(pluginId)
@@ -189,6 +227,24 @@ export class PluginBackendRuntime {
       await task
     } finally {
       this.starting.delete(pluginId)
+    }
+  }
+
+  /** 先激活依赖。依赖没装 / 被禁用时整次启动失败（与 mics 的拓扑激活一致） */
+  private async activateDependencies(pluginId: string, visited: Set<string>): Promise<void> {
+    const plugin = this.options.manager.pluginOf(pluginId)
+    if (!plugin) return
+
+    for (const dependency of plugin.dependencies) {
+      const target = this.options.manager.pluginOf(dependency)
+      if (!target) {
+        throw new Error(`缺少依赖插件 ${dependency}（被 ${pluginId} 依赖）`)
+      }
+      if (!this.options.manager.isEnabled(dependency)) {
+        throw new Error(`依赖插件 ${dependency} 已被禁用（被 ${pluginId} 依赖）`)
+      }
+      if (!target.hasBackend) continue
+      await this.ensure(dependency, visited)
     }
   }
 

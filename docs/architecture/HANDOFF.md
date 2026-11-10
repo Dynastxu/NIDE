@@ -1,8 +1,9 @@
 # NIDE 迁移交接（2026-10-26）
 
 > 新会话先读这份，再读 [cordis-migration.md](cordis-migration.md)、
-> [plugin-ui-bundles.md](plugin-ui-bundles.md)、[plugin-permissions.md](plugin-permissions.md)
-> 与 [plugin-backend.md](plugin-backend.md)。都是当前有效的约定，不是历史记录。
+> [plugin-ui-bundles.md](plugin-ui-bundles.md)、[plugin-permissions.md](plugin-permissions.md)、
+> [plugin-backend.md](plugin-backend.md) 与 [plugin-lifecycle.md](plugin-lifecycle.md)。
+> 都是当前有效的约定，不是历史记录。
 
 ## 0. 一句话状态
 
@@ -208,6 +209,22 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - 崩溃只影响这个插件：状态转 `failed`，下一次调用重新拉起；状态从
   `plugins.backends` 读；
 - `build-host` 显式把 `worker.ts` 加进编译根（它不被静态 import，TS 依赖树看不到）。
+
+### 插件生命周期（详见 [plugin-lifecycle.md](plugin-lifecycle.md)）
+
+- 清单字段：`activation`（也接受 `activationEvents`）/ `dependencies` / `core` /
+  `essential` / `experimental` / `defaultDisabled` / `uninstall`；
+- 启用判定统一在 `isPluginEnabled`：core / essential 恒启用 → 显式启用 → 显式禁用 →
+  `defaultDisabled` → 默认启用。偏好文件多了一个 `enabled` 集合（老文件没有也照常读）；
+  `plugins.disabled` 下发的是**实际**禁用集合，界面不需要再懂默认值；
+- 激活：`*` / `onStartup` 随宿主；`onView:<id>` 由 `PluginSlot` 打开视图时调
+  `plugins.activateView`；其余按需（第一次 `plugin.call`）；`onCommand` 还没有触发源；
+- 依赖：激活后端前递归激活依赖，`visited` 斩循环；依赖缺失 / 被禁用 → 本次启动失败；
+- 安装：`plugins.install` 走 `.staging/<dir>.<ts>` → 暂存目录再校验 → 旧版本备份 →
+  rename → 删备份；升级保留启用状态，新装默认禁用；失败回滚；
+- 卸载：`plugins.remove` 先停后端 → 在子进程里跑 `uninstall`（10s 超时）→ 失败返回
+  `uninstall-failed` 且**不删目录** → 成功才删目录并重扫；
+- 设置页：core / essential 的复选框置灰；`experimental` 已进描述符（暂未展示）。
 
 ### 本地化（host）
 
@@ -453,6 +470,12 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   编译产物带上 worker。设计说明见 [plugin-backend.md](plugin-backend.md)。
   agent 沙箱禁止 spawn，`fork` 在沙箱里是 `EPERM`（状态会正确落成 failed），
   真实验证要在用户终端跑。
+- 第二十一批：**插件生命周期** —— `activation` / `dependencies` / `core` /
+  `essential` / `experimental` / `defaultDisabled` / `uninstall` 解析；启用判定与
+  `enabled` 偏好集合；`onStartup` / `onView` / 按需三种激活；依赖递归激活；
+  安装事务（staging + 再校验 + 备份 + 原子 rename + 升级保留启用状态）；卸载脚本
+  （子进程执行、失败不删目录）；设置页置灰 core / essential。设计说明见
+  [plugin-lifecycle.md](plugin-lifecycle.md)。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -550,6 +573,14 @@ host 现在是启动必需的，不再需要 `NIDE_HOST`。日志里应能看到
   - 把 `permissions` 改成 `{ "trust": "sandboxed", "fs": { "read": ["${userData}"] } }`，
     在后端里 `fs.readFileSync('项目里某个文件')` 应 EACCES（引擎级），读
     `${userData}` 下的文件应成功。
+- 生命周期（用户终端）：
+  - 同一个插件目录改版本再装一次：`pnpm dev` 的插件页应显示新版本，启用状态不变；
+  - 清单加 `"defaultDisabled": true`：首次出现时是关的，启用后重启仍是开的；
+  - `"core": true`：复选框置灰，`plugins.setEnabled` 不生效；
+  - 清单加 `"activation": ["onView:<viewId>"]`：只有打开那个视图后 `plugins.backends`
+    才出现 running（之前是 stopped）；
+  - 清单加 `"uninstall": "dist/uninstall.js"`：卸载时脚本在子进程里跑；把脚本改成
+    `throw new Error('x')`，卸载应返回 `uninstall-failed` 且插件目录还在。
 
 常用命令：
 
@@ -601,6 +632,8 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/services/plugins/src/backend/runtime.ts`   | 插件后端子进程：权限参数、fork、RPC、起停 / 重扫对齐                                       |
 | `packages/services/plugins/src/backend/worker.ts`    | 子进程运行时：装载 `main`、`activate(host)`、方法注册                                      |
 | `packages/contracts/src/plugin-api/backend.ts`       | 后端插件类型（`PluginBackend` / `PluginBackendHost`）                                      |
+| `packages/services/plugins/src/backend/uninstall.ts` | 卸载脚本：子进程执行、超时、存储快照                                                       |
+| `packages/contracts/src/plugin-api/preference.ts`    | 启用状态：disabled / enabled / core / essential / defaultDisabled                          |
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
 | `packages/host/src/services/i18n.ts`                 | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析                      |
 | `packages/client-kit/src`                            | 客户端共享层：stores / ui / window 外壳 / logger / icons（`@nide/client-kit/*`）           |
@@ -671,6 +704,12 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     任何「先在宿主里试一下」的捷径都会让进程边界失效。
 19. **后端方法的唯一入口是 `plugin.call(pluginId, method, params)`**：不要按插件名
     注册 RPC 命名空间，否则插件数量会长到 RPC 表里。
+20. **启用状态只有一个判定函数**：`isPluginEnabled(preference, id, flags)`。不要再写
+    「没在 disabled 里就是启用」——`defaultDisabled` / `core` / `essential` 都会让它判错。
+21. **安装是事务**：`.staging` → 再校验 → 备份 → 原子 rename；失败要回滚。
+    新装默认禁用、升级保留启用状态，这两条不要合并成一条逻辑。
+22. **卸载脚本失败不删目录**：返回 `uninstall-failed`，让用户看到错误并重试；
+    删了目录再报错等于把插件数据弄丢。
 
 ## 8. 踩过的坑（别再踩）
 
@@ -757,6 +796,14 @@ project through host`）。别再在 shell 里加一份 `projects.json` 的读�
     读不到，症状是 `import` 报 EACCES。
 27. **agent 沙箱里 `fork` 是 EPERM**：宿主会把它记成后端 `failed` 并继续跑，别把
     这个失败当成代码 bug；真实后端要在用户终端验证。
+28. **`activationEvents` 是 `activation` 的别名**：解析在 `parseActivation` 一处完成，
+    别在别的地方再读原字段（否则两份判断会漂移）。
+29. **`plugins.disabled` 现在是「实际禁用集合」**：包含 `defaultDisabled` 且用户没有
+    显式启用的插件。界面过滤视图时不要再去读偏好文件里的 `disabled` 原始数组。
+30. **`setEnabled` 对 core / essential 是空操作**：界面复选框已置灰，但别依赖界面 ——
+    宿主侧必须自己拒绝，否则一次 RPC 就能禁掉内核插件。
+31. **`PluginSlot` 打开视图会触发 `plugins.activateView`**：这是 `onView` 的唯一信号，
+    别在渲染循环里反复调（effect 的依赖只有 `viewId`）。
 
 ## 9. 待定的设计问题
 
@@ -792,6 +839,8 @@ project through host`）。别再在 shell 里加一份 `projects.json` 的读�
 > `docs/architecture/plugin-permissions.md`（不是沙箱）。
 > 插件后端已接（第二十批）：`manifest.main` 在子进程里跑，`sandboxed` 由 Node
 > `--permission` 强制；API 与限制见 `docs/architecture/plugin-backend.md`。
+> 生命周期已对齐 mics（第二十一批）：默认禁用 / 核心标记 / 激活事件 / 依赖 /
+> 安装升级事务 / 卸载脚本，见 `docs/architecture/plugin-lifecycle.md`。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
@@ -811,7 +860,7 @@ project through host`）。别再在 shell 里加一份 `projects.json` 的读�
       视图标题、设置树子页、语言切换（中文 <-> English）、换主题（深/浅，窗口底色
       不该露异色）、AI 供应商设置页的读写与测试连接（需要真 key 才测连通）都正常
 - [x] **打包后插件 UI**：`pnpm build:unpack` 产物用 `electron.exe
-    resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
+  resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
       `nide-plugin://plugin/builtin.demo/client.js`，随后 `view served by client modules`
       —— 说明协议、CSP、host 清单三处都对上了
 - [x] 图鉴 / 概述 / 角色图鉴 / 项目配置读路径正常

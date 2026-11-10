@@ -9,6 +9,7 @@ import { builtinViews } from './builtin-views.ts'
 import { pluginPreferencePath, PluginManager } from './plugins.ts'
 import { PluginPermissionGuard } from './permissions.ts'
 import { PluginBackendRuntime } from './backend/runtime.ts'
+import { runUninstallScript } from './backend/uninstall.ts'
 import type { TitleResolver } from './plugins.ts'
 
 /**
@@ -150,6 +151,22 @@ export const pluginsService = {
       /** 插件后端的实时状态（启动中 / 运行中 / 失败 + 已注册方法） */
       backends: () => backends.status(),
 
+      /** 显式激活一个后端（`onView` / `onCommand` 之外的入口；也可给 Agent 用） */
+      activate: async (pluginId) => {
+        await backends.ensure(String(pluginId ?? ''))
+        return backends.status()
+      },
+
+      /**
+       * 渲染进程打开一个视图时调用：`onView:<viewId>` 的插件后端在这里激活。
+       *
+       * 视图 → 插件 的归属只有清单知道（`manager.viewOwner`），所以放在宿主判。
+       */
+      activateView: async (viewId) => {
+        await backends.activateForView(String(viewId ?? ''))
+        return backends.status()
+      },
+
       /**
        * 一个插件的声明 + 展开后的作用域。
        *
@@ -190,6 +207,28 @@ export const pluginsService = {
         const id = String(pluginId ?? '')
         // 先停后端再删目录：子进程可能正握着插件目录里的文件
         await backends.stop(id)
+
+        /**
+         * 卸载脚本在插件停用之后、目录删除之前跑：它清理的是插件在目录外留下的
+         * 东西（下载的文件、实例目录…）。脚本失败时**不删目录** —— 让用户能看到
+         * 错误并重试，比留下一个清不干净的半成品好。
+         */
+        if (manager.uninstallEntryOf(id)) {
+          try {
+            await runUninstallScript({
+              manager,
+              permissions: permissionGuard,
+              pluginId: id,
+              userDataDir: ctx.env.userDataDir,
+              home: ctx.env.home,
+              log: (level, message) => console[level](`[plugin:${id}] ${message}`)
+            })
+          } catch (error) {
+            console.warn('[nide-host] plugin uninstall script failed', { pluginId: id, error })
+            return { ok: false, reason: 'uninstall-failed' as const }
+          }
+        }
+
         const result = manager.remove(id)
         i18n().refresh()
         if (result.ok) await backends.reconcile()

@@ -162,9 +162,44 @@ async function dispose(): Promise<void> {
   setTimeout(() => process.exit(0), 30)
 }
 
+/**
+ * 卸载脚本。
+ *
+ * 在插件停止之后、目录被删除之前跑一次，用来清理插件在目录外留下的东西。
+ * 与后端本体一样在子进程里执行，宿主不会 import 插件代码。
+ */
+async function uninstall(message: Extract<HostToWorker, { t: 'uninstall' }>): Promise<void> {
+  try {
+    const module = (await import(
+      `${pathToFileURL(message.entry).href}?nide-uninstall=${Date.now()}`
+    )) as Record<string, unknown>
+
+    const candidate = module.default ?? module.run
+    if (typeof candidate !== 'function') throw new Error('卸载脚本需要默认导出函数')
+
+    await candidate({
+      id: message.pluginId,
+      dir: message.paths.pluginDir,
+      storageFile: message.storageFile,
+      storage: message.storage,
+      log: (text: string) => log('info', `[uninstall] ${text}`, [])
+    })
+    send({ t: 'uninstall-result', ok: true })
+  } catch (error) {
+    send({
+      t: 'uninstall-result',
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    })
+  } finally {
+    setTimeout(() => process.exit(0), 30)
+  }
+}
+
 process.on('message', (message: HostToWorker) => {
   if (message.t === 'bootstrap') void bootstrap(message)
   else if (message.t === 'invoke') void invoke(message)
+  else if (message.t === 'uninstall') void uninstall(message)
   else if (message.t === 'dispose') void dispose()
 })
 

@@ -3,6 +3,7 @@ import path from 'node:path'
 import {
   PLUGIN_PREFERENCE_FILE_NAME,
   emptyPluginPreference,
+  isPluginEnabled,
   parsePluginPreference,
   setPluginEnabled as applyPluginEnabled
 } from '../../../../packages/contracts/src/plugin-api/preference.ts'
@@ -11,7 +12,10 @@ import { emptyPluginContributions } from '../../../../packages/contracts/src/plu
 import { parsePluginPermissions } from '../../../../packages/contracts/src/plugin-api/permissions.ts'
 import { readPluginContributions } from './plugin-contributions.ts'
 import type { PluginContributionSet } from './plugin-contributions.ts'
-import type { PluginPreference } from '../../../../packages/contracts/src/plugin-api/preference.ts'
+import type {
+  PluginPreference,
+  PluginEnabledFlags
+} from '../../../../packages/contracts/src/plugin-api/preference.ts'
 import type { ClientBundleDescriptor } from '../../../../packages/contracts/src/plugin-api/client-bundle.ts'
 import type { PluginPermissions } from '../../../../packages/contracts/src/plugin-api/permissions.ts'
 import type {
@@ -62,6 +66,8 @@ interface CatalogEntry {
   client?: { platform: 'web'; bundle: string }
   /** 主进程入口的绝对路径（manifest.main，已确认在插件目录内且文件存在） */
   entryMain?: string
+  /** 卸载脚本的绝对路径（manifest.uninstall，只有带 main 的插件才认） */
+  entryUninstall?: string
   /** 视图 / 设置页 / 语言包 / manifest 词条，扫目录时一并读好 */
   contributions: PluginContributionSet
 }
@@ -98,6 +104,52 @@ function resolveInside(pluginDir: string, relativePath: string): string | null {
   return absolute
 }
 
+/** 激活事件形状：与 mics 一致 */
+const ACTIVATION_PATTERN = /^(\*|onStartup|onView:.+|onCommand:.+)$/
+
+/** 解析 `activation`（也接受旧的 `activationEvents`）；非法项只警告 */
+function parseActivation(raw: unknown, id: string, dir: string): string[] {
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) {
+    warn('Plugin activation must be an array', { id, dir })
+    return []
+  }
+
+  const events: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string' || !ACTIVATION_PATTERN.test(item)) {
+      warn('Unknown plugin activation event, ignored', { id, dir, event: item })
+      continue
+    }
+    if (!events.includes(item)) events.push(item)
+  }
+  return events
+}
+
+/** 依赖：只认非空字符串；自依赖与重复项直接丢掉 */
+function parseDependencies(raw: unknown, id: string, dir: string): string[] {
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) {
+    warn('Plugin dependencies must be an array of plugin ids', { id, dir })
+    return []
+  }
+
+  const dependencies: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string' || item.trim().length === 0) {
+      warn('Invalid plugin dependency, ignored', { id, dir, dependency: item })
+      continue
+    }
+    const dependency = item.trim()
+    if (dependency === id) {
+      warn('Plugin depends on itself, ignored', { id, dir })
+      continue
+    }
+    if (!dependencies.includes(dependency)) dependencies.push(dependency)
+  }
+  return dependencies
+}
+
 /** 把一份手写 manifest 收敛成一个插件条目；不合法时给 null（整份忽略） */
 function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEntry | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -113,6 +165,14 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
     requiresRestart?: unknown
     description?: unknown
     main?: unknown
+    uninstall?: unknown
+    activation?: unknown
+    activationEvents?: unknown
+    dependencies?: unknown
+    core?: unknown
+    essential?: unknown
+    experimental?: unknown
+    defaultDisabled?: unknown
     client?: unknown
     contributes?: unknown
   }
@@ -205,12 +265,34 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
     }
   }
 
+  /** 卸载脚本：同样是插件目录内的文件，只有后端插件才能声明（页面插件没有清理权限） */
+  let entryUninstall: string | undefined
+  if (manifest.uninstall !== undefined) {
+    const resolved =
+      typeof manifest.uninstall === 'string' ? resolveInside(dirPath, manifest.uninstall) : null
+    if (!resolved || !fs.existsSync(resolved)) {
+      warn('Plugin uninstall script is invalid or missing, ignored', {
+        id,
+        dir: dirPath,
+        uninstall: manifest.uninstall
+      })
+    } else if (!entryMain) {
+      warn('Plugin uninstall script requires a main entry, ignored', { id, dir: dirPath })
+    } else {
+      entryUninstall = resolved
+    }
+  }
+
+  const activation = parseActivation(manifest.activation ?? manifest.activationEvents, id, dirPath)
+  const dependencies = parseDependencies(manifest.dependencies, id, dirPath)
+
   return {
     source,
     dirPath,
     contributions,
     ...(client ? { client } : {}),
     ...(entryMain ? { entryMain } : {}),
+    ...(entryUninstall ? { entryUninstall } : {}),
     descriptor: {
       id,
       name,
@@ -219,6 +301,13 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
       dir: path.basename(dirPath),
       permissions,
       hasBackend: entryMain !== undefined,
+      hasUninstall: entryUninstall !== undefined,
+      activation,
+      dependencies,
+      core: manifest.core === true,
+      essential: manifest.essential === true,
+      experimental: manifest.experimental === true,
+      defaultDisabled: manifest.defaultDisabled === true,
       views,
       requiresRestart: manifest.requiresRestart === true,
       ...(typeof manifest.description === 'string' && manifest.description.length > 0
@@ -234,6 +323,9 @@ function scanDir(dir: string, source: PluginSource): CatalogEntry[] {
   const entries: CatalogEntry[] = []
 
   for (const name of fs.readdirSync(dir)) {
+    // `.staging`（安装事务的暂存目录）不是插件，别去它的子目录里找 manifest
+    if (name.startsWith('.')) continue
+
     const pluginDir = path.join(dir, name)
     const manifestPath = path.join(pluginDir, 'manifest.json')
     if (!fs.existsSync(manifestPath)) continue
@@ -335,19 +427,58 @@ export class PluginManager {
     return this.entries.get(pluginId)?.entryMain
   }
 
-  /** 当前是否启用（禁用集合里没有它就是启用） */
+  /** 卸载脚本的绝对路径；没有返回 undefined */
+  uninstallEntryOf(pluginId: string): string | undefined {
+    return this.entries.get(pluginId)?.entryUninstall
+  }
+
+  /** 清单描述符；未知 id 返回 undefined */
+  pluginOf(pluginId: string): PluginDescriptor | undefined {
+    return this.entries.get(pluginId)?.descriptor
+  }
+
+  /** 某个视图贡献属于哪个插件；没有返回 undefined */
+  viewOwner(viewId: string): string | undefined {
+    for (const entry of this.entries.values()) {
+      if (entry.contributions.views.some((view) => view.id === viewId)) {
+        return entry.descriptor.id
+      }
+    }
+    return undefined
+  }
+
+  /** 清单里影响默认启用状态的标记 */
+  private flagsOf(pluginId: string): PluginEnabledFlags {
+    const descriptor = this.entries.get(pluginId)?.descriptor
+    if (!descriptor) return {}
+    return {
+      core: descriptor.core,
+      essential: descriptor.essential,
+      defaultDisabled: descriptor.defaultDisabled
+    }
+  }
+
+  /** 当前是否启用（core / essential 恒启用；其余看偏好与清单默认值） */
   isEnabled(pluginId: string): boolean {
-    return !this.preference.disabled.includes(pluginId)
+    return isPluginEnabled(this.preference, pluginId, this.flagsOf(pluginId))
   }
 
-  /** 被禁用的插件 id */
+  /** 当前**实际**被禁用的插件 id（包含默认禁用且用户没有显式启用的） */
   disabled(): string[] {
-    return [...this.preference.disabled]
+    return this.list()
+      .map((plugin) => plugin.id)
+      .filter((pluginId) => !this.isEnabled(pluginId))
+      .sort()
   }
 
-  /** 启用 / 禁用并落盘；没有实际变化时不写盘 */
+  /** 用户显式启用过的插件 id（设置页判断「默认禁用插件是否已被打开」用） */
+  explicitlyEnabled(): string[] {
+    return [...this.preference.enabled]
+  }
+
+  /** 启用 / 禁用并落盘；core / essential 拒绝改动；没有实际变化时不写盘 */
   setEnabled(pluginId: string, enabled: boolean): void {
-    const next = applyPluginEnabled(this.preference, pluginId, enabled)
+    const next = applyPluginEnabled(this.preference, pluginId, enabled, this.flagsOf(pluginId))
     if (next === this.preference) return
 
     this.persist(next)
@@ -355,13 +486,13 @@ export class PluginManager {
   }
 
   /**
-   * 从一个目录安装插件：校验 manifest -> 复制到 `<userData>/plugins/<目录名>` ->
-   * 重新扫描 -> **默认禁用**。
+   * 从一个目录安装 / 升级插件。
    *
-   * 默认禁用是刻意的（D6）：第三方代码拥有完整 Node 权限，装进来不等于用户同意
-   * 让它跑。启用前还要过一道信任确认（在 shell 侧）。
+   * 事务顺序（与 mics 一致）：复制到 `.staging` → 在暂存目录里重新校验 → 旧版本
+   * 让位 → 原子 rename → 删除备份。任何一步失败都会清理暂存目录并恢复旧版本，
+   * 所以升级失败不会把用户已装的插件弄丢。
    *
-   * 不覆盖任何东西：目标目录或同名插件 id 已存在时直接拒绝。
+   * 新装默认禁用（D6）：装进来只是「有了」，还没有被信任；升级保留原来的启用状态。
    */
   install(sourceDir: string): PluginInstallResult {
     const source = path.resolve(String(sourceDir ?? ''))
@@ -383,8 +514,6 @@ export class PluginManager {
     const candidate = toEntry(raw, 'third-party', source)
     if (!candidate) return { ok: false, reason: 'invalid-plugin' }
 
-    if (this.entries.has(candidate.descriptor.id)) return { ok: false, reason: 'already-exists' }
-
     // 不允许把「已经装好的插件目录」再装一遍（复制到自身会先删除原目录）
     const relativeSource = path.relative(this.options.thirdPartyDir, source)
     if (
@@ -394,34 +523,95 @@ export class PluginManager {
       return { ok: false, reason: 'invalid-plugin' }
     }
 
-    const dirName = path.basename(source)
+    const pluginId = candidate.descriptor.id
+    const existing = this.entries.get(pluginId)
+    if (existing && existing.source !== 'third-party')
+      return { ok: false, reason: 'already-exists' }
+
+    const dirName = existing ? path.basename(existing.dirPath) : path.basename(source)
     const target = path.join(this.options.thirdPartyDir, dirName)
-    if (fs.existsSync(target)) return { ok: false, reason: 'already-exists' }
+    const stagingRoot = path.join(this.options.thirdPartyDir, '.staging')
+    const stamp = Date.now().toString(36)
+    const staging = path.join(stagingRoot, `${dirName}.${stamp}`)
+    const backup = path.join(stagingRoot, `${dirName}.old.${stamp}`)
+    const wasEnabled = existing ? this.isEnabled(pluginId) : false
 
     try {
-      fs.mkdirSync(this.options.thirdPartyDir, { recursive: true })
-      fs.cpSync(source, target, { recursive: true, errorOnExist: true, force: false })
+      fs.mkdirSync(stagingRoot, { recursive: true })
+      fs.rmSync(staging, { recursive: true, force: true })
+      fs.cpSync(source, staging, { recursive: true, errorOnExist: true, force: false })
     } catch (error) {
-      fs.rmSync(target, { recursive: true, force: true })
-      warn('Failed to copy a plugin into the third-party directory', { source, target, error })
+      fs.rmSync(staging, { recursive: true, force: true })
+      warn('Failed to copy a plugin into the staging directory', { source, staging, error })
       return { ok: false, reason: 'unreadable' }
     }
 
-    this.scan()
+    try {
+      // 在暂存目录里再校验一次：复制过程中坏掉 / 换 id 都挡在这里
+      const stagedRaw = JSON.parse(
+        fs.readFileSync(path.join(staging, 'manifest.json'), 'utf-8')
+      ) as unknown
+      const staged = toEntry(stagedRaw, 'third-party', staging)
+      if (!staged || staged.descriptor.id !== pluginId) {
+        throw new Error('staged manifest is not the same plugin')
+      }
 
-    const installed = this.entries.get(candidate.descriptor.id)
-    if (!installed) {
-      // 复制成功但扫描不到：manifest 在复制过程中坏了，或目录名/权限有问题
-      fs.rmSync(target, { recursive: true, force: true })
+      const hadTarget = fs.existsSync(target)
+      if (hadTarget) fs.renameSync(target, backup)
+
+      try {
+        fs.renameSync(staging, target)
+      } catch (error) {
+        if (hadTarget) fs.renameSync(backup, target)
+        throw error
+      }
+
       this.scan()
+      const installed = this.entries.get(pluginId)
+      if (!installed) throw new Error('installed plugin is not visible after rescanning')
+
+      fs.rmSync(backup, { recursive: true, force: true })
+      try {
+        // 暂存根目录空了就一起收掉；非空说明另一个安装还在用
+        fs.rmdirSync(stagingRoot)
+      } catch {
+        // ignore
+      }
+
+      if (!existing) {
+        // 新装：默认禁用（装进来只是「有了」）
+        this.setEnabled(pluginId, false)
+      } else if (wasEnabled) {
+        // 升级：保持原来的启用状态
+        this.setEnabled(pluginId, true)
+      }
+
+      info('Plugin installed', {
+        pluginId,
+        dir: dirName,
+        upgraded: existing !== undefined
+      })
+      return { ok: true, plugin: this.entries.get(pluginId)!.descriptor }
+    } catch (error) {
+      fs.rmSync(staging, { recursive: true, force: true })
+      // 目标已经被换成新的：回滚旧版本，避免留下一个半成品
+      if (fs.existsSync(backup) && !fs.existsSync(target)) {
+        try {
+          fs.renameSync(backup, target)
+        } catch (restoreError) {
+          warn('Failed to restore the previous plugin version', { pluginId, error: restoreError })
+        }
+      }
+      fs.rmSync(backup, { recursive: true, force: true })
+      try {
+        fs.rmdirSync(stagingRoot)
+      } catch {
+        // ignore
+      }
+      this.scan()
+      warn('Failed to install a plugin', { source, target, error })
       return { ok: false, reason: 'invalid-plugin' }
     }
-
-    // 默认禁用：装进来只是「有了」，还没有被信任
-    this.setEnabled(installed.descriptor.id, false)
-
-    info('Plugin installed', { pluginId: installed.descriptor.id, dir: dirName })
-    return { ok: true, plugin: installed.descriptor }
   }
 
   /**

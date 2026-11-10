@@ -22,7 +22,17 @@ export interface InvokeMessage {
   params?: unknown
 }
 
-export type HostToWorker = BootstrapMessage | InvokeMessage | { t: 'dispose' }
+/** 卸载脚本：在插件停止之后、目录删除之前跑一次 */
+export interface UninstallMessage {
+  t: 'uninstall'
+  pluginId: string
+  entry: string
+  paths: PluginBackendPaths
+  storageFile: string
+  storage: Record<string, unknown>
+}
+
+export type HostToWorker = BootstrapMessage | InvokeMessage | UninstallMessage | { t: 'dispose' }
 
 export type WorkerToHost =
   | { t: 'ready'; methods: string[] }
@@ -31,5 +41,7 @@ export type WorkerToHost =
   | { t: 'unregister'; method: string }
   | { t: 'result'; id: number; ok: true; value: unknown }
   | { t: 'result'; id: number; ok: false; error: string }
+  | { t: 'uninstall-result'; ok: true }
+  | { t: 'uninstall-result'; ok: false; error: string }
   | { t: 'log'; level: 'info' | 'warn' | 'error'; message: string }
   | { t: 'disposed' }

@@ -253,7 +253,9 @@ export function PluginsBrowser({
         t(
           result.reason === 'builtin'
             ? 'host.settings.plugins.builtinUndeletable'
-            : 'host.settings.plugins.install.failed'
+            : result.reason === 'uninstall-failed'
+              ? 'host.plugins.uninstall.failed'
+              : 'host.settings.plugins.install.failed'
         )
       )
       return
@@ -508,10 +510,12 @@ function PluginRow({
       <input
         type="checkbox"
         checked={enabled}
+        disabled={plugin.core || plugin.essential}
+        title={plugin.core || plugin.essential ? t('host.settings.plugins.locked') : undefined}
         aria-label={`${t('host.settings.plugins.enable')}: ${plugin.name}`}
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => onToggle(event.target.checked)}
-        className="h-3.5 w-3.5 shrink-0 accent-blue-600"
+        className="h-3.5 w-3.5 shrink-0 accent-blue-600 disabled:opacity-40"
       />
       <span className={['truncate', enabled ? '' : 'text-zinc-500 line-through'].join(' ')}>
         {plugin.name}

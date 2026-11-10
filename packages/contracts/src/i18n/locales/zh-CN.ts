@@ -154,6 +154,7 @@ export const zhCN = {
   'host.settings.plugins.group.builtin': '内置',
   'host.settings.plugins.group.user': '用户安装',
   'host.settings.plugins.enable': '启用',
+  'host.settings.plugins.locked': '内核 / 必需插件不可禁用',
   'host.settings.plugins.detail.select': '在左侧选择一个插件查看详情。',
   'host.settings.plugins.detail.version': '版本',
   'host.settings.plugins.detail.source': '来源',
@@ -218,6 +219,7 @@ export const zhCN = {
   'host.plugins.uninstall.title': '卸载插件',
   'host.plugins.uninstall.message': '卸载「{name}」会删除它的插件目录，之后可以重新安装。',
   'host.plugins.uninstall.confirm': '卸载',
+  'host.plugins.uninstall.failed': '卸载脚本执行失败，插件目录没有删除。请检查日志后重试。',
   'host.diff.title': 'Diff 对比',
   'host.diff.close': '关闭',
 

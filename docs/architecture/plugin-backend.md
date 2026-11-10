@@ -2,6 +2,8 @@
 
 > 对应 mics 的 `pluginWorkerHost` + `plugin-host/worker`：插件清单里的 `main` 在
 > 独立子进程里跑，文件 / 子进程权限由 Node 的 `--permission` 强制。
+> 默认启用、激活事件、依赖、安装升级与卸载脚本见
+> [plugin-lifecycle.md](plugin-lifecycle.md)。
 
 ## 1. 声明
 
@@ -66,6 +68,9 @@ window.nideHost.invoke('plugin', 'call', pluginId, method, params)
 
 ## 4. 进程与权限
 
+- 启动时机：`activation` 含 `*` / `onStartup` 的随宿主启动，`onView:<id>` 在视图
+  打开时启动，其余按需（第一次 `plugin.call`）；依赖先启动。细节见
+  [plugin-lifecycle.md](plugin-lifecycle.md)；
 - 后端跑在 `child_process.fork` 出来的子进程里；`--permission` 只在
   `trust: 'sandboxed'` 时加，`full` 与迁移前一样不受限；
 - 参数由 [runtime.ts](../../packages/services/plugins/src/backend/runtime.ts) 的
@@ -78,6 +83,8 @@ window.nideHost.invoke('plugin', 'call', pluginId, method, params)
   - 写作用域会由宿主**预建目录**（Node 的 `--allow-fs-write` 不允许创建目录本身）。
 - 子进程崩溃只影响这个插件：状态转 `failed`，下一次 `plugin.call` 会重新拉起。
 - 宿主退出时 `stopAll()` 先停后端再卸载 Cordis 树，不会留孤儿进程。
+- 卸载脚本 `manifest.uninstall` 同样在这个子进程模型里执行（见
+  [plugin-lifecycle.md](plugin-lifecycle.md)）。
 
 ## 5. 目前不支持的
 
