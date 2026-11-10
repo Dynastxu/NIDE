@@ -1,9 +1,13 @@
 import path from 'node:path'
+import os from 'node:os'
 import { CORE_PACKAGES, type CorePackage } from '../../../contracts/src/plugin-api/core-packages.ts'
+import type { PermissionVariables } from '../../../contracts/src/plugin-api/permissions.ts'
 import type { NideContext } from '../../../kernel/src/context.ts'
+import type { HostProjectStore } from '../../project/src/host-project-store.ts'
 import type { I18nService } from '../../i18n/src/index.ts'
 import { builtinViews } from './builtin-views.ts'
-import { PluginManager, pluginPreferencePath } from './plugins.ts'
+import { pluginPreferencePath, PluginManager } from './plugins.ts'
+import { PluginPermissionGuard } from './permissions.ts'
 import type { TitleResolver } from './plugins.ts'
 
 /**
@@ -76,7 +80,35 @@ export const pluginsService = {
     const resolveTitle: TitleResolver = (pluginId, spec, fallback) =>
       i18n().host.resolveTitle(manager.manifestNls(pluginId), spec) || fallback
 
+    /** 当前项目根：权限作用域里的 `${project}` 靠它展开 */
+    const projectRoot = (): string | undefined =>
+      ctx.services.require<HostProjectStore>('project').getCurrent()?.path
+
+    /**
+     * 权限作用域的展开变量。
+     *
+     * `pluginDir` 因插件而异，所以每次现取（`manager.locationOf`）；其余三样在一次
+     * 启动里是常量。
+     */
+    const permissionVariables = (pluginId?: string): PermissionVariables => {
+      const location = pluginId ? manager.locationOf(pluginId) : undefined
+      return {
+        ...(projectRoot() ? { project: projectRoot() } : {}),
+        userData: ctx.env.userDataDir,
+        temp: os.tmpdir(),
+        home: ctx.env.home,
+        ...(location ? { pluginDir: location.dirPath } : {})
+      }
+    }
+
+    const permissionGuard = new PluginPermissionGuard({
+      manager,
+      variables: (pluginId) => permissionVariables(pluginId),
+      projectRoot
+    })
+
     ctx.services.provide('plugins', manager)
+    ctx.services.provide('plugin-permissions', permissionGuard)
 
     ctx.rpc.register('plugins', {
       list: () => manager.list(),
@@ -86,6 +118,24 @@ export const pluginsService = {
         return manager.disabled()
       },
       clientBundles: () => manager.clientBundles(),
+
+      /**
+       * 一个插件的声明 + 展开后的作用域。
+       *
+       * 详情页要显示「它能读哪些目录」；展开结果不能交给渲染进程自己算 ——
+       * `${userData}` / `${project}` 的真实值属于宿主。插件不存在时返回 null。
+       */
+      permissions: (pluginId) => {
+        const id = String(pluginId ?? '')
+        const permissions = manager.permissionsOf(id)
+        if (!permissions) return null
+
+        return {
+          pluginId: id,
+          permissions,
+          resolved: permissionGuard.snapshot(id)?.resolved ?? null
+        }
+      },
 
       /** 核心包（只读）：宿主服务 + 客户端平台包 */
       core: () => corePackages(),

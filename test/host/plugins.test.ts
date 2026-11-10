@@ -71,7 +71,8 @@ describe('PluginManager：扫描', () => {
       builtin: true,
       dir: 'demo',
       views: ['demo.hello'],
-      permissions: [],
+      // 没写 permissions 的 manifest = 完全信任，与迁移前一致
+      permissions: { trust: 'full' },
       requiresRestart: false
     })
     expect(plugins[1]).toMatchObject({ builtin: false, views: [] })

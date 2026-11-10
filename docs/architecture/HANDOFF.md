@@ -1,7 +1,8 @@
 # NIDE 迁移交接（2026-10-26）
 
-> 新会话先读这份，再读 [cordis-migration.md](cordis-migration.md) 与
-> [plugin-ui-bundles.md](plugin-ui-bundles.md)。三份都是当前有效的约定，不是历史记录。
+> 新会话先读这份，再读 [cordis-migration.md](cordis-migration.md)、
+> [plugin-ui-bundles.md](plugin-ui-bundles.md) 与 [plugin-permissions.md](plugin-permissions.md)。
+> 都是当前有效的约定，不是历史记录。
 
 ## 0. 一句话状态
 
@@ -167,6 +168,25 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   `reloadClientBundles()` 再重拉视图列表，所以新装 / 启用的 UI 插件**不用重启**
   就会出现；dev 下 Vite 的 `server.fs.strict` 已关掉，`/@fs/` 也能读 userData 里的
   第三方 bundle；打包后走 `nide-plugin://`（见下一节）。
+
+### 插件权限（对齐 mics，详见 [plugin-permissions.md](plugin-permissions.md)）
+- 形状照 mics：`manifest.permissions` 接受老字符串数组或 v2 对象
+  （`{ trust, fs, exec, net, os, secrets }`），解析 / 归一化在
+  [packages/contracts/src/plugin-api/permissions.ts](../../packages/contracts/src/plugin-api/permissions.ts)；
+  老数组一律归一化成 `trust: 'full'`，与迁移前行为一致；声明写错的 manifest **整份忽略**，
+  不会静默降级成完全信任；
+- 执行点只有一个：[packages/kernel/src/rpc.ts](../../packages/kernel/src/rpc.ts) 的
+  `RpcAuthorizer`（分发之前）。宿主入口在服务装配完成后接上
+  [permissions.ts](../../packages/services/plugins/src/permissions.ts) 的 guard；
+  `RpcRequest.caller.pluginId` 是判断依据，没有 caller 的调用（核心 UI / shell）一律放行；
+- 只有 `trust: 'sandboxed'` 会被限制：`fs.read` / `fs.write` 按展开后的作用域检查
+  `files.*` / `gallery.*` / `overview.*` / `config.*` 的路径参数；`net` 约束 `ai.*`；
+  插件管理（安装 / 启停 / 卸载）只对 full 开放。取不到路径时**拒绝**；
+- 插件 UI 必须用 SDK 的 `useHost().api`（[plugin-api.ts](../../packages/sdk/src/plugin-views/plugin-api.ts)）：
+  preload 的 `setCaller` 会把插件 id 带进 RPC 请求。直接 `window.hostAPI` 仍能绕过 ——
+  和 mics 对渲染进程插件的说明一致，**别把它宣传成沙箱**；
+- RPC 新增 `plugins.permissions(pluginId)`（声明 + 展开结果）；详情页与第三方启用确认
+  都按 `trust` 分开措辞。
 
 ### 本地化（host）
 - [packages/host/src/services/i18n.ts](packages/host/src/services/i18n.ts)：
@@ -389,6 +409,13 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   验证：`pnpm typecheck` / `typecheck:host` 通过，`pnpm host:smoke` 用公开 loader
   正常装载 hello 插件并跑完整个服务装配（entries=1）；`pnpm test` 仍需用户终端跑
   （agent 沙箱起不了 vitest：`spawn EPERM`）。
+- 第十九批：**插件权限对齐 mics** —— `permissions` 归一化 / 校验（老数组 -> full，
+  v2 对象支持 trust / fs / exec / net / os / secrets）、`RpcAuthorizer` 接在 RPC 分发前、
+  `RpcRequest.caller.pluginId`、preload `setCaller`、SDK `useHost().api`、
+  `plugins.permissions` RPC、详情页与第三方启用确认按权限展示。内置插件（demo /
+  ai-provider）已改用 `useHost().api`。新增
+  `test/shared/plugin-api/permissions.test.ts`、`test/host/plugin-permissions.test.ts`；
+  设计说明见 [plugin-permissions.md](plugin-permissions.md)。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -416,6 +443,12 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 10. ~~**删掉 shell 的回退路径**~~ —— 已完成（第十七批）：禁用集合镜像、
     `host-views` 表、`reloadPlugin` 占位都删了，内建视图搬进 host。
     剩下**D10**（每包 `locale/*.json`）、视觉回归、`build:win` 实跑与签名。
+11. ~~**插件权限（mics 模型）**~~ —— 已完成（第十九批）：声明 / 校验 / `RpcAuthorizer`
+    / `useHost().api` / 详情页与信任确认。仍剩：
+    - **引擎级强制**：插件后端有独立进程后，把 `trust` / `fs` / `exec` / `net`
+      映射到 Node 的 `--permission`（mics 的做法），现在只有声明式边界；
+    - `os` / `exec` 还没有对应的宿主 RPC，只展示不执行；`net` 的 hosts / ports
+      未在调用时逐条比对。
 
 ### 4.1 迁移完成度（哪些还在旧实现）
 
@@ -464,6 +497,13 @@ host 现在是启动必需的，不再需要 `NIDE_HOST`。日志里应能看到
 - 打包后的插件 UI：`pnpm build:plugin-clients && pnpm build:unpack`，用
   `electron.exe dist/win-unpacked/resources/app.asar` 起，`client bundle loaded` 的 `url`
   应是 `nide-plugin://plugin/builtin.demo/client.js`。
+- 权限：
+  - 设置 → 插件 → 详情页「权限」应显示信任级别（内置的 demo / ai-provider 是老数组
+    声明，显示「完全权限」）；
+  - 手工造一个 `"permissions": { "trust": "sandboxed", "fs": { "read": ["${project}"] } }`
+    的第三方插件，启用确认文案应是「受限权限」那一版；
+  - 让它通过 `useHost().api` 读项目内的文件（应成功）、读项目外的路径（应报
+    `permission-denied`）；宿主日志里 `Plugin directories scanned` 之后没有权限告警。
 
 常用命令：
 
@@ -509,6 +549,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/project-files.ts` | host 文件 / 章节 / 伏笔 / 图鉴 / 概述的读写 |
 | `packages/host/src/services/project-config.ts` | host 项目配置（load / update / initialize / registry / remap） |
 | `packages/host/src/services/plugins.ts` | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做） |
+| `packages/contracts/src/plugin-api/permissions.ts` | 权限声明：类型 / 校验归一化 / 变量展开 / 路径判断（浏览器安全） |
+| `packages/services/plugins/src/permissions.ts` | 权限执行：`RpcAuthorizer` 的能力映射与 fs 作用域检查 |
+| `packages/sdk/src/plugin-views/plugin-api.ts` | 插件侧受限宿主 API（`useHost().api`，带 caller） |
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
 | `packages/host/src/services/i18n.ts` | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析 |
 | `packages/client-kit/src` | 客户端共享层：stores / ui / window 外壳 / logger / icons（`@nide/client-kit/*`） |
@@ -569,6 +612,12 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     import 的是同类自包含文件。跨目录引用 `@nide/contracts/*` 在 host 里解析不了；共享目录
     内的相对导入在 NodeNext 下要写 `./x.js`（见 `plugin-api/contributions.ts`）——
     纯类型导入会被擦除，安全。
+16. **插件 UI 调宿主只用 `useHost().api`**：它会把插件 id 带进 RPC，宿主才能按
+    `permissions` 检查。`window.hostAPI` 是宿主自己的入口，插件直接用它等于绕过
+    权限声明（也是屏障的全部边界，别当沙箱）。
+17. **权限检查只挂在 `RpcRegistry` 的 authorizer 上**：不要在服务 handler 里各写一份。
+    新能力加进 `capabilityOf()` / `pathsOf()`（`packages/services/plugins/src/permissions.ts`），
+    并补 `test/host/plugin-permissions.test.ts`。
 
 ## 8. 踩过的坑（别再踩）
 
@@ -635,6 +684,18 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 20. **`plugins.views` / `plugins.settings` 的标题依赖当前语言**：切语言后**必须**重建
     窗口（渲染进程会重新拉一次），否则视图标题停在旧语言。切语言那条路已经在
     `recreateRootWindow()` 里，别在别处缓存视图列表。
+21. **权限声明写错会整份丢掉插件**：`permissions` 校验失败时 `toEntry` 返回 null，
+    启动日志里是 `Plugin permissions are invalid`。别为了「宽容」把错误降级成
+    `{ trust: 'full' }` —— 那等于悄悄放开它没声明的能力。
+22. **老字符串数组 = 完全信任**：`["network", "secrets:own"]` 归一化出来是
+    `trust: 'full'`，`fs` 不受限。想要作用域必须写 v2 对象并显式
+    `trust: 'sandboxed'`；`net.mode = 'all'` 也只能配 full。
+23. **沙箱权限只对 `useHost().api` 生效**：插件直接 `window.hostAPI` /
+    `window.nideHost` 仍然绕过（同一渲染进程）。别把这条边界写成「沙箱」，
+    真正的隔离要等插件后端独立进程。
+24. **`fs` 检查取不到路径就拒绝**：`pathsOf()` 覆盖了现有的 files / gallery /
+    overview / config 方法；新加“带路径”的 RPC 时忘了登记，sandboxed 插件会被
+    一律拒绝（症状是插件报「没有可判定的路径」），不是静默放行 —— 这是有意的。
 
 ## 9. 待定的设计问题
 
@@ -652,7 +713,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 ## 10. 建议的下一会话起手式
 
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`、
-> `plugin-first-layout.md`（后者说明「一切皆插件」的目标目录与阶段计划）。
+> `plugin-permissions.md`、`plugin-first-layout.md`（后者说明「一切皆插件」的目标目录与阶段计划）。
 > 当前状态：**迁移已完成**。项目数据 / 插件清单与贡献点 / 本地化 / 主题 /
 > AI 与密钥仓的**实现只有一份**，在 host；窗口 UI 全部在 `packages/client-ui-*`，
 > `apps/desktop/renderer/src` 只剩引导壳。客户端 slots 与运行时 bundle 在 **dev 与打包后都
@@ -664,6 +725,10 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 > npm 安装来源已明确跳过。
 > 运行时依赖是**公开** `cordis` + `@cordisjs/plugin-*`（第十八批），仓库内没有任何
 > `@deepseek-ai/*`；升级这两个只需改 `package.json`，代码不用动。
+> 插件权限已对齐 mics（第十九批）：声明 / 校验在
+> `packages/contracts/src/plugin-api/permissions.ts`，执行在 `RpcAuthorizer`，
+> 插件 UI 一律用 `useHost().api`；边界与限制见
+> `docs/architecture/plugin-permissions.md`（不是沙箱）。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单

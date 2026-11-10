@@ -16,6 +16,7 @@ import { RpcRegistry } from '../../kernel/src/rpc.ts'
 import { installNideContext, type HostEnvironment } from '../../kernel/src/context.ts'
 import type { HostProjectStore } from '../../services/project/src/host-project-store.ts'
 import type { PluginManager } from '../../services/plugins/src/plugins.ts'
+import type { PluginPermissionGuard } from '../../services/plugins/src/permissions.ts'
 import {
   initializeProjectDirectory,
   loadProjectConfig,
@@ -241,6 +242,16 @@ for (const row of host.services) {
   }
   service.apply(hostCtx)
 }
+
+/**
+ * 插件权限准入。
+ *
+ * 只有插件 UI 经 SDK `useHost().api` 发起的调用才带 `caller.pluginId`；核心 UI
+ * 与 shell 不带，因此不受影响。挂在这一层是因为所有入口（renderer MessagePort
+ * 与 shell 父端口）共用同一个 `RpcRegistry` —— 放在服务里就得每个 handler 重写。
+ */
+const permissionGuard = hostCtx.services.require<PluginPermissionGuard>('plugin-permissions')
+rpc.setAuthorizer((request) => permissionGuard.authorize(request))
 
 /** 项目生命周期服务（`provide('project', …)` 在它的 apply 里做过） */
 const projects = hostCtx.services.require<HostProjectStore>('project')

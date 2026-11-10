@@ -127,12 +127,15 @@ export const CONFIRM_SPECS = {
     danger: true
   },
   /**
-   * 启用第三方插件：第三方代码拥有完整 Node 权限（见 D6），装进来只代表「有了」，
-   * 启用是一次明确的信任决定。内置插件不走这一问。
+   * 启用第三方插件。
+   *
+   * 文案按插件声明的信任级别二选一（`host.ipc.ts` 传 `messageKey`）：
+   * `full`（含所有老数组声明）可以读写任意文件、访问网络；`sandboxed` 只能使用
+   * 清单里声明的能力。内置插件不走这一问。
    */
   enableThirdPartyPlugin: {
     titleKey: 'host.plugins.trust.title',
-    messageKey: 'host.plugins.trust.message',
+    messageKey: 'host.plugins.trust.message.full',
     confirmKey: 'host.plugins.trust.confirm',
     danger: true
   },

@@ -1,5 +1,6 @@
 export * from './manifest'
 export * from './plugin'
+export * from './permissions'
 export * from './view'
 export * from './contributions'
 export * from './manifest-nls'

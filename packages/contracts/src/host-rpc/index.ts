@@ -8,12 +8,29 @@
  * 支持取消与流）；现在先用手写协议把链路跑通。
  */
 
+/**
+ * 调用方身份。
+ *
+ * 只有**插件 UI**发起的调用会带 `pluginId`：SDK 的 `useHost().api` 在调用前把
+ * 所属插件告诉宿主，宿主按它的权限声明做检查。核心 UI（宿主自己的窗口）不带，
+ * 因此不受插件权限约束。
+ *
+ * 这是**声明式**的边界，不是硬隔离：插件 bundle 与宿主 UI 同在一个渲染进程里，
+ * 拿到 `window.hostAPI` 就能绕过（和 mics 对渲染进程插件的说明一致）。真正的
+ * 强制隔离要等插件后端有了独立进程（D6 的 Node 权限模型）。
+ */
+export interface RpcCaller {
+  pluginId?: string
+}
+
 export interface RpcRequest {
   type: 'rpc'
   id: string
   namespace: string
   method: string
   args: unknown[]
+  /** 发起方是插件 UI 时带上它的 id；核心 UI 省略 */
+  caller?: RpcCaller
 }
 
 export interface RpcError {

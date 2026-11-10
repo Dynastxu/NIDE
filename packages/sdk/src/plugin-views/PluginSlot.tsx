@@ -147,7 +147,7 @@ export function PluginSlot({ viewId }: PluginSlotProps): JSX.Element {
   }
 
   return (
-    <PluginHostProvider locale={locale} t={t}>
+    <PluginHostProvider locale={locale} t={t} pluginId={view?.pluginId ?? ''}>
       {createElement(Component)}
     </PluginHostProvider>
   )

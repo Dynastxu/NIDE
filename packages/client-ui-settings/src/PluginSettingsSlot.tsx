@@ -131,7 +131,7 @@ export function PluginSettingsSlot({
   }
 
   return (
-    <PluginHostProvider locale={locale} t={t}>
+    <PluginHostProvider locale={locale} t={t} pluginId={descriptor.pluginId}>
       <Component {...pageProps} />
     </PluginHostProvider>
   )

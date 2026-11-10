@@ -8,6 +8,8 @@
  * 同样只有数据：不带绝对路径、不带模块引用。渲染进程要显示目录名就够排查问题了，
  * 用户磁盘的完整布局不该越过 IPC。
  */
+import type { PluginPermissions } from './permissions.js'
+
 export interface PluginDescriptor {
   /** 插件唯一 ID，例如 'builtin.demo' */
   id: string
@@ -23,8 +25,14 @@ export interface PluginDescriptor {
   builtin: boolean
   /** 插件目录名，例如 'demo' / 'lang-en' */
   dir: string
-  /** 声明过的权限，例如 ['fs:read']。详情页展示用，宿主早已按它做过拦截 */
-  permissions: string[]
+  /**
+   * 声明过的权限，已按 manifest 归一化成 v2（老字符串数组会先展开）。
+   *
+   * `trust: 'full'` 表示宿主不限制它 —— 老插件缺省就是这个，行为与迁移前一致；
+   * `sandboxed` 时宿主按 `fs` 作用域等声明拦截宿主 RPC（见
+   * packages/services/plugins/src/permissions.ts）。
+   */
+  permissions: PluginPermissions
   /** 这个插件贡献的视图 id 列表。纯数据插件（语言包）是空的 */
   views: string[]
   /**

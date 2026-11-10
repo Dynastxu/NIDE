@@ -8,10 +8,12 @@ import {
 } from '../../../../packages/contracts/src/plugin-api/preference.ts'
 import { isReservedHostId } from '../../../../packages/contracts/src/plugin-api/view.ts'
 import { emptyPluginContributions } from '../../../../packages/contracts/src/plugin-api/contributions.ts'
+import { parsePluginPermissions } from '../../../../packages/contracts/src/plugin-api/permissions.ts'
 import { readPluginContributions } from './plugin-contributions.ts'
 import type { PluginContributionSet } from './plugin-contributions.ts'
 import type { PluginPreference } from '../../../../packages/contracts/src/plugin-api/preference.ts'
 import type { ClientBundleDescriptor } from '../../../../packages/contracts/src/plugin-api/client-bundle.ts'
+import type { PluginPermissions } from '../../../../packages/contracts/src/plugin-api/permissions.ts'
 import type {
   PluginContributions,
   PluginManifestNls
@@ -142,11 +144,24 @@ function toEntry(raw: unknown, source: PluginSource, dirPath: string): CatalogEn
 
   const views = contributions.views.map((view) => view.id)
 
-  const permissions = Array.isArray(manifest.permissions)
-    ? manifest.permissions.filter(
-        (permission): permission is string => typeof permission === 'string'
-      )
-    : []
+  /**
+   * 权限声明在这里就归一化：运行时的权限表（permissions.ts）只认 v2 对象。
+   * 声明写错时**整份拒绝** —— 把 `{ trust: 'sandboxed', fs: ... }` 的拼写错误降级成
+   * full 等于悄悄放开它没声明的能力，比加载失败糟得多。
+   */
+  const parsedPermissions = parsePluginPermissions(manifest.permissions, {
+    context: `${id} 的 permissions`
+  })
+  for (const warning of parsedPermissions.warnings) warn(warning, { id, dir: dirPath })
+  if (!parsedPermissions.permissions) {
+    warn('Plugin permissions are invalid, the plugin is ignored', {
+      id,
+      dir: dirPath,
+      errors: parsedPermissions.errors
+    })
+    return null
+  }
+  const permissions: PluginPermissions = parsedPermissions.permissions
 
   let client: { platform: 'web'; bundle: string } | undefined
   if (manifest.client && typeof manifest.client === 'object') {
@@ -261,6 +276,24 @@ export class PluginManager {
     return Array.from(this.entries.values())
       .map((entry) => entry.descriptor)
       .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
+  }
+
+  /**
+   * 一个插件的权限声明（已归一化）。未知 id 返回 undefined —— 调用方据此拒绝
+   * 来自「已经被卸载的插件」的残留调用。
+   */
+  permissionsOf(pluginId: string): PluginPermissions | undefined {
+    return this.entries.get(pluginId)?.descriptor.permissions
+  }
+
+  /**
+   * 权限检查需要的目录信息。
+   *
+   * 只给宿主内部用（`${pluginDir}` 的展开与日志），不进任何 RPC 返回值。
+   */
+  locationOf(pluginId: string): { dirPath: string; source: PluginSource } | undefined {
+    const entry = this.entries.get(pluginId)
+    return entry ? { dirPath: entry.dirPath, source: entry.source } : undefined
   }
 
   /** 被禁用的插件 id */

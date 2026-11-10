@@ -1,4 +1,5 @@
 import { useEffect, useState, type JSX } from 'react'
+import { useHost } from '@nide/sdk/plugin-views/host-context'
 import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
 import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
 
@@ -9,21 +10,23 @@ import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
  * 「更多」里放一个「清空」。宿主因此画出标题栏、标题、更多与最小化按钮。
  */
 export default function DemoView(): JSX.Element {
+  // 插件里只用这个受限入口：它会带上本插件 id，宿主据此查 permissions
+  const { api } = useHost()
   const [lines, setLines] = useState<string[]>([])
   const [text, setText] = useState('')
 
   useEffect(() => {
-    const d = window.hostAPI.onEvent('echo:demo.ping', (...args: unknown[]) => {
+    const d = api.onEvent('echo:demo.ping', (...args: unknown[]) => {
       setLines((prev) => [...prev, `← 主进程回显: ${args.join(' ')}`])
     })
     return () => d.dispose()
-  }, [])
+  }, [api])
 
   const send = (): void => {
     const value = text.trim()
     if (!value) return
     setLines((prev) => [...prev, `→ 发送: ${value}`])
-    window.hostAPI.emitEvent('demo.ping', value)
+    api.emitEvent('demo.ping', value)
     setText('')
   }
 
