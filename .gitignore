@@ -11,9 +11,6 @@ out
 # 每次分析都可能变，不该进版本库（npm run typecheck 传了 --composite false，不写它）
 *.tsbuildinfo
 
-# Github Wiki
-/docs/wiki/
-
 # 本地开发用的 NIDE_HOME（profile / patch / 插件）
 /.nide-dev/
 # 打包产物跑起来的 profile（`pnpm host:dist:smoke` 会写入）

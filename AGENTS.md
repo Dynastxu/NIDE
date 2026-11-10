@@ -2,9 +2,6 @@
 
 Rules for working in this repository.
 
-## Project Description
-- `docs/wiki/` contains the GitHub Wiki repository. Read it to understand the project structure. Documentation may be outdated; the code logic shall prevail. If there is no content, tell the user to clone the Wiki repository to the target location; do not clone it yourself.
-
 ## Code Design Principles
 
 All code written in this project must adhere to the following SOLID principles:
@@ -22,4 +19,8 @@ All code written in this project must also follow these design guidelines:
 
 ## User
 - When the user refuses to run tests, builds, or other commands with elevated privileges, stop trying, and do not use any method to attempt to run them without elevated privileges.
-- Without the user's permission, git commands may be executed only if they are read-only; all other git commands must not be executed.
+
+## Develop
+
+- Create a new worktree and branch for each feature or bug fix.
+
