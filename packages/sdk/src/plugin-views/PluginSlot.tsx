@@ -69,6 +69,20 @@ export function PluginSlot({ viewId }: PluginSlotProps): JSX.Element {
     if (Registered) logger.info('view served by client modules', { viewId })
   }, [Registered, viewId])
 
+  /**
+   * 视图打开 = 一次激活信号。
+   *
+   * 只有声明了 `onView:<id>` 的插件后端会被拉起（宿主按清单判断归属），
+   * 失败不影响视图渲染 —— 视图本身仍是纯 UI。
+   */
+  useEffect(() => {
+    void window.nideHost
+      ?.invoke('plugins', 'activateView', viewId)
+      .catch((error: unknown) =>
+        logger.warn('failed to activate the plugin backend', { viewId, error })
+      )
+  }, [viewId])
+
   const [loaded, setLoaded] = useState<LoadedView | null>(null)
   const [failed, setFailed] = useState<FailedLoad | null>(null)
 
@@ -147,7 +161,7 @@ export function PluginSlot({ viewId }: PluginSlotProps): JSX.Element {
   }
 
   return (
-    <PluginHostProvider locale={locale} t={t}>
+    <PluginHostProvider locale={locale} t={t} pluginId={view?.pluginId ?? ''}>
       {createElement(Component)}
     </PluginHostProvider>
   )

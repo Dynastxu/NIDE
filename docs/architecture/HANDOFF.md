@@ -1,7 +1,9 @@
 # NIDE 迁移交接（2026-10-26）
 
-> 新会话先读这份，再读 [cordis-migration.md](cordis-migration.md) 与
-> [plugin-ui-bundles.md](plugin-ui-bundles.md)。三份都是当前有效的约定，不是历史记录。
+> 新会话先读这份，再读 [cordis-migration.md](cordis-migration.md)、
+> [plugin-ui-bundles.md](plugin-ui-bundles.md)、[plugin-permissions.md](plugin-permissions.md)、
+> [plugin-backend.md](plugin-backend.md)、[plugin-capabilities.md](plugin-capabilities.md)
+> 与 [plugin-lifecycle.md](plugin-lifecycle.md)。都是当前有效的约定，不是历史记录。
 
 ## 0. 一句话状态
 
@@ -15,24 +17,23 @@ Cordis/DSH 架构的**迁移已完成**：Electron shell → 独立 host 进程 
 只保留「按 D7 本来就该在 shell 里」的东西（窗口 / 菜单 / dialog / 确认框 / 日志落盘）。
 打包版跑编译后的 host（`out/host`），asar 已恢复。逐项见 §4.1。
 
-
 ## 1. 目标与已锁定决策
 
 目标：NIDE 的架构对齐 DSH，插件不做沙箱隔离；**UI 长相不变**（位置、颜色、字号、
 间距、窗口 chrome 都不变）。
 
-| 编号 | 结论 |
-| --- | --- |
-| D1 | A：全量 dogfood，核心 UI 也是 client 插件 |
-| D2 | A：host 跑独立 Node 进程，Electron main 只做 shell |
-| D3 | A：Cordis 4.x + ESM |
-| D4 | A：DSH 式 client modules；当前实现为「IIFE + 平台全局」，见 plugin-ui-bundles.md |
-| D6 | 第三方插件只从 npm 装；默认禁用；启用要确认 |
-| D7 | 插件不 import electron；桌面能力由 shell 通过 `ctx.shell` 暴露（尚未实现） |
-| D8 | A：DSH 式命名 slot |
-| D9 | Monaco 进平台模块表，但只暴露 `@nide/editor-api` |
-| D10 | B：i18n 改为每包 `locale/*.json`（尚未开始） |
-| D17 | 框架层直接依赖；引擎层 vendor；UI 层不引入 DSH 包 |
+| 编号 | 结论                                                                             |
+| ---- | -------------------------------------------------------------------------------- |
+| D1   | A：全量 dogfood，核心 UI 也是 client 插件                                        |
+| D2   | A：host 跑独立 Node 进程，Electron main 只做 shell                               |
+| D3   | A：Cordis 4.x + ESM                                                              |
+| D4   | A：DSH 式 client modules；当前实现为「IIFE + 平台全局」，见 plugin-ui-bundles.md |
+| D6   | 第三方插件只从 npm 装；默认禁用；启用要确认                                      |
+| D7   | 插件不 import electron；桌面能力由 shell 通过 `ctx.shell` 暴露（尚未实现）       |
+| D8   | A：DSH 式命名 slot                                                               |
+| D9   | Monaco 进平台模块表，但只暴露 `@nide/editor-api`                                 |
+| D10  | B：i18n 改为每包 `locale/*.json`（尚未开始）                                     |
+| D17  | 框架层直接依赖；引擎层 vendor；UI 层不引入 DSH 包                                |
 
 ## 2. 目标进程与代码结构
 
@@ -95,12 +96,14 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 ## 3. 已完成（可运行、已验证）
 
 ### 宿主进程
+
 - 启动时 `packages/shell/src/main/host/process.ts` 用 `utilityProcess.fork` 拉起 host（不再是开关）；
 - 等 `{type:'ready'}`，支持 ping/pong、shutdown、超时 kill；host 退出后下一次调用会重新拉起；
 - host 入口 `packages/host/src/index.ts`：Cordis `Context` + loader + 插件；
 - 生命周期日志：`host process is ready`、`host ready ... ipc=true`。
 
 ### RPC 与宿主业务
+
 - 协议：`src/shared/host-rpc/index.ts`；host 分发：`packages/host/src/rpc.ts`；
 - namespace：`host.info`、`project.list/current/startup/setCurrent/open/forget/close`、
   `files.readDir/readFile/readChapters/readForeshadowing/writeFile/createEntry/renameEntry/deleteEntry`、
@@ -118,6 +121,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - `project.setCurrent` 在每个窗口 port 建立后按 `--nide-project=` 同步，换项目时 host 跟着切。
 
 ### 项目生命周期（host）
+
 - `packages/shell/src/main/services/project-store.ts` 已删除；`projects.json` 只剩下
   [packages/host/src/services/project-store.ts](packages/host/src/services/project-store.ts)
   这一份实现，shell 通过新增的 [packages/shell/src/main/host/project.ts](packages/shell/src/main/host/project.ts)
@@ -138,6 +142,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - host 不可达时开项目返回 `{ ok: false, reason: 'unreadable' }`（不再谎称「目录不存在」）；
 
 ### 插件（host 是唯一读目录的一方）
+
 - [packages/host/src/services/plugins.ts](packages/host/src/services/plugins.ts) 扫描
   `<appRoot>/plugins/builtin` 与 `<userData>/plugins`，维护 manifest 清单、禁用集合、
   client bundle 绝对路径，以及每个插件的**贡献点**；
@@ -168,7 +173,72 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   就会出现；dev 下 Vite 的 `server.fs.strict` 已关掉，`/@fs/` 也能读 userData 里的
   第三方 bundle；打包后走 `nide-plugin://`（见下一节）。
 
+### 插件权限（对齐 mics，详见 [plugin-permissions.md](plugin-permissions.md)）
+
+- 形状照 mics：`manifest.permissions` 接受老字符串数组或 v2 对象
+  （`{ trust, fs, exec, net, os, secrets }`），解析 / 归一化在
+  [packages/contracts/src/plugin-api/permissions.ts](../../packages/contracts/src/plugin-api/permissions.ts)；
+  老数组一律归一化成 `trust: 'full'`，与迁移前行为一致；声明写错的 manifest **整份忽略**，
+  不会静默降级成完全信任；
+- 执行点只有一个：[packages/kernel/src/rpc.ts](../../packages/kernel/src/rpc.ts) 的
+  `RpcAuthorizer`（分发之前）。宿主入口在服务装配完成后接上
+  [permissions.ts](../../packages/services/plugins/src/permissions.ts) 的 guard；
+  `RpcRequest.caller.pluginId` 是判断依据，没有 caller 的调用（核心 UI / shell）一律放行；
+- 只有 `trust: 'sandboxed'` 会被限制：`fs.read` / `fs.write` 按展开后的作用域检查
+  `files.*` / `gallery.*` / `overview.*` / `config.*` 的路径参数；`net` 约束 `ai.*`；
+  插件管理（安装 / 启停 / 卸载）只对 full 开放。取不到路径时**拒绝**；
+- 插件 UI 必须用 SDK 的 `useHost().api`（[plugin-api.ts](../../packages/sdk/src/plugin-views/plugin-api.ts)）：
+  preload 的 `setCaller` 会把插件 id 带进 RPC 请求。直接 `window.hostAPI` 仍能绕过 ——
+  和 mics 对渲染进程插件的说明一致，**别把它宣传成沙箱**；
+- RPC 新增 `plugins.permissions(pluginId)`（声明 + 展开结果）；详情页与第三方启用确认
+  都按 `trust` 分开措辞。
+
+### 插件后端（工作进程，详见 [plugin-backend.md](plugin-backend.md)）
+
+- `manifest.main`（插件目录内、真实存在的 ESM 文件）交给
+  [backend/runtime.ts](../../packages/services/plugins/src/backend/runtime.ts)：
+  `child_process.fork` 一个子进程，`buildBackendFlags()` 把权限声明翻成 Node 的
+  `--permission` / `--allow-fs-read` / `--allow-fs-write` / `--allow-child-process`
+  （只有 `sandboxed` 才加；`full` 不限制）；
+- 子进程入口是 [backend/worker.ts](../../packages/services/plugins/src/backend/worker.ts)：
+  动态 import 插件 `main`，默认导出 `{ activate(host), deactivate? }`（或直接一个函数），
+  `host.handle(method, fn)` 注册的方法由宿主 RPC `plugin.call(pluginId, method, params)`
+  调用；日志、路径、方法注册都经 IPC 回传；
+- 启停时机：宿主 ready 之后 `startEnabled()` 拉起已启用的后端；启用 / 停用 / 安装 /
+  卸载 / 重扫由插件服务同步（`handleEnabled` / `reconcile`）；退出时 `stopAll()`；
+- 崩溃只影响这个插件：状态转 `failed`，下一次调用重新拉起；状态从
+  `plugins.backends` 读；
+- `build-host` 显式把 `worker.ts` 加进编译根（它不被静态 import，TS 依赖树看不到）。
+
+### 插件生命周期（详见 [plugin-lifecycle.md](plugin-lifecycle.md)）
+
+- 清单字段：`activation`（也接受 `activationEvents`）/ `dependencies` / `core` /
+  `essential` / `experimental` / `defaultDisabled` / `uninstall`；
+- 启用判定统一在 `isPluginEnabled`：core / essential 恒启用 → 显式启用 → 显式禁用 →
+  `defaultDisabled` → 默认启用。偏好文件多了一个 `enabled` 集合（老文件没有也照常读）；
+  `plugins.disabled` 下发的是**实际**禁用集合，界面不需要再懂默认值；
+- 激活：`*` / `onStartup` 随宿主；`onView:<id>` 由 `PluginSlot` 打开视图时调
+  `plugins.activateView`；其余按需（第一次 `plugin.call`）；`onCommand` 还没有触发源；
+- 依赖：激活后端前递归激活依赖，`visited` 斩循环；依赖缺失 / 被禁用 → 本次启动失败；
+- 安装：`plugins.install` 走 `.staging/<dir>.<ts>` → 暂存目录再校验 → 旧版本备份 →
+  rename → 删备份；升级保留启用状态，新装默认禁用；失败回滚；
+- 卸载：`plugins.remove` 先停后端 → 在子进程里跑 `uninstall`（10s 超时）→ 失败返回
+  `uninstall-failed` 且**不删目录** → 成功才删目录并重扫；
+- 设置页：core / essential 的复选框置灰；`experimental` 已进描述符（暂未展示）。
+
+### 插件存储与桌面能力（详见 [plugin-capabilities.md](plugin-capabilities.md)）
+
+- 存储：每个插件一个命名空间（`<userData>/plugin-storage/<id>.json`），插件侧是同步
+  视图，100ms 合并写盘；停用 / 卸载 / 宿主退出前 flush；卸载时文件一起删；
+- 桌面能力：`ctx.host.openExternal/openPath/showOpenDialog/showSaveDialog/
+readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permissions.os`
+  检查（`full` 也必须声明），再经既有 `ctx.shell` 反向桥让 shell 执行；
+- shell 白名单扩了 `shell.openExternal|openPath`、`dialog.open|save`、
+  `clipboard.readText|writeText`、`notification.show`，参数在 shell 侧二次收敛；
+- 存储与能力都只给后端；渲染进程插件仍用既有 UI API。
+
 ### 本地化（host）
+
 - [packages/host/src/services/i18n.ts](packages/host/src/services/i18n.ts)：
   `LanguagePackRegistry`（逐 key 瀑布：第三方 -> 内置 -> 中文基础表）、语言偏好
   （`<userData>/locale.json`）、`HostI18n`（`init` / `setLocale` / `payload`）、
@@ -184,6 +254,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   语言偏好文件从 shell 挪到 host 后**路径不变**（同一个 userData），老用户的偏好照常生效。
 
 ### 主题 / 外观（host）
+
 - [packages/host/src/services/appearance.ts](packages/host/src/services/appearance.ts)：
   `appearance.json` 偏好、`findBuiltinTheme` 校验、`fallbackFrom` 语义、原生明暗
   （`shell.call('nativeTheme.setSource')`）；
@@ -199,6 +270,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   钉住与 `DEFAULT_THEME` 一致）。
 
 ### ctx.shell（host → shell 的反向能力桥）
+
 - 协议在 [src/shared/host-rpc/index.ts](src/shared/host-rpc/index.ts)：
   `shell-call` / `shell-result`，方法名是白名单 `ShellMethod`
   （`nativeTheme.setSource` / `nativeTheme.shouldUseDarkColors` /
@@ -212,6 +284,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - 使用者：`services/appearance.ts`（主题）与 `services/secrets.ts`（密钥仓）。
 
 ### AI 供应商 / 密钥（host）
+
 - [packages/host/src/services/ai-provider.ts](packages/host/src/services/ai-provider.ts)：
   配置读写、测试连接、`open` 的 SSE 转发（逻辑与搬迁前逐条一致，含「改 Base URL
   必须重输 key」这条防转发规则）；
@@ -227,6 +300,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   领域错误码以 `{ ok:false, error }` 的形式跨进程（RPC 的错误包装只剩 message）。
 
 ### 客户端共享层（@nide/client-kit）
+
 - [packages/client-kit/src](packages/client-kit/src)：`stores/`（zustand 的十张表）、
   `ui/`（基础组件）、`window/`（窗口外壳：`WindowFrame` / `WindowControls` /
   `useWindowTitle`）、`logger`、`icons.tsx`、`appearance/palette.ts`、
@@ -240,6 +314,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - Tailwind 的 `@source` 加了 `packages`（类名在包里的文件也要被扫到，否则样式会丢）。
 
 ### 窗口包（D1 完成）
+
 - **welcome**：`packages/client-ui-welcome/src` 里是 `WelcomeApp` / `ProjectsPanel` /
   `SettingsButton` 本体；插件入口 `index.ts` 注册 `welcome.root`，同时导出
   `WelcomeApp` 给渲染进程的引导壳用；
@@ -251,14 +326,15 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   / `layout` / `editor` / `explorer` / `entry` / `git` / `host-view` / `view` /
   `plugins/HostSlot` / `window/MainMenu` / `stores/entry-action.store`；
 - **`apps/desktop/renderer/src` 只剩引导壳**：`main.tsx` + `assets/`（Tailwind 入口与浅色表）
-  + `env.d.ts`。引导壳按 `windowType` 动态 import 三个包里的窗口组件，然后挂
-  client-runtime 的 slot；
+  - `env.d.ts`。引导壳按 `windowType` 动态 import 三个包里的窗口组件，然后挂
+    client-runtime 的 slot；
 - 别名：`@nide/client-ui-*` / `@nide/client-kit` 的子路径是**正则**别名，必须排在
   精确别名前面 —— 字符串别名会把 `pkg/sub` 拼成 `index.ts/sub`；
 - 旧的 `@renderer` 别名（tsconfig.node / tsconfig.web / vite / vitest / bundle 脚本）
   已全部删除：仓库里不再有这个路径映射。
 
 ### 客户端 Cordis / slots
+
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；
 - `main.root` / `welcome.root` / `settings.root` 都已接入；
 - `zone.leftTop` … `zone.bottomRight` 六个工具区已接入；
@@ -266,6 +342,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - `Slot` 不产生包装 DOM（`createElement`）。
 
 ### 插件 UI 运行时 bundle（dev + 打包后）
+
 - manifest `client: { platform:'web', bundle:'dist/client.js' }`；
 - host `plugins.clientBundles` → preload → `client-runtime` 注入 IIFE；
 - bundle 调 `window.__NIDE_REGISTER__(viewId, Component)` 注册；
@@ -285,6 +362,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - 没有 bundle / 加载失败时 `PluginSlot` 回退构建期 `import.meta.glob`。
 
 ### 编译 host 与打包
+
 - `pnpm build:host`（[scripts/build-host.mts](scripts/build-host.mts)）用 TypeScript 的
   **Node API** 直接把源码编到 `out/host`（不 spawn，受限环境也能跑）；
 - 产物与源码同构：`out/host/packages/host/src/index.js` 是可执行入口，
@@ -302,7 +380,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   host 用它当 profile 模板目录与 `{{NIDE_ROOT}}`。开发时仍跑源码
   `packages/host/src/index.ts`，行为不变；
 - `electron-builder.yml` 的 `files` 因此只留 `out/**` + `profiles/**` + `plugins/**`
-  + `package.json` —— 源码形式的 `packages/*` 与 `src/shared` 不再进包；
+  - `package.json` —— 源码形式的 `packages/*` 与 `src/shared` 不再进包；
 - **asar 已恢复**：主进程 / 预加载 / 渲染进程都在 asar 里；host 是
   `utilityProcess.fork()` 出来的独立进程，它的入口、profile、要动态 import 的插件
   必须是真实文件，所以 `out/host/**` 与 `plugins/**` 走 `asarUnpack` 放到
@@ -312,7 +390,17 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   `CSC_LINK` / `CSC_KEY_PASSWORD`；没配时产物未签名（Windows 会拦 `nide.exe`）。
 
 ### 工程
-- npm registry 已切 `https://registry.npmmirror.com/`（`.npmrc`）；
+
+- **依赖走默认 npm registry**：`.npmrc` 已删。镜像解析出来的 lock 在 GitHub
+  工作流里装不动（镜像地址 / 可用性都不受我们控制），所以锁文件只认
+  `registry.npmjs.org`；
+- **运行时是公开 Cordis 生态**，不再使用任何 `@deepseek-ai/*` 包：
+  `cordis@4.0.0-rc.12` + `@cordisjs/plugin-{loader,include,group,timer}`
+  （与 mics 同一套依赖形态）。`@deepseek-ai/*` 那套是 DSH 的私有前缀，
+  与公开包同源但版本线不同，长期只能跟着 DSH 走；换成公开包后可以独立升级。
+  代码里只改了 import 说明符，API 面（`Context` / `ctx.plugin` / `ctx.logger` /
+  `ctx.loader.*` / `ctx.effect`）与公开包一致，`typecheck` / `typecheck:host`
+  与 `host:smoke` 均已验证；
 - `tsconfig.host.json`；`pnpm typecheck:host`；
 - `pnpm host:dump` / `host:smoke`；
 - 第一批 `e270b5f`：写路径（新建 / 改名 / 删除）搬完。
@@ -374,6 +462,36 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   shell 的视图 / 设置 / 禁用集合 / 启停全部改成直通 host（启停失败不再假装成功）；
   `reloadPlugin` 占位链路（channel / handler / preload / d.ts）一并删掉；
   `ai-provider.ipc.ts` 的启用检查改成问 host。`test/host/builtin-views.test.ts` 新增。
+- 第十八批：**换成公开 Cordis 生态**（去掉全部 `@deepseek-ai/*`）——
+  `package.json` 的五个 DSH 包换成 `cordis` + `@cordisjs/plugin-{loader,include,group,timer}`，
+  12 个文件的 import 说明符跟着改；`.npmrc` 删除，lock 改由默认 npm registry 解析。
+  验证：`pnpm typecheck` / `typecheck:host` 通过，`pnpm host:smoke` 用公开 loader
+  正常装载 hello 插件并跑完整个服务装配（entries=1）；`pnpm test` 仍需用户终端跑
+  （agent 沙箱起不了 vitest：`spawn EPERM`）。
+- 第十九批：**插件权限对齐 mics** —— `permissions` 归一化 / 校验（老数组 -> full，
+  v2 对象支持 trust / fs / exec / net / os / secrets）、`RpcAuthorizer` 接在 RPC 分发前、
+  `RpcRequest.caller.pluginId`、preload `setCaller`、SDK `useHost().api`、
+  `plugins.permissions` RPC、详情页与第三方启用确认按权限展示。内置插件（demo /
+  ai-provider）已改用 `useHost().api`。新增
+  `test/shared/plugin-api/permissions.test.ts`、`test/host/plugin-permissions.test.ts`；
+  设计说明见 [plugin-permissions.md](plugin-permissions.md)。
+- 第二十批：**插件后端 + 工作进程** —— `manifest.main` 解析（目录守卫 / 文件存在）、
+  fork 子进程、`--permission` 参数生成、worker 运行时（`activate(host)` +
+  `host.handle`）、宿主 `plugin.call` RPC、启停与崩溃隔离、`plugins.backends` 状态、
+  编译产物带上 worker。设计说明见 [plugin-backend.md](plugin-backend.md)。
+  agent 沙箱禁止 spawn，`fork` 在沙箱里是 `EPERM`（状态会正确落成 failed），
+  真实验证要在用户终端跑。
+- 第二十一批：**插件生命周期** —— `activation` / `dependencies` / `core` /
+  `essential` / `experimental` / `defaultDisabled` / `uninstall` 解析；启用判定与
+  `enabled` 偏好集合；`onStartup` / `onView` / 按需三种激活；依赖递归激活；
+  安装事务（staging + 再校验 + 备份 + 原子 rename + 升级保留启用状态）；卸载脚本
+  （子进程执行、失败不删目录）；设置页置灰 core / essential。设计说明见
+  [plugin-lifecycle.md](plugin-lifecycle.md)。
+- 第二十二批：**插件存储与桌面能力** —— `PluginStorage`（每插件 JSON、同步视图、
+  合并写盘、卸载清理）、`PluginCapabilities`（`os.*` 权限检查 + shell 反向桥）、
+  worker 的 `ctx.storage` / `ctx.host`、bootstrap 存储快照、协议新增
+  `storage:*` / `host-call`、shell 白名单扩展（外链 / 路径 / 对话框 / 剪贴板 /
+  通知）。设计说明见 [plugin-capabilities.md](plugin-capabilities.md)。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -401,6 +519,12 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 10. ~~**删掉 shell 的回退路径**~~ —— 已完成（第十七批）：禁用集合镜像、
     `host-views` 表、`reloadPlugin` 占位都删了，内建视图搬进 host。
     剩下**D10**（每包 `locale/*.json`）、视觉回归、`build:win` 实跑与签名。
+11. ~~**插件权限（mics 模型）**~~ —— 已完成（第十九批）：声明 / 校验 / `RpcAuthorizer`
+    / `useHost().api` / 详情页与信任确认。仍剩：
+    - **引擎级强制**：插件后端有独立进程后，把 `trust` / `fs` / `exec` / `net`
+      映射到 Node 的 `--permission`（mics 的做法），现在只有声明式边界；
+    - `os` / `exec` 还没有对应的宿主 RPC，只展示不执行；`net` 的 hosts / ports
+      未在调用时逐条比对。
 
 ### 4.1 迁移完成度（哪些还在旧实现）
 
@@ -411,6 +535,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 nativeTheme 走反向桥）**；**AI 供应商 / 密钥仓**；通用 RPC；host 启动必需。
 
 **仍在 shell**（按 D7 本来就该在 shell 的那部分）：
+
 - logger（日志文件归 shell，host 的 stdout 由它接管，不打算搬）；
 - window / menu / tray / update / dialog / confirm（按 D7 属于 shell）；
 - 核心 UI 组件：**已全部进包**（`client-kit` + 三个窗口包），`apps/desktop/renderer/src`
@@ -449,6 +574,36 @@ host 现在是启动必需的，不再需要 `NIDE_HOST`。日志里应能看到
 - 打包后的插件 UI：`pnpm build:plugin-clients && pnpm build:unpack`，用
   `electron.exe dist/win-unpacked/resources/app.asar` 起，`client bundle loaded` 的 `url`
   应是 `nide-plugin://plugin/builtin.demo/client.js`。
+- 权限：
+  - 设置 → 插件 → 详情页「权限」应显示信任级别（内置的 demo / ai-provider 是老数组
+    声明，显示「完全权限」）；
+  - 手工造一个 `"permissions": { "trust": "sandboxed", "fs": { "read": ["${project}"] } }`
+    的第三方插件，启用确认文案应是「受限权限」那一版；
+  - 让它通过 `useHost().api` 读项目内的文件（应成功）、读项目外的路径（应报
+    `permission-denied`）；宿主日志里 `Plugin directories scanned` 之后没有权限告警。
+- 插件后端（需要用户终端，`fork` 在 agent 沙箱里 EPERM）：
+  - 造一个第三方插件：`manifest.json` 带 `"main": "dist/main.js"`，入口
+    `export default { activate(host) { host.handle('hello', () => 'world') } }`；
+  - 启动后日志应有 `插件后端已启动`；`window.nideHost.invoke('plugin','call','<id>','hello')`
+    返回 `world`；禁用插件后进程退出，再启用能重新拉起；
+  - 把 `permissions` 改成 `{ "trust": "sandboxed", "fs": { "read": ["${userData}"] } }`，
+    在后端里 `fs.readFileSync('项目里某个文件')` 应 EACCES（引擎级），读
+    `${userData}` 下的文件应成功。
+- 生命周期（用户终端）：
+  - 同一个插件目录改版本再装一次：`pnpm dev` 的插件页应显示新版本，启用状态不变；
+  - 清单加 `"defaultDisabled": true`：首次出现时是关的，启用后重启仍是开的；
+  - `"core": true`：复选框置灰，`plugins.setEnabled` 不生效；
+  - 清单加 `"activation": ["onView:<viewId>"]`：只有打开那个视图后 `plugins.backends`
+    才出现 running（之前是 stopped）；
+  - 清单加 `"uninstall": "dist/uninstall.js"`：卸载时脚本在子进程里跑；把脚本改成
+    `throw new Error('x')`，卸载应返回 `uninstall-failed` 且插件目录还在。
+- 存储与桌面能力（用户终端）：
+  - 后端 `host.storage.set('k', 1)`，重启应用后 `get('k')` 仍是 1；
+    `%APPDATA%\NIDE\plugin-storage\<id>.json` 能看到内容；
+  - 声明 `"os": { "openExternal": true }` 后 `host.openExternal('https://example.com')`
+    打开浏览器；去掉声明后同一调用应 reject（`没有声明权限 os.openExternal`）；
+  - `os.dialogs: "open"` 时 `showOpenDialog()` 弹系统选择框；`os.clipboard` 为
+    `write` 时读剪贴板应被拒绝。
 
 常用命令：
 
@@ -477,48 +632,59 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 
 ## 6. 关键文件
 
-| 文件 | 说明 |
-| --- | --- |
-| `electron-builder.yml` | 打包：`asar: false`，显式带上 host 源码 / boot / hello / shared / profiles / plugins |
-| `packages/shell/src/main/host/process.ts` | spawn host、ready、attach port、`invokeHost`（shell→host RPC）、stop |
-| `packages/shell/src/main/host/project.ts` | shell 侧的项目客户端：list / startup / open / forget / close（都走 `invokeHost`） |
-| `packages/shell/src/main/window.ts` | 建窗；`boundProjectPath`（主窗口绑定的项目）；`openStartupWindow()` 等 host 的启动结论 |
-| `packages/shell/src/main/index.ts` | 启动时拉起 host；`browser-window-created` 挂 port；`will-quit` 停 host |
-| `packages/shell/src/main/ipc/project.ipc.ts` | 目录对话框 / 窗口切换 / 二次确认 + 转发到 host |
-| `packages/shell/src/main/ipc/host.ipc.ts` | 其余宿主 IPC（插件、主题、i18n、`host:get-client-bundles`） |
-| `packages/shell/src/preload/index.ts` | `nideHost` 桥、host 优先回退、`__NIDE_BOOT__` |
-| `src/shared/host-rpc/index.ts` | RPC 协议 |
-| `packages/host/src/rpc.ts` | RpcRegistry（renderer port 与 shell 父端口共用） |
-| `packages/host/src/ipc.ts` | 父端口 / renderer port 的 transport 与 RPC 分发 |
-| `packages/host/src/services/project-store.ts` | `projects.json` 的唯一实现：列表 / 当前 / 启动恢复 / 打开 / 移除 / 关闭 |
-| `packages/host/src/services/project-files.ts` | host 文件 / 章节 / 伏笔 / 图鉴 / 概述的读写 |
-| `packages/host/src/services/project-config.ts` | host 项目配置（load / update / initialize / registry / remap） |
-| `packages/host/src/services/plugins.ts` | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做） |
+| 文件                                                 | 说明                                                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `electron-builder.yml`                               | 打包：`asar: false`，显式带上 host 源码 / boot / hello / shared / profiles / plugins       |
+| `packages/shell/src/main/host/process.ts`            | spawn host、ready、attach port、`invokeHost`（shell→host RPC）、stop                       |
+| `packages/shell/src/main/host/project.ts`            | shell 侧的项目客户端：list / startup / open / forget / close（都走 `invokeHost`）          |
+| `packages/shell/src/main/window.ts`                  | 建窗；`boundProjectPath`（主窗口绑定的项目）；`openStartupWindow()` 等 host 的启动结论     |
+| `packages/shell/src/main/index.ts`                   | 启动时拉起 host；`browser-window-created` 挂 port；`will-quit` 停 host                     |
+| `packages/shell/src/main/ipc/project.ipc.ts`         | 目录对话框 / 窗口切换 / 二次确认 + 转发到 host                                             |
+| `packages/shell/src/main/ipc/host.ipc.ts`            | 其余宿主 IPC（插件、主题、i18n、`host:get-client-bundles`）                                |
+| `packages/shell/src/preload/index.ts`                | `nideHost` 桥、host 优先回退、`__NIDE_BOOT__`                                              |
+| `src/shared/host-rpc/index.ts`                       | RPC 协议                                                                                   |
+| `packages/host/src/rpc.ts`                           | RpcRegistry（renderer port 与 shell 父端口共用）                                           |
+| `packages/host/src/ipc.ts`                           | 父端口 / renderer port 的 transport 与 RPC 分发                                            |
+| `packages/host/src/services/project-store.ts`        | `projects.json` 的唯一实现：列表 / 当前 / 启动恢复 / 打开 / 移除 / 关闭                    |
+| `packages/host/src/services/project-files.ts`        | host 文件 / 章节 / 伏笔 / 图鉴 / 概述的读写                                                |
+| `packages/host/src/services/project-config.ts`       | host 项目配置（load / update / initialize / registry / remap）                             |
+| `packages/host/src/services/plugins.ts`              | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做）                            |
+| `packages/contracts/src/plugin-api/permissions.ts`   | 权限声明：类型 / 校验归一化 / 变量展开 / 路径判断（浏览器安全）                            |
+| `packages/services/plugins/src/permissions.ts`       | 权限执行：`RpcAuthorizer` 的能力映射与 fs 作用域检查                                       |
+| `packages/sdk/src/plugin-views/plugin-api.ts`        | 插件侧受限宿主 API（`useHost().api`，带 caller）                                           |
+| `packages/services/plugins/src/backend/runtime.ts`   | 插件后端子进程：权限参数、fork、RPC、起停 / 重扫对齐                                       |
+| `packages/services/plugins/src/backend/worker.ts`    | 子进程运行时：装载 `main`、`activate(host)`、方法注册                                      |
+| `packages/contracts/src/plugin-api/backend.ts`       | 后端插件类型（`PluginBackend` / `PluginBackendHost`）                                      |
+| `packages/services/plugins/src/backend/uninstall.ts` | 卸载脚本：子进程执行、超时、存储快照                                                       |
+| `packages/contracts/src/plugin-api/preference.ts`    | 启用状态：disabled / enabled / core / essential / defaultDisabled                          |
+| `packages/services/plugins/src/storage.ts`           | 插件存储：每插件 JSON、合并写盘、flush / remove                                            |
+| `packages/services/plugins/src/capabilities.ts`      | 桌面能力：`os.*` 权限检查 + 转发到 shell                                                   |
+| `packages/shell/src/main/host/capabilities.ts`       | 反向桥实现：白名单方法 + 参数收敛（外链 / 对话框 / 剪贴板 / 通知）                         |
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
-| `packages/host/src/services/i18n.ts` | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析 |
-| `packages/client-kit/src` | 客户端共享层：stores / ui / window 外壳 / logger / icons（`@nide/client-kit/*`） |
-| `packages/host/src/services/appearance.ts` | host 侧主题 / 外观：`appearance.json` 偏好 + 主题解析（nativeTheme 走反向桥） |
-| `packages/host/src/services/ai-provider.ts` | host 侧 AI 供应商：配置 / 测试连接 / SSE 转发 |
-| `packages/host/src/services/secrets.ts` | host 侧密钥仓（密文落盘；加解密走 `safeStorage` 反向桥） |
-| `packages/shell/src/main/ipc/ai-provider.ipc.ts` | shell 边界：启用检查 + 把分片转给发起窗口（`subscribeHostStream`） |
-| `packages/shell/src/main/appearance/index.ts` | shell 的 `AppearanceState` 缓存（窗口底色 / 启动参数要同步） |
-| `packages/host/src/services/builtin-views.ts` | 三条内建视图（文件树 / 版本控制 / 提交），标题由 host 按当前语言解析 |
-| `packages/shell/src/main/i18n/index.ts` | shell 的载荷缓存 + `t()` + 切语言入口（语言与词条都在 host） |
-| `packages/shell/src/main/protocol/plugin-bundles.ts` | `nide-plugin://` 协议：打包后按 pluginId 从 host 清单取 bundle 文件 |
-| `src/shared/plugin-api/contributions.ts` | 贡献点的纯数据契约（未解析的 `titleSpec`、插件目录内相对路径） |
-| `src/shared/i18n/locale-tag.ts` | 语言标签规范化 + 候选链（自包含，host 也能直接加载） |
-| `packages/client-runtime/src/index.ts` | 客户端树、slots/modules、bundle 加载 |
-| `packages/client-runtime/src/loader.ts` | bundle 注入：dev 走 `/@fs/`，打包后走 `nide-plugin://` |
-| `packages/client-ui-slots/src/index.ts` | `SlotRegistry` / `slotsOf` |
-| `packages/client-modules/src/index.ts` | `ClientModuleRegistry` / `modulesOf` |
-| `packages/client-ui-renderer/src/index.tsx` | `<SlotProvider>` / `<Slot>` |
-| `apps/desktop/renderer/src/plugins/PluginSlot.tsx` | 先查注册表，再回退 glob |
-| `plugins/builtin/demo/src/ui/client-entry.tsx` | bundle 入口 |
-| `scripts/build-plugin-client.mjs` | IIFE 构建 |
-| `scripts/build-host.mts` | 编译 host 到 `out/host`（TS Node API，不 spawn） |
-| `src/shared/project/store.ts` | 纯 store 模型 |
-| `src/shared/project/package.json` | ESM 标记 + `#project/*` 子路径导入映射 |
-| `src/shared/project/yaml.ts` | 最小 YAML（原 `src/shared/yaml`，搬进 project 包以便 `#project/yaml`） |
+| `packages/host/src/services/i18n.ts`                 | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析                      |
+| `packages/client-kit/src`                            | 客户端共享层：stores / ui / window 外壳 / logger / icons（`@nide/client-kit/*`）           |
+| `packages/host/src/services/appearance.ts`           | host 侧主题 / 外观：`appearance.json` 偏好 + 主题解析（nativeTheme 走反向桥）              |
+| `packages/host/src/services/ai-provider.ts`          | host 侧 AI 供应商：配置 / 测试连接 / SSE 转发                                              |
+| `packages/host/src/services/secrets.ts`              | host 侧密钥仓（密文落盘；加解密走 `safeStorage` 反向桥）                                   |
+| `packages/shell/src/main/ipc/ai-provider.ipc.ts`     | shell 边界：启用检查 + 把分片转给发起窗口（`subscribeHostStream`）                         |
+| `packages/shell/src/main/appearance/index.ts`        | shell 的 `AppearanceState` 缓存（窗口底色 / 启动参数要同步）                               |
+| `packages/host/src/services/builtin-views.ts`        | 三条内建视图（文件树 / 版本控制 / 提交），标题由 host 按当前语言解析                       |
+| `packages/shell/src/main/i18n/index.ts`              | shell 的载荷缓存 + `t()` + 切语言入口（语言与词条都在 host）                               |
+| `packages/shell/src/main/protocol/plugin-bundles.ts` | `nide-plugin://` 协议：打包后按 pluginId 从 host 清单取 bundle 文件                        |
+| `src/shared/plugin-api/contributions.ts`             | 贡献点的纯数据契约（未解析的 `titleSpec`、插件目录内相对路径）                             |
+| `src/shared/i18n/locale-tag.ts`                      | 语言标签规范化 + 候选链（自包含，host 也能直接加载）                                       |
+| `packages/client-runtime/src/index.ts`               | 客户端树、slots/modules、bundle 加载                                                       |
+| `packages/client-runtime/src/loader.ts`              | bundle 注入：dev 走 `/@fs/`，打包后走 `nide-plugin://`                                     |
+| `packages/client-ui-slots/src/index.ts`              | `SlotRegistry` / `slotsOf`                                                                 |
+| `packages/client-modules/src/index.ts`               | `ClientModuleRegistry` / `modulesOf`                                                       |
+| `packages/client-ui-renderer/src/index.tsx`          | `<SlotProvider>` / `<Slot>`                                                                |
+| `apps/desktop/renderer/src/plugins/PluginSlot.tsx`   | 先查注册表，再回退 glob                                                                    |
+| `plugins/builtin/demo/src/ui/client-entry.tsx`       | bundle 入口                                                                                |
+| `scripts/build-plugin-client.mjs`                    | IIFE 构建                                                                                  |
+| `scripts/build-host.mts`                             | 编译 host 到 `out/host`（TS Node API，不 spawn）                                           |
+| `src/shared/project/store.ts`                        | 纯 store 模型                                                                              |
+| `src/shared/project/package.json`                    | ESM 标记 + `#project/*` 子路径导入映射                                                     |
+| `src/shared/project/yaml.ts`                         | 最小 YAML（原 `src/shared/yaml`，搬进 project 包以便 `#project/yaml`）                     |
 
 ## 7. 不可破坏的约定
 
@@ -554,10 +720,32 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     import 的是同类自包含文件。跨目录引用 `@nide/contracts/*` 在 host 里解析不了；共享目录
     内的相对导入在 NodeNext 下要写 `./x.js`（见 `plugin-api/contributions.ts`）——
     纯类型导入会被擦除，安全。
+16. **插件 UI 调宿主只用 `useHost().api`**：它会把插件 id 带进 RPC，宿主才能按
+    `permissions` 检查。`window.hostAPI` 是宿主自己的入口，插件直接用它等于绕过
+    权限声明（也是屏障的全部边界，别当沙箱）。
+17. **权限检查只挂在 `RpcRegistry` 的 authorizer 上**：不要在服务 handler 里各写一份。
+    新能力加进 `capabilityOf()` / `pathsOf()`（`packages/services/plugins/src/permissions.ts`），
+    并补 `test/host/plugin-permissions.test.ts`。
+18. **插件后端代码只在子进程里跑**：宿主不 `import` 插件 `main`，只 `fork` 它；
+    任何「先在宿主里试一下」的捷径都会让进程边界失效。
+19. **后端方法的唯一入口是 `plugin.call(pluginId, method, params)`**：不要按插件名
+    注册 RPC 命名空间，否则插件数量会长到 RPC 表里。
+20. **启用状态只有一个判定函数**：`isPluginEnabled(preference, id, flags)`。不要再写
+    「没在 disabled 里就是启用」——`defaultDisabled` / `core` / `essential` 都会让它判错。
+21. **安装是事务**：`.staging` → 再校验 → 备份 → 原子 rename；失败要回滚。
+    新装默认禁用、升级保留启用状态，这两条不要合并成一条逻辑。
+22. **卸载脚本失败不删目录**：返回 `uninstall-failed`，让用户看到错误并重试；
+    删了目录再报错等于把插件数据弄丢。
+23. **桌面能力永远要声明**：`trust: 'full'` 也不自动放行 `os.*` —— 完全信任约束的是
+    文件 / 子进程，不是替用户点外链、弹对话框、读剪贴板。
+24. **存储只按插件命名空间**：宿主侧 API 必须显式传 `pluginId`（`storage.set(id, ...)`），
+    不要给存储服务加「全局命名空间」的捷径；跨插件共享数据应走插件之间的 IPC。
+25. **shell 白名单是第二层**：`PluginCapabilities` 检查的是「这个插件有没有声明」，
+    shell 检查的是「参数能不能执行」。两层都不要省。
 
 ## 8. 踩过的坑（别再踩）
 
-1. **Cordis Context 增强**：`declare module '@deepseek-ai/cordis' { interface Context { slots } }`
+1. **Cordis Context 增强**：`declare module 'cordis' { interface Context { slots } }`
    会让 `plugin` / `effect` 全部丢失。用 `slotsOf(ctx)` / `modulesOf(ctx)` 显式取服务。
 2. **Node type stripping 不支持参数属性**：`constructor(private x: string)` 会
    `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`；写成显式字段。
@@ -585,8 +773,8 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     `ResizeObserver loop completed with undelivered notifications`。现在的规则是高度
     重算排进下一帧、同一帧只排一次，`chapter-body` 只把宽度变化当重新布局的信号。
 13. **GPU 子进程起不来会让应用「双击没反应」**：`gpu_process_host.cc: GPU process
-    launch failed` 之后 `gpu_data_manager_impl_private.cc: GPU process isn't usable.
-    Goodbye.`，浏览器进程 0.2 秒就退出（host 握手要 ~0.4 秒，所以日志里连
+launch failed` 之后 `gpu_data_manager_impl_private.cc: GPU process isn't usable.
+Goodbye.`，浏览器进程 0.2 秒就退出（host 握手要 ~0.4 秒，所以日志里连
     `host process is ready` 都没有）。某些机器/杀软环境下即使签名与否无关也会这样，
     手动 `--disable-gpu` 可绕过。现在的兜底见 `packages/shell/src/main/compat.ts`：连续两次
     `launch-failed` 写 `<userData>/compat/disable-gpu` 标记并带 `--disable-gpu` 重启，
@@ -604,7 +792,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 16. **首窗现在要等 host（约 0.4s）**：`openStartupWindow()` 依赖 host 读
     `projects.json`。看不到窗口时先看日志里有没有 `host process is ready` —— 没有就是
     host 没起来，15s 后会回落成欢迎窗口（同时日志里有 `Failed to resolve the startup
-    project through host`）。别再在 shell 里加一份 `projects.json` 的读法来「加速启动」，
+project through host`）。别再在 shell 里加一份 `projects.json` 的读法来「加速启动」，
     那正是上一轮删掉的东西。
 17. **自定义协议 + CSP 是两处，缺一不可**：`nide-plugin://` 的 scheme 权限必须在
     `app.whenReady()` **之前**登记（ready 之后登记无效），而页面里的 `<script>` 要能
@@ -620,6 +808,38 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 20. **`plugins.views` / `plugins.settings` 的标题依赖当前语言**：切语言后**必须**重建
     窗口（渲染进程会重新拉一次），否则视图标题停在旧语言。切语言那条路已经在
     `recreateRootWindow()` 里，别在别处缓存视图列表。
+21. **权限声明写错会整份丢掉插件**：`permissions` 校验失败时 `toEntry` 返回 null，
+    启动日志里是 `Plugin permissions are invalid`。别为了「宽容」把错误降级成
+    `{ trust: 'full' }` —— 那等于悄悄放开它没声明的能力。
+22. **老字符串数组 = 完全信任**：`["network", "secrets:own"]` 归一化出来是
+    `trust: 'full'`，`fs` 不受限。想要作用域必须写 v2 对象并显式
+    `trust: 'sandboxed'`；`net.mode = 'all'` 也只能配 full。
+23. **沙箱权限只对 `useHost().api` 生效**：插件直接 `window.hostAPI` /
+    `window.nideHost` 仍然绕过（同一渲染进程）。别把这条边界写成「沙箱」，
+    真正的隔离要等插件后端独立进程。
+24. **`fs` 检查取不到路径就拒绝**：`pathsOf()` 覆盖了现有的 files / gallery /
+    overview / config 方法；新加“带路径”的 RPC 时忘了登记，sandboxed 插件会被
+    一律拒绝（症状是插件报「没有可判定的路径」），不是静默放行 —— 这是有意的。
+25. **`manifest.main` 要 ESM、在插件目录内、文件真实存在**：三条任一条不满足都
+    只忽略后端（视图照常加载），启动日志里是 `Plugin main ...` 开头的告警。改了
+    `main` 的路径后记得重启 host，扫描发生在启动时。
+26. **`sandboxed` 的 worker 只能读 worker 自身、插件目录、声明的作用域**：插件依赖
+    必须随插件目录一起分发（目录内的 `node_modules` 可以）。目录外的包在引擎层
+    读不到，症状是 `import` 报 EACCES。
+27. **agent 沙箱里 `fork` 是 EPERM**：宿主会把它记成后端 `failed` 并继续跑，别把
+    这个失败当成代码 bug；真实后端要在用户终端验证。
+28. **`activationEvents` 是 `activation` 的别名**：解析在 `parseActivation` 一处完成，
+    别在别的地方再读原字段（否则两份判断会漂移）。
+29. **`plugins.disabled` 现在是「实际禁用集合」**：包含 `defaultDisabled` 且用户没有
+    显式启用的插件。界面过滤视图时不要再去读偏好文件里的 `disabled` 原始数组。
+30. **`setEnabled` 对 core / essential 是空操作**：界面复选框已置灰，但别依赖界面 ——
+    宿主侧必须自己拒绝，否则一次 RPC 就能禁掉内核插件。
+31. **`PluginSlot` 打开视图会触发 `plugins.activateView`**：这是 `onView` 的唯一信号，
+    别在渲染循环里反复调（effect 的依赖只有 `viewId`）。
+32. **存储必须先 flush 再停进程**：worker 的写入有 100ms 合并窗口，`dispose` 前
+    不 flush 会丢掉最后几次 `set`。停用 / 卸载 / 宿主退出三条路径都做了。
+33. **`os` 能力检查不看 trust**：`allowsLegacy` 只读声明；别用权限 guard 的
+    `allows()`（它对 full 直接放行）来判断桌面能力，否则 full 插件会绕过声明。
 
 ## 9. 待定的设计问题
 
@@ -637,7 +857,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 ## 10. 建议的下一会话起手式
 
 > 先读 `docs/architecture/HANDOFF.md`、`cordis-migration.md`、`plugin-ui-bundles.md`、
-> `plugin-first-layout.md`（后者说明「一切皆插件」的目标目录与阶段计划）。
+> `plugin-permissions.md`、`plugin-first-layout.md`（后者说明「一切皆插件」的目标目录与阶段计划）。
 > 当前状态：**迁移已完成**。项目数据 / 插件清单与贡献点 / 本地化 / 主题 /
 > AI 与密钥仓的**实现只有一份**，在 host；窗口 UI 全部在 `packages/client-ui-*`，
 > `apps/desktop/renderer/src` 只剩引导壳。客户端 slots 与运行时 bundle 在 **dev 与打包后都
@@ -647,6 +867,18 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 > 剩下的都是「验证 + 发布」：`pnpm test` / `pnpm dev` 的用户复验、`build:win` 实跑、
 > 代码签名（`CSC_LINK` / `CSC_KEY_PASSWORD`）、D10（每包 `locale/*.json`）、视觉回归。
 > npm 安装来源已明确跳过。
+> 运行时依赖是**公开** `cordis` + `@cordisjs/plugin-*`（第十八批），仓库内没有任何
+> `@deepseek-ai/*`；升级这两个只需改 `package.json`，代码不用动。
+> 插件权限已对齐 mics（第十九批）：声明 / 校验在
+> `packages/contracts/src/plugin-api/permissions.ts`，执行在 `RpcAuthorizer`，
+> 插件 UI 一律用 `useHost().api`；边界与限制见
+> `docs/architecture/plugin-permissions.md`（不是沙箱）。
+> 插件后端已接（第二十批）：`manifest.main` 在子进程里跑，`sandboxed` 由 Node
+> `--permission` 强制；API 与限制见 `docs/architecture/plugin-backend.md`。
+> 生命周期已对齐 mics（第二十一批）：默认禁用 / 核心标记 / 激活事件 / 依赖 /
+> 安装升级事务 / 卸载脚本，见 `docs/architecture/plugin-lifecycle.md`。
+> 存储与桌面能力已接（第二十二批）：`ctx.storage` / `ctx.host`，`os.*` 权限检查后
+> 经 shell 反向桥执行，见 `docs/architecture/plugin-capabilities.md`。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
@@ -666,7 +898,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       视图标题、设置树子页、语言切换（中文 <-> English）、换主题（深/浅，窗口底色
       不该露异色）、AI 供应商设置页的读写与测试连接（需要真 key 才测连通）都正常
 - [x] **打包后插件 UI**：`pnpm build:unpack` 产物用 `electron.exe
-      resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
+resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
       `nide-plugin://plugin/builtin.demo/client.js`，随后 `view served by client modules`
       —— 说明协议、CSP、host 清单三处都对上了
 - [x] 图鉴 / 概述 / 角色图鉴 / 项目配置读路径正常
@@ -689,14 +921,12 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
       跑编译产物 —— host ready、3 个内建插件、语言包 309 条、demo 的
       `dist/client.js` 都按打包后的路径解析正确。asar 本体（真的 `app.asar` 与
       Electron 的 asar 文件系统）仍需 `build:unpack` 实测。
-- [x] 用户第一轮验证（`pnpm test` + `pnpm dev`）发现两处问题，已修：
-      1. `test/shared/host/host-channels.test.ts` 钉住的通道表里还有已删除的
-         `reloadPlugin` —— 断言随之更新；
-      2. `PluginSettingsSlot` 的 `import.meta.glob` 少算一层（文件搬进
-         `packages/client-ui-settings/src/` 后只该有 3 层 `../../../`），表为空
-         → 设置页显示「找不到 UI 模块」。两个 slot 的 key 解析同时改成**按尾部匹配**，
-         不再各自维护一个 `GLOB_PREFIX`；新增 `test/renderer/plugin-ui-glob.test.ts`
-         读源码里的 pattern 解析成绝对路径、确认真的能匹配到入口文件。
+- [x] 用户第一轮验证（`pnpm test` + `pnpm dev`）发现两处问题，已修：1. `test/shared/host/host-channels.test.ts` 钉住的通道表里还有已删除的
+      `reloadPlugin` —— 断言随之更新；2. `PluginSettingsSlot` 的 `import.meta.glob` 少算一层（文件搬进
+      `packages/client-ui-settings/src/` 后只该有 3 层 `../../../`），表为空
+      → 设置页显示「找不到 UI 模块」。两个 slot 的 key 解析同时改成**按尾部匹配**，
+      不再各自维护一个 `GLOB_PREFIX`；新增 `test/renderer/plugin-ui-glob.test.ts`
+      读源码里的 pattern 解析成绝对路径、确认真的能匹配到入口文件。
 - [ ] 用户第二轮验证：`pnpm test`、`pnpm dev`（重点：**设置 -> 插件 -> AI 供应商**的
       设置页要能渲染）、`pnpm build:unpack`（asar 与 `app.asar.unpacked` 布局）。
       **用户说了先不合并，验证通过再决定。**

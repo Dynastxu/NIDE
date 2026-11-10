@@ -1,4 +1,13 @@
-import { nativeTheme, safeStorage } from 'electron'
+import path from 'node:path'
+import {
+  BrowserWindow,
+  Notification,
+  clipboard,
+  dialog,
+  nativeTheme,
+  safeStorage,
+  shell
+} from 'electron'
 import { isShellCall, type ShellCall, type ShellCallResult } from '@nide/contracts/host-rpc'
 import { loggerFor } from '../logger'
 import type { UtilityProcess } from 'electron'
@@ -73,6 +82,123 @@ const handlers: Record<string, Handler> = {
 
     const decrypted = await safeStorage.decryptStringAsync(Buffer.from(ciphertext, 'base64'))
     return { plaintext: decrypted.result, shouldReEncrypt: decrypted.shouldReEncrypt }
+  },
+
+  /**
+   * 桌面能力（插件后端的 `ctx.host.*`）。
+   *
+   * host 只在插件**声明过**对应 `permissions.os` 时才发这些调用；这里再做一次
+   * 参数收敛 —— 白名单只保证方法名可信，参数仍然来自插件进程。
+   */
+  'shell.openExternal': async (args) => {
+    const url = args[0]
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      throw new Error('shell.openExternal expects an http(s) URL')
+    }
+    await shell.openExternal(url)
+    return true
+  },
+
+  'shell.openPath': async (args) => {
+    const target = args[0]
+    if (typeof target !== 'string' || target.length === 0 || !path.isAbsolute(target)) {
+      throw new Error('shell.openPath expects an absolute path')
+    }
+    const failure = await shell.openPath(target)
+    if (failure) throw new Error(failure)
+    return true
+  },
+
+  'dialog.open': async (args) => {
+    const options = openDialogOptions(args[0])
+    const window = BrowserWindow.getFocusedWindow()
+    const result = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options)
+    return result.canceled ? [] : result.filePaths
+  },
+
+  'dialog.save': async (args) => {
+    const options = saveDialogOptions(args[0])
+    const window = BrowserWindow.getFocusedWindow()
+    const result = window
+      ? await dialog.showSaveDialog(window, options)
+      : await dialog.showSaveDialog(options)
+    return result.canceled ? null : (result.filePath ?? null)
+  },
+
+  'clipboard.readText': () => clipboard.readText(),
+
+  'clipboard.writeText': (args) => {
+    const text = args[0]
+    if (typeof text !== 'string') throw new Error('clipboard.writeText expects a string')
+    clipboard.writeText(text)
+    return true
+  },
+
+  'notification.show': (args) => {
+    const raw = args[0]
+    if (!raw || typeof raw !== 'object') throw new Error('notification.show expects an object')
+    const { title, body } = raw as { title?: unknown; body?: unknown }
+    if (typeof title !== 'string' || title.trim().length === 0) {
+      throw new Error('notification.show expects a non-empty title')
+    }
+    if (body !== undefined && typeof body !== 'string') {
+      throw new Error('notification.show expects a string body')
+    }
+    if (!Notification.isSupported()) throw new Error('system notifications are not supported')
+
+    new Notification({ title, ...(typeof body === 'string' ? { body } : {}) }).show()
+    return true
+  }
+}
+
+type DialogFilters = { name: string; extensions: string[] }[]
+
+function dialogFilters(raw: unknown): DialogFilters | undefined {
+  if (raw === undefined) return undefined
+  if (!Array.isArray(raw)) throw new Error('dialog filters must be an array')
+
+  return raw.map((item) => {
+    if (!item || typeof item !== 'object') throw new Error('invalid dialog filter')
+    const { name, extensions } = item as { name?: unknown; extensions?: unknown }
+    if (typeof name !== 'string' || !Array.isArray(extensions)) {
+      throw new Error('invalid dialog filter')
+    }
+    if (!extensions.every((extension) => typeof extension === 'string')) {
+      throw new Error('invalid dialog filter extensions')
+    }
+    return { name, extensions: [...extensions] }
+  })
+}
+
+function openDialogOptions(raw: unknown): Electron.OpenDialogOptions {
+  if (raw !== undefined && (typeof raw !== 'object' || raw === null)) {
+    throw new Error('dialog.open expects an object')
+  }
+  const options = (raw ?? {}) as Record<string, unknown>
+  const properties: Electron.OpenDialogOptions['properties'] = []
+  if (options.directories === true) properties.push('openDirectory')
+  else properties.push('openFile')
+  if (options.multiple === true) properties.push('multiSelections')
+
+  const filters = dialogFilters(options.filters)
+  return {
+    ...(typeof options.defaultPath === 'string' ? { defaultPath: options.defaultPath } : {}),
+    ...(filters ? { filters } : {}),
+    properties
+  }
+}
+
+function saveDialogOptions(raw: unknown): Electron.SaveDialogOptions {
+  if (raw !== undefined && (typeof raw !== 'object' || raw === null)) {
+    throw new Error('dialog.save expects an object')
+  }
+  const options = (raw ?? {}) as Record<string, unknown>
+  const filters = dialogFilters(options.filters)
+  return {
+    ...(typeof options.defaultPath === 'string' ? { defaultPath: options.defaultPath } : {}),
+    ...(filters ? { filters } : {})
   }
 }
 

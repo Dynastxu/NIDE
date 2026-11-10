@@ -140,7 +140,10 @@ pnpm build:plugin-demo             # 只构建 demo（--only demo，迭代时用
 - **没有 HMR**：改插件 UI 需要重新 `build:plugin-demo` 并刷新页面。
 - **没有版本/能力校验**：bundle 与宿主的 React 版本、API 版本目前靠约定。
 - **信任模型**：bundle 在 renderer 里执行，拥有与宿主 UI 相同的 DOM/`hostAPI` 权限。
-  没有沙箱；安装第三方插件时按“完全信任的代码”处理。
+  没有沙箱；安装第三方插件时按“完全信任的代码”处理。插件**应该**只用
+  `useHost().api` 调宿主 —— 那条路会带上插件 id，宿主按 manifest 的 `permissions`
+  检查（见 [plugin-permissions.md](plugin-permissions.md)）；直接摸
+  `window.hostAPI` 仍然能绕过，所以权限是声明式边界，不是隔离。
 
 ## 为什么不在 renderer 里直接 import 磁盘 TSX
 

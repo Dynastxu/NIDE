@@ -1,5 +1,6 @@
 // host 也要用这里的类型：NodeNext 要求显式扩展名（`.js` 映射到 `.ts`），纯类型导入运行时会被擦除
 import type { LocaleContribution } from '../i18n/types.js'
+import type { LegacyPermission, PluginPermissions } from './permissions.js'
 import type { ViewChromeOptions, ViewLocation } from './view.js'
 
 export interface PluginManifest {
@@ -10,8 +11,11 @@ export interface PluginManifest {
   /** 版本号 */
   version: string
   /**
-   * 插件「后端」入口（相对于插件目录），例如 "dist/index.js"。
-   * 当前阶段宿主不启动插件后端，可以先不提供。
+   * 插件「后端」入口（相对于插件目录的 ESM 文件），例如 "dist/main.js"。
+   *
+   * 宿主把它放在**独立子进程**里跑：默认导出 `{ activate(host), deactivate? }`
+   * （或直接一个函数）。`permissions.trust: 'sandboxed'` 时文件 / 子进程权限由
+   * Node 的 `--permission` 强制。纯 UI 插件可以不提供。
    */
   main?: string
 
@@ -34,11 +38,18 @@ export interface PluginManifest {
   activationEvents?: string[]
 
   /**
-   * 权限声明：当前用于插件详情展示，以及宿主代理 API（secrets / storage 等）的
-   * 准入判断。**它不是沙箱**：`network` / `fs` 这类能力不会被强制执行，插件
-   * 后端（尚未实现）仍然握有完整 Node 权限。别把它当安全边界宣传。
+   * 权限声明。两种写法：
+   *
+   * - **老数组**（`["network", "secrets:own"]`）—— 归一化成
+   *   `{ trust: 'full', ... }`，与迁移前「插件拥有完整权限」的行为一致；
+   * - **v2 对象**（`{ trust: 'sandboxed', fs: { read: ['${project}'] } }`）——
+   *   宿主按声明拦截。`trust: 'full'` 仍然不限制文件 / 网络 / 子进程，
+   *   `sandboxed` 才会检查作用域。
+   *
+   * 缺省 = `{ trust: 'full' }`。声明写错会让整个 manifest 被拒绝（不会静默
+   * 降级成完全信任）。形状与校验规则见 `./permissions.ts`。
    */
-  permissions?: string[]
+  permissions?: PluginPermissions | LegacyPermission[]
 
   /**
    * 这个插件依赖的其它插件 id。

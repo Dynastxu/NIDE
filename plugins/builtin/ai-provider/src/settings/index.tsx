@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
-import { usePluginTranslator } from '@nide/sdk/plugin-views/host-context'
+import { useHost, usePluginTranslator } from '@nide/sdk/plugin-views/host-context'
+import type { PluginHostApi } from '@nide/sdk/plugin-views/plugin-api'
 import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
 import {
   DEFAULT_DEEPSEEK_BASE_URL,
@@ -117,8 +118,8 @@ function toDraft(provider: ProviderSummary): Draft {
 
 type Busy = 'loading' | 'saving' | 'testing' | 'removing' | null
 
-async function loadProviders(): Promise<ProviderSummary[]> {
-  return window.hostAPI.aiProvider.list()
+async function loadProviders(api: PluginHostApi): Promise<ProviderSummary[]> {
+  return api.aiProvider.list()
 }
 
 /**
@@ -136,6 +137,7 @@ export default function AiProviderSettings({
   registerActions
 }: SettingsPageProps): JSX.Element {
   const t = usePluginTranslator(MESSAGES)
+  const { api } = useHost()
   const [providers, setProviders] = useState<ProviderSummary[] | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft>(emptyDraft)
@@ -164,14 +166,14 @@ export default function AiProviderSettings({
 
   const reload = useCallback(async () => {
     try {
-      applyProviders(await loadProviders())
+      applyProviders(await loadProviders(api))
     } catch (err) {
       setProviders((prev) => prev ?? [])
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(null)
     }
-  }, [applyProviders])
+  }, [api, applyProviders])
 
   /**
    * 首次加载。
@@ -183,7 +185,7 @@ export default function AiProviderSettings({
   useEffect(() => {
     let cancelled = false
 
-    void loadProviders()
+    void loadProviders(api)
       .then((list) => {
         if (!cancelled) applyProviders(list)
       })
@@ -201,7 +203,7 @@ export default function AiProviderSettings({
     return () => {
       cancelled = true
     }
-  }, [applyProviders])
+  }, [api, applyProviders])
 
   useEffect(() => {
     onDirtyChange(dirty)
@@ -245,7 +247,7 @@ export default function AiProviderSettings({
     setNotice(null)
 
     try {
-      const result = await window.hostAPI.aiProvider.save({
+      const result = await api.aiProvider.save({
         ...(selectedId ? { id: selectedId } : {}),
         name: draft.name,
         baseURL: draft.baseURL,
@@ -279,7 +281,7 @@ export default function AiProviderSettings({
 
       // 列表刷新失败不该把“保存成功”改写成失败：provider 已经落盘了
       try {
-        setProviders(await window.hostAPI.aiProvider.list())
+        setProviders(await api.aiProvider.list())
       } catch {
         // ignore
       }
@@ -290,7 +292,7 @@ export default function AiProviderSettings({
     } finally {
       setBusy(null)
     }
-  }, [busy, draft, models, selectedId, t])
+  }, [api, busy, draft, models, selectedId, t])
 
   const runTest = useCallback(async (): Promise<void> => {
     if (busy === 'testing') return
@@ -300,7 +302,7 @@ export default function AiProviderSettings({
     setNotice(null)
 
     try {
-      const result = await window.hostAPI.aiProvider.test({
+      const result = await api.aiProvider.test({
         ...(selectedId ? { providerId: selectedId } : {}),
         baseURL: draft.baseURL,
         ...(draft.apiKey.trim() ? { apiKey: draft.apiKey.trim() } : {})
@@ -327,7 +329,7 @@ export default function AiProviderSettings({
     } finally {
       setBusy(null)
     }
-  }, [busy, draft.baseURL, draft.apiKey, draft.model, selectedId, t])
+  }, [api, busy, draft.baseURL, draft.apiKey, draft.model, selectedId, t])
 
   const remove = useCallback(async (): Promise<void> => {
     if (!selectedId) return
@@ -341,7 +343,7 @@ export default function AiProviderSettings({
     setBusy('removing')
     setError(null)
     try {
-      const result = await window.hostAPI.aiProvider.remove(selectedId)
+      const result = await api.aiProvider.remove(selectedId)
       if (!result.ok) {
         setError(result.error.message)
         return
@@ -353,7 +355,7 @@ export default function AiProviderSettings({
     } finally {
       setBusy(null)
     }
-  }, [confirmRemove, reload, selectedId, t])
+  }, [api, confirmRemove, reload, selectedId, t])
 
   /**
    * 注册给底部按钮的提交动作。

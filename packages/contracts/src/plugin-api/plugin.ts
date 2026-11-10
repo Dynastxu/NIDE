@@ -8,6 +8,8 @@
  * 同样只有数据：不带绝对路径、不带模块引用。渲染进程要显示目录名就够排查问题了，
  * 用户磁盘的完整布局不该越过 IPC。
  */
+import type { PluginPermissions } from './permissions.js'
+
 export interface PluginDescriptor {
   /** 插件唯一 ID，例如 'builtin.demo' */
   id: string
@@ -23,8 +25,29 @@ export interface PluginDescriptor {
   builtin: boolean
   /** 插件目录名，例如 'demo' / 'lang-en' */
   dir: string
-  /** 声明过的权限，例如 ['fs:read']。详情页展示用，宿主早已按它做过拦截 */
-  permissions: string[]
+  /** 声明过的权限，已按 manifest 归一化成 v2（老字符串数组会先展开）。 */
+  permissions: PluginPermissions
+  /**
+   * 是否有主进程入口（manifest 的 `main`）。
+   *
+   * 有后端不等于「现在正在跑」——按 `activation` 懒启动的插件要等触发；
+   * 实时状态问 `plugins.backends`。
+   */
+  hasBackend: boolean
+  /** 是否有卸载脚本（manifest 的 `uninstall`） */
+  hasUninstall: boolean
+  /** 激活事件：`*` / `onStartup` / `onView:<id>` / `onCommand:<id>`；空 = 按需 */
+  activation: string[]
+  /** 依赖的插件 id；后端激活时先拉起依赖 */
+  dependencies: string[]
+  /** 内核级插件：不可通过界面禁用 */
+  core: boolean
+  /** 必需插件：不可通过界面禁用 */
+  essential: boolean
+  /** 实验性：界面可标注 */
+  experimental: boolean
+  /** 首次出现时默认禁用（用户显式启用后写进偏好） */
+  defaultDisabled: boolean
   /** 这个插件贡献的视图 id 列表。纯数据插件（语言包）是空的 */
   views: string[]
   /**
@@ -64,6 +87,8 @@ export type PluginMutationFailureReason =
   | 'not-found'
   /** 复制 / 删除 / 扫描失败 */
   | 'unreadable'
+  /** 卸载脚本失败或超时（插件目录没有被删除） */
+  | 'uninstall-failed'
   /** 用户取消了目录选择或卸载确认 */
   | 'cancelled'
 

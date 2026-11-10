@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from 'cordis'
 
 /**
  * 客户端视图组件注册表（MVP）。

@@ -21,6 +21,21 @@ import type {
 export type RpcHandler = (...args: unknown[]) => unknown | Promise<unknown>
 export type RpcNamespace = Record<string, RpcHandler>
 
+/** 拒绝一次调用的原因；`null` 表示放行 */
+export interface RpcDenial {
+  code: string
+  message: string
+}
+
+/**
+ * 调用前的准入检查。
+ *
+ * 放在注册表这一层而不是每个 handler 里：插件权限、审计、限流都只需要看
+ * `(namespace, method, caller)`，不该让每个服务重写一遍。宿主入口在服务装配
+ * 完成后把权限服务挂上来；测试不挂，行为与以前一致。
+ */
+export type RpcAuthorizer = (request: RpcRequest) => RpcDenial | null
+
 function success(id: string, result: unknown): RpcSuccess {
   return { type: 'rpc-result', id, ok: true, result }
 }
@@ -31,6 +46,7 @@ function failure(id: string, code: string, message: string): RpcFailure {
 
 export class RpcRegistry {
   private readonly namespaces = new Map<string, RpcNamespace>()
+  private authorizer: RpcAuthorizer | null = null
 
   /** 注册一个 namespace；返回注销函数（与 Cordis 的 effect 语义一致）。 */
   register(namespace: string, handlers: RpcNamespace): () => void {
@@ -38,6 +54,11 @@ export class RpcRegistry {
     return () => {
       if (this.namespaces.get(namespace) === handlers) this.namespaces.delete(namespace)
     }
+  }
+
+  /** 装上准入检查；传 `null` 恢复「不做检查」。 */
+  setAuthorizer(authorizer: RpcAuthorizer | null): void {
+    this.authorizer = authorizer
   }
 
   async invoke(request: RpcRequest): Promise<RpcResponse> {
@@ -54,6 +75,9 @@ export class RpcRegistry {
         `unknown method: ${request.namespace}.${request.method}`
       )
     }
+
+    const denial = this.authorizer?.(request) ?? null
+    if (denial) return failure(request.id, denial.code, denial.message)
 
     try {
       const result = await handler(...(Array.isArray(request.args) ? request.args : []))

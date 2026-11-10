@@ -308,6 +308,13 @@ export interface AiProviderAPI {
 }
 
 export interface HostAPI {
+  /**
+   * 声明后续 host 调用的调用方插件（插件 UI 的 SDK 会用；核心 UI 不调用）。
+   *
+   * 传 `null` 清空。宿主按这个 id 查权限声明，见
+   * `packages/services/plugins/src/permissions.ts`。
+   */
+  setCaller: (pluginId: string | null) => void
   getPluginViews: () => Promise<PluginViewDescriptor[]>
   /** 全局设置里的插件子设置页；被禁用插件贡献的页面不会出现在这里 */
   getPluginSettings: () => Promise<PluginSettingsDescriptor[]>

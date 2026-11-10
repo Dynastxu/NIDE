@@ -71,7 +71,8 @@ describe('PluginManager：扫描', () => {
       builtin: true,
       dir: 'demo',
       views: ['demo.hello'],
-      permissions: [],
+      // 没写 permissions 的 manifest = 完全信任，与迁移前一致
+      permissions: { trust: 'full' },
       requiresRestart: false
     })
     expect(plugins[1]).toMatchObject({ builtin: false, views: [] })
@@ -249,7 +250,7 @@ describe('PluginManager：安装 / 卸载', () => {
     expect(plugins.clientBundles()).toEqual([])
   })
 
-  it('同名插件 / 同名目录都拒绝覆盖', async () => {
+  it('同 id 再装一次是升级，不会留下第二份', async () => {
     const source = await incomingPlugin('dup', {
       id: 'user.dup',
       name: 'Dup',
@@ -258,7 +259,29 @@ describe('PluginManager：安装 / 卸载', () => {
     const plugins = manager()
 
     expect(plugins.install(source).ok).toBe(true)
-    expect(plugins.install(source)).toEqual({ ok: false, reason: 'already-exists' })
+    const upgraded = plugins.install(source)
+
+    expect(upgraded.ok).toBe(true)
+    expect(plugins.list().map((plugin) => plugin.id)).toEqual(['user.dup'])
+  })
+
+  it('不同 id 撞同一目录名时拒绝覆盖', async () => {
+    const first = await incomingPlugin('dup', {
+      id: 'user.dup',
+      name: 'Dup',
+      version: '1.0.0'
+    })
+    const plugins = manager()
+    expect(plugins.install(first).ok).toBe(true)
+
+    // 源目录同名、插件 id 不同：目标目录属于另一个插件，不能替换
+    const second = await incomingPlugin('dup', {
+      id: 'user.other',
+      name: 'Other',
+      version: '1.0.0'
+    })
+    expect(plugins.install(second)).toEqual({ ok: false, reason: 'already-exists' })
+    expect(plugins.list().map((plugin) => plugin.id)).toEqual(['user.dup'])
   })
 
   it('没有 manifest 的目录拒绝安装', async () => {

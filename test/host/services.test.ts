@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { Context } from '@deepseek-ai/cordis'
+import { Context } from 'cordis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { installNideContext } from '../../packages/kernel/src/context.ts'
 import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
@@ -88,6 +88,7 @@ describe('host 服务装配', () => {
       'gallery',
       'overview',
       'config',
+      'plugin',
       'plugins',
       'i18n',
       'appearance',
