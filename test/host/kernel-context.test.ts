@@ -1,4 +1,4 @@
-import { Context } from '@deepseek-ai/cordis'
+import { Context } from 'cordis'
 import { describe, expect, it } from 'vitest'
 import { installNideContext } from '../../packages/kernel/src/context.ts'
 import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'

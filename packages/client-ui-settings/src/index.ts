@@ -1,4 +1,4 @@
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from 'cordis'
 import { slotsOf } from '@nide/client-ui-slots'
 import { SettingsApp } from './SettingsApp'
 

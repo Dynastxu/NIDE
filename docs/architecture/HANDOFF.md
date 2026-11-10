@@ -312,7 +312,16 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   `CSC_LINK` / `CSC_KEY_PASSWORD`；没配时产物未签名（Windows 会拦 `nide.exe`）。
 
 ### 工程
-- npm registry 已切 `https://registry.npmmirror.com/`（`.npmrc`）；
+- **依赖走默认 npm registry**：`.npmrc` 已删。镜像解析出来的 lock 在 GitHub
+  工作流里装不动（镜像地址 / 可用性都不受我们控制），所以锁文件只认
+  `registry.npmjs.org`；
+- **运行时是公开 Cordis 生态**，不再使用任何 `@deepseek-ai/*` 包：
+  `cordis@4.0.0-rc.12` + `@cordisjs/plugin-{loader,include,group,timer}`
+  （与 mics 同一套依赖形态）。`@deepseek-ai/*` 那套是 DSH 的私有前缀，
+  与公开包同源但版本线不同，长期只能跟着 DSH 走；换成公开包后可以独立升级。
+  代码里只改了 import 说明符，API 面（`Context` / `ctx.plugin` / `ctx.logger` /
+  `ctx.loader.*` / `ctx.effect`）与公开包一致，`typecheck` / `typecheck:host`
+  与 `host:smoke` 均已验证；
 - `tsconfig.host.json`；`pnpm typecheck:host`；
 - `pnpm host:dump` / `host:smoke`；
 - 第一批 `e270b5f`：写路径（新建 / 改名 / 删除）搬完。
@@ -374,6 +383,12 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   shell 的视图 / 设置 / 禁用集合 / 启停全部改成直通 host（启停失败不再假装成功）；
   `reloadPlugin` 占位链路（channel / handler / preload / d.ts）一并删掉；
   `ai-provider.ipc.ts` 的启用检查改成问 host。`test/host/builtin-views.test.ts` 新增。
+- 第十八批：**换成公开 Cordis 生态**（去掉全部 `@deepseek-ai/*`）——
+  `package.json` 的五个 DSH 包换成 `cordis` + `@cordisjs/plugin-{loader,include,group,timer}`，
+  12 个文件的 import 说明符跟着改；`.npmrc` 删除，lock 改由默认 npm registry 解析。
+  验证：`pnpm typecheck` / `typecheck:host` 通过，`pnpm host:smoke` 用公开 loader
+  正常装载 hello 插件并跑完整个服务装配（entries=1）；`pnpm test` 仍需用户终端跑
+  （agent 沙箱起不了 vitest：`spawn EPERM`）。
 - `pnpm test` 会跑 `test/host/**`，`pnpm typecheck:host` 同时检查 host 与这些用例。
 
 ## 4. 下一步优先级
@@ -557,7 +572,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 
 ## 8. 踩过的坑（别再踩）
 
-1. **Cordis Context 增强**：`declare module '@deepseek-ai/cordis' { interface Context { slots } }`
+1. **Cordis Context 增强**：`declare module 'cordis' { interface Context { slots } }`
    会让 `plugin` / `effect` 全部丢失。用 `slotsOf(ctx)` / `modulesOf(ctx)` 显式取服务。
 2. **Node type stripping 不支持参数属性**：`constructor(private x: string)` 会
    `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`；写成显式字段。
@@ -647,6 +662,8 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 > 剩下的都是「验证 + 发布」：`pnpm test` / `pnpm dev` 的用户复验、`build:win` 实跑、
 > 代码签名（`CSC_LINK` / `CSC_KEY_PASSWORD`）、D10（每包 `locale/*.json`）、视觉回归。
 > npm 安装来源已明确跳过。
+> 运行时依赖是**公开** `cordis` + `@cordisjs/plugin-*`（第十八批），仓库内没有任何
+> `@deepseek-ai/*`；升级这两个只需改 `package.json`，代码不用动。
 > 在用户终端跑 `pnpm test` 与 `pnpm dev`（agent 沙箱起不了 vitest / electron-builder）。
 
 ## 11. 交接检查清单
