@@ -26,6 +26,12 @@ describe('permissions：解析', () => {
     })
   })
 
+  it('空数组 = 零能力沙箱，而不是完全信任', () => {
+    const result = parsePluginPermissions([])
+    expect(result.errors).toEqual([])
+    expect(result.permissions).toEqual({ trust: 'sandboxed' })
+  })
+
   it('未知的老权限只警告，不阻断', () => {
     const result = parsePluginPermissions(['fs:read', 'network'])
     expect(result.errors).toEqual([])

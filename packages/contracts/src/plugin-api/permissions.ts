@@ -179,6 +179,10 @@ export function normalizeLegacyPermissions(
   warnings: string[] = [],
   context = 'permissions'
 ): PluginPermissions {
+  // 空数组是「一个能力都不要」的显式声明，不是「v1 没写权限」。按老数组的
+  // 旧语义给它完全信任，等于凭空多给它没声明的能力 —— 这里收紧成零能力沙箱。
+  if (raw.length === 0) return { trust: 'sandboxed' }
+
   const os: OsPermissions = {}
   let net: NetPermissions | undefined
   let secrets: PluginPermissions['secrets']

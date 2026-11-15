@@ -178,7 +178,8 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 - 形状照 mics：`manifest.permissions` 接受老字符串数组或 v2 对象
   （`{ trust, fs, exec, net, os, secrets }`），解析 / 归一化在
   [packages/contracts/src/plugin-api/permissions.ts](../../packages/contracts/src/plugin-api/permissions.ts)；
-  老数组一律归一化成 `trust: 'full'`，与迁移前行为一致；声明写错的 manifest **整份忽略**，
+  老数组归一化成 `trust: 'full'`，与迁移前行为一致；**空数组例外**，`[]` 视为
+  「一个能力都不要」，归一化成零能力沙箱；声明写错的 manifest **整份忽略**，
   不会静默降级成完全信任；
 - 执行点只有一个：[packages/kernel/src/rpc.ts](../../packages/kernel/src/rpc.ts) 的
   `RpcAuthorizer`（分发之前）。宿主入口在服务装配完成后接上

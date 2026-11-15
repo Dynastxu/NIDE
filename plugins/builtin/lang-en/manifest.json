@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "activationEvents": ["onStartup"],
   "requiresRestart": true,
-  "permissions": [],
+  "permissions": { "trust": "sandboxed" },
   "contributes": {
     "locales": [
       {

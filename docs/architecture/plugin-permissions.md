@@ -22,7 +22,7 @@
 
 | 字段                               | 取值                                                       | 说明                                                                      |
 | ---------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `trust`                            | `full` / `sandboxed`                                       | 省略时 **v2 对象默认 `sandboxed`**；整个字段省略 = `full`                 |
+| `trust`                            | `full` / `sandboxed`                                       | 省略时 **v2 对象默认 `sandboxed`**；整个字段省略 = `full`；`[]` = 零能力沙箱 |
 | `fs.read` / `fs.write` / `fs.meta` | 目录数组                                                   | 绝对路径或以 `${变量}` 开头；不允许 `..`；末尾 `/**` 允许，段内通配不允许 |
 | `exec`                             | `[{ bin, args? }]`                                         | `args` 是正则白名单；没有对应宿主能力，目前只校验与展示                   |
 | `net`                              | `{ mode, hosts?, ports?, allowPlainHttp?, allowPrivate? }` | `mode: all` 只能配 `trust: full`；`allowlist` 必须给 `hosts`              |
@@ -32,7 +32,7 @@
 路径变量：`${project}`（当前项目根）、`${userData}`、`${pluginDir}`、`${temp}`、
 `${home}`。未知变量只警告，运行时该条作用域不会展开 —— **展开不出来就不放行**。
 
-老写法继续有效，并统一归一化成 `trust: 'full'`：
+**非空**老数组继续有效，并统一归一化成 `trust: 'full'`：
 
 ```json
 { "permissions": ["network", "secrets:own"] }
@@ -40,6 +40,11 @@
 
 支持的老字符串：`network`、`secrets:own`、`shell:openExternal`、`dialog:open`、
 `clipboard:write`、`notifications:show`。未知字符串只警告，不阻断加载。
+
+`"permissions": []` 是例外：它是「一个能力都不要」的显式声明，归一化成
+`{ trust: 'sandboxed' }`（零能力），而不是完全信任。老数组会拿到 `full` 是因为
+v1 插件跑在主进程、权限表只是额外能力的白名单；空数组没有这层历史包袱，
+给它 `full` 等于凭空多给能力。
 
 **声明写错会让整个插件被忽略**（启动日志里有错误明细）：把 `{ trust: 'sandboxed' }`
 的拼写错误静默降级成完全信任，等于悄悄放开它没声明的能力。
