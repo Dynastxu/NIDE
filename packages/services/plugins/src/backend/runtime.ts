@@ -46,6 +46,27 @@ export function isEagerActivation(activation: readonly string[]): boolean {
   return activation.includes('*') || activation.includes('onStartup')
 }
 
+/**
+ * 子进程传来的参数一律当 `unknown`：先校验形状，再交给能力层。
+ *
+ * 让 `String(args)` 兜底的话，传对象会变成 `"[object Object]"`，错误要等到
+ * shell 那一层才冒出来，日志里还看不出是哪个插件干的。
+ */
+function textArgument(method: string, value: unknown): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`插件能力 ${method} 需要一个非空字符串参数`)
+  }
+  return value
+}
+
+function recordArgument(method: string, value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`插件能力 ${method} 需要一个对象参数`)
+  }
+  return value as Record<string, unknown>
+}
+
 export interface PluginBackendRuntimeOptions extends PluginBackendPathsOptions {
   manager: PluginManager
   permissions: PluginPermissionGuard
@@ -81,6 +102,9 @@ export function buildBackendFlags(options: {
   if (options.trust !== 'sandboxed') return []
 
   const read = new Set<string>([
+    // worker 自己会 import 同目录的 `protocol.js` / `storage-value.js`：只放行
+    // `worker.js` 一个文件的话，第二个模块就是 EACCES（Node 的权限模型按文件算）
+    path.dirname(options.workerEntry),
     options.workerEntry,
     options.pluginDir,
     ...(options.runtimeReadPaths ?? []),
@@ -334,7 +358,10 @@ export class PluginBackendRuntime {
 
     const workerEntry = this.options.workerEntry ?? resolveWorkerEntry()
     const location = this.options.manager.locationOf(pluginId)
-    const pluginDir = location?.dirPath ?? path.dirname(entry)
+    // `pluginDir` 会被整目录加进 `--allow-fs-read`：拿不到真实目录时宁可启动失败，
+    // 也不要拿一个猜出来的路径去放宽沙箱
+    if (!location) throw new Error(`插件 ${pluginId} 的目录不在清单里`)
+    const pluginDir = location.dirPath
 
     ensureWriteRoots(resolved, (dir, error) => {
       this.log.warn(`创建可写目录失败：${dir}`, { error: String(error) })
@@ -399,23 +426,26 @@ export class PluginBackendRuntime {
 
     switch (method) {
       case 'openExternal':
-        await capabilities.openExternal(pluginId, String(args ?? ''))
+        await capabilities.openExternal(pluginId, textArgument(method, args))
         return null
       case 'openPath':
-        await capabilities.openPath(pluginId, String(args ?? ''))
+        await capabilities.openPath(pluginId, textArgument(method, args))
         return null
       case 'showOpenDialog':
-        return await capabilities.showOpenDialog(pluginId, args as never)
+        return await capabilities.showOpenDialog(pluginId, recordArgument(method, args) as never)
       case 'showSaveDialog':
-        return await capabilities.showSaveDialog(pluginId, args as never)
+        return await capabilities.showSaveDialog(pluginId, recordArgument(method, args) as never)
       case 'readClipboard':
         return await capabilities.readClipboard(pluginId)
       case 'writeClipboard':
-        await capabilities.writeClipboard(pluginId, String(args ?? ''))
+        await capabilities.writeClipboard(pluginId, textArgument(method, args))
         return null
-      case 'notify':
-        await capabilities.notify(pluginId, (args ?? {}) as never)
+      case 'notify': {
+        const options = recordArgument(method, args)
+        if (!options) throw new Error('插件能力 notify 需要一个对象参数')
+        await capabilities.notify(pluginId, options as never)
         return null
+      }
       default:
         throw new Error(`插件能力 ${method} 不存在`)
     }

@@ -99,6 +99,11 @@ export default async ({ id, dir, storageFile, storage, log }) => {
 
 内置插件不能卸载；第三方插件只在目录确实位于 `<userData>/plugins` 内时才删除。
 
+脚本的**写权限**跟后端一样受声明约束：`sandboxed` 插件只能写 `fs.write` 里的目录
+（想清理 `<userData>/xxx` 就在 `fs.write` 里声明 `${userData}/xxx`），`trust: "full"`
+不受限。卸载脚本是「清理插件自己在目录外留下的东西」的最后一步，权限不够时它会
+EACCES，宿主按第 3 条处理（目录不删，让用户看到并重试）。
+
 ## 6. 目前没有的
 
 - 命令系统（`onCommand` 只是解析通过，没有触发源）；

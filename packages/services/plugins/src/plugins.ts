@@ -537,6 +537,8 @@ export class PluginManager {
     const staging = path.join(stagingRoot, `${dirName}.${stamp}`)
     const backup = path.join(stagingRoot, `${dirName}.old.${stamp}`)
     const wasEnabled = existing ? this.isEnabled(pluginId) : false
+    /** 新版本是否已经「真的装上」：扫描认出了它才算 */
+    let committed = false
 
     try {
       fs.mkdirSync(stagingRoot, { recursive: true })
@@ -571,6 +573,7 @@ export class PluginManager {
       this.scan()
       const installed = this.entries.get(pluginId)
       if (!installed) throw new Error('installed plugin is not visible after rescanning')
+      committed = true
 
       fs.rmSync(backup, { recursive: true, force: true })
       try {
@@ -596,13 +599,23 @@ export class PluginManager {
       return { ok: true, plugin: this.entries.get(pluginId)!.descriptor }
     } catch (error) {
       fs.rmSync(staging, { recursive: true, force: true })
-      // 目标已经被换成新的：回滚旧版本，避免留下一个半成品
-      if (fs.existsSync(backup) && !fs.existsSync(target)) {
+      /*
+       * 回滚旧版本。
+       *
+       * 走到这里时目标目录可能已经是新版本（rename 成功、但重新扫描没认出来）：
+       * 只把 backup 换回去是做不到的 —— 目标存在，`rename(backup, target)` 会失败。
+       * 所以先删掉新目录，再用 backup 顶回来；否则用户升级失败后连旧版本都没了。
+       */
+      if (fs.existsSync(backup)) {
         try {
+          fs.rmSync(target, { recursive: true, force: true })
           fs.renameSync(backup, target)
         } catch (restoreError) {
           warn('Failed to restore the previous plugin version', { pluginId, error: restoreError })
         }
+      } else if (!committed) {
+        // 新装失败：目录已经换过去了但扫描不认，留着只会让下一次安装撞车
+        fs.rmSync(target, { recursive: true, force: true })
       }
       fs.rmSync(backup, { recursive: true, force: true })
       try {

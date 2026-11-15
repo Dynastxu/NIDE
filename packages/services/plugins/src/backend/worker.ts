@@ -12,6 +12,7 @@ import {
   type HostToWorker,
   type WorkerToHost
 } from './protocol.ts'
+import { assertStorableValue } from './storage-value.ts'
 
 /**
  * 插件后端子进程的运行时。
@@ -75,6 +76,14 @@ function log(level: 'info' | 'warn' | 'error', message: string, args: unknown[])
 // 宿主能力：请求在子进程发起，真正执行在宿主（带权限检查）
 // ---------------------------------------------------------------------------
 
+/**
+ * 宿主能力的等待上限。
+ *
+ * 宿主进程要是崩了 / 卡住，`host-result` 永远不会来。没有超时的话插件的
+ * promise 会永久挂起，连 `deactivate` 都等不到 —— 比失败更难排查。
+ */
+const HOST_CALL_TIMEOUT_MS = 30_000
+
 const hostPending = new Map<
   number,
   { resolve: (value: unknown) => void; reject: (error: Error) => void }
@@ -84,7 +93,22 @@ let hostSeq = 0
 function hostCall<T>(method: string, args: unknown): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const id = ++hostSeq
-    hostPending.set(id, { resolve: resolve as (value: unknown) => void, reject })
+    const timer = setTimeout(() => {
+      if (!hostPending.delete(id)) return
+      reject(new Error(`宿主能力 ${method} 超时（${HOST_CALL_TIMEOUT_MS}ms 内没有响应）`))
+    }, HOST_CALL_TIMEOUT_MS)
+    timer.unref?.()
+
+    hostPending.set(id, {
+      resolve: (value) => {
+        clearTimeout(timer)
+        resolve(value as T)
+      },
+      reject: (error) => {
+        clearTimeout(timer)
+        reject(error)
+      }
+    })
     send({ t: 'host-call', id, method, args })
   })
 }
@@ -142,6 +166,9 @@ function createStorage(snapshot: Record<string, unknown>): {
         return data.has(key) ? (data.get(key) as T) : fallback
       },
       set(key, value) {
+        // 先校验再进内存：不可落盘的值在这里就抛，插件立刻能看到失败，
+        // 而不是等下一次宿主重启才发现数据没了（见 storage-value.ts）
+        assertStorableValue(key, value)
         data.set(key, value)
         pending.set(key, value)
         removed.delete(key)

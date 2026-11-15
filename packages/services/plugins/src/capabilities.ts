@@ -52,7 +52,9 @@ export class PluginCapabilities {
   }
 
   async showSaveDialog(pluginId: string, options?: PluginDialogOptions): Promise<string | null> {
-    this.require(pluginId, 'dialog:open', 'os.dialogs')
+    // 只有 `dialogs: 'save'` 能弹保存框：`'open'` 的文案是「打开对话框」，
+    // 顺手给它保存权限等于声明之外多开一项能力
+    this.require(pluginId, 'dialog:save', 'os.dialogs')
     const result = await this.call('dialog.save', [options ?? {}])
     return typeof result === 'string' ? result : null
   }

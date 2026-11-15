@@ -75,12 +75,17 @@ window.nideHost.invoke('plugin', 'call', pluginId, method, params)
   `trust: 'sandboxed'` 时加，`full` 与迁移前一样不受限；
 - 参数由 [runtime.ts](../../packages/services/plugins/src/backend/runtime.ts) 的
   `buildBackendFlags()` 生成：
-  - worker 自身与插件目录**始终可读**（否则 `import` 第一步就失败）；
+  - worker 自身**所在目录**与插件目录始终可读（worker 会 `import` 同目录的
+    `protocol.js` / `storage-value.js`；只放行 `worker.js` 一个文件的话第二个模块
+    就 EACCES）；
   - 声明的 `fs.read/meta/write` 作用域 → `--allow-fs-read`，写作用域再加
     `--allow-fs-write`；
   - 声明了 `exec` 才加 `--allow-child-process`（Node 的子进程权限是全有全无，
     具体允许哪个程序由插件自己判断）；
   - 写作用域会由宿主**预建目录**（Node 的 `--allow-fs-write` 不允许创建目录本身）。
+- `ctx.paths.*`（`userData` / `pluginDir` / `temp` / `home`）**只是路径值，不是授权**：
+  它们不会自动加进 `--allow-fs-*`，要读写哪一条就在 `permissions.fs` 里按变量声明
+  （例如 `"${temp}/my-plugin"`）。没声明的路径在 `sandboxed` 下照样 EACCES。
 - 子进程崩溃只影响这个插件：状态转 `failed`，下一次 `plugin.call` 会重新拉起。
 - 宿主退出时 `stopAll()` 先停后端再卸载 Cordis 树，不会留孤儿进程。
 - 卸载脚本 `manifest.uninstall` 同样在这个子进程模型里执行（见

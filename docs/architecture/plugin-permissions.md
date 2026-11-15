@@ -39,7 +39,11 @@
 ```
 
 支持的老字符串：`network`、`secrets:own`、`shell:openExternal`、`dialog:open`、
-`clipboard:write`、`notifications:show`。未知字符串只警告，不阻断加载。
+`dialog:save`、`clipboard:write`、`notifications:show`。未知字符串只警告，不阻断加载。
+
+老写法没有区分「打开」与「保存」对话框，所以 `dialog:open` 归一化成
+`os.dialogs: "save"`（两者都允许），升级后不会突然弹不出保存框；v2 的 `"open"`
+则只给打开，与界面文案一致。
 
 `"permissions": []` 是例外：它是「一个能力都不要」的显式声明，归一化成
 `{ trust: 'sandboxed' }`（零能力），而不是完全信任。老数组会拿到 `full` 是因为
@@ -53,7 +57,7 @@ v1 插件跑在主进程、权限表只是额外能力的白名单；空数组�
 
 | 级别                            | 行为                                                                                                               |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `full`（缺省、全部老 manifest） | 与迁移前一致：宿主不限制文件 / 网络 / 子进程；`os` / `net` 只用于展示                                              |
+| `full`（缺省、全部老 manifest） | 与迁移前一致：宿主不限制文件 / 网络 / 子进程；`net` 只用于展示；**`os` 仍要逐项声明**（见 `plugin-capabilities.md`） |
 | `sandboxed`                     | 宿主按声明检查：`fs` 作用域之外的读写被拒绝；没声明 `net` 时 `ai.*` 被拒绝；插件管理（安装 / 卸载 / 启停）一律拒绝 |
 
 ## 3. 执行点
@@ -70,7 +74,12 @@ v1 插件跑在主进程、权限表只是额外能力的白名单；空数组�
 
 `fs` 检查按**方法形状**取路径（`files.writeFile` 取 `filePath`、
 `files.createEntry` 取 `targetPath`、`gallery.updateRegistry` 这类只收名字的
-方法回落到当前项目根）。取不到路径时**拒绝**，不猜。
+方法回落到当前项目根）。取不到路径时**拒绝**，不猜：传相对路径的调用等于没有
+可判定的路径，同样会被拒绝。
+
+桌面能力（`ctx.host` 的 openExternal / 对话框 / 剪贴板 / 通知）**不走这里**：
+它们由 `PluginCapabilities` 检查，所以 `trust: "full"` 也不会自动放行。
+两层检查各自独立，新增能力时别只改一边（见 `plugin-capabilities.md`）。
 
 ## 4. 边界（重要）
 
@@ -78,13 +87,18 @@ v1 插件跑在主进程、权限表只是额外能力的白名单；空数组�
 
 - 插件 bundle 与宿主 UI 跑在同一个渲染进程里，直接摸 `window.hostAPI` 或
   `window.nideHost` 仍然能绕过；
-- 只有走 `useHost().api` 的调用会被检查；
-- `exec` / `os` 还没有对应的宿主 RPC（桌面能力尚未以 `ctx.shell` 形式暴露给插件），
-  `net` 的 `hosts` / `ports` 也还没有在调用时逐条比对（AI 的 URL 由宿主按供应商
+- `useHost().api` 只是把 `setCaller` 包进 `try/finally`，而 `setCaller` 本身仍在
+  `window.hostAPI` 上：插件可以自己调用它冒充别的 id。这一层防的是「不知不觉
+  越权」，不是「恶意插件」；把 `setCaller` 变成私有通道是后续工作；
+- 只有走 `useHost().api` 的调用会被检查；事件 / 定时器回调里发起的调用不带
+  caller，等于没有身份；
+- `net` 的 `hosts` / `ports` 还没有在调用时逐条比对（AI 的 URL 由宿主按供应商
   配置决定）。
 
-真正的强制隔离要等插件后端有独立进程（D6 的 Node 权限模型），届时
-`trust` / `fs` / `exec` / `net` 可以直接映射到 `--permission` 参数。
+真正的强制隔离在插件后端：`manifest.main` 跑在独立子进程里，`sandboxed` 时由
+Node 的 `--permission` / `--allow-fs-*` / `--allow-child-process` 强制文件与子进程
+边界（见 [plugin-backend.md](plugin-backend.md)）。`exec` 的声明目前只用于生成
+`--allow-child-process`（子进程权限是全有全无，具体程序由插件自己判断）。
 
 ## 5. 界面
 

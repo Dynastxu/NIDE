@@ -29,6 +29,8 @@ export type LegacyPermission =
   | 'shell:openExternal'
   /** 弹系统「打开文件 / 目录」对话框 */
   | 'dialog:open'
+  /** 弹系统「保存文件」对话框（同时也是打开，见 `allowsLegacy`） */
+  | 'dialog:save'
   /** 写系统剪贴板 */
   | 'clipboard:write'
   /** 发系统通知 */
@@ -119,6 +121,7 @@ const LEGACY_PERMISSIONS: ReadonlySet<string> = new Set<LegacyPermission>([
   'secrets:own',
   'shell:openExternal',
   'dialog:open',
+  'dialog:save',
   'clipboard:write',
   'notifications:show'
 ])
@@ -207,7 +210,12 @@ export function normalizeLegacyPermissions(
         os.openExternal = true
         break
       case 'dialog:open':
-        os.dialogs = 'open'
+        // v1 的 `dialog:open` 没有区分打开 / 保存，当年两件事都能做；
+        // 归一化成 `save`（= 两者都允许）才不会让老插件升级后突然弹不出保存框
+        os.dialogs = 'save'
+        break
+      case 'dialog:save':
+        os.dialogs = 'save'
         break
       case 'clipboard:write':
         os.clipboard = 'write'
@@ -539,6 +547,9 @@ export function allowsLegacy(permissions: PluginPermissions | undefined, legacy:
       return os?.openExternal === true
     case 'dialog:open':
       return os?.dialogs === 'open' || os?.dialogs === 'save'
+    case 'dialog:save':
+      // `save` 包含打开；`open` 只给打开（界面文案也是这么写的）
+      return os?.dialogs === 'save'
     case 'clipboard:write':
       return os?.clipboard === 'write' || os?.clipboard === 'read'
     case 'notifications:show':

@@ -158,4 +158,15 @@ describe('permissions：展开与判断', () => {
     expect(allowsLegacy(permissions, 'secrets:own')).toBe(false)
     expect(allowsLegacy(permissions, 'nonsense')).toBe(false)
   })
+
+  it('dialog：open 只给打开，save 同时给打开与保存', () => {
+    expect(allowsLegacy({ trust: 'sandboxed', os: { dialogs: 'open' } }, 'dialog:open')).toBe(true)
+    expect(allowsLegacy({ trust: 'sandboxed', os: { dialogs: 'open' } }, 'dialog:save')).toBe(false)
+    expect(allowsLegacy({ trust: 'sandboxed', os: { dialogs: 'save' } }, 'dialog:open')).toBe(true)
+    expect(allowsLegacy({ trust: 'sandboxed', os: { dialogs: 'save' } }, 'dialog:save')).toBe(true)
+    // v1 的 `dialog:open` 当年也包含保存：升级后不能突然弹不出保存框
+    const legacy = parsePluginPermissions(['dialog:open']).permissions
+    expect(legacy?.os?.dialogs).toBe('save')
+    expect(allowsLegacy(legacy, 'dialog:save')).toBe(true)
+  })
 })
