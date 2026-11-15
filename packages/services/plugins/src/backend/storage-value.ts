@@ -64,7 +64,7 @@ function walk(key: string, value: unknown, stack: Set<object>): void {
   if (Array.isArray(object)) {
     stack.add(object)
     try {
-      for (const item of object) walk(key, item, stack)
+      object.forEach((item, index) => walk(`${key}.${index}`, item, stack))
     } finally {
       stack.delete(object)
     }

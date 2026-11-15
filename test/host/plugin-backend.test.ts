@@ -96,7 +96,7 @@ describe('buildBackendFlags', () => {
     expect(flags[0]).toBe('--permission')
     expect(flags).toContain(`--allow-fs-read=${paths.workerEntry}`)
     // worker 会 import 同目录的 protocol.js / storage-value.js：整个目录都要能读
-    expect(flags).toContain('--allow-fs-read=C:\\app')
+    expect(flags).toContain(`--allow-fs-read=${path.dirname(paths.workerEntry)}`)
     expect(flags).toContain(`--allow-fs-read=${paths.pluginDir}`)
     expect(flags).toContain(`--allow-fs-read=${paths.project}`)
     expect(flags).toContain(`--allow-fs-write=${paths.userData}\\notes`)

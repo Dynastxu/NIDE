@@ -8,6 +8,7 @@ const GRANTS: Record<string, PluginPermissions> = {
   'demo.none': { trust: 'sandboxed' },
   'demo.open': { trust: 'sandboxed', os: { openExternal: true } },
   'demo.dialog': { trust: 'sandboxed', os: { dialogs: 'open' } },
+  'demo.dialogSave': { trust: 'sandboxed', os: { dialogs: 'save' } },
   'demo.clipWrite': { trust: 'sandboxed', os: { clipboard: 'write' } },
   'demo.clipRead': { trust: 'sandboxed', os: { clipboard: 'read' } },
   'demo.notify': { trust: 'sandboxed', os: { notifications: true } },
@@ -66,7 +67,7 @@ describe('PluginCapabilities：权限门槛', () => {
     await capabilities.openExternal('demo.open', 'https://example.com')
     await capabilities.openPath('demo.open', 'C:\\work\\novel')
     await capabilities.showOpenDialog('demo.dialog', { multiple: true })
-    await capabilities.showSaveDialog('demo.dialog', { defaultPath: 'C:\\x.txt' })
+    await capabilities.showSaveDialog('demo.dialogSave', { defaultPath: 'C:\\x.txt' })
     await capabilities.notify('demo.notify', { title: 'done', body: 'ok' })
 
     expect(calls.map((call) => call.method)).toEqual([
@@ -94,7 +95,17 @@ describe('PluginCapabilities：权限门槛', () => {
     await expect(capabilities.showOpenDialog('demo.dialog')).resolves.toEqual([
       'C:\\picked\\file.txt'
     ])
-    await expect(capabilities.showSaveDialog('demo.dialog')).resolves.toBe('C:\\picked\\save.txt')
+    await expect(capabilities.showSaveDialog('demo.dialogSave')).resolves.toBe(
+      'C:\\picked\\save.txt'
+    )
+  })
+
+  it('dialogs: open 只给打开，保存框必须声明 save', async () => {
+    const { capabilities } = setup()
+    await expect(capabilities.showSaveDialog('demo.dialog')).rejects.toThrow('os.dialogs')
+    await expect(capabilities.showOpenDialog('demo.dialogSave')).resolves.toEqual([
+      'C:\\picked\\file.txt'
+    ])
   })
 
   it('未知插件直接拒绝', async () => {
