@@ -15,7 +15,7 @@
 
 三个「装配点不在配置里」的信号都已消除：
 
-1. profile 不再手写行：`profiles/desktop/cordis.yml` 只剩 profile 自己的行，宿主服务
+1. profile 由代码生成（`packages/boot` 的 `ensureProfile`）：`cordis.yml` 只剩 profile 自己的行，宿主服务
    住在 `packages/bundle/base/cordis.patch.yml`，用户覆盖在 `cordis.patch.yml`；
 2. 加一个 host 服务 = 在 bundle 里加一行，不改 `packages/host`；
 3. 加一个窗口 = 新增 `client-ui-*` 包 + 声明 `nide.client.windowTypes` + 跑
@@ -36,7 +36,7 @@ packages/
   sdk/                   # 插件开发者 API：视图渲染管线（PluginSlot / host-context）
   client-ui-*/           # 三个窗口的界面（各自声明 nide.client.windowTypes）
   boot/ hello/ host/     # host 运行时（host 只剩装配）
-profiles/desktop/        # package.json（bundles）+ cordis.yml + cordis.patch.yml
+# profile 不落在仓库：首次启动由 packages/boot 生成到 NIDE_HOME/profiles/<name>
 apps/desktop/renderer/   # 渲染进程引导壳（main.tsx + assets）
 ```
 

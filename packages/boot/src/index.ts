@@ -85,54 +85,83 @@ export function resolveProfile(name: string): NidePaths {
 }
 
 /**
- * 首次启动时从仓库模板复制一份 profile。
+ * profile 模板版本。
  *
- * 只补缺失的文件，不覆盖已有的 cordis.yml / patch —— 用户手改过的配置不能被启动流程盖掉。
- * 需要重新初始化时传 reset=true（目前只给开发脚本用）。
- *
- * `templateRoot` 是**模板所在的 profiles 目录**。默认用源码树里的 `profiles/`；
- * 打包版由 host 显式传入编译产物里的 `profiles/`（`REPO_ROOT` 是按模块位置算的，
- * 编译之后指不到源码树）。
+ * 模板内容现在由代码生成（仓库里没有 `profiles/` 目录，和 DSH 一样：profile 是
+ * 运行时产物，落在 `NIDE_HOME/profiles/<name>`）。改下面的常量时把它 +1，
+ * 老用户机器上的 `cordis.yml` 会在下次启动刷新（旧的备份成 `.bak`）。
  */
-export function ensureProfile(paths: NidePaths, reset = false, templateRoot?: string): void {
-  const root = templateRoot ?? path.join(REPO_ROOT, 'profiles')
-  const template = path.join(root, paths.profileName)
-  if (!fs.existsSync(template)) {
-    throw new Error(`profile template not found: ${template}`)
-  }
+const PROFILE_TEMPLATE_VERSION = 4
 
+/** 模板 package.json：唯一的装配信息是 bundle 列表 */
+const PROFILE_PACKAGE: Record<string, unknown> = {
+  name: 'nide-profile-desktop',
+  private: true,
+  type: 'module',
+  description: 'NIDE desktop profile: bundle layers + profile rows + user patch.',
+  nide: {
+    profile: {
+      bundles: ['{{NIDE_ROOT}}/packages/bundle/base']
+    }
+  }
+}
+
+/** 模板 `cordis.yml`：profile 自己的行（宿主服务在 bundle 层） */
+const PROFILE_CORDIS_YML = `# NIDE desktop profile root config。
+#
+# 装配分三层，后写的赢（见 packages/boot/src/patch.ts）：
+#   1. package.json 的 nide.profile.bundles —— 组合包（当前是 @nide/bundle-base）
+#   2. 本文件 —— profile 自己的行
+#   3. cordis.patch.yml —— 用户覆盖（按 id 改 config / disabled，或 insert 新行）
+#
+# 这个文件由宿主在首次启动时生成；改模板规则见 packages/boot/src/index.ts。
+- id: hello
+  name: '{{NIDE_ROOT}}/packages/hello/src/index.ts'
+  config:
+    greeting: 'nide host skeleton is alive'
+`
+
+/** 模板 `cordis.patch.yml`：空数组是合法的，空文件会被 loader 判为错误 */
+const PROFILE_PATCH_YML = `# 用户覆盖层（schema 与 DSH 一致：顶层是 patch 数组）。
+# 空数组是合法的；空文件会被 loader 判为错误，所以不要清空这个文件。
+[]
+`
+
+/**
+ * 首次启动时**生成** profile（不再从仓库模板复制）。
+ *
+ * 只补缺失的文件，不覆盖已有的 cordis.yml / patch —— 用户手改过的配置不能被启动
+ * 流程盖掉。模板版本更新时刷新 `cordis.yml`（旧文件备份成 `.bak`）。
+ * `reset=true` 会先删掉整个 profile（只给开发脚本用）。
+ */
+export function ensureProfile(paths: NidePaths, reset = false): void {
   if (reset && fs.existsSync(paths.profileDir)) {
     fs.rmSync(paths.profileDir, { recursive: true, force: true })
   }
 
   fs.mkdirSync(paths.profileDir, { recursive: true })
 
-  /**
-   * 模板升级：`cordis.yml` 是**装配点**，宿主靠它决定装哪些服务 —— 老用户机器上
-   * 那份是旧的（只补缺失文件的策略不会更新它），于是服务会缺。
-   *
-   * 规则：模板版本比本地新时，覆盖 `cordis.yml`（旧的留成 `cordis.yml.bak`）。
-   * 只动这一个文件：`cordis.patch.yml` 与 `package.json` 是用户的地盘。
-   */
-  const templateVersion = readProfileVersion(template)
   const localVersion = readProfileVersion(paths.profileDir)
-  const upgrading = templateVersion > localVersion
+  const upgrading = PROFILE_TEMPLATE_VERSION > localVersion
 
-  for (const file of fs.readdirSync(template)) {
-    const source = path.join(template, file)
-    const target = path.join(paths.profileDir, file)
+  writeIfMissing(
+    path.join(paths.profileDir, 'package.json'),
+    `${JSON.stringify(PROFILE_PACKAGE, null, 2)}\n`
+  )
+  writeIfMissing(path.join(paths.profileDir, 'cordis.patch.yml'), PROFILE_PATCH_YML)
 
-    if (file === 'cordis.yml' && upgrading && fs.existsSync(target)) {
-      fs.cpSync(target, `${target}.bak`, { force: true })
-      fs.cpSync(source, target, { force: true })
-      continue
-    }
-
-    if (fs.existsSync(target)) continue
-    fs.cpSync(source, target, { recursive: true })
+  /**
+   * `cordis.yml` 是装配点：模板版本更新时覆盖（旧文件备份），否则只补缺失。
+   */
+  const cordis = path.join(paths.profileDir, 'cordis.yml')
+  if (upgrading && fs.existsSync(cordis)) {
+    fs.cpSync(cordis, `${cordis}.bak`, { force: true })
+  }
+  if (upgrading || !fs.existsSync(cordis)) {
+    fs.writeFileSync(cordis, PROFILE_CORDIS_YML, 'utf8')
   }
 
-  if (upgrading) writeProfileVersion(paths.profileDir, templateVersion)
+  if (upgrading) writeProfileVersion(paths.profileDir, PROFILE_TEMPLATE_VERSION)
   fs.mkdirSync(path.join(paths.profileDir, 'node_modules'), { recursive: true })
 
   /**
@@ -140,11 +169,17 @@ export function ensureProfile(paths: NidePaths, reset = false, templateRoot?: st
    * 但 `nide.profile.bundles` 是**装配点的一部分**：模板加了 bundle 之后，老机器
    * 上那份还是空数组，服务就会缺。这里只补「本地没有声明」的情况。
    */
-  mergeProfileBundles(template, paths.profileDir)
+  mergeProfileBundles(PROFILE_PACKAGE, paths.profileDir)
 }
 
-/** 把模板里的 `nide.profile.bundles` 合并进既有 profile（只在本地为空时） */
-function mergeProfileBundles(templateDir: string, profileDir: string): void {
+/** 写文件，已存在则跳过（启动流程不覆盖用户配置） */
+function writeIfMissing(file: string, content: string): void {
+  if (fs.existsSync(file)) return
+  fs.writeFileSync(file, content, 'utf8')
+}
+
+/** 把模板的 `nide.profile.bundles` 合并进既有 profile（只在本地为空时） */
+function mergeProfileBundles(template: Record<string, unknown>, profileDir: string): void {
   const read = (dir: string): Record<string, unknown> | null => {
     try {
       return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as Record<
@@ -164,7 +199,6 @@ function mergeProfileBundles(templateDir: string, profileDir: string): void {
       : []
   }
 
-  const template = read(templateDir)
   const templateBundles = bundlesOf(template)
   if (templateBundles.length === 0) return
 

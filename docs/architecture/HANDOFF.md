@@ -88,8 +88,8 @@ packages/
   sdk/               # 插件开发者 API：插件视图渲染管线（PluginSlot / host-context）
   client-ui-slots/ client-ui-renderer/
   client-ui-main/ client-ui-layout/ client-ui-welcome/ client-ui-settings/
-packages/plugins/     # 第三方扩展形态的插件包（demo / ai-provider / lang-en）
-profiles/desktop/    # package.json + cordis.yml + cordis.patch.yml
+packages/plugins/     # NIDE 插件包（demo / ai-provider / lang-en）
+# profile 由 packages/boot 代码生成，运行时落在 NIDE_HOME/profiles/<name>
 docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目录方案
 ```
 
@@ -368,8 +368,9 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
   **Node API** 直接把源码编到 `out/host`（不 spawn，受限环境也能跑）；
 - 产物与源码同构：`out/host/packages/host/src/index.js` 是可执行入口，
   `out/host/packages/hello/src/index.js` 是 profile 引用的插件，
-  `out/host/src/shared/...` 是共享层，`out/host/profiles/...` 是**改写过的** profile
-  模板（`.ts` → `.js`）；
+  `out/host/src/shared/...` 是共享层；profile **不在产物里** —— 由 boot 的
+  `ensureProfile` 用代码常量生成到 `NIDE_HOME/profiles/<name>`（`.ts` → `.js`
+  改写在 `loadRows({ compiled })` 里做）；
 - 三处细节，缺一个都跑不起来：
   1. 统一发射 **ESM**（`module: ESNext` + `moduleResolution: Bundler`）。用 NodeNext
      的话，没有 `type: module` marker 的共享目录会被编成 CJS，和产物根对不上；
@@ -378,13 +379,13 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
      改成 `.js`（否则 bare specifier 解析不了）；
 - 打包版的入口与 profile：shell 在 `app.isPackaged` 时跑
   `<appRoot>/out/host/packages/host/src/index.js` 并传 `--dist-root <appRoot>/out/host`；
-  host 用它当 profile 模板目录与 `{{NIDE_ROOT}}`。开发时仍跑源码
+  host 用它当 `{{NIDE_ROOT}}`（profile 由代码生成）。开发时仍跑源码
   `packages/host/src/index.ts`，行为不变；
-- `electron-builder.yml` 的 `files` 因此只留 `out/**` + `profiles/**` + `plugins/**`
+- `electron-builder.yml` 的 `files` 因此只留 `out/**` + `packages/plugins/**`
   - `package.json` —— 源码形式的 `packages/*` 与 `src/shared` 不再进包；
 - **asar 已恢复**：主进程 / 预加载 / 渲染进程都在 asar 里；host 是
   `utilityProcess.fork()` 出来的独立进程，它的入口、profile、要动态 import 的插件
-  必须是真实文件，所以 `out/host/**` 与 `plugins/**` 走 `asarUnpack` 放到
+  必须是真实文件，所以 `out/host/**` 与 `packages/plugins/**` 走 `asarUnpack` 放到
   `resources/app.asar.unpacked/`，shell 侧按 `app.asar` → `app.asar.unpacked` 换根
   （`packagedRoot()`），`--app-root` 与子进程 cwd 也用它；
 - **签名**：证书不进仓库，走 electron-builder 的标准环境变量
@@ -453,7 +454,7 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
   （ESM 统一发射 + 产物根 `{"type":"module"}` + `#project/*` 映射改写 + profile 模板
   改写）；shell 在打包版跑编译产物并传 `--dist-root`；`boot` 的 profile 模板目录与
   `{{NIDE_ROOT}}` 改成显式参数；asar 恢复，host 需要的真实文件走 `asarUnpack`；
-  `electron-builder.yml` 只打 `out/**` + `plugins/**` + `package.json`；
+  `electron-builder.yml` 只打 `out/**` + `packages/plugins/**` + `package.json`；
   签名走 `CSC_LINK` / `CSC_KEY_PASSWORD`。**编译产物实跑验证过**，`build:unpack`
   仍需在用户终端跑。
 - 第十七批（未提交）：删掉 shell 的最后两块旧实现 —— `packages/shell/src/main/plugin-host/`
@@ -635,7 +636,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 
 | 文件                                                 | 说明                                                                                       |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `electron-builder.yml`                               | 打包：`asar: false`，显式带上 host 源码 / boot / hello / shared / profiles / plugins       |
+| `electron-builder.yml`                               | 打包：`asar: true`；`out/host/**` 与 `packages/plugins/**` 走 `asarUnpack`       |
 | `packages/shell/src/main/host/process.ts`            | spawn host、ready、attach port、`invokeHost`（shell→host RPC）、stop                       |
 | `packages/shell/src/main/host/project.ts`            | shell 侧的项目客户端：list / startup / open / forget / close（都走 `invokeHost`）          |
 | `packages/shell/src/main/window.ts`                  | 建窗；`boundProjectPath`（主窗口绑定的项目）；`openStartupWindow()` 等 host 的启动结论     |
@@ -702,7 +703,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
    免扩展名的相对导入也一样，host 的纯 Node ESM 都解析不了。`package.json#imports`
    是 Node / tsc / Vite 三边都认的那一层（见 `src/shared/project/package.json`）。
 10. **host 是必需进程**：文件 / 配置的全部实现都在它里面。打包目前靠
-    `asar: false` + `files` 带上 host 源码 / boot / hello / `src/shared` / profiles；
+    `asar: true` + `asarUnpack` 带 `out/host/**` 与 `packages/plugins/**`；
     改回 asar 之前必须先让 host 有编译产物，否则打包版读不到自己的源码。
 11. **`projects.json` 只有 host 一份实现**：shell 不要再 import `fs` 去读它，也不要
     在内存里维护「当前项目」。窗口需要的项目路径叫 `boundProjectPath`（主窗口**绑定**

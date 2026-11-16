@@ -117,7 +117,7 @@ function usage(): string {
     '  --home          NIDE_HOME 目录，默认 ~/.nide（开发用 .nide-dev）',
     '  --user-data     Electron userData 目录（projects.json 等）',
     '  --app-root      应用根目录（默认仓库根；打包时由 shell 传 resources/app）',
-    '  --dist-root     编译产物根（out/host）；给了就用它的 profiles 模板与 {{NIDE_ROOT}}',
+    '  --dist-root     编译产物根（out/host）；给了就用它作为 {{NIDE_ROOT}}',
     '  --dump-config   只打印组合后的行，不启动插件',
     '  --once          启动后立即关闭（冒烟测试用）',
     '  --reset         先删掉 profile 目录再从模板重建（仅开发用）'
@@ -140,10 +140,10 @@ const paths = resolveProfile(options.profile)
  *
  * 打包版由 shell 传 `--dist-root <appRoot>/out/host`：profile 模板、`{{NIDE_ROOT}}`
  * 都从那里解析（模板里的插件路径已改写成编译后的 `.js`）。独立运行 / 开发时
- * 没有这个参数，行为与之前完全一致（源码树里的 profiles）。
+ * 没有这个参数，行为与之前完全一致（{{NIDE_ROOT}} 指向源码树）。
  */
 const distRoot = options.distRoot ? path.resolve(options.distRoot) : null
-ensureProfile(paths, options.reset, distRoot ? path.join(distRoot, 'profiles') : undefined)
+ensureProfile(paths, options.reset)
 
 if (options.dumpConfig) {
   console.log(dumpRows(loadRows(paths, distRoot ?? REPO_ROOT, { compiled: distRoot !== null })))

@@ -16,7 +16,6 @@
  *   out/host/packages/host/src/index.js     ← 入口
  *   out/host/packages/hello/src/index.js    ← profile 里引用的插件
  *   out/host/packages/contracts/src/...                 ← 共享层
- *   out/host/profiles/desktop/...           ← profile 模板（.ts → .js 已改写）
  *   out/host/package.json                   ← {"type":"module"}
  */
 import fs from 'node:fs'
@@ -56,9 +55,8 @@ const pluginShim = path.join(root, 'packages', 'host', 'src', 'plugin-shim.ts')
  * TS 顺着静态依赖树走不到它们，所以显式加进编译根。
  *
  * 只认 `{{NIDE_ROOT}}/.../src/index.ts` 这种形状：那正是仓库内的插件包。
- * 两类文件都要扫：`profiles/<name>/cordis.yml` 与
- * `packages/bundle/<name>/cordis.patch.yml`
- * （服务行现在住在组合包里，漏掉会得到一个缺服务的打包产物）。
+ * 扫 `packages/bundle/<name>/cordis.patch.yml`；profile 的模板由 boot 代码生成，
+ * 其中唯一的外部入口（hello）作为固定根单独加进来。
  */
 function dynamicEntries(): string[] {
   const entries = new Set<string>()
@@ -70,12 +68,6 @@ function dynamicEntries(): string[] {
     }
   }
 
-  const profilesRoot = path.join(root, 'profiles')
-  for (const name of fs.readdirSync(profilesRoot)) {
-    const file = path.join(profilesRoot, name, 'cordis.yml')
-    if (fs.existsSync(file)) scan(file)
-  }
-
   const bundlesRoot = path.join(root, 'packages', 'bundle')
   if (fs.existsSync(bundlesRoot)) {
     for (const name of fs.readdirSync(bundlesRoot)) {
@@ -83,6 +75,9 @@ function dynamicEntries(): string[] {
       if (fs.existsSync(file)) scan(file)
     }
   }
+
+  // profile 模板由 boot 生成，里面的 hello 行不会出现在任何 YAML 里
+  entries.add(path.join(root, 'packages', 'hello', 'src', 'index.ts'))
 
   return [...entries]
 }
@@ -181,20 +176,6 @@ for (const name of fs.readdirSync(sharedRoot)) {
   fs.mkdirSync(path.dirname(target), { recursive: true })
   fs.writeFileSync(target, `${JSON.stringify(rewritten, null, 2)}\n`, 'utf-8')
 }
-
-/**
- * profile 模板要一起进产物：打包版由 host 传 `--dist-root`，模板就从这里取，
- * `{{NIDE_ROOT}}` 也展开成这里。
- *
- * **不改写模板里的 `.ts` 路径** —— 编译布局下由 `boot` 的 `loadRows({ compiled })`
- * 统一改写。这样 dev 与打包版共用同一份 profile，不会出现「dev 写的 profile 拿到
- * 打包版里指向不存在的 `.ts`」。
- */
-const profilesSource = path.join(root, 'profiles')
-const profilesTarget = path.join(outDir, 'profiles')
-if (!fs.existsSync(profilesSource)) fail('profiles/ not found')
-
-fs.cpSync(profilesSource, profilesTarget, { recursive: true })
 
 /**
  * 组合包（`packages/bundle/*`）只有 `package.json` 与 `cordis.patch.yml`，
