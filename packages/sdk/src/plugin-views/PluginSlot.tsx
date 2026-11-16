@@ -17,7 +17,7 @@ import type { PluginViewDescriptor } from '@nide/contracts/plugin-api'
  * 换成别的目录时必须一起改 —— `import.meta.glob` 的 key 是**相对本文件**的字符串，
  * 改错不会报错，只会得到一张空表（视图全部打不开）。
  */
-const viewModules = import.meta.glob('../../../../plugins/builtin/*/src/ui/*.tsx') as Record<
+const viewModules = import.meta.glob('../../../../packages/plugins/*/src/ui/*.tsx') as Record<
   string,
   () => Promise<unknown>
 >
