@@ -1,51 +1,13 @@
-# NIDE desktop profile root config（MVP）。
+# NIDE desktop profile root config。
 #
-# `{{NIDE_ROOT}}` 由 @nide/boot 在解析前替换成仓库根目录，仅用于本地开发：
-# 正式形态里这里应该是包标识符（例如 '@nide/client-ui-layout'），由 runtime
-# resolution 从 profile 的 node_modules 解析。
+# 装配分三层，后写的赢（见 packages/boot/src/patch.ts）：
+#   1. `package.json` 的 `nide.profile.bundles` —— 组合包（当前是 @nide/bundle-base）
+#   2. 本文件 —— profile 自己的行（兼容老写法：一行就是一个 insert）
+#   3. `cordis.patch.yml` —— 用户覆盖（按 id 改 config / disabled，或 insert 新行）
 #
-# 所有行都是**同一种东西**：Cordis 插件。服务与插件没有区别，启动顺序由各插件
-# 的 `inject` 决定，不靠行序。`core: true` 只影响设置页的「核心包」列表（不可启停）。
-#
-# TODO（阶段 B / C）：
-# - bundle 层（nide.profile.bundles 里的 patch 文件）
-# - profile / home 的 cordis.patch.yml 覆盖
-# - `!!js` 表达式与 disabled 求值
+# `{{NIDE_ROOT}}` 由 @nide/boot 在解析前替换成仓库根目录：同一个文件在源码树与
+# 打包产物（out/host）里通用，boot 会按 `compiled` 改写 `.ts` -> `.js`。
 - id: hello
   name: '{{NIDE_ROOT}}/packages/hello/src/index.ts'
   config:
     greeting: 'nide host skeleton is alive'
-
-# ---- 宿主服务（core）----
-- id: project
-  name: '{{NIDE_ROOT}}/packages/services/project/src/index.ts'
-  core: true
-  description: projects.json 的唯一实现：列表 / 打开 / 移除 / 关闭 / 启动恢复
-- id: content
-  name: '{{NIDE_ROOT}}/packages/services/content/src/index.ts'
-  core: true
-  description: 内容读写：文件树、章节、伏笔、图鉴、概述
-- id: config
-  name: '{{NIDE_ROOT}}/packages/services/config/src/index.ts'
-  core: true
-  description: 项目配置 nide.json 的读 / 更新 / 初始化；同时作为配置纯函数库
-- id: plugins
-  name: '{{NIDE_ROOT}}/packages/services/plugins/src/index.ts'
-  core: true
-  description: 插件清单 / 启停 / 贡献点（视图、设置页、语言包）/ 内建视图表
-- id: i18n
-  name: '{{NIDE_ROOT}}/packages/services/i18n/src/index.ts'
-  core: true
-  description: 本地化：语言包瀑布、语言偏好、标题解析
-- id: appearance
-  name: '{{NIDE_ROOT}}/packages/services/appearance/src/index.ts'
-  core: true
-  description: 主题 / 外观：偏好与主题解析；原生明暗走 shell 反桥
-- id: secrets
-  name: '{{NIDE_ROOT}}/packages/services/secrets/src/index.ts'
-  core: true
-  description: 密钥仓（无 RPC）：密文落盘，加解密走 safeStorage 反桥
-- id: ai
-  name: '{{NIDE_ROOT}}/packages/services/ai/src/index.ts'
-  core: true
-  description: AI 供应商：配置、测试连接、SSE 转发

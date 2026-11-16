@@ -1,0 +1,39 @@
+# NIDE base 组合包：每个 profile 都共享的宿主服务。
+#
+# 这一层**只 insert**；profile 自己的 cordis.yml / cordis.patch.yml 之后按 id 覆盖。
+# 服务的启动顺序由各自的 `inject` 决定，行序没有语义（与 DSH 一致）。
+#
+# 加一个宿主服务 = 这里加一行，不改任何装配代码。
+- insert:
+    - id: project
+      name: '{{NIDE_ROOT}}/packages/services/project/src/index.ts'
+      core: true
+      description: projects.json 的唯一实现：列表 / 打开 / 移除 / 关闭 / 启动恢复
+    - id: content
+      name: '{{NIDE_ROOT}}/packages/services/content/src/index.ts'
+      core: true
+      description: 内容读写：文件树、章节、伏笔、图鉴、概述
+    - id: config
+      name: '{{NIDE_ROOT}}/packages/services/config/src/index.ts'
+      core: true
+      description: 项目配置 nide.json 的读 / 更新 / 初始化；同时作为配置纯函数库
+    - id: plugins
+      name: '{{NIDE_ROOT}}/packages/services/plugins/src/index.ts'
+      core: true
+      description: 插件清单 / 启停 / 贡献点（视图、设置页、语言包）/ 内建视图表
+    - id: i18n
+      name: '{{NIDE_ROOT}}/packages/services/i18n/src/index.ts'
+      core: true
+      description: 本地化：语言包瀑布、语言偏好、标题解析
+    - id: appearance
+      name: '{{NIDE_ROOT}}/packages/services/appearance/src/index.ts'
+      core: true
+      description: 主题 / 外观：偏好与主题解析；原生明暗走 shell 反桥
+    - id: secrets
+      name: '{{NIDE_ROOT}}/packages/services/secrets/src/index.ts'
+      core: true
+      description: 密钥仓（无 RPC）：密文落盘，加解密走 safeStorage 反桥
+    - id: ai
+      name: '{{NIDE_ROOT}}/packages/services/ai/src/index.ts'
+      core: true
+      description: AI 供应商：配置、测试连接、SSE 转发

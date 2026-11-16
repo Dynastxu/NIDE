@@ -47,22 +47,35 @@ const backendWorker = path.join(
 )
 
 /**
- * profile 里的插件是**动态 import** 的（loader 按 `cordis.yml` 里的路径加载），
+ * profile 与组合包里的插件都是**动态 import** 的（loader 按 YAML 里的路径加载），
  * TS 顺着静态依赖树走不到它们，所以显式加进编译根。
  *
  * 只认 `{{NIDE_ROOT}}/.../src/index.ts` 这种形状：那正是仓库内的插件包。
+ * 两类文件都要扫：`profiles/<name>/cordis.yml` 与
+ * `packages/bundle/<name>/cordis.patch.yml`
+ * （服务行现在住在组合包里，漏掉会得到一个缺服务的打包产物）。
  */
-function profileEntries(): string[] {
-  const profilesRoot = path.join(root, 'profiles')
+function dynamicEntries(): string[] {
   const entries = new Set<string>()
 
-  for (const name of fs.readdirSync(profilesRoot)) {
-    const file = path.join(profilesRoot, name, 'cordis.yml')
-    if (!fs.existsSync(file)) continue
-
+  const scan = (file: string): void => {
     const text = fs.readFileSync(file, 'utf-8')
     for (const match of text.matchAll(/\{\{NIDE_ROOT\}\}\/([^\s'"]+\.ts)/g)) {
       entries.add(path.join(root, match[1]))
+    }
+  }
+
+  const profilesRoot = path.join(root, 'profiles')
+  for (const name of fs.readdirSync(profilesRoot)) {
+    const file = path.join(profilesRoot, name, 'cordis.yml')
+    if (fs.existsSync(file)) scan(file)
+  }
+
+  const bundlesRoot = path.join(root, 'packages', 'bundle')
+  if (fs.existsSync(bundlesRoot)) {
+    for (const name of fs.readdirSync(bundlesRoot)) {
+      const file = path.join(bundlesRoot, name, 'cordis.patch.yml')
+      if (fs.existsSync(file)) scan(file)
     }
   }
 
@@ -101,7 +114,7 @@ const options: ts.CompilerOptions = {
   types: ['node']
 }
 
-const roots = [entry, backendWorker, ...profileEntries()]
+const roots = [entry, backendWorker, ...dynamicEntries()]
 for (const rootFile of roots) {
   if (!fs.existsSync(rootFile)) fail(`entry not found: ${rootFile}`)
 }
@@ -177,5 +190,23 @@ const profilesTarget = path.join(outDir, 'profiles')
 if (!fs.existsSync(profilesSource)) fail('profiles/ not found')
 
 fs.cpSync(profilesSource, profilesTarget, { recursive: true })
+
+/**
+ * 组合包（`packages/bundle/*`）只有 `package.json` 与 `cordis.patch.yml`，
+ * 没有可编译的源码：它们必须在产物根里，`{{NIDE_ROOT}}` 展开后 boot 才找得到。
+ * 少了这一步，打包版启动会报 `bundle "..." not found`。
+ */
+const bundlesSource = path.join(root, 'packages', 'bundle')
+if (fs.existsSync(bundlesSource)) {
+  for (const name of fs.readdirSync(bundlesSource)) {
+    for (const file of ['package.json', 'cordis.patch.yml']) {
+      const source = path.join(bundlesSource, name, file)
+      if (!fs.existsSync(source)) continue
+      const target = path.join(outDir, 'packages', 'bundle', name, file)
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      fs.cpSync(source, target)
+    }
+  }
+}
 
 console.log(`[build-host] built ${path.relative(root, outDir)}`)

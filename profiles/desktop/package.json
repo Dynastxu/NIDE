@@ -2,10 +2,10 @@
   "name": "nide-profile-desktop",
   "private": true,
   "type": "module",
-  "description": "NIDE desktop profile. MVP: no bundle layers yet.",
+  "description": "NIDE desktop profile: bundle layers + profile rows + user patch.",
   "nide": {
     "profile": {
-      "bundles": []
+      "bundles": ["{{NIDE_ROOT}}/packages/bundle/base"]
     }
   }
 }

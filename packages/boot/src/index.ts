@@ -6,38 +6,24 @@ import yaml from 'js-yaml'
 import { Context } from 'cordis'
 import Loader from '@cordisjs/plugin-loader'
 import { hostServices, type InstallOptions } from '../../kernel/src/context.ts'
+import { applyPatches, toPatchOperations, type PatchOperation, type PatchRow } from './patch.ts'
 
 /**
- * NIDE profile 启动层（MVP）。
+ * NIDE profile 启动层。
  *
- * 现阶段的职责刻意收得很窄：
+ * 职责：
  * 1. 找到 / 初始化 NIDE_HOME 下的 profile；
- * 2. 读一份 cordis.yml（还没有 bundle 与 patch 层）；
- * 3. 用 DSH 的 loader 逐行导入插件。
+ * 2. 按「bundle 层 → cordis.yml → cordis.patch.yml」合成行表（见 `patch.ts`）；
+ * 3. 用 DSH 的 loader 逐行导入插件，并等它们真的激活。
  *
- * TODO（按 docs/architecture/cordis-migration.md 阶段 1 之后补）：
- * - bundle 组合包：nide.profile.bundles → 各自的 patch 文件
- * - profile / home 的 cordis.patch.yml 覆盖
- * - `!!js` 表达式、disabled 求值、required 启动审计
+ * 仍然是 MVP 的部分（待补）：
+ * - `!!js` 表达式与按环境求值的 `disabled`
+ * - required 启动审计（现在只等 15s 并列出卡住的条目）
  * - runtime resolution：从 profile/node_modules 解析包标识符
  * - 模块热替换与重载
  */
 
-export interface ProfileRow {
-  id: string
-  name: string
-  /**
-   * 核心行：宿主服务 / 平台层。
-   *
-   * 设置页的「核心包」列表用它，而且这些行不可启停（禁掉内核等于关掉应用）。
-   * 与 DSH 的差别：DSH 没有这个标记，靠组合层判断；NIDE 的插件页需要静态展示它。
-   */
-  core?: boolean
-  /** 面向开发者的说明（设置里的「核心包」列表展示用） */
-  description?: string
-  config?: unknown
-  disabled?: boolean
-}
+export type ProfileRow = PatchRow
 
 export interface NidePaths {
   home: string
@@ -149,7 +135,50 @@ export function ensureProfile(paths: NidePaths, reset = false, templateRoot?: st
   if (upgrading) writeProfileVersion(paths.profileDir, templateVersion)
   fs.mkdirSync(path.join(paths.profileDir, 'node_modules'), { recursive: true })
 
-  // TODO: 读取 package.json 的 nide.profile.bundles 并合成 bundle patch 层
+  /**
+   * 既有 profile 的 `package.json` 不会因为模板升级被覆盖（那是用户的地盘），
+   * 但 `nide.profile.bundles` 是**装配点的一部分**：模板加了 bundle 之后，老机器
+   * 上那份还是空数组，服务就会缺。这里只补「本地没有声明」的情况。
+   */
+  mergeProfileBundles(template, paths.profileDir)
+}
+
+/** 把模板里的 `nide.profile.bundles` 合并进既有 profile（只在本地为空时） */
+function mergeProfileBundles(templateDir: string, profileDir: string): void {
+  const read = (dir: string): Record<string, unknown> | null => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >
+    } catch {
+      return null
+    }
+  }
+
+  const bundlesOf = (manifest: Record<string, unknown> | null): string[] => {
+    const nide = manifest?.nide as { profile?: { bundles?: unknown } } | undefined
+    const bundles = nide?.profile?.bundles
+    return Array.isArray(bundles)
+      ? bundles.filter((entry): entry is string => typeof entry === 'string')
+      : []
+  }
+
+  const template = read(templateDir)
+  const templateBundles = bundlesOf(template)
+  if (templateBundles.length === 0) return
+
+  const local = read(profileDir)
+  if (!local || bundlesOf(local).length > 0) return
+
+  const nide = (local.nide ?? {}) as Record<string, unknown>
+  const profile = (nide.profile ?? {}) as Record<string, unknown>
+  local.nide = { ...nide, profile: { ...profile, bundles: templateBundles } }
+  fs.writeFileSync(
+    path.join(profileDir, 'package.json'),
+    `${JSON.stringify(local, null, 2)}\n`,
+    'utf8'
+  )
 }
 
 /**
@@ -175,46 +204,112 @@ export function loadRows(
   nideRoot: string = REPO_ROOT,
   options: LoadRowsOptions = {}
 ): ProfileRow[] {
-  const file = path.join(paths.profileDir, 'cordis.yml')
-  const text = fs.readFileSync(file, 'utf8')
-  const expanded = text.replaceAll('{{NIDE_ROOT}}', nideRoot.replaceAll('\\', '/'))
-  const parsed = yaml.load(expanded)
+  const layers = composeLayers(paths, nideRoot)
+  const rows = applyPatches(layers, (warning) => {
+    console.warn(`[nide-boot] ${warning.layer}: ${warning.message}`)
+  })
 
-  if (!Array.isArray(parsed)) {
-    throw new Error(`${file} must contain a YAML array`)
-  }
-
-  return parsed.map((raw, index) => normalizeRow(raw, index, file, options))
+  return normalizeRows(rows, options)
 }
 
-function normalizeRow(
-  raw: unknown,
-  index: number,
-  file: string,
-  options: LoadRowsOptions
-): ProfileRow {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error(`${file}: row #${index} must be an object`)
+/** 一层的名字与内容；`cordis.yml` 也算一层（兼容老 profile） */
+function composeLayers(
+  paths: NidePaths,
+  nideRoot: string
+): { name: string; operations: PatchOperation[] }[] {
+  const layers: { name: string; operations: PatchOperation[] }[] = []
+
+  for (const bundle of readBundles(paths)) {
+    const file = bundlePatchFile(bundle, paths, nideRoot)
+    layers.push({ name: bundle, operations: readPatchFile(file, nideRoot) })
   }
-  const row = raw as Record<string, unknown>
-  if (typeof row.name !== 'string' || row.name.length === 0) {
-    throw new Error(`${file}: row #${index} is missing "name"`)
+
+  const cordis = path.join(paths.profileDir, 'cordis.yml')
+  layers.push({ name: 'cordis.yml', operations: readPatchFile(cordis, nideRoot) })
+
+  const patch = path.join(paths.profileDir, 'cordis.patch.yml')
+  if (fs.existsSync(patch)) {
+    layers.push({ name: 'cordis.patch.yml', operations: readPatchFile(patch, nideRoot) })
   }
+
+  return layers
+}
+
+function readPatchFile(file: string, nideRoot: string): PatchOperation[] {
+  const text = fs.readFileSync(file, 'utf8')
+  const expanded = text.replaceAll('{{NIDE_ROOT}}', nideRoot.replaceAll('\\', '/'))
+  return toPatchOperations(yaml.load(expanded), file)
+}
+
+/** profile/package.json 的 `nide.profile.bundles`（顺序即应用顺序） */
+function readBundles(paths: NidePaths): string[] {
+  try {
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(paths.profileDir, 'package.json'), 'utf8')
+    ) as { nide?: { profile?: { bundles?: unknown } } }
+    const bundles = raw.nide?.profile?.bundles
+    if (!Array.isArray(bundles)) return []
+    return bundles.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 一个 bundle 的 patch 文件。
+ *
+ * 支持三种写法：`{{NIDE_ROOT}}/...`（仓库内组合包，dev 与打包版通用）、
+ * 绝对路径、以及包名（从 profile 或仓库的 node_modules 解析）。
+ */
+function bundlePatchFile(bundle: string, paths: NidePaths, nideRoot: string): string {
+  const expanded = bundle.replaceAll('{{NIDE_ROOT}}', nideRoot.replaceAll('\\', '/'))
+  if (path.isAbsolute(expanded) || expanded.startsWith('.')) {
+    return path.join(expanded, 'cordis.patch.yml')
+  }
+
+  for (const base of [paths.profileDir, nideRoot]) {
+    const candidate = path.join(base, 'node_modules', expanded, 'cordis.patch.yml')
+    if (fs.existsSync(candidate)) return candidate
+  }
+
+  throw new Error(`bundle "${bundle}" not found (looked in profile and ${nideRoot})`)
+}
+
+/** 逐行校验 + 编译产物改写；group 的嵌套行也要递归处理 */
+function normalizeRows(rows: readonly PatchRow[], options: LoadRowsOptions): ProfileRow[] {
+  return rows.map((row) => normalizeRow(row, options))
+}
+
+function normalizeRow(row: PatchRow, options: LoadRowsOptions): ProfileRow {
+  if (!row || typeof row !== 'object') throw new Error('profile row must be an object')
   if (typeof row.id !== 'string' || row.id.length === 0) {
-    throw new Error(`${file}: row #${index} is missing "id"`)
+    throw new Error('profile row is missing "id"')
   }
-  if (row.core !== undefined && typeof row.core !== 'boolean') {
-    throw new Error(`${file}: row #${index} has a non-boolean "core"`)
+  if (row.group === true) {
+    if (!Array.isArray(row.config)) {
+      throw new Error(`group row "${row.id}" needs an array "config"`)
+    }
+  } else if (typeof row.name !== 'string' || row.name.length === 0) {
+    throw new Error(`profile row "${row.id}" is missing "name"`)
   }
 
   return {
     id: row.id,
-    name: options.compiled ? compiledEntry(row.name) : row.name,
+    name:
+      typeof row.name === 'string' && options.compiled ? compiledEntry(row.name) : (row.name ?? ''),
     ...(row.core === true ? { core: true as const } : {}),
     ...(typeof row.description === 'string' && row.description.length > 0
       ? { description: row.description }
       : {}),
-    ...(row.config === undefined ? {} : { config: row.config }),
+    ...(row.group === true ? { group: true as const } : {}),
+    ...(row.config === undefined
+      ? {}
+      : {
+          config:
+            row.group === true && Array.isArray(row.config)
+              ? normalizeRows(row.config as PatchRow[], options)
+              : row.config
+        }),
     ...(row.disabled === true ? { disabled: true } : {})
   }
 }
@@ -240,11 +335,12 @@ function compiledEntry(name: string): string {
 
 export function dumpRows(rows: ProfileRow[]): string {
   const lines = [
-    '# composed profile rows（MVP：bundle / patch 层尚未实现）',
+    '# composed profile rows（bundle → cordis.yml → cordis.patch.yml）',
     ...rows.flatMap((row) => [
       `- id: ${row.id}`,
       `  name: ${row.name}`,
       ...(row.core ? ['  core: true'] : []),
+      ...(row.group ? ['  group: true'] : []),
       ...(row.description ? [`  description: ${row.description}`] : []),
       ...(row.disabled ? ['  disabled: true'] : [])
     ])
@@ -267,7 +363,8 @@ export interface BootOptions {
 }
 
 export async function boot(paths: NidePaths, options: BootOptions): Promise<BootedHost> {
-  const rows = options.rows ?? loadRows(paths, options.nideRoot ?? REPO_ROOT, { compiled: options.compiled })
+  const rows =
+    options.rows ?? loadRows(paths, options.nideRoot ?? REPO_ROOT, { compiled: options.compiled })
   const ctx = new Context()
 
   // TODO: 换成 electron-log / 文件 exporter；MVP 先证明 Cordis 日志能出来。
@@ -299,6 +396,7 @@ export async function boot(paths: NidePaths, options: BootOptions): Promise<Boot
      */
     const entryId = await ctx.loader.create({
       name: toImportSpecifier(row.name),
+      ...(row.group === true ? { group: true } : {}),
       ...(row.config === undefined ? {} : { config: row.config })
     })
     entryIds.push(entryId)
