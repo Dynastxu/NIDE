@@ -81,7 +81,7 @@ export const pluginsService = {
     const shimSpecifier = (): string => {
       const here = path.dirname(fileURLToPath(import.meta.url))
       for (const name of ['plugin-shim.js', 'plugin-shim.ts']) {
-        const candidate = path.resolve(here, '../../../host/src', name)
+        const candidate = path.resolve(here, '../../host/src', name)
         if (fs.existsSync(candidate)) return pathToFileURL(candidate).href
       }
       throw new Error(`plugin shim entry not found next to ${here}`)
