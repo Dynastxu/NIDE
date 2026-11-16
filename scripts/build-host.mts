@@ -47,6 +47,12 @@ const backendWorker = path.join(
 )
 
 /**
+ * 安装式插件的组合行入口：行是运行时写进 profile patch 的，TS 走不到，
+ * 必须显式作为编译根（否则打包版里那行指向一个不存在的 `plugin-shim.js`）。
+ */
+const pluginShim = path.join(root, 'packages', 'host', 'src', 'plugin-shim.ts')
+
+/**
  * profile 与组合包里的插件都是**动态 import** 的（loader 按 YAML 里的路径加载），
  * TS 顺着静态依赖树走不到它们，所以显式加进编译根。
  *
@@ -114,7 +120,7 @@ const options: ts.CompilerOptions = {
   types: ['node']
 }
 
-const roots = [entry, backendWorker, ...dynamicEntries()]
+const roots = [entry, backendWorker, pluginShim, ...dynamicEntries()]
 for (const rootFile of roots) {
   if (!fs.existsSync(rootFile)) fail(`entry not found: ${rootFile}`)
 }

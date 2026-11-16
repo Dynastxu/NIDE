@@ -699,6 +699,8 @@ export class PluginManager {
       return { ok: false, reason: 'unreadable' }
     }
 
+    // 由组合行注册的条目不会因为删目录消失，必须显式撤销
+    this.registered.delete(id)
     this.scan()
     info('Plugin removed', { pluginId: id })
     return { ok: true, plugin: entry.descriptor }

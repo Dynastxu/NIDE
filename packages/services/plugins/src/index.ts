@@ -1,5 +1,8 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import type {} from '@cordisjs/plugin-loader'
 import { CORE_PACKAGES, type CorePackage } from '../../../contracts/src/plugin-api/core-packages.ts'
 import type { PermissionVariables } from '../../../contracts/src/plugin-api/permissions.ts'
 import type { NideContext } from '../../../kernel/src/context.ts'
@@ -11,6 +14,7 @@ import { PluginStorage } from './storage.ts'
 import { PluginCapabilities } from './capabilities.ts'
 import { PluginBackendRuntime } from './backend/runtime.ts'
 import { runUninstallScript } from './backend/uninstall.ts'
+import { removePluginRow, upsertPluginRow } from './profile-rows.ts'
 import type { TitleResolver } from './plugins.ts'
 
 /**
@@ -64,6 +68,46 @@ export const pluginsService = {
       const service = ctx.get('i18n')
       if (!service) throw new Error('i18n service is not available')
       return service
+    }
+
+    /** loader 按需取：注入它会让「只想跑服务、不挂 loader」的测试全部 PENDING */
+    const loader = (): NonNullable<ReturnType<NideContext['get']>> => {
+      const value = ctx.get('loader')
+      if (!value) throw new Error('loader service is not available')
+      return value
+    }
+
+    /** 安装式插件的行入口（编译产物里是 .js，源码树里是 .ts） */
+    const shimSpecifier = (): string => {
+      const here = path.dirname(fileURLToPath(import.meta.url))
+      for (const name of ['plugin-shim.js', 'plugin-shim.ts']) {
+        const candidate = path.resolve(here, '../../../host/src', name)
+        if (fs.existsSync(candidate)) return pathToFileURL(candidate).href
+      }
+      throw new Error(`plugin shim entry not found next to ${here}`)
+    }
+
+    /** 让 loader 按「一行」挂载刚装好的插件（不再依赖目录扫描） */
+    const mountRow = async (dir: string): Promise<void> => {
+      const entryId = await loader().create({ name: shimSpecifier(), config: { dir } })
+      const entry = loader().resolve(entryId)
+      if (entry.fiber) await entry.fiber
+    }
+
+    /** 找出某个插件目录对应的 loader 条目（重装 / 卸载用） */
+    const rowEntryId = (dir: string): string | null => {
+      for (const entry of loader().entries()) {
+        const config = entry.options.config as { dir?: unknown } | undefined
+        if (config?.dir === dir) return entry.id
+      }
+      return null
+    }
+
+    const unmountRow = async (dir: string): Promise<void> => {
+      const entryId = rowEntryId(dir)
+      if (!entryId) return
+      loader().remove(entryId)
+      await loader().await()
     }
 
     /**
@@ -216,8 +260,31 @@ export const pluginsService = {
 
       install: async (sourceDir) => {
         const result = manager.install(String(sourceDir ?? ''))
+        if (!result.ok) return result
+
+        const id = result.plugin.id
+        const location = manager.locationOf(id)
+        if (!location) return { ok: false, reason: 'unreadable' as const }
+
+        /**
+         * 安装 = 目录 + 一行。行写进 profile patch（这是 DSH 的装配点），
+         * 再让 loader 按行挂载 —— 失败就把三样一起回滚，不留半成品。
+         */
+        try {
+          upsertPluginRow(ctx.hostEnv.profileDir, id, location.dirPath)
+          await mountRow(location.dirPath)
+        } catch (error) {
+          console.warn('[nide-host] failed to mount the installed plugin row', {
+            pluginId: id,
+            error
+          })
+          removePluginRow(ctx.hostEnv.profileDir, id)
+          manager.remove(id)
+          return { ok: false, reason: 'unreadable' as const }
+        }
+
         i18n().refresh()
-        if (result.ok) await backends.reconcile()
+        await backends.reconcile()
         return result
       },
       remove: async (pluginId) => {
@@ -247,6 +314,11 @@ export const pluginsService = {
             return { ok: false, reason: 'uninstall-failed' as const }
           }
         }
+
+        // 先卸行、再删目录：行是装配真相，必须和目录一起消失
+        const location = manager.locationOf(id)
+        if (location) await unmountRow(location.dirPath)
+        removePluginRow(ctx.hostEnv.profileDir, id)
 
         const result = manager.remove(id)
         i18n().refresh()
