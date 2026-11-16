@@ -1,7 +1,11 @@
 import { JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { ContextMenu, type ContextMenuItem } from '@nide/client-kit/ui/ContextMenu'
-import type { PluginDescriptor, PluginPermissions } from '@nide/contracts/plugin-api'
+import type {
+  PluginDescriptor,
+  PluginPermissions,
+  PluginRuntimeStatus
+} from '@nide/contracts/plugin-api'
 import type { CorePackage } from '@nide/contracts/plugin-api/core-packages'
 
 /**
@@ -79,6 +83,9 @@ export function PluginsBrowser({
    */
   const [core, setCore] = useState<CorePackage[]>([])
 
+  /** 后端实时状态：`pluginId -> state`（没有后端的插件查不到，界面据此显示「随界面加载」） */
+  const [backends, setBackends] = useState<Record<string, PluginRuntimeStatus>>({})
+
   /** 界面上呈现（并用于算脏）的那份状态：immediate 模式没有草稿，只有已生效值 */
   const shown = mode === 'immediate' ? applied : draft
 
@@ -94,16 +101,18 @@ export function PluginsBrowser({
    * 这种只在下次启动才自愈的中间态。
    */
   const reloadPlugins = useCallback(async (): Promise<void> => {
-    const [list, off, coreList] = await Promise.all([
+    const [list, off, coreList, runtime] = await Promise.all([
       window.hostAPI.getPlugins(),
       window.hostAPI.getDisabledPlugins(),
-      window.hostAPI.getCorePackages()
+      window.hostAPI.getCorePackages(),
+      window.hostAPI.getPluginBackends()
     ])
 
     setPlugins(list)
     setCore(coreList)
     setApplied(off)
     setDraft(off)
+    setBackends(Object.fromEntries(runtime.map((status) => [status.pluginId, status])))
     setSelectedId((current) =>
       current && list.some((plugin) => plugin.id === current) ? current : (list[0]?.id ?? null)
     )
@@ -327,6 +336,14 @@ export function PluginsBrowser({
                     {entry.path}
                   </p>
                 </div>
+                <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 text-[10px] text-zinc-500">
+                  <span>{t('host.settings.plugins.state.enabled')}</span>
+                  <span>
+                    {entry.kind === 'service'
+                      ? t('host.settings.plugins.state.running')
+                      : t('host.settings.plugins.state.loadedWithUi')}
+                  </span>
+                </div>
               </li>
             ))}
           </ul>
@@ -370,7 +387,11 @@ export function PluginsBrowser({
           {/* 右：详情 */}
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             {selected ? (
-              <PluginDetail plugin={selected} enabled={shownEnabled[selected.id] ?? true} />
+              <PluginDetail
+                plugin={selected}
+                enabled={shownEnabled[selected.id] ?? true}
+                runtime={backends[selected.id]}
+              />
             ) : (
               <p className="p-6 text-xs text-zinc-500">
                 {t('host.settings.plugins.detail.select')}
@@ -534,12 +555,31 @@ function PluginRow({
 
 function PluginDetail({
   plugin,
-  enabled
+  enabled,
+  runtime
 }: {
   plugin: PluginDescriptor
   enabled: boolean
+  /** 后端实时状态；没有后端的插件是 undefined */
+  runtime?: PluginRuntimeStatus
 }): JSX.Element {
   const t = useT()
+
+  const runtimeValue = runtime
+    ? t(
+        runtime.state === 'running'
+          ? 'host.settings.plugins.state.running'
+          : runtime.state === 'starting'
+            ? 'host.settings.plugins.state.starting'
+            : runtime.state === 'failed'
+              ? 'host.settings.plugins.state.failed'
+              : 'host.settings.plugins.state.stopped'
+      )
+    : plugin.hasBackend
+      ? t('host.settings.plugins.state.stopped')
+      : enabled
+        ? t('host.settings.plugins.state.loadedWithUi')
+        : t('host.settings.plugins.state.notLoaded')
 
   return (
     <div className="flex flex-col gap-4 p-6">
@@ -570,6 +610,16 @@ function PluginDetail({
               : 'host.settings.plugins.detail.requiresRestart.no'
           )}
         />
+        <DetailRow
+          label={t('host.settings.plugins.state.config')}
+          value={t(
+            enabled ? 'host.settings.plugins.state.enabled' : 'host.settings.plugins.state.disabled'
+          )}
+        />
+        <DetailRow label={t('host.settings.plugins.state.runtime')} value={runtimeValue} />
+        {runtime?.error && (
+          <p className="text-[11px] leading-relaxed text-red-400">{runtime.error}</p>
+        )}
       </dl>
 
       <div className="flex flex-col gap-1">

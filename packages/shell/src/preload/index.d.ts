@@ -39,6 +39,7 @@ import type {
   PluginDescriptor,
   PluginInstallResult,
   PluginRemoveResult,
+  PluginRuntimeStatus,
   PluginSettingsDescriptor,
   PluginViewDescriptor
 } from '@nide/contracts/plugin-api'
@@ -337,6 +338,8 @@ export interface HostAPI {
   /** 核心包清单（只读）：宿主服务 + 客户端平台包 */
   getCorePackages: () => Promise<CorePackage[]>
   getDisabledPlugins: () => Promise<string[]>
+  /** 插件后端的实时状态（运行中 / 启动中 / 未运行 / 启动失败） */
+  getPluginBackends: () => Promise<PluginRuntimeStatus[]>
   onPluginEnabledChanged: (handler: (pluginId: string, enabled: boolean) => void) => Disposable
   getI18n: () => Promise<I18nPayload>
   setLocale: (locale: LocaleId) => Promise<void>
