@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { Context } from 'cordis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { installNideContext, type NideContext } from '../../packages/kernel/src/context.ts'
+import { hostServices, installNideContext, type NideContext } from '../../packages/kernel/src/context.ts'
 import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
 import { projectService } from '../../packages/services/project/src/index.ts'
 import { contentService } from '../../packages/services/content/src/index.ts'
@@ -74,6 +74,9 @@ async function bootServices(
       profileRows
     }
   })
+
+  // 服务通过 inject 取 rpc / hostEnv：先在插件树里把它们 provide 出来
+  await ctx.plugin(hostServices({ rpc: ctx.rpc, env: ctx.hostEnv }))
 
   // 先全部挂上，再等它们各自按 inject 就绪：顺序不再由数组顺序保证
   const fibers = services.map((service) => ctx.plugin(service))
