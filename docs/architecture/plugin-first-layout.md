@@ -174,12 +174,12 @@ packages/host/src/index.ts     363 行：参数 → profile → boot → kernel 
 | B | 分层 patch：`packages/bundle/base` → profile `cordis.yml` → `cordis.patch.yml`，`config` 整体替换、按 id 覆盖 | 完成 |
 | C | 客户端花名册由包元数据生成（`nide.client.windowTypes` → `roster.generated.ts`），运行时不认识窗口 | 完成 |
 | D1 | 内置插件从 `plugins/builtin` 搬进 `packages/plugins`，成为普通包；装配不再需要单独的 `plugins/` 树 | 完成 |
-| D2 | 安装 = npm 包 + 往 profile patch 写一行（替换现在的「目录 + manifest」安装协议） | 未做 |
+| D2 | 安装 = 目录 + 往 profile patch 写一行（行由 loader 挂载 shim 注册）；npm 源安装与移除目录扫描待做 | 核心完成 |
 
-D2 是**产品决策**而不是纯重构：现在的 manifest 插件（贡献点 / 权限 / 后端）不是
-Cordis 插件，要让 loader 直接挂载它们，需要把插件协议改成「包 + 行」，并重写安装 /
-卸载 / 权限元数据。`packages/plugins` 已经按这个方向摆好，但 D2 之前第三方的安装
-路径仍然是目录扫描。
+D2 的核心已经落地：manifest 插件不是 Cordis 插件，所以「行」指向一个通用 shim
+（`packages/host/src/plugin-shim.ts`），它按 `config.dir` 读 manifest 并注册 —— 行
+负责装配，目录只负责放包。还剩两件收尾：npm 源安装（`pnpm add` 到 profile）与
+移除目录扫描（老安装迁移完成后）。
 
 ### 装配顺序备忘
 
