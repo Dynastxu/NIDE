@@ -52,7 +52,7 @@ interface Options {
   home?: string
   /** Electron 的 userData 目录；独立运行时默认落到 <home>/user-data。 */
   userData?: string
-  /** 应用根目录（Electron 的 app.getAppPath()）；用来找 <root>/plugins/builtin。 */
+  /** 应用根目录（Electron 的 app.getAppPath()）；内置插件是普通包：`<root>/packages/plugins`。 */
   appRoot?: string
   /**
    * 编译产物根（`out/host`）。给了就不再从模块位置猜 profile 模板与

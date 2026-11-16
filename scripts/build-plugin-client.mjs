@@ -21,7 +21,7 @@ import process from 'node:process'
 import { build } from 'vite'
 
 const root = process.cwd()
-const builtinDir = path.join(root, 'plugins', 'builtin')
+const builtinDir = path.join(root, 'packages', 'plugins')
 
 /** `--only <dir>`：只构建一个插件（开发时迭代用） */
 function readOnlyFilter(argv) {

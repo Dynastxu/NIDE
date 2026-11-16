@@ -167,7 +167,7 @@ function resolveHostDistRoot(): string | null {
 }
 
 /**
- * 传给 host 的 `--app-root`：内建插件（`<root>/plugins/builtin`）的根。
+ * 传给 host 的 `--app-root`：内置插件（`<root>/packages/plugins`）的根。
  *
  * 打包布局用 asar 外的真实根 —— host 要读插件的 manifest 与 `dist/client.js`，
  * 这些也都是 asarUnpack 出去的。

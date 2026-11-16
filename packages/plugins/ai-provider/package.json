@@ -1,0 +1,9 @@
+{
+  "nide": {
+    "plugin": true
+  },
+  "private": true,
+  "description": "NIDE builtin plugin (ai-provider): manifest + contributions.",
+  "name": "@nide/plugin-ai-provider",
+  "type": "module"
+}

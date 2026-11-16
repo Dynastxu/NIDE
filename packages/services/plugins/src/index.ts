@@ -34,7 +34,8 @@ export const pluginsService = {
 
   apply(ctx: NideContext): void {
     const manager = new PluginManager({
-      builtinDir: path.join(ctx.hostEnv.appRoot, 'plugins', 'builtin'),
+      // 内置插件是普通包：`packages/plugins/<name>`（打包后位于 out/host 的同一布局）
+      builtinDir: [path.join(ctx.hostEnv.appRoot, 'packages', 'plugins')],
       thirdPartyDir: path.join(ctx.hostEnv.userDataDir, 'plugins'),
       preferencePath: pluginPreferencePath(ctx.hostEnv.userDataDir)
     })

@@ -16,13 +16,13 @@ asar: true
 # 这些是「host 进程要直接读 / 执行的文件」，不能留在 asar 里
 asarUnpack:
   - out/host/**
-  - plugins/**
+  - packages/plugins/**
 
 files:
   # 渲染进程 / 主进程 / 预加载的构建产物 + 编译后的 host（out/host）
   - out/**
-  # 内建插件（manifest 与 dist/client.js）
-  - plugins/**
+  # 内建插件：普通包，带 manifest 与 dist/client.js
+  - packages/plugins/**
   - package.json
   # 杂项
   - '!**/.vscode/*'

@@ -25,7 +25,7 @@ export interface HostEnvironment {
   home: string
   /** Electron 的 userData；独立运行时是 `<home>/user-data` */
   userDataDir: string
-  /** 应用根：`<root>/plugins/builtin` 在它下面 */
+  /** 应用根：内置插件包在 `<root>/packages/plugins` 下面 */
   appRoot: string
   /**
    * 本次启动用的 profile 行（`cordis.yml`）。

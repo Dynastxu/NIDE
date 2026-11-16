@@ -49,7 +49,7 @@ export type TitleResolver = (pluginId: string, titleSpec: string, fallback: stri
  * —— 那要用当前语言，而语言属于 shell 的 i18n（`src/main/i18n`）。
  *
  * 两个目录：
- * - `<appRoot>/plugins/builtin`：随宿主分发，不能卸载；
+ * - `<appRoot>/packages/plugins`：随宿主分发（普通包），不能卸载；
  * - `<userData>/plugins`：用户安装的第三方插件。
  *
  * 启用状态存 `plugin-preferences.json`（userData），只有被显式禁用的 id 才落盘；
@@ -73,8 +73,13 @@ interface CatalogEntry {
 }
 
 export interface PluginManagerOptions {
-  /** `<appRoot>/plugins/builtin` */
-  builtinDir: string
+  /**
+   * 内建插件根：一个或多个目录。
+   *
+   * 内置插件现在住在 `packages/plugins/<name>`（它们是普通包，带 `nide.plugin`
+   * 元数据），所以宿主可以传一个列表；老的单目录写法继续支持。
+   */
+  builtinDir: string | string[]
   /** `<userData>/plugins` */
   thirdPartyDir: string
   /** `<userData>/plugin-preferences.json` */
@@ -378,12 +383,17 @@ export class PluginManager {
     }
   }
 
-  /** 重新扫描两个插件目录；后扫到的同名 id 覆盖先扫到的（第三方覆盖内置） */
+  /** 重新扫描插件目录；后扫到的同名 id 覆盖先扫到的（第三方覆盖内置） */
   scan(): void {
     const next = new Map<string, CatalogEntry>()
+    const builtinDirs = Array.isArray(this.options.builtinDir)
+      ? this.options.builtinDir
+      : [this.options.builtinDir]
 
-    for (const entry of scanDir(this.options.builtinDir, 'builtin')) {
-      next.set(entry.descriptor.id, entry)
+    for (const dir of builtinDirs) {
+      for (const entry of scanDir(dir, 'builtin')) {
+        next.set(entry.descriptor.id, entry)
+      }
     }
     for (const entry of scanDir(this.options.thirdPartyDir, 'third-party')) {
       next.set(entry.descriptor.id, entry)
@@ -391,7 +401,7 @@ export class PluginManager {
 
     this.entries = next
     info('Plugin directories scanned', {
-      builtin: this.options.builtinDir,
+      builtin: builtinDirs,
       thirdParty: this.options.thirdPartyDir,
       count: next.size
     })
