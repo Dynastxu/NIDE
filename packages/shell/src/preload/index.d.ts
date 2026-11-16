@@ -312,7 +312,7 @@ export interface HostAPI {
    * 声明后续 host 调用的调用方插件（插件 UI 的 SDK 会用；核心 UI 不调用）。
    *
    * 传 `null` 清空。宿主按这个 id 查权限声明，见
-   * `packages/services/plugins/src/permissions.ts`。
+   * `packages/plugin-runtime/src/permissions.ts`。
    */
   setCaller: (pluginId: string | null) => void
   getPluginViews: () => Promise<PluginViewDescriptor[]>

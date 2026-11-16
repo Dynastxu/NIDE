@@ -28,7 +28,7 @@ packages/
   contracts/             # 跨进程契约：类型 + 纯函数 + 词条基础表（无 Electron / DOM / IO）
   kernel/                # Cordis 树 + RPC 注册表 + transport + ctx.shell 反桥
   shell/                 # Electron 外壳：main（窗口/菜单/对话框/日志/协议）+ preload
-  services/              # host 业务，一包一个（project content config plugins i18n appearance secrets ai）
+  project/ content/ config/ plugin-runtime/ i18n/ appearance/ secrets/ ai/  # host 业务，一包一个
   bundle/base/           # 组合包：宿主服务的 patch 行
   plugins/<name>/        # NIDE 插件（manifest + 贡献点；只能依赖 sdk）
   client-runtime/        # 客户端 Cordis 树 + slot + bundle loader + 生成的花名册
@@ -101,7 +101,7 @@ interface NideContext extends Context {
 ### 服务包
 
 ```ts
-// packages/services/project/src/index.ts
+// packages/project/src/index.ts
 export const projectService = {
   name: 'nide:service:project',
   apply(ctx: NideContext): void {
@@ -124,7 +124,7 @@ export const projectService = {
 
 ```
 packages/kernel/src/{rpc,ipc,shell,context}.ts
-packages/services/
+packages/
   project/     project.*       projects.json 的唯一实现
   content/     files.* gallery.* overview.*（同一批读写实现）
   config/      config.*        + 作为「项目配置纯函数库」被 content 复用
@@ -158,10 +158,10 @@ packages/host/src/index.ts     363 行：参数 → profile → boot → kernel 
   name: '{{NIDE_ROOT}}/packages/hello/src/index.ts'
 
 - id: project                                 # 宿主服务（kind: service）
-  name: '{{NIDE_ROOT}}/packages/services/project/src/index.ts'
+  name: '{{NIDE_ROOT}}/packages/project/src/index.ts'
   kind: service
 - id: content
-  name: '{{NIDE_ROOT}}/packages/services/content/src/index.ts'
+  name: '{{NIDE_ROOT}}/packages/content/src/index.ts'
   kind: service
 # … config / plugins / i18n / appearance / secrets / ai
 ```

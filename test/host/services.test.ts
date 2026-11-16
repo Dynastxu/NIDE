@@ -5,14 +5,14 @@ import { Context } from 'cordis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { hostServices, installNideContext, type NideContext } from '../../packages/kernel/src/context.ts'
 import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
-import { projectService } from '../../packages/services/project/src/index.ts'
-import { contentService } from '../../packages/services/content/src/index.ts'
-import { configService } from '../../packages/services/config/src/index.ts'
-import { pluginsService } from '../../packages/services/plugins/src/index.ts'
-import { i18nService } from '../../packages/services/i18n/src/index.ts'
-import { appearanceService } from '../../packages/services/appearance/src/index.ts'
-import { secretsService } from '../../packages/services/secrets/src/index.ts'
-import { aiService } from '../../packages/services/ai/src/index.ts'
+import { projectService } from '../../packages/project/src/index.ts'
+import { contentService } from '../../packages/content/src/index.ts'
+import { configService } from '../../packages/config/src/index.ts'
+import { pluginsService } from '../../packages/plugin-runtime/src/index.ts'
+import { i18nService } from '../../packages/i18n/src/index.ts'
+import { appearanceService } from '../../packages/appearance/src/index.ts'
+import { secretsService } from '../../packages/secrets/src/index.ts'
+import { aiService } from '../../packages/ai/src/index.ts'
 import {
   CORE_PACKAGES,
   type CorePackage
@@ -132,7 +132,7 @@ describe('host 服务装配', () => {
     const { rpc } = await bootServices([
       {
         id: 'project',
-        name: '{{NIDE_ROOT}}/packages/services/project/src/index.ts',
+        name: '{{NIDE_ROOT}}/packages/project/src/index.ts',
         core: true,
         description: '项目生命周期'
       }
@@ -155,7 +155,7 @@ describe('host 服务装配', () => {
         id: 'project',
         name: 'project',
         kind: 'service',
-        path: '{{NIDE_ROOT}}/packages/services/project/src/index.ts',
+        path: '{{NIDE_ROOT}}/packages/project/src/index.ts',
         description: '项目生命周期'
       }
     ])

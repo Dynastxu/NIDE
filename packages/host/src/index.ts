@@ -18,7 +18,7 @@ import {
   initializeProjectDirectory,
   loadProjectConfig,
   updateProjectConfig
-} from '../../services/config/src/project-config.ts'
+} from '../../config/src/project-config.ts'
 import { shell } from '../../kernel/src/shell.ts'
 import type { ChatStreamEvent } from '../../../packages/contracts/src/ai-provider/index.ts'
 

@@ -23,3 +23,6 @@ out
 
 # 插件浏览器半的构建产物
 /plugins/builtin/*/dist/
+
+# Cordis loader 的运行时解析缓存（node 进程自动写）
+/.cordis/

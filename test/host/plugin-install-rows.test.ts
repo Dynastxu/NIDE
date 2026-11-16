@@ -11,10 +11,10 @@ import {
   type NideContext
 } from '../../packages/kernel/src/context.ts'
 import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
-import { projectService } from '../../packages/services/project/src/index.ts'
-import { pluginsService } from '../../packages/services/plugins/src/index.ts'
-import { i18nService } from '../../packages/services/i18n/src/index.ts'
-import { readPatch } from '../../packages/services/plugins/src/profile-rows.ts'
+import { projectService } from '../../packages/project/src/index.ts'
+import { pluginsService } from '../../packages/plugin-runtime/src/index.ts'
+import { i18nService } from '../../packages/i18n/src/index.ts'
+import { readPatch } from '../../packages/plugin-runtime/src/profile-rows.ts'
 import type {} from '../../packages/host/src/service-types.ts'
 
 /**

@@ -8,16 +8,16 @@
  * 消费方拿到类型的方式与 DSH 一致：`inject: ['project']` 之后直接 `ctx.project`。
  * 新增一个服务时，在对应服务包里 `ctx.provide(key, value)`，再在这里补一行类型。
  */
-import type { HostProjectStore } from '../../services/project/src/host-project-store.ts'
-import type { SecretVault } from '../../services/secrets/src/secrets.ts'
-import type { AiService } from '../../services/ai/src/index.ts'
-import type { HostAppearance } from '../../services/appearance/src/appearance.ts'
-import type { I18nService } from '../../services/i18n/src/index.ts'
-import type { PluginManager } from '../../services/plugins/src/plugins.ts'
-import type { PluginPermissionGuard } from '../../services/plugins/src/permissions.ts'
-import type { PluginStorage } from '../../services/plugins/src/storage.ts'
-import type { PluginCapabilities } from '../../services/plugins/src/capabilities.ts'
-import type { PluginBackendRuntime } from '../../services/plugins/src/backend/runtime.ts'
+import type { HostProjectStore } from '../../project/src/host-project-store.ts'
+import type { SecretVault } from '../../secrets/src/secrets.ts'
+import type { AiService } from '../../ai/src/index.ts'
+import type { HostAppearance } from '../../appearance/src/appearance.ts'
+import type { I18nService } from '../../i18n/src/index.ts'
+import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
+import type { PluginPermissionGuard } from '../../plugin-runtime/src/permissions.ts'
+import type { PluginStorage } from '../../plugin-runtime/src/storage.ts'
+import type { PluginCapabilities } from '../../plugin-runtime/src/capabilities.ts'
+import type { PluginBackendRuntime } from '../../plugin-runtime/src/backend/runtime.ts'
 
 declare module 'cordis' {
   interface Context {

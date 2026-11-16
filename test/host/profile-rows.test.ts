@@ -9,7 +9,7 @@ import {
   readPatch,
   removePluginRow,
   upsertPluginRow
-} from '../../packages/services/plugins/src/profile-rows.ts'
+} from '../../packages/plugin-runtime/src/profile-rows.ts'
 
 /**
  * 安装 = 包 + 一行。这些用例钉住「写 patch 时不破坏用户自己的行」这条约束，

@@ -14,7 +14,7 @@
  *
  * 这里刻意不 import `node:path`：渲染进程也要读这份声明（详情页展示），
  * 路径归一化用纯字符串实现。校验失败的声明**不会**被静默降级成 full ——
- * 宿主会整份忽略这个插件（见 packages/services/plugins/src/plugins.ts）。
+ * 宿主会整份忽略这个插件（见 packages/plugin-runtime/src/plugins.ts）。
  */
 
 export type TrustLevel = 'full' | 'sandboxed'
