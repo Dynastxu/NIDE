@@ -39,3 +39,6 @@ export const layoutPlugin = {
     ctx.logger('client-ui-layout').info('zone slots registered', { count: ZONES.length })
   }
 }
+
+/** 花名册协议：client-runtime 按 windowTypes 过滤后挂载这里列出的插件 */
+export const clientPlugins = [layoutPlugin]

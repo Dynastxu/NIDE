@@ -27,3 +27,6 @@ export const mainPlugin = {
     ctx.logger('client-ui-main').info('main.root registered')
   }
 }
+
+/** 花名册协议：client-runtime 按 windowTypes 过滤后挂载这里列出的插件 */
+export const clientPlugins = [mainPlugin]

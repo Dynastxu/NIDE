@@ -4,5 +4,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "nide": {
+    "client": {
+      "windowTypes": ["welcome"],
+      "order": 30
+    }
   }
 }

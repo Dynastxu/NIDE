@@ -2,25 +2,25 @@ import { Context } from 'cordis'
 import { SlotRegistry } from '@nide/client-ui-slots'
 import { ClientModuleRegistry, type ModuleComponent } from '@nide/client-modules'
 import { loadClientBundles } from './loader'
+import { CLIENT_ROSTER } from './roster.generated'
+import type { ClientWindowType } from './window-type.ts'
 
 /**
- * 浏览器侧的 Cordis 根上下文（MVP）。
+ * 浏览器侧的 Cordis 根上下文。
  *
- * 每个窗口一棵树，按 `windowType` 只加载它真正需要的插件：
- * - main -> `main.root` + `zone.*` + demo 的 client 半
- * - welcome -> `welcome.root`
- * - settings -> 暂时不接 slot，仍走旧路径
+ * 每个窗口一棵树，按 `windowType` 只加载它真正需要的插件。**哪些包属于哪个窗口
+ * 不在代码里**：各界面包在 package.json 的 `nide.client.windowTypes` 声明，由
+ * `scripts/gen-client-roster.mjs` 生成静态 import 表（`roster.generated.ts`）。
+ * 加一个窗口 = 新增一个包 + 跑一次生成脚本，本文件不用改。
  *
  * 这样主窗口不会把 WelcomeApp 拖进来，欢迎窗口也不会加载 Monaco。
  *
- * TODO（阶段 3 的后续）：
- * - 客户端插件 loader / boot graph（现在是按 windowType 硬编码）
- * - `nide.client` 声明与自定义协议加载
+ * TODO：
  * - list / keyed slot 语义
  * - HMR
  */
 
-export type WindowType = 'main' | 'welcome' | 'settings'
+export type WindowType = ClientWindowType
 
 export interface ClientRuntimeOptions {
   windowType: WindowType
@@ -79,50 +79,19 @@ interface DisposableFiber {
 }
 
 /**
- * 窗口 → 插件包的装配表。
- *
- * **每个包自己声明 `windowTypes`**（见各包 `src/index.ts`），这里只负责把它们
- * 列出来并按当前窗口过滤 —— 不再有 `if (windowType === 'main') …` 的分支。
- * 加一个窗口种类 = 新增一个包 + 在表里加一行，运行时不认识任何具体窗口。
+ * 按窗口种类挂载花名册里的插件。
  *
  * `load` 用动态 import：每个窗口只下载它自己的界面（设置窗口不该吃下 Monaco）。
+ * 过滤发生在 `await load()` **之前** —— `windowTypes` 是生成物里的静态元数据。
  */
-interface WindowEntry {
-  load: () => Promise<{ windowTypes: readonly WindowType[]; plugins: unknown[] }>
-}
-
-const WINDOW_ENTRIES: WindowEntry[] = [
-  {
-    load: async () => {
-      const [main, layout] = await Promise.all([
-        import('@nide/client-ui-main'),
-        import('@nide/client-ui-layout')
-      ])
-      return { windowTypes: main.windowTypes, plugins: [main.mainPlugin, layout.layoutPlugin] }
-    }
-  },
-  {
-    load: async () => {
-      const welcome = await import('@nide/client-ui-welcome')
-      return { windowTypes: welcome.windowTypes, plugins: [welcome.welcomePlugin] }
-    }
-  },
-  {
-    load: async () => {
-      const settings = await import('@nide/client-ui-settings')
-      return { windowTypes: settings.windowTypes, plugins: [settings.settingsPlugin] }
-    }
-  }
-]
-
 async function loadWindowPlugin(ctx: Context, windowType: WindowType): Promise<DisposableFiber[]> {
   const fibers: DisposableFiber[] = []
 
-  for (const entry of WINDOW_ENTRIES) {
-    const { windowTypes, plugins } = await entry.load()
-    if (!windowTypes.includes(windowType)) continue
+  for (const entry of CLIENT_ROSTER) {
+    if (!entry.windowTypes.includes(windowType)) continue
 
-    for (const plugin of plugins) {
+    const module = await entry.load()
+    for (const plugin of module.clientPlugins) {
       fibers.push(await ctx.plugin(plugin as Parameters<Context['plugin']>[0]))
     }
   }
