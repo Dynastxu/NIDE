@@ -353,6 +353,8 @@ function scanDir(dir: string, source: PluginSource): CatalogEntry[] {
 export class PluginManager {
   private readonly options: PluginManagerOptions
   private entries = new Map<string, CatalogEntry>()
+  /** 由组合行注册的包（不来自目录扫描）；`scan()` 之后要保留 */
+  private readonly registered = new Map<string, CatalogEntry>()
   private preference: PluginPreference
 
   constructor(options: PluginManagerOptions) {
@@ -383,9 +385,44 @@ export class PluginManager {
     }
   }
 
+  /**
+   * 由**组合行**注册一个插件包（DSH 对齐：插件是包 + 行，不是被扫描的目录）。
+   *
+   * 插件的 Cordis 入口在 `apply` 里调用它；目录只用来定位界面入口、客户端 bundle
+   * 与后端入口。`source: 'builtin'` 的条目不能卸载。
+   */
+  registerPackage(
+    raw: unknown,
+    dirPath: string,
+    source: PluginSource = 'builtin'
+  ): PluginDescriptor | null {
+    const entry = toEntry(raw, source, dirPath)
+    if (!entry) {
+      warn('Plugin package registered an invalid manifest', { dir: dirPath })
+      return null
+    }
+
+    // 与扫描一致：后注册的同 id 覆盖先注册的
+    this.entries.set(entry.descriptor.id, entry)
+    this.registered.set(entry.descriptor.id, entry)
+    info('Plugin package registered', {
+      pluginId: entry.descriptor.id,
+      dir: dirPath,
+      source
+    })
+    return entry.descriptor
+  }
+
+  /** 插件包卸载时撤销注册（组合行移除、包被删掉） */
+  unregisterPackage(pluginId: string): void {
+    if (!this.registered.delete(pluginId)) return
+    this.entries.delete(pluginId)
+  }
+
   /** 重新扫描插件目录；后扫到的同名 id 覆盖先扫到的（第三方覆盖内置） */
   scan(): void {
-    const next = new Map<string, CatalogEntry>()
+    // 组合行注册的包不在目录里，扫描后必须保留
+    const next = new Map<string, CatalogEntry>(this.registered)
     const builtinDirs = Array.isArray(this.options.builtinDir)
       ? this.options.builtinDir
       : [this.options.builtinDir]

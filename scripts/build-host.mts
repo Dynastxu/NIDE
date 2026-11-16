@@ -209,4 +209,25 @@ if (fs.existsSync(bundlesSource)) {
   }
 }
 
+/**
+ * 插件包不是纯 TS：manifest.json、`package.nls*.json`、locales、`dist/client.js`
+ * 都是运行时要读的文件（插件服务按目录定位界面入口与客户端 bundle）。
+ * `src/` 已经由 TS 编译，其余原样复制到产物根。
+ */
+const pluginsSource = path.join(root, 'packages', 'plugins')
+if (fs.existsSync(pluginsSource)) {
+  for (const name of fs.readdirSync(pluginsSource)) {
+    const source = path.join(pluginsSource, name)
+    if (!fs.statSync(source).isDirectory()) continue
+    if (name.startsWith('.') || name === 'node_modules') continue
+
+    for (const entry of fs.readdirSync(source)) {
+      if (entry === 'src' || entry === 'node_modules' || entry.startsWith('.')) continue
+      fs.cpSync(path.join(source, entry), path.join(outDir, 'packages', 'plugins', name, entry), {
+        recursive: true
+      })
+    }
+  }
+}
+
 console.log(`[build-host] built ${path.relative(root, outDir)}`)

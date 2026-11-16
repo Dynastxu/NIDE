@@ -37,3 +37,11 @@
       name: '{{NIDE_ROOT}}/packages/services/ai/src/index.ts'
       core: true
       description: AI 供应商：配置、测试连接、SSE 转发
+
+    # ---- 内置插件（普通包 + 组合行；不再由插件服务扫目录发现）----
+    - id: plugin-demo
+      name: '{{NIDE_ROOT}}/packages/plugins/demo/src/index.ts'
+    - id: plugin-lang-en
+      name: '{{NIDE_ROOT}}/packages/plugins/lang-en/src/index.ts'
+    - id: plugin-ai-provider
+      name: '{{NIDE_ROOT}}/packages/plugins/ai-provider/src/index.ts'
