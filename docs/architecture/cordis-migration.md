@@ -12,7 +12,7 @@
   - 新增 [packages/hello](../../packages/hello/src/index.ts)：最小插件，验证激活、日志与 effect 释放。
   - 新增 [profiles/desktop](../../profiles/desktop)：profile 模板（`package.json` / `cordis.yml` / `cordis.patch.yml`）。
   - 命令：`pnpm host:dump`、`pnpm host:smoke`、`pnpm typecheck:host`。
-  - 依赖已 pin：`@deepseek-ai/cordis@4.0.5`、`cordis-plugin-loader@1.0.6`、`include@1.0.10`、`group@1.0.5`、`timer@1.1.7`、`js-yaml@4.3.2`；npm 走 npmmirror。
+  - 依赖已 pin：**公开包** `cordis@4.0.0-rc.12`、`@cordisjs/plugin-loader@1.0.0-rc.9`、`include@1.2.0`、`group@1.0.0`、`timer@1.1.4`、`js-yaml@4.3.2`；不再使用任何 `@deepseek-ai/*` 包，`.npmrc` 已删（lock 只由默认 npm registry 解析）。
   - **shell ↔ host 握手已接上**：[src/main/host/process.ts](../../packages/shell/src/main/host/process.ts) 用 `utilityProcess.fork` 拉起 host，等 `ready`，支持 `ping/pong` 与 `shutdown`。**host 现在是启动必需**：文件 / 配置的实现全在它里面；另有 `invokeHost` 走父端口做 shell → host RPC（新建项目时的 `config.initialize`）。
   - [packages/host/src/ipc.ts](../../packages/host/src/ipc.ts) 同时支持 Electron `process.parentPort` 与 Node `child_process.fork` 的 IPC 载体。
   - 冒烟脚本：[scripts/host-ipc-node-smoke.mts](../../scripts/host-ipc-node-smoke.mts)（纯 Node；已通过）。真实 Electron 启动用 `pnpm dev` 验证，日志里能看到 `host process is ready`、`ipc=true` 与 `Host port attached`。

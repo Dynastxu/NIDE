@@ -3,8 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import yaml from 'js-yaml'
-import { Context } from '@deepseek-ai/cordis'
-import Loader from '@deepseek-ai/cordis-plugin-loader'
+import { Context } from 'cordis'
+import Loader from '@cordisjs/plugin-loader'
 
 /**
  * NIDE profile 启动层（MVP）。

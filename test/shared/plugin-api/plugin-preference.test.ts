@@ -19,7 +19,7 @@ import type { PluginPreference } from '@nide/contracts/plugin-api'
  */
 
 function preferenceWith(...disabled: string[]): PluginPreference {
-  return { version: PLUGIN_PREFERENCE_VERSION, disabled }
+  return { version: PLUGIN_PREFERENCE_VERSION, disabled, enabled: [] }
 }
 
 describe('normalizePluginId', () => {
@@ -45,6 +45,27 @@ describe('isPluginEnabled', () => {
 
   it('id 收敛后是空串时视为启用，不把一个匹配不上任何插件的值当成命中', () => {
     expect(isPluginEnabled(preferenceWith(''), '')).toBe(true)
+  })
+
+  it('默认禁用的插件在用户显式启用前是关的', () => {
+    const preference = emptyPluginPreference()
+    expect(isPluginEnabled(preference, 'demo.optional', { defaultDisabled: true })).toBe(false)
+    expect(isPluginEnabled(preference, 'demo.optional')).toBe(true)
+  })
+
+  it('显式启用优先于默认禁用（用户打开过的默认禁用插件保持打开）', () => {
+    const preference: PluginPreference = {
+      version: PLUGIN_PREFERENCE_VERSION,
+      disabled: [],
+      enabled: ['demo.optional']
+    }
+    expect(isPluginEnabled(preference, 'demo.optional', { defaultDisabled: true })).toBe(true)
+  })
+
+  it('core / essential 恒启用，即使文件里写了禁用', () => {
+    const preference = preferenceWith('demo.core', 'demo.essential')
+    expect(isPluginEnabled(preference, 'demo.core', { core: true })).toBe(true)
+    expect(isPluginEnabled(preference, 'demo.essential', { essential: true })).toBe(true)
   })
 })
 
@@ -123,5 +144,36 @@ describe('setPluginEnabled', () => {
 
     expect(setPluginEnabled(preference, '   ', false)).toBe(preference)
     expect(setPluginEnabled(preference, '', false)).toBe(preference)
+  })
+
+  it('启用默认禁用的插件会留下 enabled 记录', () => {
+    let preference = emptyPluginPreference()
+
+    preference = setPluginEnabled(preference, 'demo.optional', true, { defaultDisabled: true })
+    expect(preference.enabled).toEqual(['demo.optional'])
+    expect(preference.disabled).toEqual([])
+    expect(isPluginEnabled(preference, 'demo.optional', { defaultDisabled: true })).toBe(true)
+
+    preference = setPluginEnabled(preference, 'demo.optional', false, { defaultDisabled: true })
+    expect(preference.enabled).toEqual([])
+    expect(preference.disabled).toEqual(['demo.optional'])
+  })
+
+  it('core / essential 拒绝改动，返回同一个引用', () => {
+    const preference = emptyPluginPreference()
+    expect(setPluginEnabled(preference, 'demo.core', false, { core: true })).toBe(preference)
+    expect(setPluginEnabled(preference, 'demo.essential', false, { essential: true })).toBe(
+      preference
+    )
+  })
+
+  it('解析时也收敛 enabled，并容忍老文件没有这个字段', () => {
+    expect(parsePluginPreference({ version: PLUGIN_PREFERENCE_VERSION }).enabled).toEqual([])
+
+    const preference = parsePluginPreference({
+      version: PLUGIN_PREFERENCE_VERSION,
+      enabled: ['b', '', 'a', 'b']
+    })
+    expect(preference.enabled).toEqual(['a', 'b'])
   })
 })

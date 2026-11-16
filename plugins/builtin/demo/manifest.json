@@ -3,7 +3,7 @@
   "name": "Demo Plugin",
   "version": "0.1.0",
   "activationEvents": ["onStartup"],
-  "permissions": [],
+  "permissions": { "trust": "sandboxed" },
   "client": {
     "platform": "web",
     "bundle": "dist/client.js"

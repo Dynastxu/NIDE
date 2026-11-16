@@ -752,6 +752,20 @@ const aiProviderAPI = {
 
 const api = {
   /**
+   * 设置后续 host 调用的**调用方插件**（插件 UI 专用）。
+   *
+   * 由 SDK 的 `useHost().api` 在每次调用前后同步设置 / 清空：真正的宿主业务
+   * 方法都在本文件里同步地把 `callerPluginId` 带进 RPC 请求，所以调用返回的
+   * Promise 还没 resolve 时就已经定好了归属，不存在「异步回来算错人」的窗口。
+   *
+   * 核心 UI 不调用它（`null`），因此不受插件权限约束；插件 bundle 若直接摸
+   * `window.hostAPI` 也能绕过 —— 这是渲染进程内插件的既有限制，别当成沙箱。
+   */
+  setCaller: (pluginId: string | null): void => {
+    callerPluginId = typeof pluginId === 'string' && pluginId.length > 0 ? pluginId : null
+  },
+
+  /**
    * 获取所有插件注册的 UI 视图元信息。
    * 返回 [{ id, title, location, pluginId, dir, entry }] —— 纯数据。
    */
@@ -1008,6 +1022,8 @@ function sendRaw(level: LogMessage['level'], data: unknown[]): void {
  */
 let hostPort: MessagePort | null = null
 let hostRequestSeq = 0
+/** 当前插件 UI 的 id；由 `hostAPI.setCaller` 同步设置（见 api.setCaller 的说明） */
+let callerPluginId: string | null = null
 const hostPending = new Map<
   string,
   {
@@ -1106,7 +1122,14 @@ function hostInvoke(
       reject(new Error(`${namespace}.${method} timed out after ${timeoutMs}ms`))
     }, timeoutMs)
     hostPending.set(id, { resolve, reject, timer })
-    port.postMessage({ type: 'rpc', id, namespace, method, args })
+    port.postMessage({
+      type: 'rpc',
+      id,
+      namespace,
+      method,
+      args,
+      ...(callerPluginId ? { caller: { pluginId: callerPluginId } } : {})
+    })
   })
 }
 

@@ -1,4 +1,4 @@
-import { Context } from '@deepseek-ai/cordis'
+import { Context } from 'cordis'
 import { SlotRegistry } from '@nide/client-ui-slots'
 import { ClientModuleRegistry, type ModuleComponent } from '@nide/client-modules'
 import { loadClientBundles } from './loader'

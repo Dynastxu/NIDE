@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from 'cordis'
 
 /**
  * 具名插槽注册表（纯逻辑，不依赖 React 运行时）。

@@ -1,9 +1,17 @@
 import path from 'node:path'
+import os from 'node:os'
 import { CORE_PACKAGES, type CorePackage } from '../../../contracts/src/plugin-api/core-packages.ts'
+import type { PermissionVariables } from '../../../contracts/src/plugin-api/permissions.ts'
 import type { NideContext } from '../../../kernel/src/context.ts'
+import type { HostProjectStore } from '../../project/src/host-project-store.ts'
 import type { I18nService } from '../../i18n/src/index.ts'
 import { builtinViews } from './builtin-views.ts'
-import { PluginManager, pluginPreferencePath } from './plugins.ts'
+import { pluginPreferencePath, PluginManager } from './plugins.ts'
+import { PluginPermissionGuard } from './permissions.ts'
+import { PluginStorage } from './storage.ts'
+import { PluginCapabilities } from './capabilities.ts'
+import { PluginBackendRuntime } from './backend/runtime.ts'
+import { runUninstallScript } from './backend/uninstall.ts'
 import type { TitleResolver } from './plugins.ts'
 
 /**
@@ -76,16 +84,115 @@ export const pluginsService = {
     const resolveTitle: TitleResolver = (pluginId, spec, fallback) =>
       i18n().host.resolveTitle(manager.manifestNls(pluginId), spec) || fallback
 
+    /** 当前项目根：权限作用域里的 `${project}` 靠它展开 */
+    const projectRoot = (): string | undefined =>
+      ctx.services.require<HostProjectStore>('project').getCurrent()?.path
+
+    /**
+     * 权限作用域的展开变量。
+     *
+     * `pluginDir` 因插件而异，所以每次现取（`manager.locationOf`）；其余三样在一次
+     * 启动里是常量。
+     */
+    const permissionVariables = (pluginId?: string): PermissionVariables => {
+      const location = pluginId ? manager.locationOf(pluginId) : undefined
+      return {
+        ...(projectRoot() ? { project: projectRoot() } : {}),
+        userData: ctx.env.userDataDir,
+        temp: os.tmpdir(),
+        home: ctx.env.home,
+        ...(location ? { pluginDir: location.dirPath } : {})
+      }
+    }
+
+    const permissionGuard = new PluginPermissionGuard({
+      manager,
+      variables: (pluginId) => permissionVariables(pluginId),
+      projectRoot
+    })
+
+    /**
+     * 插件后端（manifest.main）。
+     *
+     * 启停由本服务统一同步；宿主入口在服务装配完成后调 `startEnabled()`，
+     * 并在退出时 `stopAll()`。测试只构造服务、不启动后端，所以不会 fork。
+     */
+    const storage = new PluginStorage({ userDataDir: ctx.env.userDataDir })
+    const capabilities = new PluginCapabilities({ manager })
+
+    const backends = new PluginBackendRuntime({
+      manager,
+      permissions: permissionGuard,
+      storage,
+      capabilities,
+      userDataDir: ctx.env.userDataDir,
+      home: ctx.env.home
+    })
+
     ctx.services.provide('plugins', manager)
+    ctx.services.provide('plugin-permissions', permissionGuard)
+    ctx.services.provide('plugin-storage', storage)
+    ctx.services.provide('plugin-capabilities', capabilities)
+    ctx.services.provide('plugin-backend', backends)
+
+    /**
+     * 后端方法的统一入口：`plugin.call(pluginId, method, params)`。
+     *
+     * 单独一个命名空间而不是塞进 `plugins`，是为了让「调用插件提供的能力」和
+     * 「管理插件」分开；渲染进程（核心 UI 或插件）都走它。
+     */
+    ctx.rpc.register('plugin', {
+      call: (pluginId, method, params) =>
+        backends.invoke(String(pluginId ?? ''), String(method ?? ''), params)
+    })
 
     ctx.rpc.register('plugins', {
       list: () => manager.list(),
       disabled: () => manager.disabled(),
-      setEnabled: (pluginId, enabled) => {
-        manager.setEnabled(String(pluginId ?? ''), enabled === true)
+      setEnabled: async (pluginId, enabled) => {
+        const id = String(pluginId ?? '')
+        manager.setEnabled(id, enabled === true)
+        await backends.handleEnabled(id, enabled === true)
         return manager.disabled()
       },
       clientBundles: () => manager.clientBundles(),
+
+      /** 插件后端的实时状态（启动中 / 运行中 / 失败 + 已注册方法） */
+      backends: () => backends.status(),
+
+      /** 显式激活一个后端（`onView` / `onCommand` 之外的入口；也可给 Agent 用） */
+      activate: async (pluginId) => {
+        await backends.ensure(String(pluginId ?? ''))
+        return backends.status()
+      },
+
+      /**
+       * 渲染进程打开一个视图时调用：`onView:<viewId>` 的插件后端在这里激活。
+       *
+       * 视图 → 插件 的归属只有清单知道（`manager.viewOwner`），所以放在宿主判。
+       */
+      activateView: async (viewId) => {
+        await backends.activateForView(String(viewId ?? ''))
+        return backends.status()
+      },
+
+      /**
+       * 一个插件的声明 + 展开后的作用域。
+       *
+       * 详情页要显示「它能读哪些目录」；展开结果不能交给渲染进程自己算 ——
+       * `${userData}` / `${project}` 的真实值属于宿主。插件不存在时返回 null。
+       */
+      permissions: (pluginId) => {
+        const id = String(pluginId ?? '')
+        const permissions = manager.permissionsOf(id)
+        if (!permissions) return null
+
+        return {
+          pluginId: id,
+          permissions,
+          resolved: permissionGuard.snapshot(id)?.resolved ?? null
+        }
+      },
 
       /** 核心包（只读）：宿主服务 + 客户端平台包 */
       core: () => corePackages(),
@@ -99,21 +206,54 @@ export const pluginsService = {
       /** 设置页，已滤掉被禁用插件的页，标题已解析 */
       settings: () => manager.settings(resolveTitle),
 
-      install: (sourceDir) => {
+      install: async (sourceDir) => {
         const result = manager.install(String(sourceDir ?? ''))
         i18n().refresh()
+        if (result.ok) await backends.reconcile()
         return result
       },
-      remove: (pluginId) => {
-        const result = manager.remove(String(pluginId ?? ''))
+      remove: async (pluginId) => {
+        const id = String(pluginId ?? '')
+        // 先停后端再删目录：子进程可能正握着插件目录里的文件
+        await backends.stop(id)
+        // 停用会 flush 一次；这里再显式落一次，确保卸载脚本读到最新快照
+        storage.flush(id)
+
+        /**
+         * 卸载脚本在插件停用之后、目录删除之前跑：它清理的是插件在目录外留下的
+         * 东西（下载的文件、实例目录…）。脚本失败时**不删目录** —— 让用户能看到
+         * 错误并重试，比留下一个清不干净的半成品好。
+         */
+        if (manager.uninstallEntryOf(id)) {
+          try {
+            await runUninstallScript({
+              manager,
+              permissions: permissionGuard,
+              pluginId: id,
+              userDataDir: ctx.env.userDataDir,
+              home: ctx.env.home,
+              log: (level, message) => console[level](`[plugin:${id}] ${message}`)
+            })
+          } catch (error) {
+            console.warn('[nide-host] plugin uninstall script failed', { pluginId: id, error })
+            return { ok: false, reason: 'uninstall-failed' as const }
+          }
+        }
+
+        const result = manager.remove(id)
         i18n().refresh()
+        if (result.ok) {
+          storage.remove(id)
+          await backends.reconcile()
+        }
         return result
       },
 
       /** 重新扫描目录（安装 / 卸载之后由 shell 调用） */
-      rescan: () => {
+      rescan: async () => {
         manager.scan()
         i18n().refresh()
+        await backends.reconcile()
         return manager.list()
       }
     })

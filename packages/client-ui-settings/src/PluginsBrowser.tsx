@@ -1,7 +1,7 @@
 import { JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { ContextMenu, type ContextMenuItem } from '@nide/client-kit/ui/ContextMenu'
-import type { PluginDescriptor } from '@nide/contracts/plugin-api'
+import type { PluginDescriptor, PluginPermissions } from '@nide/contracts/plugin-api'
 import type { CorePackage } from '@nide/contracts/plugin-api/core-packages'
 
 /**
@@ -253,7 +253,9 @@ export function PluginsBrowser({
         t(
           result.reason === 'builtin'
             ? 'host.settings.plugins.builtinUndeletable'
-            : 'host.settings.plugins.install.failed'
+            : result.reason === 'uninstall-failed'
+              ? 'host.plugins.uninstall.failed'
+              : 'host.settings.plugins.install.failed'
         )
       )
       return
@@ -508,10 +510,12 @@ function PluginRow({
       <input
         type="checkbox"
         checked={enabled}
+        disabled={plugin.core || plugin.essential}
+        title={plugin.core || plugin.essential ? t('host.settings.plugins.locked') : undefined}
         aria-label={`${t('host.settings.plugins.enable')}: ${plugin.name}`}
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => onToggle(event.target.checked)}
-        className="h-3.5 w-3.5 shrink-0 accent-blue-600"
+        className="h-3.5 w-3.5 shrink-0 accent-blue-600 disabled:opacity-40"
       />
       <span className={['truncate', enabled ? '' : 'text-zinc-500 line-through'].join(' ')}>
         {plugin.name}
@@ -572,11 +576,7 @@ function PluginDetail({
         <span className="text-[11px] tracking-wide text-zinc-500 uppercase">
           {t('host.settings.plugins.detail.permissions')}
         </span>
-        <p className="text-xs text-zinc-400">
-          {plugin.permissions && plugin.permissions.length > 0
-            ? plugin.permissions.join(', ')
-            : t('host.settings.plugins.detail.permissions.none')}
-        </p>
+        <PluginPermissionSummary permissions={plugin.permissions ?? { trust: 'full' }} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -607,6 +607,110 @@ function DetailRow({ label, value }: { label: string; value: string }): JSX.Elem
       <dt className="w-20 shrink-0 text-zinc-500">{label}</dt>
       <dd className="min-w-0 break-all text-zinc-300">{value}</dd>
     </div>
+  )
+}
+
+/**
+ * 权限摘要。
+ *
+ * 形状来自 manifest（宿主已归一化成 v2），这里只负责把人话摆出来：
+ * 一行信任级别 + 每类声明一行。`full` 说明「宿主不限制」，比其他行更能解释
+ * 为什么一个插件看起来什么都没声明。
+ */
+function PluginPermissionSummary({ permissions }: { permissions: PluginPermissions }): JSX.Element {
+  const t = useT()
+  const rows: { label: string; value: string }[] = []
+
+  rows.push(
+    permissions.trust === 'full'
+      ? {
+          label: t('host.settings.plugins.permission.trust.full'),
+          value: t('host.settings.plugins.permission.trust.full.description')
+        }
+      : {
+          label: t('host.settings.plugins.permission.trust.sandboxed'),
+          value: t('host.settings.plugins.permission.trust.sandboxed.description')
+        }
+  )
+
+  const fs = permissions.fs
+  if (fs?.read?.length) {
+    rows.push({
+      label: t('host.settings.plugins.permission.fs.read'),
+      value: fs.read.join(', ')
+    })
+  }
+  if (fs?.write?.length) {
+    rows.push({
+      label: t('host.settings.plugins.permission.fs.write'),
+      value: fs.write.join(', ')
+    })
+  }
+  if (fs?.meta?.length) {
+    rows.push({
+      label: t('host.settings.plugins.permission.fs.meta'),
+      value: fs.meta.join(', ')
+    })
+  }
+
+  const net = permissions.net
+  if (net) {
+    rows.push({
+      label: t(
+        net.mode === 'all'
+          ? 'host.settings.plugins.permission.net.all'
+          : net.mode === 'allowlist'
+            ? 'host.settings.plugins.permission.net.allowlist'
+            : 'host.settings.plugins.permission.net.none'
+      ),
+      value: net.hosts?.join(', ') ?? ''
+    })
+  }
+
+  if (permissions.exec?.length) {
+    rows.push({
+      label: t('host.settings.plugins.permission.exec'),
+      value: permissions.exec.map((rule) => rule.bin).join(', ')
+    })
+  }
+
+  const os = permissions.os
+  const osItems: string[] = []
+  if (os?.openExternal) osItems.push(t('host.settings.plugins.permission.os.openExternal'))
+  if (os?.notifications) osItems.push(t('host.settings.plugins.permission.os.notifications'))
+  if (os?.clipboard === 'write')
+    osItems.push(t('host.settings.plugins.permission.os.clipboard.write'))
+  if (os?.clipboard === 'read')
+    osItems.push(t('host.settings.plugins.permission.os.clipboard.read'))
+  if (os?.dialogs === 'open') osItems.push(t('host.settings.plugins.permission.os.dialogs.open'))
+  if (os?.dialogs === 'save') osItems.push(t('host.settings.plugins.permission.os.dialogs.save'))
+  if (osItems.length > 0) {
+    rows.push({
+      label: t('host.settings.plugins.permission.os'),
+      value: osItems.join(' · ')
+    })
+  }
+
+  if (permissions.secrets && permissions.secrets !== 'none') {
+    rows.push({
+      label: t(
+        permissions.secrets === 'all'
+          ? 'host.settings.plugins.permission.secrets.all'
+          : 'host.settings.plugins.permission.secrets.own'
+      ),
+      value: ''
+    })
+  }
+
+  return (
+    <dl className="flex flex-col gap-1 text-xs">
+      {rows.map((row) => (
+        <div key={row.label} className="flex gap-3">
+          <dt className="w-24 shrink-0 text-zinc-500">{row.label}</dt>
+          <dd className="min-w-0 break-all text-zinc-400">{row.value}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 

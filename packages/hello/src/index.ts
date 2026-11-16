@@ -1,4 +1,4 @@
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context } from 'cordis'
 
 /** 插件身份，loader 用它做诊断与去重。 */
 export const name = 'nide-hello'

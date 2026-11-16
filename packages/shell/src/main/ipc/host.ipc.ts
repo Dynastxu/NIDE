@@ -207,8 +207,17 @@ export function registerHostIPC(): void {
        */
       const record = await findPlugin(pluginId)
       if (enabled && record && !record.builtin) {
+        /**
+         * 文案按**声明的信任级别**分开说：受限插件不该被吓唬成「拥有完整 Node
+         * 权限」，完全信任的插件也不能只写着「可以调用宿主 API」。声明本身由
+         * host 归一化过（老数组一律是 full）。
+         */
+        const sandboxed = record.permissions?.trust === 'sandboxed'
         const ok = await isActionConfirmed(event.sender, options, {
           ...CONFIRM_SPECS.enableThirdPartyPlugin,
+          messageKey: sandboxed
+            ? 'host.plugins.trust.message.sandboxed'
+            : 'host.plugins.trust.message.full',
           params: { name: record.name }
         })
         if (!ok) {

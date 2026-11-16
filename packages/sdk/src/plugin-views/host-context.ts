@@ -6,12 +6,13 @@ import {
   createTranslator
 } from '@nide/contracts/i18n'
 import type { LocaleId, LooseTranslator, MessageTable, Translator } from '@nide/contracts/i18n'
+import { createPluginHostApi, type PluginHostApi } from './plugin-api'
 
 /**
- * 宿主注入给**插件 UI** 的本地化上下文。
+ * 宿主注入给**插件 UI** 的上下文。
  *
  * 职责划分是刻意的：
- * - 宿主只提供「现在是什么语言」和「插值怎么做」这两样**机制**。
+ * - 宿主只提供「现在是什么语言」「插值怎么做」「你是谁、能调什么」这几样**机制**。
  * - 词条**数据**归插件自己 —— 宿主不维护别家插件的文案，也维护不了。
  *
  * 注意 `t` 只认宿主自己的 key（类型是 `keyof typeof zhCN`，全是 `host.` 开头）。
@@ -24,13 +25,22 @@ export interface PluginHostContextValue {
   t: Translator
   /** 用插件自己的词条表造一个 t()，插值规则与宿主一致 */
   createTranslator: (messages: MessageTable) => LooseTranslator
+  /** 当前插件 id（清单里的 id，不是目录名） */
+  pluginId: string
+  /**
+   * 受限的宿主 API：调用会带上本插件身份，宿主按 manifest 的 `permissions`
+   * 拦截。插件里**不要**直接用 `window.hostAPI` —— 那等于绕过权限声明。
+   */
+  api: PluginHostApi
 }
 
 /** 没有 Provider 时的兜底：让插件在测试或独立渲染时也不至于炸 */
 const FALLBACK: PluginHostContextValue = {
   locale: DEFAULT_LOCALE,
   t: createTranslator(BASE_MESSAGES),
-  createTranslator: createLooseTranslator
+  createTranslator: createLooseTranslator,
+  pluginId: '',
+  api: createPluginHostApi('')
 }
 
 export const PluginHostContext = createContext<PluginHostContextValue>(FALLBACK)
