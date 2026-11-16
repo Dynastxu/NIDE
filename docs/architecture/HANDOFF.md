@@ -88,7 +88,7 @@ packages/
   sdk/               # 插件开发者 API：插件视图渲染管线（PluginSlot / host-context）
   client-ui-slots/ client-ui-renderer/
   client-ui-main/ client-ui-layout/ client-ui-welcome/ client-ui-settings/
-plugins/builtin/     # 第三方扩展形态的插件包（demo / ai-provider / lang-en）
+packages/plugins/     # 第三方扩展形态的插件包（demo / ai-provider / lang-en）
 profiles/desktop/    # package.json + cordis.yml + cordis.patch.yml
 docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目录方案
 ```
@@ -144,7 +144,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 ### 插件（host 是唯一读目录的一方）
 
 - [packages/host/src/services/plugins.ts](packages/host/src/services/plugins.ts) 扫描
-  `<appRoot>/plugins/builtin` 与 `<userData>/plugins`，维护 manifest 清单、禁用集合、
+  `<appRoot>/packages/plugins` 与 `<userData>/plugins`，维护 manifest 清单、禁用集合、
   client bundle 绝对路径，以及每个插件的**贡献点**；
 - 贡献点的读取（读 manifest、路径守卫、chrome / location 收敛、语言包与
   `package.nls*.json`）在
@@ -347,7 +347,7 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
 - manifest `client: { platform:'web', bundle:'dist/client.js' }`；
 - host `plugins.clientBundles` → preload → `client-runtime` 注入 IIFE；
 - bundle 调 `window.__NIDE_REGISTER__(viewId, Component)` 注册；
-- demo 的 bundle 已构建：`plugins/builtin/demo/dist/client.js`（71 KB）；
+- demo 的 bundle 已构建：`packages/plugins/demo/dist/client.js`（71 KB）；
 - **打包后走 `nide-plugin://plugin/<pluginId>/client.js`**：shell 注册的自定义协议
   （[packages/shell/src/main/protocol/plugin-bundles.ts](packages/shell/src/main/protocol/plugin-bundles.ts)），
   处理器只用 URL 里的 pluginId 去 host 的清单里查绝对路径，读出来以
@@ -680,7 +680,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/client-modules/src/index.ts`               | `ClientModuleRegistry` / `modulesOf`                                                       |
 | `packages/client-ui-renderer/src/index.tsx`          | `<SlotProvider>` / `<Slot>`                                                                |
 | `apps/desktop/renderer/src/plugins/PluginSlot.tsx`   | 先查注册表，再回退 glob                                                                    |
-| `plugins/builtin/demo/src/ui/client-entry.tsx`       | bundle 入口                                                                                |
+| `packages/plugins/demo/src/ui/client-entry.tsx`       | bundle 入口                                                                                |
 | `scripts/build-plugin-client.mjs`                    | IIFE 构建                                                                                  |
 | `scripts/build-host.mts`                             | 编译 host 到 `out/host`（TS Node API，不 spawn）                                           |
 | `src/shared/project/store.ts`                        | 纯 store 模型                                                                              |
@@ -936,7 +936,7 @@ resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
 - [x] `pnpm build:unpack` 产物结构已核对（asar 已开）：
       `resources/app.asar` 里是 `out/{main,preload,renderer,host}` + `plugins` +
       `package.json`；`resources/app.asar.unpacked/` 下是真实的
-      `out/host/packages/host/src/index.js` 与 `plugins/builtin/*`；
+      `out/host/packages/host/src/index.js` 与 `packages/plugins/*`；
       `dist/win-unpacked/nide.exe` 存在。**启动必须用 `nide.exe` 或
       `electron.exe dist/win-unpacked/resources/app.asar`** —— 传
       `resources/app`（asar 之前的老命令）会报 "Unable to find Electron app"

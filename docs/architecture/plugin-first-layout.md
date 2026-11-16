@@ -4,23 +4,22 @@
 > 功能细节看 [HANDOFF.md](HANDOFF.md)，渲染侧 bundle 看
 > [plugin-ui-bundles.md](plugin-ui-bundles.md)。
 
-## 1. 现在为什么难读
+## 1. 现在为什么读得懂
 
-仓库里同时存在**三种「插件」**，但只有第三种是真的：
+仓库里只剩**两类「插件」**，各有明确的组合方式：
 
-| 位置 | 是插件吗 | 实际形态 |
+| 位置 | 是什么 | 怎么进装配 |
 | --- | --- | --- |
-| `plugins/builtin/*` | **是** | manifest + 贡献点（视图 / 设置页 / 语言包）+ 可选 `dist/client.js` |
-| `packages/client-ui-{main,welcome,settings}` | 不是 | 普通 React 包，`client-runtime` 用 `switch (windowType)` **硬编码**加载 |
-| `packages/host/src/services/*` | 不是 | 普通函数模块，由 `host/src/index.ts` 里约 800 行 `rpc.register(...)` 装配 |
+| `packages/plugins/<name>` | NIDE 插件（manifest + 贡献点 + 可选后端） | 插件管理器扫描 `packages/plugins`（内置）与 `<userData>/plugins`（用户装） |
+| 其余 `packages/*` | Cordis 插件（host 服务 / 客户端界面包） | 服务由 `packages/bundle/base` 的 patch 行提供；界面包在 package.json 声明 `nide.client` |
 
-三个信号说明「装配点不在配置里」：
+三个「装配点不在配置里」的信号都已消除：
 
-1. `profiles/desktop/cordis.yml` 只列了 `hello` —— 真正的装配写在 TypeScript 里
-   （**这一条已经解决**：现在服务与插件都由 profile 列）；
-2. 新增一个 host 能力要改 `packages/host/src/index.ts`（**已解决**：加一行 profile）；
-3. 新增一个窗口要改 `apps/desktop/renderer/src/main.tsx` 的 `ROOTS` 与
-   `client-runtime` 的分支（**已解决**：包自己声明 `windowTypes`；`ROOTS` 已删除）。
+1. profile 不再手写行：`profiles/desktop/cordis.yml` 只剩 profile 自己的行，宿主服务
+   住在 `packages/bundle/base/cordis.patch.yml`，用户覆盖在 `cordis.patch.yml`；
+2. 加一个 host 服务 = 在 bundle 里加一行，不改 `packages/host`；
+3. 加一个窗口 = 新增 `client-ui-*` 包 + 声明 `nide.client.windowTypes` + 跑
+   `pnpm gen:client-roster`，`client-runtime` 没有分支。
 
 ## 2. 目标分层
 
@@ -30,25 +29,26 @@ packages/
   kernel/                # Cordis 树 + RPC 注册表 + transport + ctx.shell 反桥
   shell/                 # Electron 外壳：main（窗口/菜单/对话框/日志/协议）+ preload
   services/              # host 业务，一包一个（project content config plugins i18n appearance secrets ai）
-  client-runtime/        # 客户端 Cordis 树 + slot + bundle loader（按包声明装配窗口）
+  bundle/base/           # 组合包：宿主服务的 patch 行
+  plugins/<name>/        # NIDE 插件（manifest + 贡献点；只能依赖 sdk）
+  client-runtime/        # 客户端 Cordis 树 + slot + bundle loader + 生成的花名册
   client-kit/            # 客户端平台层：stores / ui 基础组件 / 窗口外壳 / logger / monaco
   sdk/                   # 插件开发者 API：视图渲染管线（PluginSlot / host-context）
-  client-ui-*/           # 三个窗口的界面（各自声明 windowTypes）
+  client-ui-*/           # 三个窗口的界面（各自声明 nide.client.windowTypes）
   boot/ hello/ host/     # host 运行时（host 只剩装配）
-plugins/builtin/<name>/   # 第三方扩展，只能依赖 sdk
-profiles/desktop/cordis.yml  # 唯一的装配点（服务 + 插件）
-apps/desktop/renderer/            # 阶段 6 之前：渲染进程引导壳（main.tsx + assets）
+profiles/desktop/        # package.json（bundles）+ cordis.yml + cordis.patch.yml
+apps/desktop/renderer/   # 渲染进程引导壳（main.tsx + assets）
 ```
 
-三条规则，读懂全仓只需要这三条：
+四条规则，读懂全仓只需要这四条：
 
-1. **`cordis.yml` 是唯一装配点** —— 关掉 / 替换任意能力或界面，只改这份文件；
-2. **每个包导出 `apply(ctx)`** —— host 侧用 `ctx.rpc.register(...)`，客户端用
-   `ctx.slots` / `ctx.commands`，不再有中央装配；
-3. **依赖方向单向**：`apps → kernel → shell/services/ui → sdk → contracts`，
+1. **装配点是分层的**：`nide.profile.bundles` → `cordis.yml` → `cordis.patch.yml`，
+   后写的按 id 覆盖；关掉 / 替换任意能力只改最后一层；
+2. **每个包导出 `apply(ctx)`**：host 侧用 `ctx.rpc.register(...)` 与 `ctx.provide(...)`，
+   客户端用 `ctx.slots`，没有中央装配；
+3. **客户端窗口种类来自包元数据**，由生成脚本变成静态 import，运行时不认识具体窗口；
+4. **依赖方向单向**：`apps → kernel → shell/services/ui → sdk → contracts`，
    反向依赖一律视为设计错误（`contracts` 不得 import 任何包）。
-
-窗口种类也不再是 `switch`：`client-runtime` 按「谁对 `windowTypes` 声明了自己」装配。
 
 ## 3. 迁移顺序
 
@@ -166,15 +166,24 @@ packages/host/src/index.ts     363 行：参数 → profile → boot → kernel 
 # … config / plugins / i18n / appearance / secrets / ai
 ```
 
-两类的区别只有「谁来 apply」：
+## 4. 与 DSH 对齐（阶段 A–D）
 
-| kind | 谁装 | 语义 |
+| 阶段 | 内容 | 状态 |
 | --- | --- | --- |
-| `plugin`（默认） | Cordis loader（`ctx.loader.create`） | 并行激活，适合互不依赖的插件 |
-| `service` | 宿主入口按行顺序 `import + apply` | 顺序即依赖顺序（先 provide 后 require） |
+| A | 所有 profile 行都是 Cordis 插件：`ctx.provide` + `inject`，删除 `kind: service`、自建服务容器与宿主里的手工 apply | 完成 |
+| B | 分层 patch：`packages/bundle/base` → profile `cordis.yml` → `cordis.patch.yml`，`config` 整体替换、按 id 覆盖 | 完成 |
+| C | 客户端花名册由包元数据生成（`nide.client.windowTypes` → `roster.generated.ts`），运行时不认识窗口 | 完成 |
+| D1 | 内置插件从 `plugins/builtin` 搬进 `packages/plugins`，成为普通包；装配不再需要单独的 `plugins/` 树 | 完成 |
+| D2 | 安装 = npm 包 + 往 profile patch 写一行（替换现在的「目录 + manifest」安装协议） | 未做 |
 
-加一个宿主服务 = 一个包 + profile 里一行，`packages/host/src/index.ts` 不再改。
+D2 是**产品决策**而不是纯重构：现在的 manifest 插件（贡献点 / 权限 / 后端）不是
+Cordis 插件，要让 loader 直接挂载它们，需要把插件协议改成「包 + 行」，并重写安装 /
+卸载 / 权限元数据。`packages/plugins` 已经按这个方向摆好，但 D2 之前第三方的安装
+路径仍然是目录扫描。
 
-**profile 会随模板升级**：`profiles/desktop/profile.json` 带 `version`；宿主发现模板
-版本更新时覆盖 `cordis.yml`（旧的存成 `cordis.yml.bak`），只动这一个文件。
-加 / 删 profile 行时必须把 `version` +1，否则老用户机器上不会生效。
+### 装配顺序备忘
+
+`nide:host`（`rpc` + `hostEnv`）由宿主在挂载 profile 之前先挂上；服务通过
+`inject: ['rpc', 'hostEnv', ...]` 取用。`env` 这个名字不能用：Cordis 自带 `ctx.env`
+（EnvData），同名会被依赖守卫拦下。`loader.await()` 只等 import，激活要逐 fiber
+等待（`packages/boot` 的 `awaitEntries`，带 15s 超时）。
