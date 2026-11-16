@@ -1,5 +1,4 @@
 import type { NideContext } from '../../../kernel/src/context.ts'
-import type { HostProjectStore } from '../../project/src/host-project-store.ts'
 import type {
   ProjectConfig,
   ProjectConfigUpdateResult
@@ -18,13 +17,16 @@ import {
  *
  * 这个包同时充当「项目配置的纯函数库」（`loadProjectConfig` / `resolveConfigDirectory`
  * …），内容服务会直接 import 它 —— 那些函数没有状态，做成服务反而绕。
+ *
+ * 当前项目通过 `inject: ['project']`（`ctx.project`）取，不缓存：切项目之后
+ * 不需要通知任何服务。
  */
 export const configService = {
   name: 'nide:service:config',
+  inject: ['project', 'rpc', 'hostEnv'],
 
   apply(ctx: NideContext): void {
-    const currentRoot = (): string | undefined =>
-      ctx.services.require<HostProjectStore>('project').getCurrent()?.path
+    const currentRoot = (): string | undefined => ctx.project.getCurrent()?.path
 
     ctx.rpc.register('config', {
       read: async (): Promise<ProjectConfig | null> => {
@@ -57,5 +59,5 @@ export const configService = {
   }
 }
 
-/** profile 通过 `kind: service` 行指向本文件，宿主入口取 default 后 apply */
+/** profile 直接列这个模块；loader 取 default 作为插件对象 */
 export default configService

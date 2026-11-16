@@ -4,21 +4,21 @@ import { HostProjectStore } from './host-project-store.ts'
 /**
  * 项目生命周期服务（`project.*`）。
  *
- * 第一个真正的「服务包」：它不 import 宿主入口，也不 import 其它服务 —— 只拿
- * `ctx.rpc` / `ctx.services` / `ctx.env`。别的东西要用它，通过
- * `ctx.services.require<HostProjectStore>('project')`。
+ * 标准 Cordis 服务包：`apply` 里 `ctx.provide('project', store)` 把它挂到上下文，
+ * 消费方用 `inject: ['project']` + `ctx.project`，不需要自建注册表。
  *
  * `resolveStartup()` 放在 `apply` 里：启动时决定「这次要不要直接进某个项目」，
  * 这个决定在建窗之前就要能拿到（shell 的 `project.startup`）。
  */
 export const projectService = {
   name: 'nide:service:project',
+  inject: ['rpc', 'hostEnv'],
 
   apply(ctx: NideContext): void {
-    const store = new HostProjectStore(ctx.env.userDataDir)
+    const store = new HostProjectStore(ctx.hostEnv.userDataDir)
     store.resolveStartup()
 
-    ctx.services.provide('project', store)
+    ctx.provide('project', store)
 
     ctx.rpc.register('project', {
       list: () => store.list(),
@@ -39,5 +39,5 @@ export const projectService = {
   }
 }
 
-/** profile 通过 `kind: service` 行指向本文件，宿主入口取 default 后 apply */
+/** profile 直接列这个模块；loader 取 default 作为插件对象 */
 export default projectService

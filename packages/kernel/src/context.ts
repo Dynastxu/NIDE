@@ -2,16 +2,19 @@ import type { Context } from 'cordis'
 import type { RpcNamespace } from './rpc.ts'
 
 /**
- * host 的 Cordis 上下文扩展（阶段 3 的地基）。
+ * host 的 Cordis 上下文扩展。
  *
- * 目标：**服务不再 import 内核**。一个服务包只需要实现
- * `{ name, apply(ctx) }`，然后用 `ctx.rpc.register(...)` 暴露 RPC、
- * 用 `ctx.services.provide/require` 互相取用、用 `ctx.env` 拿路径。
+ * 这里只挂**两样 Cordis 没有的东西**：
+ * - `rpc`：宿主自己的 RPC 注册表（namespace -> handlers，带权限准入）；
+ * - `hostEnv`：进程级只读环境（profile / home / userData / appRoot）。
  *
- * 这里刻意不碰 Cordis 内部的服务/依赖注入机制（`ctx.provide` / `inject` 的语义
- * 还在演进）：先用一层很小的、看得懂的注册表把装配点从「800 行的 index.ts」
- * 挪到「每个服务自己的 apply」。等 loader 能直接加载包标识符之后，这一层可以
- * 平滑换成 Cordis 原生服务。
+ * 名字用 `hostEnv` 而不是 `env`：Cordis 自己有一个 `ctx.env`（EnvData 服务），
+ * 同名会被它的依赖守卫拦下（"cannot get property env without inject"）。
+ *
+ * 服务不再经过这里。它们走 Cordis 原生服务：
+ * 提供方在 `apply` 里 `ctx.provide('project', store)`，并用 `declare module 'cordis'`
+ * 给自己的 key 补类型；消费方用 `inject: ['project']` 声明依赖、直接 `ctx.project`。
+ * 这样「谁先启动」由依赖图决定，不是由 profile 的行序决定。
  */
 
 /** 服务之间共享的宿主环境（只读） */
@@ -30,19 +33,13 @@ export interface HostEnvironment {
    * 放这里是因为「哪些服务在跑」只有装配点知道：plugins 服务要用它回答
    * `plugins.core`（设置里的「核心包」列表），而不该自己再读一遍 profile。
    */
-  profileRows: readonly { id: string; name: string; kind?: string; description?: string }[]
-}
-
-/**
- * 服务注册表。
- *
- * `provide` 覆盖同名时**抛错**而不是静默替换：两个包抢同一个服务名是装配错误，
- * 越早炸越好。`require` 找不到也抛 —— 依赖缺失必须在启动期暴露。
- */
-export interface ServiceRegistry {
-  provide<T>(name: string, value: T): T
-  require<T>(name: string): T
-  has(name: string): boolean
+  profileRows: readonly {
+    id: string
+    name: string
+    /** 核心行（宿主服务 / 平台层）：设置页单独展示，且不可启停 */
+    core?: boolean
+    description?: string
+  }[]
 }
 
 /** 服务拿到的上下文 */
@@ -51,8 +48,8 @@ export interface NideContext extends Context {
   rpc: {
     register(namespace: string, handlers: RpcNamespace): () => void
   }
-  services: ServiceRegistry
-  env: HostEnvironment
+  /** 进程级只读环境（不叫 env：那与 Cordis 自带的 EnvData 服务冲突） */
+  hostEnv: HostEnvironment
 }
 
 export interface InstallOptions {
@@ -68,27 +65,9 @@ export interface InstallOptions {
  * 直接赋值可能落到错误的 target 上；属性定为不可枚举 + 只读，避免被服务误改。
  */
 export function installNideContext(ctx: Context, options: InstallOptions): NideContext {
-  const services: ServiceRegistry = {
-    provide<T>(name: string, value: T): T {
-      if (services.has(name)) throw new Error(`service already registered: ${name}`)
-      provided.set(name, value)
-      return value
-    },
-    require<T>(name: string): T {
-      const value = provided.get(name)
-      if (value === undefined) throw new Error(`service not registered: ${name}`)
-      return value as T
-    },
-    has: (name) => provided.has(name)
-  }
-
-  const provided = new Map<string, unknown>()
-
   const context = ctx as NideContext
   define(context, 'rpc', options.rpc)
-  define(context, 'services', services)
-  define(context, 'env', options.env)
-
+  define(context, 'hostEnv', options.env)
   return context
 }
 
@@ -99,4 +78,27 @@ function define(target: object, key: string, value: unknown): void {
     enumerable: false,
     configurable: false
   })
+}
+
+/**
+ * 把 `rpc` / `hostEnv` 变成**真正的 Cordis 服务**。
+ *
+ * 根上下文上的 defineProperty 只够宿主自己的代码用：插件（包括服务）跑在各自的
+ * fiber 里，Cordis 只允许它访问 `inject` 声明过的 key —— 往 `ctx` 上贴一个普通
+ * 属性，插件读到时会被依赖守卫拦下（"cannot get property hostEnv without inject"）。
+ *
+ * 所以这两个值必须在插件树里 `ctx.provide` 一次，由宿主在挂载 profile 之前先
+ * 挂上 `nide:host` 这一行。
+ */
+export function hostServices(options: InstallOptions): {
+  name: string
+  apply(ctx: Context): void
+} {
+  return {
+    name: 'nide:host',
+    apply(ctx) {
+      ctx.provide('rpc', options.rpc)
+      ctx.provide('hostEnv', options.env)
+    }
+  }
 }

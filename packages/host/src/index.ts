@@ -4,7 +4,6 @@ import process from 'node:process'
 import {
   REPO_ROOT,
   boot,
-  toImportSpecifier,
   dumpRows,
   ensureProfile,
   loadRows,
@@ -14,18 +13,13 @@ import {
 import { attachHostIpc } from '../../kernel/src/ipc.ts'
 import { RpcRegistry } from '../../kernel/src/rpc.ts'
 import { installNideContext, type HostEnvironment } from '../../kernel/src/context.ts'
-import type { HostProjectStore } from '../../services/project/src/host-project-store.ts'
-import type { PluginManager } from '../../services/plugins/src/plugins.ts'
-import type { PluginPermissionGuard } from '../../services/plugins/src/permissions.ts'
-import type { PluginBackendRuntime } from '../../services/plugins/src/backend/runtime.ts'
-import type { PluginStorage } from '../../services/plugins/src/storage.ts'
+import type {} from './service-types.ts'
 import {
   initializeProjectDirectory,
   loadProjectConfig,
   updateProjectConfig
 } from '../../services/config/src/project-config.ts'
 import { shell } from '../../kernel/src/shell.ts'
-import type { AiService } from '../../services/ai/src/index.ts'
 import type { ChatStreamEvent } from '../../../packages/contracts/src/ai-provider/index.ts'
 
 import type {
@@ -158,9 +152,6 @@ if (options.dumpConfig) {
 
 const nideRoot = distRoot ?? REPO_ROOT
 const compiled = distRoot !== null
-const host = await boot(paths, { nideRoot, compiled })
-const logger = host.ctx.logger('nide-host')
-
 /**
  * userData 目录由 shell 传入（Electron 的 `app.getPath('userData')`）。
  * 独立运行时退回到 `<home>/user-data`，避免写到 NIDE_HOME 之外。
@@ -195,11 +186,10 @@ let emitStreamEvent: (event: ChatStreamEvent) => void = () => {}
 const rpc = new RpcRegistry()
 
 /**
- * 把 `ctx.rpc` / `ctx.services` / `ctx.env` 挂到 Cordis 上下文上。
- *
- * 这是「一切皆插件」的接入点：服务包只需要 `{ name, apply(ctx) }`，不 import 内核。
- * 现阶段装配仍在本文件，但它已经不需要知道服务怎么实现 —— 只负责把它们挂上 ctx。
+ * 组合好的行、宿主环境与 RPC 注册表要在 `boot()` 之前准备好：
+ * `nide:host` 这一行提供了 `rpc` / `hostEnv`，其余条目靠 `inject` 取。
  */
+const rows = loadRows(paths, nideRoot, { compiled })
 const env: HostEnvironment = {
   profileDir: paths.profileDir,
   profileName: paths.profileName,
@@ -207,43 +197,26 @@ const env: HostEnvironment = {
   userDataDir,
   appRoot,
   /** 装配点知道全部行（服务 + 插件），plugins.core 要用 */
-  profileRows: loadRows(paths, nideRoot, { compiled })
+  profileRows: rows
 }
+
+const host = await boot(paths, {
+  nideRoot,
+  compiled,
+  rows,
+  host: { rpc: { register: (namespace, handlers) => rpc.register(namespace, handlers) }, env }
+})
+const logger = host.ctx.logger('nide-host')
 const hostCtx = installNideContext(host.ctx, {
   rpc: { register: (namespace, handlers) => rpc.register(namespace, handlers) },
   env
 })
 
 /**
- * 服务装配。
- *
- * 直接调 `apply` 而不是 `ctx.plugin(...)`：Cordis 的 plugin 是异步挂载的，
- * 而这里需要「装配完立刻能用」（下面的 `require` 就在同一个 tick）。服务对象本身
- * 仍是 `{ name, apply(ctx) }` 的形状 —— 以后 loader 支持包标识符时，同一个对象
- * 可以原样交给 `ctx.plugin`。
- *
- * 顺序只对「谁先 provide」有影响；服务之间一律在**调用时**用
- * `ctx.services.require(...)` 取，所以顺序不构成依赖。
+ * 服务在 `boot()` 里由 loader 挂载：它们和插件走同一条装配路径，依赖由
+ * `inject` 决定。这里只等它们就绪 —— `boot()` 已经 `await ctx.loader.await()`，
+ * 所以下面直接取用是安全的。
  */
-/**
- * `kind: service` 的行由 profile 决定（`cordis.yml`），顺序就是 apply 顺序。
- *
- * 服务模块很薄（一个 `{ name, apply }` 对象），动态 import 只是为了跟 loader 用
- * 同一种「由 profile 指向文件」的装配方式 —— 加一个服务 = 加一行，不改这里。
- */
-interface HostService {
-  name: string
-  apply(ctx: typeof hostCtx): void
-}
-
-for (const row of host.services) {
-  const module = (await import(toImportSpecifier(row.name))) as { default?: HostService }
-  const service = module.default
-  if (!service || typeof service.apply !== 'function') {
-    throw new Error(`profile row "${row.id}" is marked as a service but does not export one`)
-  }
-  service.apply(hostCtx)
-}
 
 /**
  * 插件权限准入。
@@ -252,13 +225,13 @@ for (const row of host.services) {
  * 与 shell 不带，因此不受影响。挂在这一层是因为所有入口（renderer MessagePort
  * 与 shell 父端口）共用同一个 `RpcRegistry` —— 放在服务里就得每个 handler 重写。
  */
-const permissionGuard = hostCtx.services.require<PluginPermissionGuard>('plugin-permissions')
+const permissionGuard = hostCtx['plugin-permissions']
 rpc.setAuthorizer((request) => permissionGuard.authorize(request))
 
 /** 插件后端子进程（manifest.main）：退出前必须停掉，否则会留下孤儿进程 */
-const pluginBackends = hostCtx.services.require<PluginBackendRuntime>('plugin-backend')
+const pluginBackends = hostCtx['plugin-backend']
 /** 插件存储：停完后端再 flush 一次，最后几次写入不会丢 */
-const pluginStorage = hostCtx.services.require<PluginStorage>('plugin-storage')
+const pluginStorage = hostCtx['plugin-storage']
 
 /** 统一的退出路径：先停插件后端，再按顺序卸载 Cordis 树 */
 async function stopHost(): Promise<void> {
@@ -271,11 +244,11 @@ async function stopHost(): Promise<void> {
   await shutdown(host)
 }
 
-/** 项目生命周期服务（`provide('project', …)` 在它的 apply 里做过） */
-const projects = hostCtx.services.require<HostProjectStore>('project')
+/** 项目生命周期服务（`project.apply` 里 `ctx.provide('project', …)`） */
+const projects = hostCtx.project
 
 /** AI 的分片出口：接到父端口的 `stream-event`（IPC attach 之后才真正可用） */
-hostCtx.services.require<AiService>('ai').setStreamSink((event) => {
+hostCtx.ai.setStreamSink((event) => {
   emitStreamEvent(event)
 })
 
@@ -289,7 +262,7 @@ hostCtx.rpc.register('host', {
     userData: userDataDir,
     appRoot,
     projects: projects.list().length,
-    plugins: hostCtx.services.require<PluginManager>('plugins').list().length
+    plugins: hostCtx.plugins.list().length
   })
 })
 

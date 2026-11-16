@@ -5,11 +5,10 @@
  * 删除，以及图鉴与概述的读与更新。拆成三个包只会让它们互相 import —— 所以一个包、
  * 一个 `apply`，注册三个命名空间。
  *
- * 「当前项目」不缓存：每次调用都问 `ctx.services.require('project')`，切项目之后
- * 不需要通知任何服务。
+ * 「当前项目」不缓存：每次调用都问 `ctx.project`（`inject: ['project']`），切项目
+ * 之后不需要通知任何服务。
  */
 import type { NideContext } from '../../../kernel/src/context.ts'
-import type { HostProjectStore } from '../../project/src/host-project-store.ts'
 import {
   allowedRoots,
   caseInsensitivePaths,
@@ -47,11 +46,11 @@ import {
 
 export const contentService = {
   name: 'nide:service:content',
+  inject: ['project', 'rpc', 'hostEnv'],
 
   apply(ctx: NideContext): void {
     /** 当前项目根；没有打开的项目时是 undefined */
-    const currentRoot = (): string | undefined =>
-      ctx.services.require<HostProjectStore>('project').getCurrent()?.path
+    const currentRoot = (): string | undefined => ctx.project.getCurrent()?.path
 
     ctx.rpc.register('files', {
       readDir: (dirPath) =>
@@ -254,5 +253,5 @@ export const contentService = {
   }
 }
 
-/** profile 通过 `kind: service` 行指向本文件，宿主入口取 default 后 apply */
+/** profile 直接列这个模块；loader 取 default 作为插件对象 */
 export default contentService

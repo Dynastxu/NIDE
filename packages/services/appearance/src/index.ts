@@ -10,11 +10,12 @@ import { HostAppearance } from './appearance.ts'
  */
 export const appearanceService = {
   name: 'nide:service:appearance',
+  inject: ['rpc', 'hostEnv'],
 
   apply(ctx: NideContext): void {
-    const appearance = new HostAppearance({ userDataDir: ctx.env.userDataDir })
+    const appearance = new HostAppearance({ userDataDir: ctx.hostEnv.userDataDir })
 
-    ctx.services.provide('appearance', appearance)
+    ctx.provide('appearance', appearance)
 
     ctx.rpc.register('appearance', {
       init: () => appearance.init(),
@@ -27,5 +28,5 @@ export const appearanceService = {
   }
 }
 
-/** profile 通过 `kind: service` 行指向本文件，宿主入口取 default 后 apply */
+/** profile 直接列这个模块；loader 取 default 作为插件对象 */
 export default appearanceService

@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import yaml from 'js-yaml'
 import { Context } from 'cordis'
 import Loader from '@cordisjs/plugin-loader'
+import { hostServices, type InstallOptions } from '../../kernel/src/context.ts'
 
 /**
  * NIDE profile 启动层（MVP）。
@@ -26,13 +27,12 @@ export interface ProfileRow {
   id: string
   name: string
   /**
-   * 这一行是**插件**（Cordis 插件，由 loader 装）还是**服务**（host 的业务服务，
-   * 由宿主入口按顺序 `apply`）。
+   * 核心行：宿主服务 / 平台层。
    *
-   * 默认 `plugin`：老 profile 不受影响。服务不交给 loader，是因为它们之间是
-   * 「先 provide 后 require」的顺序语义，而 loader 的激活是并行的。
+   * 设置页的「核心包」列表用它，而且这些行不可启停（禁掉内核等于关掉应用）。
+   * 与 DSH 的差别：DSH 没有这个标记，靠组合层判断；NIDE 的插件页需要静态展示它。
    */
-  kind?: 'plugin' | 'service'
+  core?: boolean
   /** 面向开发者的说明（设置里的「核心包」列表展示用） */
   description?: string
   config?: unknown
@@ -203,14 +203,14 @@ function normalizeRow(
   if (typeof row.id !== 'string' || row.id.length === 0) {
     throw new Error(`${file}: row #${index} is missing "id"`)
   }
-  if (row.kind !== undefined && row.kind !== 'plugin' && row.kind !== 'service') {
-    throw new Error(`${file}: row #${index} has an unknown kind: ${String(row.kind)}`)
+  if (row.core !== undefined && typeof row.core !== 'boolean') {
+    throw new Error(`${file}: row #${index} has a non-boolean "core"`)
   }
 
   return {
     id: row.id,
     name: options.compiled ? compiledEntry(row.name) : row.name,
-    ...(row.kind === 'service' ? { kind: 'service' as const } : {}),
+    ...(row.core === true ? { core: true as const } : {}),
     ...(typeof row.description === 'string' && row.description.length > 0
       ? { description: row.description }
       : {}),
@@ -244,7 +244,7 @@ export function dumpRows(rows: ProfileRow[]): string {
     ...rows.flatMap((row) => [
       `- id: ${row.id}`,
       `  name: ${row.name}`,
-      ...(row.kind === 'service' ? ['  kind: service'] : []),
+      ...(row.core ? ['  core: true'] : []),
       ...(row.description ? [`  description: ${row.description}`] : []),
       ...(row.disabled ? ['  disabled: true'] : [])
     ])
@@ -255,15 +255,19 @@ export function dumpRows(rows: ProfileRow[]): string {
 export interface BootedHost {
   ctx: Context
   entryIds: string[]
-  /** `kind: service` 的行，按 profile 顺序；由宿主入口逐个 apply */
-  services: ProfileRow[]
 }
 
-export async function boot(
-  paths: NidePaths,
-  options: { nideRoot?: string; compiled?: boolean } = {}
-): Promise<BootedHost> {
-  const rows = loadRows(paths, options.nideRoot ?? REPO_ROOT, { compiled: options.compiled })
+export interface BootOptions {
+  nideRoot?: string
+  compiled?: boolean
+  /** 已经组合好的行（宿主侧算 `hostEnv.profileRows` 时也要用同一份） */
+  rows?: ProfileRow[]
+  /** `rpc` 与 `hostEnv`：作为 `nide:host` 插件先挂上，其余条目靠 inject 取 */
+  host: InstallOptions
+}
+
+export async function boot(paths: NidePaths, options: BootOptions): Promise<BootedHost> {
+  const rows = options.rows ?? loadRows(paths, options.nideRoot ?? REPO_ROOT, { compiled: options.compiled })
   const ctx = new Context()
 
   // TODO: 换成 electron-log / 文件 exporter；MVP 先证明 Cordis 日志能出来。
@@ -276,18 +280,23 @@ export async function boot(
     }
   })
 
+  // 与 Cordis 自带 `env` 区分：宿主环境叫 `hostEnv`，在插件树里是普通服务
+  await ctx.plugin(hostServices(options.host))
+
   // baseUrl 决定相对 specifier / 相对配置路径的解析基准（与 DSH 一致）。
   const baseUrl = pathToFileURL(path.join(paths.profileDir, 'index.js')).href
   await ctx.plugin(Loader, { baseUrl })
 
   const entryIds: string[] = []
-  const services: ProfileRow[] = []
   for (const row of rows) {
     if (row.disabled) continue
-    if (row.kind === 'service') {
-      services.push(row)
-      continue
-    }
+    /**
+     * **所有**行都交给 loader —— 服务与插件没有区别。
+     *
+     * 注意 loader 的 `create()` 不接受 id（它自己生成）：稳定 id 只在阶段 B 把
+     * patch 合并结果交给 include 插件时才会回到 loader 里。这里的 `row.id` 仍用于
+     * 我们自己的日志、`core` 列表与 patch 合并。
+     */
     const entryId = await ctx.loader.create({
       name: toImportSpecifier(row.name),
       ...(row.config === undefined ? {} : { config: row.config })
@@ -297,8 +306,47 @@ export async function boot(
 
   // 等所有条目的 import / 激活完成；optional 条目的失败由 loader 记录。
   await ctx.loader.await()
+  await awaitEntries(ctx, entryIds)
 
-  return { ctx, entryIds, services }
+  return { ctx, entryIds }
+}
+
+/** profile 条目全部激活的等待上限（`inject` 依赖缺失时不要静默挂着） */
+const ENTRY_READY_TIMEOUT_MS = 15_000
+
+/**
+ * 等每个条目真的进入 ACTIVE（或 FAILED）。
+ *
+ * `loader.await()` 只等 import / 创建任务；`inject` 触发的激活是另一轮微任务，
+ * 所以服务可能还没 apply 就把控制权交回宿主 —— 宿主下一行就 `ctx.ai`，拿到
+ * undefined。这里改成逐个 await 条目的 fiber：Cordis 的 Fiber 是 thenable，
+ * ACTIVE 才 resolve。
+ *
+ * 依赖缺失会让 fiber 永远 PENDING，所以必须带超时：宁可启动失败并列出卡住的
+ * 条目，也不要让宿主进程「看起来起来了」。
+ */
+async function awaitEntries(ctx: Context, ids: string[]): Promise<void> {
+  const pending = new Set(ids)
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`profile entries did not activate: ${[...pending].join(', ')}`))
+    }, ENTRY_READY_TIMEOUT_MS)
+    timer.unref?.()
+  })
+
+  const waiters = ids.map(async (id) => {
+    const entry = ctx.loader.resolve(id)
+    if (entry.fiber) await entry.fiber
+    pending.delete(id)
+  })
+
+  try {
+    await Promise.race([Promise.all(waiters), timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 export async function shutdown(host: BootedHost): Promise<void> {

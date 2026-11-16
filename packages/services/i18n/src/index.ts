@@ -1,5 +1,4 @@
 import type { NideContext } from '../../../kernel/src/context.ts'
-import type { PluginManager } from '../../plugins/src/plugins.ts'
 import { HostI18n } from './i18n.ts'
 
 /**
@@ -20,19 +19,19 @@ export interface I18nService {
 
 export const i18nService = {
   name: 'nide:service:i18n',
+  inject: ['plugins', 'rpc', 'hostEnv'],
 
   apply(ctx: NideContext): void {
-    const host = new HostI18n({ userDataDir: ctx.env.userDataDir })
+    const host = new HostI18n({ userDataDir: ctx.hostEnv.userDataDir })
 
     const service: I18nService = {
       refresh: () => {
-        const plugins = ctx.services.require<PluginManager>('plugins')
-        host.setPacks(plugins.contributions().locales)
+        host.setPacks(ctx.plugins.contributions().locales)
       },
       host
     }
 
-    ctx.services.provide('i18n', service)
+    ctx.provide('i18n', service)
 
     ctx.rpc.register('i18n', {
       init: (request) => {
@@ -49,5 +48,5 @@ export const i18nService = {
   }
 }
 
-/** profile 通过 `kind: service` 行指向本文件，宿主入口取 default 后 apply */
+/** profile 直接列这个模块；loader 取 default 作为插件对象 */
 export default i18nService

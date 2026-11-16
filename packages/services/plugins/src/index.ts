@@ -3,7 +3,6 @@ import os from 'node:os'
 import { CORE_PACKAGES, type CorePackage } from '../../../contracts/src/plugin-api/core-packages.ts'
 import type { PermissionVariables } from '../../../contracts/src/plugin-api/permissions.ts'
 import type { NideContext } from '../../../kernel/src/context.ts'
-import type { HostProjectStore } from '../../project/src/host-project-store.ts'
 import type { I18nService } from '../../i18n/src/index.ts'
 import { builtinViews } from './builtin-views.ts'
 import { pluginPreferencePath, PluginManager } from './plugins.ts'
@@ -18,22 +17,26 @@ import type { TitleResolver } from './plugins.ts'
  * 插件服务（`plugins.*`）。
  *
  * 插件目录的唯一读取方仍然在 host（清单 / 启停 / 贡献点），这一层只是把它包成
- * 一个服务：`ctx.rpc.register('plugins', …)` + `ctx.services.provide('plugins')`。
+ * 一组 Cordis 服务（`ctx.provide` + `declare module`）。
  *
  * 标题解析依赖 i18n 服务（语言包与当前语言都在那边）：
  * - 插件视图 / 设置页的 `%key%` → `i18n.host.resolveTitle(manifestNls, spec)`；
  * - 内建视图的 `host.*` → `i18n.host.message(key)`。
  *
+ * i18n 反过来 `inject: ['plugins']`，所以这里**不能**注入它 —— 两边都等对方会
+ * 互相 PENDING。取法改成调用时 `ctx.get('i18n')`（与改造前的懒加载一致）。
+ *
  * 两条路都不能走错：前者认 `%`，后者认宿主词条表的 key（踩过，见 HANDOFF §8）。
  */
 export const pluginsService = {
   name: 'nide:service:plugins',
+  inject: ['project', 'rpc', 'hostEnv'],
 
   apply(ctx: NideContext): void {
     const manager = new PluginManager({
-      builtinDir: path.join(ctx.env.appRoot, 'plugins', 'builtin'),
-      thirdPartyDir: path.join(ctx.env.userDataDir, 'plugins'),
-      preferencePath: pluginPreferencePath(ctx.env.userDataDir)
+      builtinDir: path.join(ctx.hostEnv.appRoot, 'plugins', 'builtin'),
+      thirdPartyDir: path.join(ctx.hostEnv.userDataDir, 'plugins'),
+      preferencePath: pluginPreferencePath(ctx.hostEnv.userDataDir)
     })
 
     /**
@@ -47,7 +50,7 @@ export const pluginsService = {
     const displayPath = (absolute: string, fallback: string): string => {
       if (!path.isAbsolute(absolute)) return absolute.split(path.sep).join('/')
 
-      const relative = path.relative(ctx.env.appRoot, absolute)
+      const relative = path.relative(ctx.hostEnv.appRoot, absolute)
       if (relative.length === 0 || relative.startsWith('..') || path.isAbsolute(relative)) {
         return fallback
       }
@@ -55,18 +58,22 @@ export const pluginsService = {
       return relative.split(path.sep).join('/')
     }
 
-    const i18n = (): I18nService => ctx.services.require<I18nService>('i18n')
+    const i18n = (): I18nService => {
+      const service = ctx.get('i18n')
+      if (!service) throw new Error('i18n service is not available')
+      return service
+    }
 
     /**
      * 「核心包」清单：设置里的插件页单独一栏展示。
      *
-     * 宿主服务**从 profile 读**（加一个服务只改 profile，这里不用抄）；客户端平台包
-     * 宿主看不到，来自 `CORE_PACKAGES` 静态表。它们都不可启停 —— 禁掉内核等于把
-     * 应用关掉，所以只读展示。
+     * 核心行由 profile 的 `core: true` 标记（加一个服务只改 profile，这里不用抄）；
+     * 客户端平台包宿主看不到，来自 `CORE_PACKAGES` 静态表。它们都不可启停 ——
+     * 禁掉内核等于把应用关掉，所以只读展示。
      */
     const corePackages = (): CorePackage[] => {
-      const services: CorePackage[] = ctx.env.profileRows
-        .filter((row) => row.kind === 'service')
+      const services: CorePackage[] = ctx.hostEnv.profileRows
+        .filter((row) => row.core === true)
         .map((row) => ({
           id: row.id,
           name: row.id,
@@ -85,8 +92,7 @@ export const pluginsService = {
       i18n().host.resolveTitle(manager.manifestNls(pluginId), spec) || fallback
 
     /** 当前项目根：权限作用域里的 `${project}` 靠它展开 */
-    const projectRoot = (): string | undefined =>
-      ctx.services.require<HostProjectStore>('project').getCurrent()?.path
+    const projectRoot = (): string | undefined => ctx.project.getCurrent()?.path
 
     /**
      * 权限作用域的展开变量。
@@ -98,9 +104,9 @@ export const pluginsService = {
       const location = pluginId ? manager.locationOf(pluginId) : undefined
       return {
         ...(projectRoot() ? { project: projectRoot() } : {}),
-        userData: ctx.env.userDataDir,
+        userData: ctx.hostEnv.userDataDir,
         temp: os.tmpdir(),
-        home: ctx.env.home,
+        home: ctx.hostEnv.home,
         ...(location ? { pluginDir: location.dirPath } : {})
       }
     }
@@ -117,7 +123,7 @@ export const pluginsService = {
      * 启停由本服务统一同步；宿主入口在服务装配完成后调 `startEnabled()`，
      * 并在退出时 `stopAll()`。测试只构造服务、不启动后端，所以不会 fork。
      */
-    const storage = new PluginStorage({ userDataDir: ctx.env.userDataDir })
+    const storage = new PluginStorage({ userDataDir: ctx.hostEnv.userDataDir })
     const capabilities = new PluginCapabilities({ manager })
 
     const backends = new PluginBackendRuntime({
@@ -125,15 +131,15 @@ export const pluginsService = {
       permissions: permissionGuard,
       storage,
       capabilities,
-      userDataDir: ctx.env.userDataDir,
-      home: ctx.env.home
+      userDataDir: ctx.hostEnv.userDataDir,
+      home: ctx.hostEnv.home
     })
 
-    ctx.services.provide('plugins', manager)
-    ctx.services.provide('plugin-permissions', permissionGuard)
-    ctx.services.provide('plugin-storage', storage)
-    ctx.services.provide('plugin-capabilities', capabilities)
-    ctx.services.provide('plugin-backend', backends)
+    ctx.provide('plugins', manager)
+    ctx.provide('plugin-permissions', permissionGuard)
+    ctx.provide('plugin-storage', storage)
+    ctx.provide('plugin-capabilities', capabilities)
+    ctx.provide('plugin-backend', backends)
 
     /**
      * 后端方法的统一入口：`plugin.call(pluginId, method, params)`。
@@ -230,8 +236,8 @@ export const pluginsService = {
               manager,
               permissions: permissionGuard,
               pluginId: id,
-              userDataDir: ctx.env.userDataDir,
-              home: ctx.env.home,
+              userDataDir: ctx.hostEnv.userDataDir,
+              home: ctx.hostEnv.home,
               log: (level, message) => console[level](`[plugin:${id}] ${message}`)
             })
           } catch (error) {
@@ -260,5 +266,5 @@ export const pluginsService = {
   }
 }
 
-/** profile 通过 `kind: service` 行指向本文件，宿主入口取 default 后 apply */
+/** profile 直接列这个模块；loader 取 default 作为插件对象 */
 export default pluginsService

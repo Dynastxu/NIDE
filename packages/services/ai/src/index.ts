@@ -1,6 +1,5 @@
 import path from 'node:path'
 import type { NideContext } from '../../../kernel/src/context.ts'
-import type { SecretVault } from '../../secrets/src/secrets.ts'
 import { AiProviderService, AiProviderServiceError } from './ai-provider.ts'
 import { ProviderConfigStore } from './ai-provider-config.ts'
 import {
@@ -19,7 +18,7 @@ import {
  * `setStreamSink(...)` 把它接到父端口（`stream-event`）。这样服务本身不认识
  * transport，独立运行（`--once`）时也不会因为「没有 shell」而报错。
  *
- * 密钥在 secrets 服务里（`ctx.services.require('secrets')`），配置在 userData 下。
+ * 密钥在 secrets 服务里（`inject: ['secrets']` → `ctx.secrets`），配置在 userData 下。
  */
 export interface AiService {
   /** 由宿主入口接上：把 SSE 分片送到 shell（再转给发起窗口） */
@@ -28,11 +27,12 @@ export interface AiService {
 
 export const aiService = {
   name: 'nide:service:ai',
+  inject: ['secrets', 'rpc', 'hostEnv'],
 
   apply(ctx: NideContext): void {
-    const vault = ctx.services.require<SecretVault>('secrets')
+    const vault = ctx.secrets
     const service = new AiProviderService(
-      new ProviderConfigStore(path.join(ctx.env.userDataDir, 'ai-provider', 'providers.json')),
+      new ProviderConfigStore(path.join(ctx.hostEnv.userDataDir, 'ai-provider', 'providers.json')),
       vault
     )
 
@@ -44,7 +44,7 @@ export const aiService = {
       }
     }
 
-    ctx.services.provide('ai', handle)
+    ctx.provide('ai', handle)
 
     ctx.rpc.register('ai', {
       list: async () => {
@@ -105,5 +105,5 @@ function toProviderError(error: unknown): ProviderError {
   }
 }
 
-/** profile 通过 `kind: service` 行指向本文件，宿主入口取 default 后 apply */
+/** profile 直接列这个模块；loader 取 default 作为插件对象 */
 export default aiService
