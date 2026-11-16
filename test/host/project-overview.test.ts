@@ -6,13 +6,13 @@ import {
   checkProjectOverviewDocument,
   readProjectOverview,
   type RootsOptions
-} from '../../packages/services/content/src/project-files.ts'
+} from '../../packages/content/src/project-files.ts'
 import {
   loadProjectConfig,
   projectConfigPath,
   remapOverviewRole,
   updateProjectConfig
-} from '../../packages/services/config/src/project-config.ts'
+} from '../../packages/config/src/project-config.ts'
 import { parseProjectConfig } from '../../packages/contracts/src/project/index.ts'
 
 /**

@@ -16,7 +16,6 @@
  *   out/host/packages/host/src/index.js     ← 入口
  *   out/host/packages/hello/src/index.js    ← profile 里引用的插件
  *   out/host/packages/contracts/src/...                 ← 共享层
- *   out/host/profiles/desktop/...           ← profile 模板（.ts → .js 已改写）
  *   out/host/package.json                   ← {"type":"module"}
  */
 import fs from 'node:fs'
@@ -39,32 +38,46 @@ const entry = path.join(root, 'packages', 'host', 'src', 'index.ts')
 const backendWorker = path.join(
   root,
   'packages',
-  'services',
-  'plugins',
+  'plugin-runtime',
   'src',
   'backend',
   'worker.ts'
 )
 
 /**
- * profile 里的插件是**动态 import** 的（loader 按 `cordis.yml` 里的路径加载），
+ * 安装式插件的组合行入口：行是运行时写进 profile patch 的，TS 走不到，
+ * 必须显式作为编译根（否则打包版里那行指向一个不存在的 `plugin-shim.js`）。
+ */
+const pluginShim = path.join(root, 'packages', 'host', 'src', 'plugin-shim.ts')
+
+/**
+ * profile 与组合包里的插件都是**动态 import** 的（loader 按 YAML 里的路径加载），
  * TS 顺着静态依赖树走不到它们，所以显式加进编译根。
  *
  * 只认 `{{NIDE_ROOT}}/.../src/index.ts` 这种形状：那正是仓库内的插件包。
+ * 扫 `packages/bundle/<name>/cordis.patch.yml`；profile 的模板由 boot 代码生成，
+ * 其中唯一的外部入口（hello）作为固定根单独加进来。
  */
-function profileEntries(): string[] {
-  const profilesRoot = path.join(root, 'profiles')
+function dynamicEntries(): string[] {
   const entries = new Set<string>()
 
-  for (const name of fs.readdirSync(profilesRoot)) {
-    const file = path.join(profilesRoot, name, 'cordis.yml')
-    if (!fs.existsSync(file)) continue
-
+  const scan = (file: string): void => {
     const text = fs.readFileSync(file, 'utf-8')
     for (const match of text.matchAll(/\{\{NIDE_ROOT\}\}\/([^\s'"]+\.ts)/g)) {
       entries.add(path.join(root, match[1]))
     }
   }
+
+  const bundlesRoot = path.join(root, 'packages', 'bundle')
+  if (fs.existsSync(bundlesRoot)) {
+    for (const name of fs.readdirSync(bundlesRoot)) {
+      const file = path.join(bundlesRoot, name, 'cordis.patch.yml')
+      if (fs.existsSync(file)) scan(file)
+    }
+  }
+
+  // profile 模板由 boot 生成，里面的 hello 行不会出现在任何 YAML 里
+  entries.add(path.join(root, 'packages', 'hello', 'src', 'index.ts'))
 
   return [...entries]
 }
@@ -101,7 +114,7 @@ const options: ts.CompilerOptions = {
   types: ['node']
 }
 
-const roots = [entry, backendWorker, ...profileEntries()]
+const roots = [entry, backendWorker, pluginShim, ...dynamicEntries()]
 for (const rootFile of roots) {
   if (!fs.existsSync(rootFile)) fail(`entry not found: ${rootFile}`)
 }
@@ -165,17 +178,42 @@ for (const name of fs.readdirSync(sharedRoot)) {
 }
 
 /**
- * profile 模板要一起进产物：打包版由 host 传 `--dist-root`，模板就从这里取，
- * `{{NIDE_ROOT}}` 也展开成这里。
- *
- * **不改写模板里的 `.ts` 路径** —— 编译布局下由 `boot` 的 `loadRows({ compiled })`
- * 统一改写。这样 dev 与打包版共用同一份 profile，不会出现「dev 写的 profile 拿到
- * 打包版里指向不存在的 `.ts`」。
+ * 组合包（`packages/bundle/*`）只有 `package.json` 与 `cordis.patch.yml`，
+ * 没有可编译的源码：它们必须在产物根里，`{{NIDE_ROOT}}` 展开后 boot 才找得到。
+ * 少了这一步，打包版启动会报 `bundle "..." not found`。
  */
-const profilesSource = path.join(root, 'profiles')
-const profilesTarget = path.join(outDir, 'profiles')
-if (!fs.existsSync(profilesSource)) fail('profiles/ not found')
+const bundlesSource = path.join(root, 'packages', 'bundle')
+if (fs.existsSync(bundlesSource)) {
+  for (const name of fs.readdirSync(bundlesSource)) {
+    for (const file of ['package.json', 'cordis.patch.yml']) {
+      const source = path.join(bundlesSource, name, file)
+      if (!fs.existsSync(source)) continue
+      const target = path.join(outDir, 'packages', 'bundle', name, file)
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      fs.cpSync(source, target)
+    }
+  }
+}
 
-fs.cpSync(profilesSource, profilesTarget, { recursive: true })
+/**
+ * 插件包不是纯 TS：manifest.json、`package.nls*.json`、locales、`dist/client.js`
+ * 都是运行时要读的文件（插件服务按目录定位界面入口与客户端 bundle）。
+ * `src/` 已经由 TS 编译，其余原样复制到产物根。
+ */
+const pluginsSource = path.join(root, 'packages', 'plugins')
+if (fs.existsSync(pluginsSource)) {
+  for (const name of fs.readdirSync(pluginsSource)) {
+    const source = path.join(pluginsSource, name)
+    if (!fs.statSync(source).isDirectory()) continue
+    if (name.startsWith('.') || name === 'node_modules') continue
+
+    for (const entry of fs.readdirSync(source)) {
+      if (entry === 'src' || entry === 'node_modules' || entry.startsWith('.')) continue
+      fs.cpSync(path.join(source, entry), path.join(outDir, 'packages', 'plugins', name, entry), {
+        recursive: true
+      })
+    }
+  }
+}
 
 console.log(`[build-host] built ${path.relative(root, outDir)}`)

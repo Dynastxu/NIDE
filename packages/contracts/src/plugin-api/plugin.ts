@@ -97,3 +97,18 @@ export type PluginInstallResult =
 
 export type PluginRemoveResult =
   { ok: true; plugin: PluginDescriptor } | { ok: false; reason: PluginMutationFailureReason }
+
+/**
+ * 插件后端的实时状态（`plugins.backends` 的返回项）。
+ *
+ * 渲染进程只用来展示「运行状态」；`methods` 是后端注册过的方法名（排障用）。
+ */
+export type PluginRuntimeState = 'starting' | 'running' | 'stopped' | 'failed'
+
+export interface PluginRuntimeStatus {
+  pluginId: string
+  state: PluginRuntimeState
+  methods: string[]
+  /** 启动 / 崩溃原因；只有 failed 时有值 */
+  error?: string
+}

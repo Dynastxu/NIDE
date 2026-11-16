@@ -4,8 +4,8 @@ import {
   PluginPermissionGuard,
   capabilityOf,
   pathsOf
-} from '../../packages/services/plugins/src/permissions.ts'
-import type { PluginManager } from '../../packages/services/plugins/src/plugins.ts'
+} from '../../packages/plugin-runtime/src/permissions.ts'
+import type { PluginManager } from '../../packages/plugin-runtime/src/plugins.ts'
 import type { PluginPermissions } from '../../packages/contracts/src/plugin-api/permissions.ts'
 import type { RpcRequest } from '../../packages/contracts/src/host-rpc/index.ts'
 

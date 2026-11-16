@@ -3,28 +3,27 @@ import os from 'node:os'
 import path from 'node:path'
 import { Context } from 'cordis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { installNideContext } from '../../packages/kernel/src/context.ts'
+import { hostServices, installNideContext, type NideContext } from '../../packages/kernel/src/context.ts'
 import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
-import { projectService } from '../../packages/services/project/src/index.ts'
-import { contentService } from '../../packages/services/content/src/index.ts'
-import { configService } from '../../packages/services/config/src/index.ts'
-import { pluginsService } from '../../packages/services/plugins/src/index.ts'
-import { i18nService } from '../../packages/services/i18n/src/index.ts'
-import { appearanceService } from '../../packages/services/appearance/src/index.ts'
-import { secretsService } from '../../packages/services/secrets/src/index.ts'
-import { aiService } from '../../packages/services/ai/src/index.ts'
+import { projectService } from '../../packages/project/src/index.ts'
+import { contentService } from '../../packages/content/src/index.ts'
+import { configService } from '../../packages/config/src/index.ts'
+import { pluginsService } from '../../packages/plugin-runtime/src/index.ts'
+import { i18nService } from '../../packages/i18n/src/index.ts'
+import { appearanceService } from '../../packages/appearance/src/index.ts'
+import { secretsService } from '../../packages/secrets/src/index.ts'
+import { aiService } from '../../packages/ai/src/index.ts'
 import {
   CORE_PACKAGES,
   type CorePackage
 } from '../../packages/contracts/src/plugin-api/core-packages.ts'
 
 /**
- * 服务装配（阶段 3 的收口）。
+ * 服务装配（阶段 A 的收口）。
  *
- * 每个服务自己注册 RPC 命名空间，所以「装配完到底有哪些命名空间」没有任何静态
- * 保证 —— 少挂一个服务、或者某个 apply 抛错，typecheck 都看不出来。这里把整条
- * 装配链跑一遍（真的构造实例、真的注册到 RpcRegistry），钉住命名空间集合与
- * 服务名唯一性。
+ * 服务现在就是普通 Cordis 插件：挂上去、按 `inject` 等依赖、各自注册 RPC 命名空间。
+ * 「装配完到底有哪些命名空间」没有静态保证，所以这里把整条链跑一遍（真的构造实例、
+ * 真的注册到 RpcRegistry），钉住命名空间集合。
  *
  * 用的是临时 userData 与 `appRoot`，不碰仓库里的 plugins/。
  */
@@ -49,9 +48,14 @@ afterEach(() => {
   fs.rmSync(base, { recursive: true, force: true })
 })
 
-function bootServices(
-  profileRows: readonly { id: string; name: string; kind?: string; description?: string }[] = []
-): { rpc: RpcRegistry; namespaces: string[] } {
+async function bootServices(
+  profileRows: readonly {
+    id: string
+    name: string
+    core?: boolean
+    description?: string
+  }[] = []
+): Promise<{ ctx: NideContext; rpc: RpcRegistry; namespaces: string[] }> {
   const rpc = new RpcRegistry()
   const namespaces: string[] = []
   const ctx = installNideContext(new Context(), {
@@ -71,51 +75,65 @@ function bootServices(
     }
   })
 
-  for (const service of services) {
-    service.apply(ctx)
-  }
+  // 服务通过 inject 取 rpc / hostEnv：先在插件树里把它们 provide 出来
+  await ctx.plugin(hostServices({ rpc: ctx.rpc, env: ctx.hostEnv }))
 
-  return { rpc, namespaces }
+  // 先全部挂上，再等它们各自按 inject 就绪：顺序不再由数组顺序保证
+  const fibers = services.map((service) => ctx.plugin(service))
+  await Promise.all(fibers)
+
+  return { ctx, rpc, namespaces }
 }
 
 describe('host 服务装配', () => {
-  it('每个服务都注册了它负责的命名空间', () => {
-    const { namespaces } = bootServices()
+  it('每个服务都注册了它负责的命名空间', async () => {
+    const { namespaces } = await bootServices()
 
-    expect(namespaces).toEqual([
-      'project',
-      'files',
-      'gallery',
-      'overview',
-      'config',
-      'plugin',
-      'plugins',
-      'i18n',
-      'appearance',
-      'ai'
-    ])
+    expect(namespaces.sort()).toEqual(
+      [
+        'project',
+        'files',
+        'gallery',
+        'overview',
+        'config',
+        'plugin',
+        'plugins',
+        'i18n',
+        'appearance',
+        'ai'
+      ].sort()
+    )
   })
 
-  it('服务名唯一（重复 provide 会抛，这里提前挡住复制粘贴改名漏改）', () => {
+  it('服务名唯一（复制粘贴改名漏改会在这里暴露）', () => {
     const names = services.map((service) => service.name)
     expect(new Set(names).size).toBe(names.length)
   })
 
-  it('装配之后需要的服务都在注册表里', () => {
-    const { rpc } = bootServices()
+  it('依赖就绪之后服务挂在上下文上（ctx.<service> 可用）', async () => {
+    const { ctx } = await bootServices()
 
-    // 通过一次真实调用确认注册表是通的（未知 namespace 会回 unknown-namespace）
-    return expect(
+    expect(ctx.project.list()).toEqual([])
+    expect(ctx.plugins.list()).toEqual([])
+    expect(ctx.appearance.payload().theme).toBeTruthy()
+    expect(ctx.get('i18n')).toBeTruthy()
+    expect(ctx.get('ai')).toBeTruthy()
+  })
+
+  it('装配之后 RPC 是通的（未知 namespace 会回 unknown-namespace）', async () => {
+    const { rpc } = await bootServices()
+
+    await expect(
       rpc.invoke({ type: 'rpc', id: 'r1', namespace: 'project', method: 'list', args: [] })
     ).resolves.toMatchObject({ ok: true })
   })
 
-  it('plugins.core：profile 里的服务行 + 静态平台包，全部只读且有说明', async () => {
-    const { rpc } = bootServices([
+  it('plugins.core：profile 里的 core 行 + 静态平台包，全部只读且有说明', async () => {
+    const { rpc } = await bootServices([
       {
         id: 'project',
-        name: '{{NIDE_ROOT}}/packages/services/project/src/index.ts',
-        kind: 'service',
+        name: '{{NIDE_ROOT}}/packages/project/src/index.ts',
+        core: true,
         description: '项目生命周期'
       }
     ])
@@ -137,7 +155,7 @@ describe('host 服务装配', () => {
         id: 'project',
         name: 'project',
         kind: 'service',
-        path: '{{NIDE_ROOT}}/packages/services/project/src/index.ts',
+        path: '{{NIDE_ROOT}}/packages/project/src/index.ts',
         description: '项目生命周期'
       }
     ])
@@ -146,23 +164,5 @@ describe('host 服务装配', () => {
 
     // 展示路径必须是相对的：绝对路径会把用户的安装位置暴露到界面上
     expect(list.every((entry) => !path.isAbsolute(entry.path))).toBe(true)
-  })
-
-  it('装配是幂等的：同一份服务列表重复 apply 才应该失败（provide 冲突）', () => {
-    const rpc = new RpcRegistry()
-    const ctx = installNideContext(new Context(), {
-      rpc: { register: (namespace, handlers) => rpc.register(namespace, handlers) },
-      env: {
-        profileDir: path.join(base, 'profile'),
-        profileName: 'desktop',
-        home: base,
-        userDataDir: path.join(base, 'user-data'),
-        appRoot: path.join(base, 'app'),
-        profileRows: []
-      }
-    })
-
-    projectService.apply(ctx)
-    expect(() => projectService.apply(ctx)).toThrow(/already registered/)
   })
 })

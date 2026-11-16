@@ -17,10 +17,9 @@ import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
  * 「找不到 UI 模块」）—— `test/renderer/plugin-ui-glob.test.ts` 会把两个 slot 的
  * 层数钉住。
  */
-const settingsModules = import.meta.glob('../../../plugins/builtin/*/src/settings/*.tsx') as Record<
-  string,
-  () => Promise<unknown>
->
+const settingsModules = import.meta.glob(
+  '../../../packages/plugins/*/src/settings/*.tsx'
+) as Record<string, () => Promise<unknown>>
 
 /**
  * 把主进程给的 `{ dir, entry }` 还原成 glob 的 key。

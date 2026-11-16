@@ -16,6 +16,13 @@ out
 
 # 本地开发用的 NIDE_HOME（profile / patch / 插件）
 /.nide-dev/
+# 打包产物跑起来的 profile（`pnpm host:dist:smoke` 会写入）
+/.nide-dist/
+# 临时文件（构建 / 验证脚本用）
+/.tmp/
 
 # 插件浏览器半的构建产物
 /plugins/builtin/*/dist/
+
+# Cordis loader 的运行时解析缓存（node 进程自动写）
+/.cordis/

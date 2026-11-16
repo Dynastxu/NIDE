@@ -50,15 +50,15 @@ describe('插件 UI 的 glob 路径', () => {
 
   for (const file of slotSources) {
     const pattern = patternOf(file)
-    // `<repo>/plugins/builtin/*/<mid...>/<file>.tsx`
+    // `<repo>/packages/plugins/*/<mid...>/<file>.tsx`
     const resolved = path.resolve(path.dirname(path.join(repoRoot, file)), pattern)
     const firstStar = resolved.indexOf('*')
 
-    it(`${file} 的 glob 落在 plugins/builtin 下`, () => {
+    it(`${file} 的 glob 落在 packages/plugins 下`, () => {
       expect(firstStar).toBeGreaterThan(-1)
 
       const head = path.normalize(resolved.slice(0, firstStar))
-      expect(head).toBe(path.join(repoRoot, 'plugins', 'builtin') + path.sep)
+      expect(head).toBe(path.join(repoRoot, 'packages', 'plugins') + path.sep)
     })
 
     it(`${file} 的 glob 至少匹配到一个真实入口`, () => {

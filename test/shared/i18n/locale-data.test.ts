@@ -15,7 +15,7 @@ import ts from 'typescript'
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const BASE_TABLE = path.join(ROOT, 'packages', 'contracts', 'src', 'i18n', 'locales', 'zh-CN.ts')
 const PLUGIN_DIRS = [
-  path.join(ROOT, 'plugins', 'builtin'),
+  path.join(ROOT, 'packages', 'plugins'),
   // 第三方语言包通常不在仓库里，但本地调试时可能放这儿
   path.join(ROOT, 'plugins', 'third-party')
 ]

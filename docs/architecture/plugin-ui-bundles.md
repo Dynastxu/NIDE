@@ -47,7 +47,7 @@ import map 支持。B 以后可以作为内部实现替换，插件契约不用�
    后者需要额外的全局，当前没有提供；
 5. 视图组件的 props 与现有插件视图一致（目前是空 props，靠 `useViewChrome` 取外壳能力）。
 
-参考实现：`plugins/builtin/demo/src/ui/client-entry.tsx`。
+参考实现：`packages/plugins/demo/src/ui/client-entry.tsx`。
 
 ### 平台全局（宿主注入）
 
@@ -91,9 +91,9 @@ pnpm build:plugin-demo             # 只构建 demo（--only demo，迭代时用
 ```
 
 产物：`<插件目录>/<manifest.client.bundle>`，demo 是
-`plugins/builtin/demo/dist/client.js`（已 gitignore）。
+`packages/plugins/demo/dist/client.js`（已 gitignore）。
 
-脚本 `scripts/build-plugin-client.mjs` 遍历 `plugins/builtin/*/manifest.json`，
+脚本 `scripts/build-plugin-client.mjs` 遍历 `packages/plugins/*/manifest.json`，
 **只挑 `client: { platform:'web', bundle }` 的插件**，入口固定为插件目录下的
 `src/ui/client-entry.tsx`。它用 Vite 的 JS API：
 
@@ -149,7 +149,7 @@ pnpm build:plugin-demo             # 只构建 demo（--only demo，迭代时用
 
 - 生产环境没有 Vite dev server，`import()` 不认识 `.tsx`；
 - 渲染进程在 Chromium 沙箱里没有 fs，不能读任意路径；
-- 构建期 `import.meta.glob` 只能覆盖 `plugins/builtin/*`，第三方插件进不来。
+- 构建期 `import.meta.glob` 只能覆盖 `packages/plugins/*`，第三方插件进不来。
 
 所以必须先构建、再由宿主提供 URL。
 
@@ -172,7 +172,7 @@ pnpm dev
 同一个视图的日志里 `url` 应变成 `nide-plugin://plugin/builtin.demo/client.js`；
 如果它回退到 glob（看不到 `client bundle loaded`），检查：
 
-1. `plugins/builtin/demo/dist/client.js` 是否真的进了 `resources/app`（`pnpm
+1. `packages/plugins/demo/dist/client.js` 是否真的进了 `resources/app`（`pnpm
    build:plugin-demo` 要在 `build:unpack` 之前跑，`dist/` 是 gitignore 的）；
 2. 主进程日志里有没有 `Plugin bundle requested but not in the host catalog`（说明
    host 的清单里没有它：插件被禁用，或文件不存在）；
@@ -180,6 +180,6 @@ pnpm dev
 
 如果只看到 `[nide] client bundle failed to load`，检查：
 
-1. `plugins/builtin/demo/dist/client.js` 是否存在；
+1. `packages/plugins/demo/dist/client.js` 是否存在；
 2. manifest 的 `client.bundle` 是否指向它；
 3. DevTools Console 里是否有 `__NIDE_REGISTER__` 相关的报错。

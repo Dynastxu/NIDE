@@ -1,0 +1,9 @@
+{
+  "nide": {
+    "plugin": true
+  },
+  "private": true,
+  "description": "NIDE builtin plugin (lang-en): manifest + contributions.",
+  "name": "@nide/plugin-lang-en",
+  "type": "module"
+}

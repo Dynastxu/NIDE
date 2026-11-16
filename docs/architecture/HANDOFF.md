@@ -88,8 +88,8 @@ packages/
   sdk/               # 插件开发者 API：插件视图渲染管线（PluginSlot / host-context）
   client-ui-slots/ client-ui-renderer/
   client-ui-main/ client-ui-layout/ client-ui-welcome/ client-ui-settings/
-plugins/builtin/     # 第三方扩展形态的插件包（demo / ai-provider / lang-en）
-profiles/desktop/    # package.json + cordis.yml + cordis.patch.yml
+packages/plugins/     # NIDE 插件包（demo / ai-provider / lang-en）
+# profile 由 packages/boot 代码生成，运行时落在 NIDE_HOME/profiles/<name>
 docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目录方案
 ```
 
@@ -144,7 +144,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 ### 插件（host 是唯一读目录的一方）
 
 - [packages/host/src/services/plugins.ts](packages/host/src/services/plugins.ts) 扫描
-  `<appRoot>/plugins/builtin` 与 `<userData>/plugins`，维护 manifest 清单、禁用集合、
+  `<appRoot>/packages/plugins` 与 `<userData>/plugins`，维护 manifest 清单、禁用集合、
   client bundle 绝对路径，以及每个插件的**贡献点**；
 - 贡献点的读取（读 manifest、路径守卫、chrome / location 收敛、语言包与
   `package.nls*.json`）在
@@ -183,7 +183,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   不会静默降级成完全信任；
 - 执行点只有一个：[packages/kernel/src/rpc.ts](../../packages/kernel/src/rpc.ts) 的
   `RpcAuthorizer`（分发之前）。宿主入口在服务装配完成后接上
-  [permissions.ts](../../packages/services/plugins/src/permissions.ts) 的 guard；
+  [permissions.ts](../../packages/plugin-runtime/src/permissions.ts) 的 guard；
   `RpcRequest.caller.pluginId` 是判断依据，没有 caller 的调用（核心 UI / shell）一律放行；
 - 只有 `trust: 'sandboxed'` 会被限制：`fs.read` / `fs.write` 按展开后的作用域检查
   `files.*` / `gallery.*` / `overview.*` / `config.*` 的路径参数；`net` 约束 `ai.*`；
@@ -197,11 +197,11 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 ### 插件后端（工作进程，详见 [plugin-backend.md](plugin-backend.md)）
 
 - `manifest.main`（插件目录内、真实存在的 ESM 文件）交给
-  [backend/runtime.ts](../../packages/services/plugins/src/backend/runtime.ts)：
+  [backend/runtime.ts](../../packages/plugin-runtime/src/backend/runtime.ts)：
   `child_process.fork` 一个子进程，`buildBackendFlags()` 把权限声明翻成 Node 的
   `--permission` / `--allow-fs-read` / `--allow-fs-write` / `--allow-child-process`
   （只有 `sandboxed` 才加；`full` 不限制）；
-- 子进程入口是 [backend/worker.ts](../../packages/services/plugins/src/backend/worker.ts)：
+- 子进程入口是 [backend/worker.ts](../../packages/plugin-runtime/src/backend/worker.ts)：
   动态 import 插件 `main`，默认导出 `{ activate(host), deactivate? }`（或直接一个函数），
   `host.handle(method, fn)` 注册的方法由宿主 RPC `plugin.call(pluginId, method, params)`
   调用；日志、路径、方法注册都经 IPC 回传；
@@ -347,7 +347,7 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
 - manifest `client: { platform:'web', bundle:'dist/client.js' }`；
 - host `plugins.clientBundles` → preload → `client-runtime` 注入 IIFE；
 - bundle 调 `window.__NIDE_REGISTER__(viewId, Component)` 注册；
-- demo 的 bundle 已构建：`plugins/builtin/demo/dist/client.js`（71 KB）；
+- demo 的 bundle 已构建：`packages/plugins/demo/dist/client.js`（71 KB）；
 - **打包后走 `nide-plugin://plugin/<pluginId>/client.js`**：shell 注册的自定义协议
   （[packages/shell/src/main/protocol/plugin-bundles.ts](packages/shell/src/main/protocol/plugin-bundles.ts)），
   处理器只用 URL 里的 pluginId 去 host 的清单里查绝对路径，读出来以
@@ -368,8 +368,9 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
   **Node API** 直接把源码编到 `out/host`（不 spawn，受限环境也能跑）；
 - 产物与源码同构：`out/host/packages/host/src/index.js` 是可执行入口，
   `out/host/packages/hello/src/index.js` 是 profile 引用的插件，
-  `out/host/src/shared/...` 是共享层，`out/host/profiles/...` 是**改写过的** profile
-  模板（`.ts` → `.js`）；
+  `out/host/src/shared/...` 是共享层；profile **不在产物里** —— 由 boot 的
+  `ensureProfile` 用代码常量生成到 `NIDE_HOME/profiles/<name>`（`.ts` → `.js`
+  改写在 `loadRows({ compiled })` 里做）；
 - 三处细节，缺一个都跑不起来：
   1. 统一发射 **ESM**（`module: ESNext` + `moduleResolution: Bundler`）。用 NodeNext
      的话，没有 `type: module` marker 的共享目录会被编成 CJS，和产物根对不上；
@@ -378,13 +379,13 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
      改成 `.js`（否则 bare specifier 解析不了）；
 - 打包版的入口与 profile：shell 在 `app.isPackaged` 时跑
   `<appRoot>/out/host/packages/host/src/index.js` 并传 `--dist-root <appRoot>/out/host`；
-  host 用它当 profile 模板目录与 `{{NIDE_ROOT}}`。开发时仍跑源码
+  host 用它当 `{{NIDE_ROOT}}`（profile 由代码生成）。开发时仍跑源码
   `packages/host/src/index.ts`，行为不变；
-- `electron-builder.yml` 的 `files` 因此只留 `out/**` + `profiles/**` + `plugins/**`
+- `electron-builder.yml` 的 `files` 因此只留 `out/**` + `packages/plugins/**`
   - `package.json` —— 源码形式的 `packages/*` 与 `src/shared` 不再进包；
 - **asar 已恢复**：主进程 / 预加载 / 渲染进程都在 asar 里；host 是
   `utilityProcess.fork()` 出来的独立进程，它的入口、profile、要动态 import 的插件
-  必须是真实文件，所以 `out/host/**` 与 `plugins/**` 走 `asarUnpack` 放到
+  必须是真实文件，所以 `out/host/**` 与 `packages/plugins/**` 走 `asarUnpack` 放到
   `resources/app.asar.unpacked/`，shell 侧按 `app.asar` → `app.asar.unpacked` 换根
   （`packagedRoot()`），`--app-root` 与子进程 cwd 也用它；
 - **签名**：证书不进仓库，走 electron-builder 的标准环境变量
@@ -453,7 +454,7 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
   （ESM 统一发射 + 产物根 `{"type":"module"}` + `#project/*` 映射改写 + profile 模板
   改写）；shell 在打包版跑编译产物并传 `--dist-root`；`boot` 的 profile 模板目录与
   `{{NIDE_ROOT}}` 改成显式参数；asar 恢复，host 需要的真实文件走 `asarUnpack`；
-  `electron-builder.yml` 只打 `out/**` + `plugins/**` + `package.json`；
+  `electron-builder.yml` 只打 `out/**` + `packages/plugins/**` + `package.json`；
   签名走 `CSC_LINK` / `CSC_KEY_PASSWORD`。**编译产物实跑验证过**，`build:unpack`
   仍需在用户终端跑。
 - 第十七批（未提交）：删掉 shell 的最后两块旧实现 —— `packages/shell/src/main/plugin-host/`
@@ -635,7 +636,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 
 | 文件                                                 | 说明                                                                                       |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `electron-builder.yml`                               | 打包：`asar: false`，显式带上 host 源码 / boot / hello / shared / profiles / plugins       |
+| `electron-builder.yml`                               | 打包：`asar: true`；`out/host/**` 与 `packages/plugins/**` 走 `asarUnpack`       |
 | `packages/shell/src/main/host/process.ts`            | spawn host、ready、attach port、`invokeHost`（shell→host RPC）、stop                       |
 | `packages/shell/src/main/host/project.ts`            | shell 侧的项目客户端：list / startup / open / forget / close（都走 `invokeHost`）          |
 | `packages/shell/src/main/window.ts`                  | 建窗；`boundProjectPath`（主窗口绑定的项目）；`openStartupWindow()` 等 host 的启动结论     |
@@ -651,15 +652,15 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/host/src/services/project-config.ts`       | host 项目配置（load / update / initialize / registry / remap）                             |
 | `packages/host/src/services/plugins.ts`              | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做）                            |
 | `packages/contracts/src/plugin-api/permissions.ts`   | 权限声明：类型 / 校验归一化 / 变量展开 / 路径判断（浏览器安全）                            |
-| `packages/services/plugins/src/permissions.ts`       | 权限执行：`RpcAuthorizer` 的能力映射与 fs 作用域检查                                       |
+| `packages/plugin-runtime/src/permissions.ts`       | 权限执行：`RpcAuthorizer` 的能力映射与 fs 作用域检查                                       |
 | `packages/sdk/src/plugin-views/plugin-api.ts`        | 插件侧受限宿主 API（`useHost().api`，带 caller）                                           |
-| `packages/services/plugins/src/backend/runtime.ts`   | 插件后端子进程：权限参数、fork、RPC、起停 / 重扫对齐                                       |
-| `packages/services/plugins/src/backend/worker.ts`    | 子进程运行时：装载 `main`、`activate(host)`、方法注册                                      |
+| `packages/plugin-runtime/src/backend/runtime.ts`   | 插件后端子进程：权限参数、fork、RPC、起停 / 重扫对齐                                       |
+| `packages/plugin-runtime/src/backend/worker.ts`    | 子进程运行时：装载 `main`、`activate(host)`、方法注册                                      |
 | `packages/contracts/src/plugin-api/backend.ts`       | 后端插件类型（`PluginBackend` / `PluginBackendHost`）                                      |
-| `packages/services/plugins/src/backend/uninstall.ts` | 卸载脚本：子进程执行、超时、存储快照                                                       |
+| `packages/plugin-runtime/src/backend/uninstall.ts` | 卸载脚本：子进程执行、超时、存储快照                                                       |
 | `packages/contracts/src/plugin-api/preference.ts`    | 启用状态：disabled / enabled / core / essential / defaultDisabled                          |
-| `packages/services/plugins/src/storage.ts`           | 插件存储：每插件 JSON、合并写盘、flush / remove                                            |
-| `packages/services/plugins/src/capabilities.ts`      | 桌面能力：`os.*` 权限检查 + 转发到 shell                                                   |
+| `packages/plugin-runtime/src/storage.ts`           | 插件存储：每插件 JSON、合并写盘、flush / remove                                            |
+| `packages/plugin-runtime/src/capabilities.ts`      | 桌面能力：`os.*` 权限检查 + 转发到 shell                                                   |
 | `packages/shell/src/main/host/capabilities.ts`       | 反向桥实现：白名单方法 + 参数收敛（外链 / 对话框 / 剪贴板 / 通知）                         |
 | `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
 | `packages/host/src/services/i18n.ts`                 | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析                      |
@@ -680,7 +681,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/client-modules/src/index.ts`               | `ClientModuleRegistry` / `modulesOf`                                                       |
 | `packages/client-ui-renderer/src/index.tsx`          | `<SlotProvider>` / `<Slot>`                                                                |
 | `apps/desktop/renderer/src/plugins/PluginSlot.tsx`   | 先查注册表，再回退 glob                                                                    |
-| `plugins/builtin/demo/src/ui/client-entry.tsx`       | bundle 入口                                                                                |
+| `packages/plugins/demo/src/ui/client-entry.tsx`       | bundle 入口                                                                                |
 | `scripts/build-plugin-client.mjs`                    | IIFE 构建                                                                                  |
 | `scripts/build-host.mts`                             | 编译 host 到 `out/host`（TS Node API，不 spawn）                                           |
 | `src/shared/project/store.ts`                        | 纯 store 模型                                                                              |
@@ -702,7 +703,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
    免扩展名的相对导入也一样，host 的纯 Node ESM 都解析不了。`package.json#imports`
    是 Node / tsc / Vite 三边都认的那一层（见 `src/shared/project/package.json`）。
 10. **host 是必需进程**：文件 / 配置的全部实现都在它里面。打包目前靠
-    `asar: false` + `files` 带上 host 源码 / boot / hello / `src/shared` / profiles；
+    `asar: true` + `asarUnpack` 带 `out/host/**` 与 `packages/plugins/**`；
     改回 asar 之前必须先让 host 有编译产物，否则打包版读不到自己的源码。
 11. **`projects.json` 只有 host 一份实现**：shell 不要再 import `fs` 去读它，也不要
     在内存里维护「当前项目」。窗口需要的项目路径叫 `boundProjectPath`（主窗口**绑定**
@@ -725,7 +726,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     `permissions` 检查。`window.hostAPI` 是宿主自己的入口，插件直接用它等于绕过
     权限声明（也是屏障的全部边界，别当沙箱）。
 17. **权限检查只挂在 `RpcRegistry` 的 authorizer 上**：不要在服务 handler 里各写一份。
-    新能力加进 `capabilityOf()` / `pathsOf()`（`packages/services/plugins/src/permissions.ts`），
+    新能力加进 `capabilityOf()` / `pathsOf()`（`packages/plugin-runtime/src/permissions.ts`），
     并补 `test/host/plugin-permissions.test.ts`。
 18. **插件后端代码只在子进程里跑**：宿主不 `import` 插件 `main`，只 `fork` 它；
     任何「先在宿主里试一下」的捷径都会让进程边界失效。
@@ -936,7 +937,7 @@ resources\app` 起，日志里 `client bundle loaded` 的 `url` 是
 - [x] `pnpm build:unpack` 产物结构已核对（asar 已开）：
       `resources/app.asar` 里是 `out/{main,preload,renderer,host}` + `plugins` +
       `package.json`；`resources/app.asar.unpacked/` 下是真实的
-      `out/host/packages/host/src/index.js` 与 `plugins/builtin/*`；
+      `out/host/packages/host/src/index.js` 与 `packages/plugins/*`；
       `dist/win-unpacked/nide.exe` 存在。**启动必须用 `nide.exe` 或
       `electron.exe dist/win-unpacked/resources/app.asar`** —— 传
       `resources/app`（asar 之前的老命令）会报 "Unable to find Electron app"

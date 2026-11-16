@@ -9,8 +9,8 @@ import {
   projectConfigPath,
   projectLegacyGalleryRegistryPath,
   updateGalleryRegistry
-} from '../../packages/services/config/src/project-config.ts'
-import { readProjectGalleries } from '../../packages/services/content/src/project-files.ts'
+} from '../../packages/config/src/project-config.ts'
+import { readProjectGalleries } from '../../packages/content/src/project-files.ts'
 import {
   DEFAULT_CHARACTER_GALLERY_FIELDS,
   DEFAULT_GALLERY_REGISTRY,

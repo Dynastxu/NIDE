@@ -7,8 +7,8 @@
  * 「这功能在哪」时，这张表就是答案。
  *
  * 两个来源：
- * - `kind: 'service'`：**来自 profile**（`cordis.yml`），所以宿主服务不用在这里
- *   再抄一遍，增删服务只改 profile；
+ * - `kind: 'service'`：**来自 profile**（`cordis.yml` 里 `core: true` 的行），所以
+ *   宿主服务不用在这里再抄一遍，增删服务只改 profile；
  * - `kind: 'package'`：客户端的平台包（渲染进程的包，宿主看不到它们），只能静态列。
  *
  * `description` 是**开发者向**的中文说明（不是界面文案），不参与 i18n —— 这些条目

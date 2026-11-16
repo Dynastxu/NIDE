@@ -84,7 +84,8 @@ import type {
   PluginDescriptor,
   ClientBundleDescriptor,
   PluginInstallResult,
-  PluginRemoveResult
+  PluginRemoveResult,
+  PluginRuntimeStatus
 } from '@nide/contracts/plugin-api'
 import type { CorePackage } from '@nide/contracts/plugin-api/core-packages'
 
@@ -300,6 +301,7 @@ let hostUpdateConfig:
   ((patch: ProjectConfigPatch) => Promise<ProjectConfigUpdateResult | null>) | null = null
 let hostGetPlugins: (() => Promise<PluginDescriptor[]>) | null = null
 let hostGetDisabledPlugins: (() => Promise<string[]>) | null = null
+let hostGetPluginBackends: (() => Promise<PluginRuntimeStatus[]>) | null = null
 let hostGetClientBundles: (() => Promise<ClientBundleDescriptor[]>) | null = null
 
 const projectAPI = {
@@ -848,6 +850,17 @@ const api = {
     return ipcRenderer.invoke(HOST_CHANNELS.getDisabledPlugins)
   },
 
+  /** 插件后端的实时状态；拿不到时返回空数组（只影响「运行状态」展示） */
+  getPluginBackends: async (): Promise<PluginRuntimeStatus[]> => {
+    if (!hostGetPluginBackends) return []
+    try {
+      return await hostGetPluginBackends()
+    } catch (error) {
+      preloadLogger.warn('host plugins.backends failed', { error })
+      return []
+    }
+  },
+
   /**
    * 订阅「插件启用状态变了」。
    *
@@ -1072,6 +1085,8 @@ ipcRenderer.on(HOST_PORT_CHANNEL, (event) => {
     hostInvoke('config', 'update', [patch]) as Promise<ProjectConfigUpdateResult | null>
   hostGetPlugins = () => hostInvoke('plugins', 'list', []) as Promise<PluginDescriptor[]>
   hostGetDisabledPlugins = () => hostInvoke('plugins', 'disabled', []) as Promise<string[]>
+  hostGetPluginBackends = () =>
+    hostInvoke('plugins', 'backends', []) as Promise<PluginRuntimeStatus[]>
   hostGetClientBundles = () =>
     hostInvoke('plugins', 'clientBundles', []) as Promise<ClientBundleDescriptor[]>
 

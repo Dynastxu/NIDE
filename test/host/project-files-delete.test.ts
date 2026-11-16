@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   deleteProjectEntry,
   type RootsOptions
-} from '../../packages/services/content/src/project-files.ts'
+} from '../../packages/content/src/project-files.ts'
 
 /**
  * 删除的**写盘**部分。
