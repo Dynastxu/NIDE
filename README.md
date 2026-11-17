@@ -8,25 +8,25 @@
 
 <p align="center">
   <a>
-    <img alt="Electron" src="https://img.shields.io/badge/Electron-blue?logo=electron&logoColor=white">
+    <img alt="WebStorm" src="https://img.shields.io/badge/WebStorm-blue?logo=webstorm">
   </a>
   <a>
-    <img alt="React" src="https://img.shields.io/badge/React-blue?logo=react&logoColor=white">
+    <img alt="Git" src="https://img.shields.io/badge/Git-blue?logo=git&logoColor=white">
   </a>
   <a>
-    <img alt="Cordis" src="https://img.shields.io/badge/Cordis-blue">
-  </a>
-  <a>
-    <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind%20CSS-blue?logo=tailwindcss&logoColor=white">
-  </a>
-  <a>
-    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white">
+    <img alt="electron" src="https://img.shields.io/badge/electron-blue?logo=electron&logoColor=white">
   </a>
   <a>
     <img alt="Prettier" src="https://img.shields.io/badge/Prettier-blue?logo=prettier&logoColor=white">
   </a>
   <a>
+    <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind%20CSS-blue?logo=tailwindcss&logoColor=white">
+  </a>
+  <a>
     <img alt="ESLint" src="https://img.shields.io/badge/ESLint-blue?logo=eslint&logoColor=white">
+  </a>
+  <a>
+    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white">
   </a>
 </p>
 
