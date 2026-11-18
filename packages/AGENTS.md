@@ -14,6 +14,7 @@ packages/
   contracts/        契约层：类型 + 纯函数 + 词条基础表 + 端口/领域错误（不 import 任何包）
   kernel/           内核：Cordis 上下文扩展（rpc / hostEnv）、RPC 注册表与权限挂载点、shell 反桥
   project/ content/ config/ i18n/ appearance/ secrets/ ai/ plugin-runtime/
+  plugin-backend/ plugin-storage/ plugin-permissions/ plugin-capabilities/
                     宿主业务服务：一包一个业务域，彼此只走 ctx.<service>
   boot/ host/       装配：profile 引导（ensureProfile / loader）与 host 进程入口
   shell/            Electron 外壳：main（窗口 / 菜单 / 对话框 / 协议）+ preload
@@ -38,21 +39,21 @@ packages/
 
 ## 包类型与允许的依赖
 
-| 类型            | 包                                                                               | 允许依赖                                                           | 一个包只装                                  |
-| --------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
-| contract        | `contracts`                                                                      | 无（连 `import type` 也不行）                                      | 形状、纯函数、词条基础表、端口与领域错误    |
-| kernel          | `kernel`                                                                         | contract                                                           | ctx 扩展、RPC 表、反向桥                    |
-| service         | `project` `content` `config` `i18n` `appearance` `secrets` `ai` `plugin-runtime` | contract, kernel                                                   | 一个业务域；服务之间只走 `ctx.<service>`    |
-| bootstrap       | `boot` `host`                                                                    | contract, kernel, service, bootstrap, hello                        | 装配与进程入口                              |
-| shell           | `shell`                                                                          | contract                                                           | 只有 Electron 才能做的事                    |
-| client-platform | `client-kit`                                                                     | contract                                                           | 三扇窗共用的 UI / 外壳 / logger / monaco    |
-| client-sdk      | `sdk`                                                                            | contract, client-platform                                          | 插件作者看到的 API                          |
-| client-seam     | `client-ui-slots` `client-modules` `client-ui-renderer`                          | contract, client-platform, client-sdk, client-seam                 | slot 注册表、模块表 + bundle 加载、渲染管线 |
-| client-feature  | `client-ui-plugins`                                                              | contract, client-platform, client-sdk, client-seam                 | 跨窗口共用的功能界面                        |
-| client-window   | `client-ui-main` `client-ui-settings` `client-ui-welcome`                        | contract, client-platform, client-sdk, client-seam, client-feature | 一扇窗的界面与领域状态；窗口根与自己的 slot |
-| client-runtime  | `client-runtime`                                                                 | 上面所有客户端层                                                   | 只做装配                                    |
-| plugin          | `plugins/*`                                                                      | contract, client-platform, client-sdk, client-seam                 | manifest + 贡献点                           |
-| smoke           | `hello`                                                                          | 无                                                                 | 冒烟                                        |
+| 类型            | 包                                                                                                                                                            | 允许依赖                                                           | 一个包只装                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
+| contract        | `contracts`                                                                                                                                                   | 无（连 `import type` 也不行）                                      | 形状、纯函数、词条基础表、端口与领域错误    |
+| kernel          | `kernel`                                                                                                                                                      | contract                                                           | ctx 扩展、RPC 表、反向桥                    |
+| service         | `project` `content` `config` `i18n` `appearance` `secrets` `ai` `plugin-runtime` `plugin-backend` `plugin-storage` `plugin-permissions` `plugin-capabilities` | contract, kernel                                                   | 一个业务域；服务之间只走 `ctx.<service>`    |
+| bootstrap       | `boot` `host`                                                                                                                                                 | contract, kernel, service, bootstrap, hello                        | 装配与进程入口                              |
+| shell           | `shell`                                                                                                                                                       | contract                                                           | 只有 Electron 才能做的事                    |
+| client-platform | `client-kit`                                                                                                                                                  | contract                                                           | 三扇窗共用的 UI / 外壳 / logger / monaco    |
+| client-sdk      | `sdk`                                                                                                                                                         | contract, client-platform                                          | 插件作者看到的 API                          |
+| client-seam     | `client-ui-slots` `client-modules` `client-ui-renderer`                                                                                                       | contract, client-platform, client-sdk, client-seam                 | slot 注册表、模块表 + bundle 加载、渲染管线 |
+| client-feature  | `client-ui-plugins`                                                                                                                                           | contract, client-platform, client-sdk, client-seam                 | 跨窗口共用的功能界面                        |
+| client-window   | `client-ui-main` `client-ui-settings` `client-ui-welcome`                                                                                                     | contract, client-platform, client-sdk, client-seam, client-feature | 一扇窗的界面与领域状态；窗口根与自己的 slot |
+| client-runtime  | `client-runtime`                                                                                                                                              | 上面所有客户端层                                                   | 只做装配                                    |
+| plugin          | `plugins/*`                                                                                                                                                   | contract, client-platform, client-sdk, client-seam                 | manifest + 贡献点                           |
+| smoke           | `hello`                                                                                                                                                       | 无                                                                 | 冒烟                                        |
 
 四条硬规则：
 

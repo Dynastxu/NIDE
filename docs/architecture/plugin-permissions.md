@@ -64,7 +64,7 @@ v1 插件跑在主进程、权限表只是额外能力的白名单；空数组�
 
 准入检查在 **RpcRegistry**（`packages/kernel/src/rpc.ts`）分发之前：
 `RpcAuthorizer` 拿到完整的 `RpcRequest`，宿主入口在服务装配完成后把它接到
-`PluginPermissionGuard`（`packages/plugin-runtime/src/permissions.ts`）。
+`PluginPermissionGuard`（`packages/plugin-permissions/src/permissions.ts`）。
 
 调用方身份来自 `RpcRequest.caller.pluginId`：
 
@@ -122,7 +122,7 @@ Node 的 `--permission` / `--allow-fs-*` / `--allow-child-process` 强制文件�
 | 文件                                               | 职责                                                      |
 | -------------------------------------------------- | --------------------------------------------------------- |
 | `packages/contracts/src/plugin-api/permissions.ts` | 声明类型、校验 / 归一化、变量展开、路径判断（浏览器安全） |
-| `packages/plugin-runtime/src/permissions.ts`     | 声明 -> 能力检查；`RpcAuthorizer` 的实现                  |
+| `packages/plugin-permissions/src/permissions.ts`     | 声明 -> 能力检查；`RpcAuthorizer` 的实现                  |
 | `packages/plugin-runtime/src/plugins.ts`         | 扫描时解析 `permissions`；写错的 manifest 整份忽略        |
 | `packages/kernel/src/rpc.ts`                       | `RpcAuthorizer` 挂载点（分发前）                          |
 | `packages/shell/src/preload/index.ts`              | `setCaller` + 把 `caller.pluginId` 带进 RPC 请求          |

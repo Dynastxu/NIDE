@@ -5,7 +5,7 @@ import type {
   PluginBackendPaths,
   PluginHostCapabilities,
   PluginStorageApi
-} from '../../../contracts/src/plugin-api/backend.ts'
+} from '../../contracts/src/plugin-api/backend.ts'
 import {
   STORAGE_FLUSH_MS,
   type BootstrapMessage,

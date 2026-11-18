@@ -54,6 +54,10 @@ const LAYER_OF: Record<string, Layer> = {
   'packages/content': 'service',
   'packages/i18n': 'service',
   'packages/plugin-runtime': 'service',
+  'packages/plugin-backend': 'service',
+  'packages/plugin-storage': 'service',
+  'packages/plugin-permissions': 'service',
+  'packages/plugin-capabilities': 'service',
   'packages/project': 'service',
   'packages/secrets': 'service',
   // 装配

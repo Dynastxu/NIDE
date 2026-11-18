@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import { fork } from 'node:child_process'
-import type { PluginManager } from '../plugins.ts'
-import type { PluginPermissionGuard } from '../permissions.ts'
-import { pluginStorageFile } from '../storage.ts'
+import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
+import type { PluginPermissionGuard } from '../../plugin-permissions/src/permissions.ts'
 import type { HostToWorker, WorkerToHost } from './protocol.ts'
-import { buildBackendFlags, resolveWorkerEntry } from './runtime.ts'
+import { buildBackendFlags, resolveWorkerEntry } from './paths.ts'
 
 /**
  * 卸载脚本（`manifest.uninstall`）。
@@ -36,6 +35,13 @@ export interface RunUninstallOptions {
   pluginId: string
   userDataDir: string
   home: string
+  /**
+   * 插件存储 JSON 的绝对路径。
+   *
+   * 由调用方（后端服务）从存储服务取 —— 计算路径的知识属于 `plugin-storage`，
+   * 不该让卸载机制 import 另一个服务包的实现。
+   */
+  storageFile: string
   workerEntry?: string
   timeoutMs?: number
   log?: (level: 'info' | 'warn' | 'error', message: string) => void
@@ -58,7 +64,7 @@ export async function runUninstallScript(options: RunUninstallOptions): Promise<
     pluginDir: location.dirPath
   })
 
-  const storageFile = pluginStorageFile(options.userDataDir, options.pluginId)
+  const storageFile = options.storageFile
   const timeoutMs = options.timeoutMs ?? UNINSTALL_TIMEOUT_MS
 
   const child = fork(workerEntry, [], {

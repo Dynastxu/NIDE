@@ -4,7 +4,7 @@
  * 只走 `fork` 的结构化克隆，不做 JSON 编解码 —— Buffer / Date / Map 能原样过界。
  * 这些类型**不跨渲染进程**，所以放在宿主包内，而不是 contracts。
  */
-import type { PluginBackendPaths } from '../../../contracts/src/plugin-api/backend.ts'
+import type { PluginBackendPaths } from '../../contracts/src/plugin-api/backend.ts'
 
 /** 子进程启动后收到的第一帧 */
 export interface BootstrapMessage {

@@ -5,7 +5,7 @@ import type {
 import { allowsLegacy } from '../../../packages/contracts/src/plugin-api/permissions.ts'
 import type { ShellMethod } from '../../../packages/contracts/src/host-rpc/index.ts'
 import { shell } from '../../kernel/src/shell.ts'
-import type { PluginManager } from './plugins.ts'
+import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
 
 /**
  * 插件后端的桌面能力（`ctx.host.*`）。

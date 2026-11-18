@@ -1,15 +1,18 @@
-import fs from 'node:fs'
 import os from 'node:os'
-import path from 'node:path'
 import { fork, type ChildProcess } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
-import type { PluginBackendPaths } from '../../../contracts/src/plugin-api/backend.ts'
-import type { ResolvedPermissions } from '../../../contracts/src/plugin-api/permissions.ts'
-import type { PluginManager } from '../plugins.ts'
-import type { PluginPermissionGuard } from '../permissions.ts'
-import type { PluginStorage } from '../storage.ts'
-import type { PluginCapabilities } from '../capabilities.ts'
+import type { PluginBackendPaths } from '../../contracts/src/plugin-api/backend.ts'
+import type { ResolvedPermissions } from '../../contracts/src/plugin-api/permissions.ts'
+import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
+import type { PluginPermissionGuard } from '../../plugin-permissions/src/permissions.ts'
+import type { PluginStorage } from '../../plugin-storage/src/storage.ts'
+import type { PluginCapabilities } from '../../plugin-capabilities/src/capabilities.ts'
 import type { HostToWorker, WorkerToHost } from './protocol.ts'
+import { buildBackendFlags, ensureWriteRoots, resolveWorkerEntry } from './paths.ts'
+import { runUninstallScript } from './uninstall.ts'
+
+// 这三个以前长在本文件里；拆出 paths.ts 是为了让卸载脚本（uninstall.ts）也能用，
+// 又不和本文件成环。对外仍从这里导出，调用方不必知道拆分。
+export { buildBackendFlags, ensureWriteRoots, resolveWorkerEntry } from './paths.ts'
 
 /**
  * 插件后端子进程的宿主侧（mics 的 PluginWorkerHost 对应物）。
@@ -81,73 +84,6 @@ export interface PluginBackendRuntimeOptions extends PluginBackendPathsOptions {
     warn(message: string, fields?: Record<string, unknown>): void
     error(message: string, fields?: Record<string, unknown>): void
   }
-}
-
-/**
- * 把权限声明翻成 Node 的启动参数。
- *
- * 与 mics 一致：
- * - 只有 `sandboxed` 才加 `--permission`；`full` 不限制（老插件行为不变）；
- * - worker 自身与插件目录必须可读，否则 `import` 第一步就失败；
- * - 写作用域同时给 `--allow-fs-write`；
- * - 子进程权限是全有全无：声明了 `exec` 才放开 `--allow-child-process`。
- */
-export function buildBackendFlags(options: {
-  trust: 'full' | 'sandboxed'
-  permissions: ResolvedPermissions
-  workerEntry: string
-  pluginDir: string
-  runtimeReadPaths?: string[]
-}): string[] {
-  if (options.trust !== 'sandboxed') return []
-
-  const read = new Set<string>([
-    // worker 自己会 import 同目录的 `protocol.js` / `storage-value.js`：只放行
-    // `worker.js` 一个文件的话，第二个模块就是 EACCES（Node 的权限模型按文件算）
-    path.dirname(options.workerEntry),
-    options.workerEntry,
-    options.pluginDir,
-    ...(options.runtimeReadPaths ?? []),
-    ...options.permissions.fs.read.resolved,
-    ...options.permissions.fs.meta.resolved,
-    ...options.permissions.fs.write.resolved
-  ])
-  const write = new Set(options.permissions.fs.write.resolved)
-
-  const flags = ['--permission']
-  for (const entry of read) flags.push(`--allow-fs-read=${entry}`)
-  for (const entry of write) flags.push(`--allow-fs-write=${entry}`)
-  if (options.permissions.exec.length > 0) flags.push('--allow-child-process')
-  return flags
-}
-
-/**
- * 按声明的可写目录预建目录。
- *
- * Node 的 `--allow-fs-write=<dir>` 只允许在 dir 里创建条目，**不包括创建 dir
- * 本身**；不预建的话插件第一次写 `${userData}/notes/x.md` 就会 EPERM。
- */
-export function ensureWriteRoots(
-  permissions: ResolvedPermissions,
-  onError?: (dir: string, error: unknown) => void
-): void {
-  for (const dir of permissions.fs.write.resolved) {
-    try {
-      fs.mkdirSync(dir, { recursive: true })
-    } catch (error) {
-      onError?.(dir, error)
-    }
-  }
-}
-
-/** 默认的 worker 入口：编译产物是 `.js`，源码树是 `.ts` */
-export function resolveWorkerEntry(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url))
-  for (const name of ['worker.js', 'worker.ts']) {
-    const candidate = path.join(here, name)
-    if (fs.existsSync(candidate)) return candidate
-  }
-  throw new Error(`plugin backend worker entry not found next to ${here}`)
 }
 
 export class PluginBackendRuntime {
@@ -321,6 +257,25 @@ export class PluginBackendRuntime {
     for (const pluginId of [...this.workers.keys()]) {
       await this.stop(pluginId)
     }
+  }
+
+  /**
+   * 跑一个插件的卸载脚本（`manifest.uninstall`）。
+   *
+   * 放在后端管理器上而不是插件清单服务里：脚本与后端跑同一套子进程 / 权限机制，
+   * 需要的 manager / permissions / storage / paths 本来就握在这一层。调用方负责
+   * 在失败时**不删目录**（见 plugin-runtime 的 `plugins.remove`）。
+   */
+  async uninstall(pluginId: string): Promise<void> {
+    await runUninstallScript({
+      manager: this.options.manager,
+      permissions: this.options.permissions,
+      pluginId,
+      userDataDir: this.options.userDataDir,
+      home: this.options.home,
+      storageFile: this.options.storage.filePath(pluginId),
+      log: (level, message) => console[level](`[plugin:${pluginId}] ${message}`)
+    })
   }
 
   status(): BackendStatus[] {

@@ -11,7 +11,7 @@ import {
 } from '../../../packages/contracts/src/plugin-api/permissions.ts'
 import type { RpcRequest } from '../../../packages/contracts/src/host-rpc/index.ts'
 import type { RpcDenial } from '../../kernel/src/rpc.ts'
-import type { PluginManager } from './plugins.ts'
+import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
 
 /**
  * 插件权限的**执行侧**（mics 的 PermissionsService 对应物）。

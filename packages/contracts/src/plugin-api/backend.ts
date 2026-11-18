@@ -2,7 +2,7 @@
  * 插件**后端**（主进程半）的契约。
  *
  * 插件清单里的 `main` 指向一个 ESM 文件，默认导出 `PluginBackend`；宿主把它
- * 放进独立子进程里跑（`packages/plugin-runtime/src/backend/`），文件 / 子进程
+ * 放进独立子进程里跑（`packages/plugin-backend/src/`），文件 / 子进程
  * 权限由 Node 的 `--permission` 强制。
  *
  * 这是给插件作者看的类型，运行时由宿主注入 —— 插件不需要（也不应该）自己

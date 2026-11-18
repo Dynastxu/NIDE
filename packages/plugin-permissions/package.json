@@ -1,0 +1,5 @@
+{
+  "name": "@nide/service-plugin-permissions",
+  "private": true,
+  "type": "module"
+}

@@ -35,6 +35,16 @@ export class PluginStorage {
     this.userDataDir = options.userDataDir
   }
 
+  /**
+   * 某个插件的存储文件路径。
+   *
+   * 卸载脚本要在子进程里读到同一份快照，但它属于另一个包（`plugin-backend`）——
+   * 路径怎么算的知识留在这里，调用方只拿结果。
+   */
+  filePath(pluginId: string): string {
+    return pluginStorageFile(this.userDataDir, pluginId)
+  }
+
   /** 读整份快照；启动 worker 时把它塞进 bootstrap */
   snapshot(pluginId: string): Record<string, unknown> {
     return { ...this.entry(pluginId).data }

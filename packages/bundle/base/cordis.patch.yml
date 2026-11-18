@@ -21,6 +21,22 @@
       name: '{{NIDE_ROOT}}/packages/plugin-runtime/src/index.ts'
       core: true
       description: 插件清单 / 启停 / 贡献点（视图、设置页、语言包）/ 内建视图表
+    - id: plugin-permissions
+      name: '{{NIDE_ROOT}}/packages/plugin-permissions/src/index.ts'
+      core: true
+      description: 插件权限：声明展开与 RPC 准入（RpcAuthorizer 的实现）
+    - id: plugin-storage
+      name: '{{NIDE_ROOT}}/packages/plugin-storage/src/index.ts'
+      core: true
+      description: 每插件命名空间的 JSON 存储（同步视图 + 合并写盘）
+    - id: plugin-capabilities
+      name: '{{NIDE_ROOT}}/packages/plugin-capabilities/src/index.ts'
+      core: true
+      description: 插件桌面能力：os.* 权限检查后经 shell 反向桥执行
+    - id: plugin-backend
+      name: '{{NIDE_ROOT}}/packages/plugin-backend/src/index.ts'
+      core: true
+      description: 插件后端子进程：fork / 握手 / 调用 / 起停 / 卸载脚本
     - id: i18n
       name: '{{NIDE_ROOT}}/packages/i18n/src/index.ts'
       core: true

@@ -7,7 +7,7 @@ import {
   ensureWriteRoots,
   isEagerActivation,
   resolveWorkerEntry
-} from '../../packages/plugin-runtime/src/backend/runtime.ts'
+} from '../../packages/plugin-backend/src/runtime.ts'
 import { PluginManager } from '../../packages/plugin-runtime/src/plugins.ts'
 import { resolvePermissions } from '../../packages/contracts/src/plugin-api/permissions.ts'
 import type { PluginPermissions } from '../../packages/contracts/src/plugin-api/permissions.ts'

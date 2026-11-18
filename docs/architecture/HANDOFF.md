@@ -18,6 +18,12 @@
 > `client-ui-layout` 并回 `client-ui-main`（zone slot 由窗口自己注册），
 > 插件管理界面从设置窗口下沉成功能包 `client-ui-plugins`，`content` 改走
 > `ctx.config`、`ai` 只依赖 `contracts` 里的密钥端口。
+>
+> **同一天第三轮：插件子系统按 `ctx` 键拆成五个包。** `plugin-runtime` 只留清单与
+> 生命周期（`plugins`）；权限（`plugin-permissions`）、存储（`plugin-storage`）、
+> 桌面能力（`plugin-capabilities`）、后端子进程与卸载脚本（`plugin-backend`）各成
+> 一包、各挂 profile 一行。五者互不注入：后端注入其余四个，清单服务反向只按需
+> `ctx.get()`（注入成环会互相 PENDING）。跨包只允许 `import type`。
 
 ## 0. 一句话状态
 
@@ -194,7 +200,7 @@ docs/architecture/              # 本文件 + 迁移方案 + bundle 说明 + 插
   不会静默降级成完全信任；
 - 执行点只有一个：[packages/kernel/src/rpc.ts](../../packages/kernel/src/rpc.ts) 的
   `RpcAuthorizer`（分发之前）。宿主入口在服务装配完成后接上
-  [permissions.ts](../../packages/plugin-runtime/src/permissions.ts) 的 guard；
+  [permissions.ts](../../packages/plugin-permissions/src/permissions.ts) 的 guard；
   `RpcRequest.caller.pluginId` 是判断依据，没有 caller 的调用（核心 UI / shell）一律放行；
 - 只有 `trust: 'sandboxed'` 会被限制：`fs.read` / `fs.write` 按展开后的作用域检查
   `files.*` / `gallery.*` / `overview.*` / `config.*` 的路径参数；`net` 约束 `ai.*`；
@@ -208,11 +214,11 @@ docs/architecture/              # 本文件 + 迁移方案 + bundle 说明 + 插
 ### 插件后端（工作进程，详见 [plugin-backend.md](plugin-backend.md)）
 
 - `manifest.main`（插件目录内、真实存在的 ESM 文件）交给
-  [backend/runtime.ts](../../packages/plugin-runtime/src/backend/runtime.ts)：
+  [backend/runtime.ts](../../packages/plugin-backend/src/runtime.ts)：
   `child_process.fork` 一个子进程，`buildBackendFlags()` 把权限声明翻成 Node 的
   `--permission` / `--allow-fs-read` / `--allow-fs-write` / `--allow-child-process`
   （只有 `sandboxed` 才加；`full` 不限制）；
-- 子进程入口是 [backend/worker.ts](../../packages/plugin-runtime/src/backend/worker.ts)：
+- 子进程入口是 [backend/worker.ts](../../packages/plugin-backend/src/worker.ts)：
   动态 import 插件 `main`，默认导出 `{ activate(host), deactivate? }`（或直接一个函数），
   `host.handle(method, fn)` 注册的方法由宿主 RPC `plugin.call(pluginId, method, params)`
   调用；日志、路径、方法注册都经 IPC 回传；
@@ -663,15 +669,15 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/config/src/project-config.ts`               | host 项目配置（load / update / initialize / registry / remap）                                          |
 | `packages/plugin-runtime/src/plugins.ts`              | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做）                                         |
 | `packages/contracts/src/plugin-api/permissions.ts`    | 权限声明：类型 / 校验归一化 / 变量展开 / 路径判断（浏览器安全）                                         |
-| `packages/plugin-runtime/src/permissions.ts`          | 权限执行：`RpcAuthorizer` 的能力映射与 fs 作用域检查                                                    |
+| `packages/plugin-permissions/src/permissions.ts`      | 权限执行：`RpcAuthorizer` 的能力映射与 fs 作用域检查                                                    |
 | `packages/sdk/src/plugin-views/plugin-api.ts`         | 插件侧受限宿主 API（`useHost().api`，带 caller）                                                        |
-| `packages/plugin-runtime/src/backend/runtime.ts`      | 插件后端子进程：权限参数、fork、RPC、起停 / 重扫对齐                                                    |
-| `packages/plugin-runtime/src/backend/worker.ts`       | 子进程运行时：装载 `main`、`activate(host)`、方法注册                                                   |
+| `packages/plugin-backend/src/runtime.ts`              | 插件后端子进程：权限参数、fork、RPC、起停 / 重扫对齐                                                    |
+| `packages/plugin-backend/src/worker.ts`               | 子进程运行时：装载 `main`、`activate(host)`、方法注册                                                   |
 | `packages/contracts/src/plugin-api/backend.ts`        | 后端插件类型（`PluginBackend` / `PluginBackendHost`）                                                   |
-| `packages/plugin-runtime/src/backend/uninstall.ts`    | 卸载脚本：子进程执行、超时、存储快照                                                                    |
+| `packages/plugin-backend/src/uninstall.ts`            | 卸载脚本：子进程执行、超时、存储快照                                                                    |
 | `packages/contracts/src/plugin-api/preference.ts`     | 启用状态：disabled / enabled / core / essential / defaultDisabled                                       |
-| `packages/plugin-runtime/src/storage.ts`              | 插件存储：每插件 JSON、合并写盘、flush / remove                                                         |
-| `packages/plugin-runtime/src/capabilities.ts`         | 桌面能力：`os.*` 权限检查 + 转发到 shell                                                                |
+| `packages/plugin-storage/src/storage.ts`              | 插件存储：每插件 JSON、合并写盘、flush / remove                                                         |
+| `packages/plugin-capabilities/src/capabilities.ts`    | 桌面能力：`os.*` 权限检查 + 转发到 shell                                                                |
 | `packages/shell/src/main/host/capabilities.ts`        | 反向桥实现：白名单方法 + 参数收敛（外链 / 对话框 / 剪贴板 / 通知）                                      |
 | `packages/plugin-runtime/src/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则）              |
 | `packages/i18n/src/i18n.ts`                           | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析                                   |
@@ -738,7 +744,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     `permissions` 检查。`window.hostAPI` 是宿主自己的入口，插件直接用它等于绕过
     权限声明（也是屏障的全部边界，别当沙箱）。
 17. **权限检查只挂在 `RpcRegistry` 的 authorizer 上**：不要在服务 handler 里各写一份。
-    新能力加进 `capabilityOf()` / `pathsOf()`（`packages/plugin-runtime/src/permissions.ts`），
+    新能力加进 `capabilityOf()` / `pathsOf()`（`packages/plugin-permissions/src/permissions.ts`），
     并补 `test/host/plugin-permissions.test.ts`。
 18. **插件后端代码只在子进程里跑**：宿主不 `import` 插件 `main`，只 `fork` 它；
     任何「先在宿主里试一下」的捷径都会让进程边界失效。

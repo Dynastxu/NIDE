@@ -38,9 +38,8 @@ const entry = path.join(root, 'packages', 'host', 'src', 'index.ts')
 const backendWorker = path.join(
   root,
   'packages',
-  'plugin-runtime',
+  'plugin-backend',
   'src',
-  'backend',
   'worker.ts'
 )
 

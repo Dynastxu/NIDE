@@ -15,10 +15,10 @@ import type { AiService } from '../../ai/src/index.ts'
 import type { HostAppearance } from '../../appearance/src/appearance.ts'
 import type { I18nService } from '../../i18n/src/index.ts'
 import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
-import type { PluginPermissionGuard } from '../../plugin-runtime/src/permissions.ts'
-import type { PluginStorage } from '../../plugin-runtime/src/storage.ts'
-import type { PluginCapabilities } from '../../plugin-runtime/src/capabilities.ts'
-import type { PluginBackendRuntime } from '../../plugin-runtime/src/backend/runtime.ts'
+import type { PluginPermissionGuard } from '../../plugin-permissions/src/permissions.ts'
+import type { PluginStorage } from '../../plugin-storage/src/storage.ts'
+import type { PluginCapabilities } from '../../plugin-capabilities/src/capabilities.ts'
+import type { PluginBackendRuntime } from '../../plugin-backend/src/runtime.ts'
 
 declare module 'cordis' {
   interface Context {
