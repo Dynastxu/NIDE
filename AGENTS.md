@@ -2,6 +2,10 @@
 
 Rules for working in this repository.
 
+## Project Description
+- NIDE 是 Electron + React + Cordis 的小说工程化 IDE。架构与边界以 `docs/architecture/` 和代码为准。
+- 改动 `packages/` 之前先读 [packages/AGENTS.md](packages/AGENTS.md)；插件相关再看 [packages/plugin-runtime/AGENTS.md](packages/plugin-runtime/AGENTS.md)。
+
 ## Code Design Principles
 
 All code written in this project must adhere to the following SOLID principles:
