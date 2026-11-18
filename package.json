@@ -87,5 +87,6 @@
   },
   "overrides": {
     "dompurify": "^3.4.17"
-  }
+  },
+  "packageManager": "pnpm@12.21.0"
 }
