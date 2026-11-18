@@ -30,6 +30,20 @@
 > [package-graph.md](package-graph.md)（`pnpm graph:check` 在 CI 校验新鲜度）；
 > 窗口包内部的域分层由 `scripts/check-package-domains.mts` 守着（跨域只能经
 > `shared/` 或装配点，3 条存量进基线）。
+>
+> **同一天第五轮：三件事收口。**
+>
+> 1. **包内跨域基线归零**：`client-ui-main` 的 8 个跨域模块（entry 菜单/对话框/动作
+>    状态、gallery/overview 动作、editor-save、model-registry）收进 `src/shared/`；
+>    域基线 3 → 0。
+> 2. **`client-kit` 的 store 改成工厂 + 注入**：`createClientStores()` 造一套实例、
+>    `ClientStoresProvider` 在引导壳注入、`getClientStores()` 给非 React 代码；
+>    hook 名字与调用点不变，测试可以拿独立实例。
+> 3. **`contracts` 拆出 `domain`**：项目结构 / 配置文本 / 章节·伏笔·图鉴·概述 / 文件树
+>    等**共享领域规则**搬到 `packages/domain`（纯层，根）；`contracts` 只留线格式、
+>    词条基础表、端口与领域错误，允许引用 domain。`#project/*` 的 Node ESM 子路径映射
+>    随目录搬到 `packages/domain/src/project/package.json`，`build:host` 现在复制两个
+>    纯层的 marker。
 
 ## 0. 一句话状态
 
@@ -707,9 +721,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/plugins/demo/src/ui/client-entry.tsx`       | bundle 入口                                                                                             |
 | `scripts/build-plugin-client.mjs`                     | IIFE 构建                                                                                               |
 | `scripts/build-host.mts`                              | 编译 host 到 `out/host`（TS Node API，不 spawn）                                                        |
-| `packages/contracts/src/project/store.ts`             | 纯 store 模型                                                                                           |
+| `packages/domain/src/project/store.ts`                | 纯 store 模型                                                                                           |
 | `packages/contracts/package.json`                     | ESM 标记 + `#project/*` 子路径导入映射                                                                  |
-| `packages/contracts/src/project/yaml.ts`              | 最小 YAML（原 `src/shared/yaml`，搬进 project 契约以便 `#project/yaml`）                                |
+| `packages/domain/src/project/yaml.ts`                 | 最小 YAML（原 `src/shared/yaml`，搬进 project 契约以便 `#project/yaml`）                                |
 | `scripts/check-imports.mts`                           | 包依赖门禁：分层规则 / 未声明层 / contracts 自包含 / 依赖环                                             |
 | `scripts/check-package-domains.mts`                   | 包内域分层门禁：窗口包内部跨域只能经 shared / 装配点                                                    |
 | `scripts/gen-package-graph.mts`                       | 生成 [package-graph.md](package-graph.md)（`--check` 供 CI 校验新鲜度）                                 |

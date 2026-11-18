@@ -17,7 +17,7 @@ import {
   type OverviewRoleUpdateRequest,
   type ProjectConfig,
   type RenameEntryRequest
-} from '../../contracts/src/project/index.ts'
+} from '../../domain/src/project/index.ts'
 
 /** 内容服务用到的配置能力（就是 ConfigService 的子集，避免把整包拖进来） */
 export interface ConfigPort {

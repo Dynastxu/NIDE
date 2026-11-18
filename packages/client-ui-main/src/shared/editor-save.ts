@@ -1,14 +1,14 @@
 import { loggerFor } from '@nide/client-kit/logger'
 import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
-import { modelFor } from '@nide/client-ui-main/editor/model-registry'
+import { modelFor } from '@nide/client-ui-main/shared/model-registry'
 import {
   isGalleryConfigFileName,
   isGalleryEntryDocument,
   isGalleryEntryPath,
   readGalleryEntry
-} from '@nide/contracts/project'
-import type { FileWriteResult } from '@nide/contracts/project'
+} from '@nide/domain/project'
+import type { FileWriteResult } from '@nide/domain/project'
 
 const logger = loggerFor('editor')
 

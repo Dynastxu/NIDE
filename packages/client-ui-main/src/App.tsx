@@ -1,6 +1,7 @@
 import { JSX, useEffect } from 'react'
 import { MainApp } from '@nide/client-ui-main/MainApp'
 import { reloadClientBundles } from '@nide/client-modules'
+import { getClientStores } from '@nide/client-kit/stores/client-stores'
 import { usePluginStore } from '@nide/client-kit/stores/plugin.store'
 
 /**
@@ -36,7 +37,7 @@ export default function App(): JSX.Element {
         // 先补加载新启用 / 新安装插件的浏览器半，再重拉视图列表 —— 反过来会让
         // 新视图先按「没有组件」渲染一帧，再突然出现。
         await reloadClientBundles()
-        await usePluginStore.getState().reload()
+        await getClientStores().plugin.getState().reload()
       })()
     })
     return () => subscription.dispose()

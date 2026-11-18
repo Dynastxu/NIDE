@@ -23,6 +23,7 @@ const OUTPUT = path.join(ROOT, 'docs/architecture/package-graph.md')
 
 /** 画图的层顺序：从根到叶子，和依赖方向一致 */
 const LAYER_ORDER: readonly Layer[] = [
+  'domain',
   'contract',
   'kernel',
   'service',

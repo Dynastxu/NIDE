@@ -11,7 +11,9 @@
 
 ```
 packages/
-  contracts/        契约层：类型 + 纯函数 + 词条基础表 + 端口/领域错误（不 import 任何包）
+  domain/           共享领域规则（纯逻辑）：项目结构 / 配置文本 / 章节·伏笔·图鉴·概述 / 文件树
+                    （不 import 任何包，也不碰 Electron / DOM / fs）
+  contracts/        跨进程契约：线格式 + 词条基础表 + 端口/领域错误（不 import 任何包）
   kernel/           内核：Cordis 上下文扩展（rpc / hostEnv）、RPC 注册表与权限挂载点、shell 反桥
   project/ content/ config/ i18n/ appearance/ secrets/ ai/ plugin-runtime/
   plugin-backend/ plugin-storage/ plugin-permissions/ plugin-capabilities/
@@ -35,7 +37,7 @@ packages/
 
 切法对齐 DSH：**包按能力 / 角色切，共享面只有「库」**。窗口与功能包是装配出来的
 东西，不是共享层；共享代码要么进库（`client-kit` / `client-ui-renderer` /
-`client-ui-slots` / `client-modules`），要么进 `contracts`。
+`client-ui-slots` / `client-modules`），要么进 `domain`（纯规则）/ `contracts`（线格式）。
 
 ## 包类型与允许的依赖
 
@@ -44,9 +46,15 @@ packages/
 实际的边是怎么连的，见生成物 [package-graph.md](../docs/architecture/package-graph.md)
 ——不要在这份文件里抄一份包清单。
 
-| 类型            | 允许依赖                                                           | 一个包只装                                  |
+两条纯层的规则：`domain` 谁都可以 import（它是根），但它自己什么都不 import；
+`contracts` 同样不 import 任何包 —— 区别只在内容：契约描述**跨进程传什么**，
+领域规则是 host 与渲染进程各自要**算**的纯逻辑。两个纯层都不许碰 Node / Electron /
+DOM / fs。
+
+| 类型            | 允许依赖（省略 domain：它谁都能用）                                | 一个包只装                                  |
 | --------------- | ------------------------------------------------------------------ | ------------------------------------------- |
-| contract        | 无（连 `import type` 也不行）                                      | 形状、纯函数、词条基础表、端口与领域错误    |
+| domain          | 无                                                                 | 共享领域规则：纯函数、数据表、解析 / 序列化 |
+| contract        | 无（连 `import type` 也不行）                                      | 跨进程线格式、词条基础表、端口与领域错误    |
 | kernel          | contract                                                           | ctx 扩展、RPC 表、反向桥                    |
 | service         | contract, kernel                                                   | 一个业务域；服务之间只走 `ctx.<service>`    |
 | bootstrap       | contract, kernel, service, bootstrap, hello                        | 装配与进程入口                              |
@@ -66,11 +74,11 @@ packages/
 
 1. **新包= 目录 + `package.json` 的 `nide.layer`**，然后跑 `pnpm gen:package-graph`。
    少声明层，`pnpm lint:imports` 直接报「包 X 没有声明层」；图也会少一个节点。
-2. **`import type` 不产生运行时 / 打包耦合**，可以跨层 —— 只有 `contracts` 例外，
-   它连类型也不许指向别的包，否则「契约层」就变成了又一个共享层。
+2. **`import type` 不产生运行时 / 打包耦合**，可以跨层 —— 两个纯层例外（`contracts`
+   什么都不 import，`domain` 也什么都不 import），否则纯层就变成了又一个共享层。
 3. **业务包之间只有两条路**：走 `ctx.<service>`，或把纯函数 / 端口 / 领域错误搬进
-   `contracts`。不要再 import 另一个业务包的实现（`content -> config`、`ai -> secrets`
-   两条已于 2026-11-18 修掉）。
+   `domain`（纯规则）与 `contracts`（线格式）。不要再 import 另一个业务包的实现
+   （`content -> config`、`ai -> secrets` 两条已于 2026-11-18 修掉）。
 4. **插件只能用「库」，不能用「窗口」**：`client-kit` / `client-ui-slots` /
    `client-ui-renderer` 是库（基础控件、视图外壳、渲染机械），插件可以 import；
    `client-ui-main` 这类窗口包、`client-ui-plugins` 这类功能包不行 —— 那会把宿主
@@ -79,7 +87,7 @@ packages/
 ## 门禁
 
 ```bash
-pnpm lint:imports        # 包依赖：分层规则 + 未声明层 + contracts 自包含 + 依赖环
+pnpm lint:imports        # 包依赖：分层规则 + 未声明层 + 纯层自包含 + 依赖环
 pnpm lint:domains        # 包内域分层：窗口 / 功能包内部跨域只能经 shared / 装配点
 pnpm gen:package-graph   # 重新生成 docs/architecture/package-graph.md（改依赖后必跑）
 pnpm graph:check         # 只校验生成图是否最新（CI 用）

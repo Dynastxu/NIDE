@@ -9,19 +9,19 @@ import {
   isCharacterGallery,
   openGalleryFile,
   setCharacterGalleryAction
-} from '@nide/client-ui-main/explorer/gallery-actions'
+} from '@nide/client-ui-main/shared/gallery-actions'
 import {
   isRoleDocument,
   openOverviewFile,
   roleOfDocument,
   setOverviewRoleAction
-} from '@nide/client-ui-main/explorer/overview-actions'
+} from '@nide/client-ui-main/shared/overview-actions'
 import {
   openCreateGalleryEntryPrompt,
   openCreateGalleryPrompt,
   openCreateOverviewDocumentPrompt
-} from '@nide/client-ui-main/entry/entry-action.store'
-import { EntryMenu } from '@nide/client-ui-main/entry/EntryMenu'
+} from '@nide/client-ui-main/shared/entry-action.store'
+import { EntryMenu } from '@nide/client-ui-main/shared/EntryMenu'
 import { Disclosure } from '@nide/client-kit/ui/Disclosure'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import type {
@@ -33,8 +33,8 @@ import type {
   OverviewDocument,
   OverviewRole,
   ProjectConfigKey
-} from '@nide/contracts/project'
-import { GALLERY_CONFIG_FILE_NAME } from '@nide/contracts/project'
+} from '@nide/domain/project'
+import { GALLERY_CONFIG_FILE_NAME } from '@nide/domain/project'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**

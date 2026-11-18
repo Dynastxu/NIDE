@@ -11,7 +11,7 @@ import {
 import {
   HOST_TEMP_FILE_PREFIX,
   MAX_TEXT_FILE_BYTES
-} from '../../packages/contracts/src/project/index.ts'
+} from '../../packages/domain/src/project/index.ts'
 
 /**
  * 保存（把正文写回一个已有文件）的**写盘**部分。

@@ -13,8 +13,8 @@ import {
   languageForPath,
   sortTreeEntries,
   validateEntryName
-} from '@nide/contracts/project'
-import type { FileTreeEntry } from '@nide/contracts/project'
+} from '@nide/domain/project'
+import type { FileTreeEntry } from '@nide/domain/project'
 
 /**
  * 项目文件树的纯逻辑。

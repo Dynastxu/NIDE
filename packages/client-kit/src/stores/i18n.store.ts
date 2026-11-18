@@ -1,6 +1,7 @@
-import { create } from 'zustand'
+import { createStore, type StoreApi } from 'zustand/vanilla'
 import { BASE_MESSAGES, DEFAULT_LOCALE, createTranslator } from '@nide/contracts/i18n'
 import { loggerFor } from '../logger'
+import { getClientStores, useClientStore, useClientStores } from './client-stores'
 import type {
   I18nPayload,
   LocaleDescriptor,
@@ -12,7 +13,7 @@ import type {
 
 const logger = loggerFor('i18n')
 
-interface I18nState {
+export interface I18nState {
   /** 词条表是否已就位。为 false 时 t() 只会给出中文基础表 */
   ready: boolean
   locale: LocaleId
@@ -37,9 +38,6 @@ interface I18nState {
 function emptyDiagnostics(): LocaleDiagnostics {
   return { locale: DEFAULT_LOCALE, missing: [], extra: [], conflicts: [], providers: {} }
 }
-
-/** 模块级 in-flight promise：多个组件同时触发加载时只打一次 IPC */
-let inflight: Promise<void> | null = null
 
 /**
  * 造一个会**报告缺失 key** 的 t()。
@@ -92,36 +90,45 @@ function hydrate(payload: I18nPayload): Partial<I18nState> {
   return state
 }
 
-export const useI18nStore = create<I18nState>((set) => ({
-  ready: false,
-  locale: DEFAULT_LOCALE,
-  messages: BASE_MESSAGES,
-  available: [],
-  diagnostics: emptyDiagnostics(),
-  t: createReportingTranslator(BASE_MESSAGES),
+/**
+ * 造一张 i18n 表。
+ *
+ * `inflight` 在工厂闭包里而不是模块级：两套实例同时加载时各去重各的，互不影响。
+ */
+export function createI18nStore(): StoreApi<I18nState> {
+  let inflight: Promise<void> | null = null
 
-  load: async () => {
-    if (inflight) return inflight
+  return createStore<I18nState>()((set) => ({
+    ready: false,
+    locale: DEFAULT_LOCALE,
+    messages: BASE_MESSAGES,
+    available: [],
+    diagnostics: emptyDiagnostics(),
+    t: createReportingTranslator(BASE_MESSAGES),
 
-    inflight = window.hostAPI
-      .getI18n()
-      .then((payload) => set(hydrate(payload)))
-      .catch((err: unknown) => {
-        // 拿不到词条表不该白屏：中文基础表已经在 store 里了，界面照常可用
-        logger.error('Failed to load the message table, keeping the base table', { error: err })
-      })
-      .finally(() => {
-        inflight = null
-      })
+    load: async () => {
+      if (inflight) return inflight
 
-    return inflight
-  },
+      inflight = window.hostAPI
+        .getI18n()
+        .then((payload) => set(hydrate(payload)))
+        .catch((err: unknown) => {
+          // 拿不到词条表不该白屏：中文基础表已经在 store 里了，界面照常可用
+          logger.error('Failed to load the message table, keeping the base table', { error: err })
+        })
+        .finally(() => {
+          inflight = null
+        })
 
-  requestLocale: async (locale) => {
-    // 主进程会先弹确认框（重建窗口会丢掉未保存内容），确认后才真正切换并重建
-    await window.hostAPI.setLocale(locale)
-  }
-}))
+      return inflight
+    },
+
+    requestLocale: async (locale) => {
+      // 主进程会先弹确认框（重建窗口会丢掉未保存内容），确认后才真正切换并重建
+      await window.hostAPI.setLocale(locale)
+    }
+  }))
+}
 
 /**
  * 组件里取 t()。
@@ -132,7 +139,12 @@ export function useT(): Translator {
   return useI18nStore((s) => s.t)
 }
 
+/** 组件里订阅 i18n 表的某个切片（实例来自 context，没 Provider 时用默认实例） */
+export function useI18nStore<T>(selector: (state: I18nState) => T): T {
+  return useClientStore(useClientStores().i18n, selector)
+}
+
 /** 非组件代码（插件加载器、事件回调）里取 t() —— 注意这条路**不会**触发重渲染 */
 export function getT(): Translator {
-  return useI18nStore.getState().t
+  return getClientStores().i18n.getState().t
 }

@@ -5,7 +5,7 @@ import type {
   ProjectConfig,
   ProjectConfigPatch,
   ProjectConfigUpdateResult
-} from '../../contracts/src/project/index.ts'
+} from '../../domain/src/project/index.ts'
 import {
   initializeProjectDirectory,
   loadGalleryRegistry,

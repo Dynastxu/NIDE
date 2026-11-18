@@ -1,9 +1,9 @@
-import { formatForeshadowingEntry, type ForeshadowingMetadata } from '@nide/contracts/project'
+import { formatForeshadowingEntry, type ForeshadowingMetadata } from '@nide/domain/project'
 import {
   ensureModel,
   modelFor,
   writeModelSilently
-} from '@nide/client-ui-main/editor/model-registry'
+} from '@nide/client-ui-main/shared/model-registry'
 import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 
 /**

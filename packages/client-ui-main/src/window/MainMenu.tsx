@@ -1,5 +1,5 @@
 import { JSX, useEffect, useRef, useState } from 'react'
-import { saveActiveTab } from '@nide/client-ui-main/editor/editor-save'
+import { saveActiveTab } from '@nide/client-ui-main/shared/editor-save'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 import { useLayoutStore } from '@nide/client-kit/stores/layout.store'

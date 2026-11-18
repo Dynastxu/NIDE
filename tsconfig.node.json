@@ -20,6 +20,7 @@
     "electron.vite.config.*",
     "vitest.config.*",
     "packages/shell/src/**/*",
+    "packages/domain/src/**/*",
     "packages/contracts/src/**/*",
     "scripts/**/*.mts",
     "test/main/**/*",
@@ -31,7 +32,8 @@
     "types": ["electron-vite/node"],
     "baseUrl": ".",
     "paths": {
-      "@nide/contracts/*": ["packages/contracts/src/*"]
+      "@nide/contracts/*": ["packages/contracts/src/*"],
+      "@nide/domain/*": ["packages/domain/src/*"]
     }
   }
 }

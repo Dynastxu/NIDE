@@ -1,4 +1,4 @@
-import { filePathKey, type CreateEntryKind } from '@nide/contracts/project'
+import { filePathKey, type CreateEntryKind } from '@nide/domain/project'
 import type { Translator } from '@nide/contracts/i18n'
 import type { ContextMenuEntry } from '@nide/client-kit/ui/menu-items'
 

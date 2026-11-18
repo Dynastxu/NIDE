@@ -1,5 +1,5 @@
 import * as monaco from 'monaco-editor'
-import { chapterBodyOf } from '@nide/contracts/project'
+import { chapterBodyOf } from '@nide/domain/project'
 
 /**
  * 打开过的文件的 Monaco model 登记表。

@@ -6,7 +6,7 @@ import {
   composeForeshadowingEntry,
   DEFAULT_FORESHADOWING_EXTENSION,
   type CreateEntryResult
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 const logger = loggerFor('explorer')

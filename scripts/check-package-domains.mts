@@ -73,23 +73,7 @@ const PACKAGES: readonly PackageConfig[] = [
  *
  * 每一条都是真实的耦合，改它要动状态与交互顺序，所以先钉住不扩散。
  */
-export const KNOWN: readonly { from: string; to: string; reason: string }[] = [
-  {
-    from: 'packages/client-ui-main: explorer',
-    to: 'entry',
-    reason: '文件树复用 entry 的菜单 / 新建改名对话框；等对话框下沉到 shared 或 slot 再拆'
-  },
-  {
-    from: 'packages/client-ui-main: entry',
-    to: 'explorer',
-    reason: '同一条耦合的反向：entry 的菜单动作要调 explorer 的图鉴 / 概述动作；命令注册表还没抽'
-  },
-  {
-    from: 'packages/client-ui-main: window',
-    to: 'editor',
-    reason: '文件菜单的「保存」直接调 editor-save；命令层还没抽出来'
-  }
-]
+export const KNOWN: readonly { from: string; to: string; reason: string }[] = []
 
 interface Violation {
   packageDir: string

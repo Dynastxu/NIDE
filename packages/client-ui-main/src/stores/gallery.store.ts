@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { isInsideProject } from '@nide/contracts/project'
+import { isInsideProject } from '@nide/domain/project'
 import { loggerFor } from '@nide/client-kit/logger'
-import type { DirReadFailureReason, GalleryFolder, GalleryRegistry } from '@nide/contracts/project'
+import type { DirReadFailureReason, GalleryFolder, GalleryRegistry } from '@nide/domain/project'
 
 const logger = loggerFor('gallery')
 

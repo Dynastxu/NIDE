@@ -3,12 +3,15 @@
 
 # 包依赖图（生成物）
 
-每个包属于哪一层由它的 `package.json` 声明（`"nide": { "layer": ... }`）；边是**真实 import 扫描**的结果（与 `pnpm lint:imports` 同一份解析）。共 33 个节点 / 93 条包级依赖 / 427 条跨包 import。
+每个包属于哪一层由它的 `package.json` 声明（`"nide": { "layer": ... }`）；边是**真实 import 扫描**的结果（与 `pnpm lint:imports` 同一份解析）。共 34 个节点 / 98 条包级依赖 / 432 条跨包 import。
 
 实线 = 运行时 import；虚线 = 只有 `import type`（不产生运行时代码）。
 
 ```mermaid
 flowchart TD
+  subgraph layer_domain["domain"]
+    pkg_packages_domain["domain"]
+  end
   subgraph layer_contract["contract"]
     pkg_packages_contracts["contracts"]
   end
@@ -77,12 +80,14 @@ flowchart TD
   pkg_apps_desktop_renderer --> pkg_packages_client_ui_main
   pkg_apps_desktop_renderer --> pkg_packages_client_ui_renderer
   pkg_apps_desktop_renderer --> pkg_packages_contracts
+  pkg_apps_desktop_renderer --> pkg_packages_domain
   pkg_packages_ai --> pkg_packages_contracts
   pkg_packages_ai -.-> pkg_packages_kernel
   pkg_packages_appearance --> pkg_packages_contracts
   pkg_packages_appearance --> pkg_packages_kernel
   pkg_packages_boot --> pkg_packages_kernel
   pkg_packages_client_kit --> pkg_packages_contracts
+  pkg_packages_client_kit --> pkg_packages_domain
   pkg_packages_client_modules --> pkg_packages_contracts
   pkg_packages_client_runtime --> pkg_packages_client_modules
   pkg_packages_client_runtime --> pkg_packages_client_ui_main
@@ -94,6 +99,7 @@ flowchart TD
   pkg_packages_client_ui_main --> pkg_packages_client_ui_renderer
   pkg_packages_client_ui_main --> pkg_packages_client_ui_slots
   pkg_packages_client_ui_main --> pkg_packages_contracts
+  pkg_packages_client_ui_main --> pkg_packages_domain
   pkg_packages_client_ui_plugins --> pkg_packages_client_kit
   pkg_packages_client_ui_plugins -.-> pkg_packages_contracts
   pkg_packages_client_ui_renderer --> pkg_packages_client_kit
@@ -109,10 +115,11 @@ flowchart TD
   pkg_packages_client_ui_welcome --> pkg_packages_client_kit
   pkg_packages_client_ui_welcome --> pkg_packages_client_ui_plugins
   pkg_packages_client_ui_welcome --> pkg_packages_client_ui_slots
-  pkg_packages_client_ui_welcome --> pkg_packages_contracts
-  pkg_packages_config --> pkg_packages_contracts
+  pkg_packages_client_ui_welcome -.-> pkg_packages_contracts
+  pkg_packages_client_ui_welcome --> pkg_packages_domain
+  pkg_packages_config --> pkg_packages_domain
   pkg_packages_config -.-> pkg_packages_kernel
-  pkg_packages_content --> pkg_packages_contracts
+  pkg_packages_content --> pkg_packages_domain
   pkg_packages_content -.-> pkg_packages_kernel
   pkg_packages_host -.-> pkg_packages_ai
   pkg_packages_host -.-> pkg_packages_appearance
@@ -159,33 +166,35 @@ flowchart TD
   pkg_packages_plugins_demo -.-> pkg_packages_kernel
   pkg_packages_plugins_demo --> pkg_packages_sdk
   pkg_packages_plugins_lang_en -.-> pkg_packages_kernel
-  pkg_packages_project --> pkg_packages_contracts
+  pkg_packages_project --> pkg_packages_domain
   pkg_packages_project -.-> pkg_packages_kernel
   pkg_packages_sdk --> pkg_packages_contracts
   pkg_packages_secrets --> pkg_packages_contracts
   pkg_packages_secrets --> pkg_packages_kernel
   pkg_packages_shell --> pkg_packages_contracts
+  pkg_packages_shell --> pkg_packages_domain
 ```
 
 ## 层与允许的依赖
 
 | 层 | 包 | 允许依赖 |
 | --- | --- | --- |
+| `domain` | `domain` | （无） |
 | `contract` | `contracts` | （无） |
-| `kernel` | `kernel` | `contract` |
-| `service` | `ai` `appearance` `config` `content` `i18n` `plugin-backend` `plugin-capabilities` `plugin-permissions` `plugin-runtime` `plugin-storage` `project` `secrets` | `contract`, `kernel` |
-| `bootstrap` | `boot` `host` | `contract`, `kernel`, `service`, `bootstrap`, `smoke` |
-| `shell` | `shell` | `contract` |
-| `client-platform` | `client-kit` | `contract` |
-| `client-sdk` | `sdk` | `contract`, `client-platform` |
-| `client-seam` | `client-modules` `client-ui-renderer` `client-ui-slots` | `contract`, `client-platform`, `client-sdk`, `client-seam` |
-| `client-feature` | `client-ui-plugins` | `contract`, `client-platform`, `client-sdk`, `client-seam` |
-| `client-window` | `client-ui-main` `client-ui-settings` `client-ui-welcome` | `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature` |
-| `client-runtime` | `client-runtime` | `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature`, `client-window` |
-| `plugin` | `plugins/ai-provider` `plugins/demo` `plugins/lang-en` | `contract`, `client-platform`, `client-sdk`, `client-seam` |
+| `kernel` | `kernel` | `domain`, `contract` |
+| `service` | `ai` `appearance` `config` `content` `i18n` `plugin-backend` `plugin-capabilities` `plugin-permissions` `plugin-runtime` `plugin-storage` `project` `secrets` | `domain`, `contract`, `kernel` |
+| `bootstrap` | `boot` `host` | `domain`, `contract`, `kernel`, `service`, `bootstrap`, `smoke` |
+| `shell` | `shell` | `domain`, `contract` |
+| `client-platform` | `client-kit` | `domain`, `contract` |
+| `client-sdk` | `sdk` | `domain`, `contract`, `client-platform` |
+| `client-seam` | `client-modules` `client-ui-renderer` `client-ui-slots` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |
+| `client-feature` | `client-ui-plugins` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |
+| `client-window` | `client-ui-main` `client-ui-settings` `client-ui-welcome` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature` |
+| `client-runtime` | `client-runtime` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature`, `client-window` |
+| `plugin` | `plugins/ai-provider` `plugins/demo` `plugins/lang-en` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |
 | `bundle` | `bundle/base` | （无） |
 | `smoke` | `hello` | （无） |
-| `app` | `apps/desktop/renderer` | `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature`, `client-window`, `client-runtime` |
+| `app` | `apps/desktop/renderer` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature`, `client-window`, `client-runtime` |
 
 ## 怎么读这张图
 

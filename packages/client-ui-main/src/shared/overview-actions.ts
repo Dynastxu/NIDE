@@ -12,7 +12,7 @@ import {
   type OverviewDocument,
   type OverviewRole,
   type ProjectConfig
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 const logger = loggerFor('overview')

@@ -22,7 +22,8 @@
      */
     "baseUrl": ".",
     "paths": {
-      "@nide/contracts/*": ["packages/contracts/src/*"]
+      "@nide/contracts/*": ["packages/contracts/src/*"],
+      "@nide/domain/*": ["packages/domain/src/*"]
     }
   },
   "include": [

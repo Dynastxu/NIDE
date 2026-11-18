@@ -16,7 +16,7 @@ import {
   readGalleryEntry,
   serializeGalleryConfig,
   validateGalleryField
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 
 /**
  * 图鉴的纯逻辑：字段表（`config.yml`）、条目（整份 yml）、以及角色图鉴那一段。

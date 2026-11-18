@@ -32,7 +32,7 @@ import type {
   RenameEntryRequest,
   RenameEntryResult,
   WriteFileRequest
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 import type {
   Disposable,
   ClientBundleDescriptor,

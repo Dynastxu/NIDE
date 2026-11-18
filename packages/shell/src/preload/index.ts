@@ -26,7 +26,7 @@ import {
   PROJECT_FILE_CHANNELS,
   PROJECT_GALLERY_CHANNELS,
   PROJECT_OVERVIEW_CHANNELS
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
   WINDOW_ARG_PREFIX,
@@ -78,7 +78,7 @@ import type {
   RenameEntryRequest,
   RenameEntryResult,
   WriteFileRequest
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 import type {
   Disposable,
   PluginDescriptor,

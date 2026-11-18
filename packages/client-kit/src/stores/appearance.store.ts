@@ -1,8 +1,9 @@
-import { create } from 'zustand'
+import { createStore, type StoreApi } from 'zustand/vanilla'
 import { DEFAULT_APPEARANCE } from '@nide/contracts/appearance'
 import { DEFAULT_THEME } from '@nide/contracts/theme'
 import { applyPalette as applyPaletteToDom } from '../appearance/palette'
 import { loggerFor } from '../logger'
+import { getClientStores, useClientStore, useClientStores } from './client-stores'
 import type { AppearancePreference } from '@nide/contracts/appearance'
 import type { ThemeDescriptor, ThemeId, ThemePalette, ThemePayload } from '@nide/contracts/theme'
 
@@ -27,7 +28,7 @@ const logger = loggerFor('appearance')
  * 组件写的是角色名（`bg-surface`），编译出来是 `var(--color-surface)` —— 所以换主题
  * 就是换一个类名，变量跟着换值，没有第二份选择器要维护。
  */
-interface AppearanceState {
+export interface AppearanceState {
   preference: AppearancePreference
   /** 实际生效的深浅。根元素的类名绑它 */
   palette: ThemePalette
@@ -46,46 +47,6 @@ interface AppearanceState {
   setTheme: (theme: ThemeId) => Promise<boolean>
 }
 
-export const useAppearanceStore = create<AppearanceState>((set) => ({
-  /**
-   * 首帧的两份初始值都来自**启动参数**，没有一个是异步的。
-   *
-   * 这不是优化而是正确性：主进程的广播只发得给建窗时已经存在的窗口，而启动阶段
-   * 窗口是一个一个建的 —— 靠广播回填会让首帧按深色画一遍（选浅色时整屏闪）。
-   */
-  preference: bootAppearance(),
-  palette: bootPalette(),
-  available: [],
-
-  receive: (payload) =>
-    set((state) => ({
-      preference: { theme: payload.theme, followSystem: state.preference.followSystem },
-      palette: payload.palette,
-      available: payload.available,
-      ...(payload.fallbackFrom ? { fallbackFrom: payload.fallbackFrom } : {})
-    })),
-
-  load: async () => {
-    try {
-      const payload = await window.hostAPI.appearance.get()
-      useAppearanceStore.getState().receive(payload)
-      applyPalette(payload.palette)
-    } catch (err) {
-      // 拿不到不算致命：启动参数已经给了能用的配色，只是设置页的主题列表是空的
-      logger.error('Failed to load the theme payload, keeping the boot theme', { error: err })
-    }
-  },
-
-  setTheme: async (theme) => {
-    try {
-      return await window.hostAPI.appearance.setTheme(theme)
-    } catch (err) {
-      logger.error('Failed to submit the theme', { theme, error: err })
-      return false
-    }
-  }
-}))
-
 /** 启动参数里的完整偏好（含"跟随系统"）。读不到时用 shared 的默认值 */
 function bootAppearance(): AppearancePreference {
   return window.__NIDE_BOOT__?.appearance ?? DEFAULT_APPEARANCE
@@ -101,6 +62,54 @@ function bootPalette(): ThemePalette {
   return window.__NIDE_BOOT__?.themePalette ?? 'dark'
 }
 
+/** 造一张外观表（工厂，测试 / 多树各自一份） */
+export function createAppearanceStore(): StoreApi<AppearanceState> {
+  return createStore<AppearanceState>()((set, get) => ({
+    /**
+     * 首帧的两份初始值都来自**启动参数**，没有一个是异步的。
+     *
+     * 这不是优化而是正确性：主进程的广播只发得给建窗时已经存在的窗口，而启动阶段
+     * 窗口是一个一个建的 —— 靠广播回填会让首帧按深色画一遍（选浅色时整屏闪）。
+     */
+    preference: bootAppearance(),
+    palette: bootPalette(),
+    available: [],
+
+    receive: (payload) =>
+      set((state) => ({
+        preference: { theme: payload.theme, followSystem: state.preference.followSystem },
+        palette: payload.palette,
+        available: payload.available,
+        ...(payload.fallbackFrom ? { fallbackFrom: payload.fallbackFrom } : {})
+      })),
+
+    load: async () => {
+      try {
+        const payload = await window.hostAPI.appearance.get()
+        get().receive(payload)
+        applyPalette(payload.palette)
+      } catch (err) {
+        // 拿不到不算致命：启动参数已经给了能用的配色，只是设置页的主题列表是空的
+        logger.error('Failed to load the theme payload, keeping the boot theme', { error: err })
+      }
+    },
+
+    setTheme: async (theme) => {
+      try {
+        return await window.hostAPI.appearance.setTheme(theme)
+      } catch (err) {
+        logger.error('Failed to submit the theme', { theme, error: err })
+        return false
+      }
+    }
+  }))
+}
+
+/** 组件里订阅外观表的某个切片（实例来自 context，没 Provider 时用默认实例） */
+export function useAppearanceStore<T>(selector: (state: AppearanceState) => T): T {
+  return useClientStore(useClientStores().appearance, selector)
+}
+
 /**
  * 应用一套配色：落 DOM + 落 store。
  *
@@ -110,7 +119,7 @@ function bootPalette(): ThemePalette {
  */
 export function applyPalette(palette: ThemePalette): void {
   applyPaletteToDom(palette)
-  useAppearanceStore.setState({ palette })
+  getClientStores().appearance.setState({ palette })
 }
 
 /**
@@ -129,14 +138,15 @@ export function initAppearance(): void {
   applyPalette(bootPalette())
 
   window.hostAPI.appearance.onChanged((payload) => {
-    useAppearanceStore.getState().receive(payload)
+    const stores = getClientStores()
+    stores.appearance.getState().receive(payload)
     applyPalette(payload.palette)
   })
 
-  void useAppearanceStore.getState().load()
+  void getClientStores().appearance.getState().load()
 }
 
 /** 当前选中的主题 id。设置页用它初始化草稿 */
 export function currentThemeId(): ThemeId {
-  return useAppearanceStore.getState().preference.theme || DEFAULT_THEME
+  return getClientStores().appearance.getState().preference.theme || DEFAULT_THEME
 }

@@ -36,6 +36,7 @@ const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
  * nide.layer」；生成图（`gen:package-graph`）也会随之缺一个节点。
  */
 export type Layer =
+  | 'domain'
   | 'contract'
   | 'kernel'
   | 'service'
@@ -52,23 +53,38 @@ export type Layer =
   | 'bundle'
   | 'smoke'
 
-/** 每一层允许依赖的层。`contract` 是根，什么都不许依赖。 */
+/**
+ * 每一层允许依赖的层。
+ *
+ * `domain` 是共享领域规则的根（不依赖任何包），任何层都可以 import；`contract` 是
+ * 跨进程契约，同样不许依赖任何业务 / 客户端包。两者的区别只是「放什么」，不是层级：
+ * 契约只描述跨进程要传的形状，领域规则是 host 与渲染进程都要算的纯逻辑。
+ */
 export const ALLOWED: Record<Layer, readonly Layer[]> = {
+  domain: [],
   contract: [],
-  kernel: ['contract'],
+  kernel: ['domain', 'contract'],
   // 业务包之间不允许实现依赖；类型导入由 kind === 'type' 放行
-  service: ['contract', 'kernel'],
-  bootstrap: ['contract', 'kernel', 'service', 'bootstrap', 'smoke'],
-  shell: ['contract'],
-  'client-platform': ['contract'],
+  service: ['domain', 'contract', 'kernel'],
+  bootstrap: ['domain', 'contract', 'kernel', 'service', 'bootstrap', 'smoke'],
+  shell: ['domain', 'contract'],
+  'client-platform': ['domain', 'contract'],
   // 插件开发者 API 只依赖契约与平台库
-  'client-sdk': ['contract', 'client-platform'],
+  'client-sdk': ['domain', 'contract', 'client-platform'],
   // 渲染机械：绑定 slot / 模块注册表，并给插件视图提供宿主上下文（所以可以依赖 sdk）
-  'client-seam': ['contract', 'client-platform', 'client-sdk', 'client-seam'],
+  'client-seam': ['domain', 'contract', 'client-platform', 'client-sdk', 'client-seam'],
   // 功能包：一扇窗用的界面，但不属于任何一扇窗（设置与欢迎窗口共用）
-  'client-feature': ['contract', 'client-platform', 'client-sdk', 'client-seam'],
-  'client-window': ['contract', 'client-platform', 'client-sdk', 'client-seam', 'client-feature'],
+  'client-feature': ['domain', 'contract', 'client-platform', 'client-sdk', 'client-seam'],
+  'client-window': [
+    'domain',
+    'contract',
+    'client-platform',
+    'client-sdk',
+    'client-seam',
+    'client-feature'
+  ],
   'client-runtime': [
+    'domain',
     'contract',
     'client-platform',
     'client-sdk',
@@ -78,8 +94,9 @@ export const ALLOWED: Record<Layer, readonly Layer[]> = {
   ],
   // 插件可以 import **库**（平台 / 接缝：视图外壳、基础控件），但不许 import
   // 任何窗口或另一个功能包的实现 —— 那会把宿主窗口的改动变成插件的 break。
-  plugin: ['contract', 'client-platform', 'client-sdk', 'client-seam'],
+  plugin: ['domain', 'contract', 'client-platform', 'client-sdk', 'client-seam'],
   app: [
+    'domain',
     'contract',
     'client-platform',
     'client-sdk',
@@ -283,7 +300,7 @@ function resolveSpecifier(
     return best ? names.get(best) : undefined
   }
   // contracts 的内部子路径映射；对别的包没有意义
-  if (spec.startsWith('#project/')) return 'packages/contracts'
+  if (spec.startsWith('#project/')) return 'packages/domain'
   return undefined
 }
 
@@ -325,11 +342,13 @@ export async function scan(): Promise<{
       edges.push({ from: fileKey, to, kind, file: fileRel, line, spec })
     }
 
-    // contracts 的额外约束：不许碰别的包，也不许碰 Node / Electron（包内相对导入不算）
-    if (fileKey === 'packages/contracts') {
+    // 纯层的额外约束：domain 什么都不许碰；contract 只许用 domain，不许碰 Node / Electron
+    // （包内相对导入与 #project/* 不算跨包）
+    if (fileKey === 'packages/contracts' || fileKey === 'packages/domain') {
       for (const { spec, line } of parseImports(source)) {
         const to = resolveSpecifier(spec, fileRel, names)
-        if (CONTRACT_FORBIDDEN.test(spec) || (to && to !== fileKey)) {
+        const isContractToDomain = fileKey === 'packages/contracts' && to === 'packages/domain'
+        if (CONTRACT_FORBIDDEN.test(spec) || (to && to !== fileKey && !isContractToDomain)) {
           contractViolations.push({ file: fileRel, line, spec })
         }
       }

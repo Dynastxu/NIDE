@@ -5,6 +5,7 @@ import { installRendererLogger, loggerFor } from '@nide/client-kit/logger'
 import './assets/index.css'
 import type { JSX } from 'react'
 import { systemWindowTitle } from '@nide/contracts/window'
+import { projectNameFromPath } from '@nide/domain/project'
 import { ConfirmHost } from '@nide/client-kit/ui/ConfirmHost'
 import type { ClientRuntime } from '@nide/client-runtime'
 
@@ -38,10 +39,14 @@ const logger = loggerFor('renderer')
 async function boot(): Promise<void> {
   await initMonacoNls()
 
-  const { useI18nStore, getT } = await import('@nide/client-kit/stores/i18n.store')
-  await useI18nStore.getState().load()
+  const [{ getT }, { getClientStores }] = await Promise.all([
+    import('@nide/client-kit/stores/i18n.store'),
+    import('@nide/client-kit/stores/client-stores')
+  ])
+  const stores = getClientStores()
+  await stores.i18n.getState().load()
 
-  const { locale } = useI18nStore.getState()
+  const { locale } = stores.i18n.getState()
   document.documentElement.lang = locale
 
   /**
@@ -57,7 +62,11 @@ async function boot(): Promise<void> {
    * 项目名在标题栏里由项目下拉承担（见 shared/window 的两个标题函数）。
    */
   const { windowType, projectPath } = window.__NIDE_BOOT__
-  document.title = systemWindowTitle(getT(), windowType, projectPath)
+  document.title = systemWindowTitle(
+    getT(),
+    windowType,
+    projectPath ? projectNameFromPath(projectPath) : null
+  )
 
   /**
    * 主题接线。放在这里而不是某个组件里：它要挂根元素的类、要订阅主进程广播，
@@ -103,13 +112,22 @@ async function boot(): Promise<void> {
     return
   }
 
-  const { Slot, SlotProvider } = await import('@nide/client-ui-renderer')
+  const [{ Slot, SlotProvider }, { ClientStoresProvider }] = await Promise.all([
+    import('@nide/client-ui-renderer'),
+    import('@nide/client-kit/stores/ClientStoresProvider')
+  ])
   logger.info('Window slot ready', { slot, occupants: runtime.slots.count(slot) })
 
+  /**
+   * 根组件的装配顺序：store 注入在最外层（窗口、插件视图、设置页看到同一套表），
+   * slot 注册表与插件视图组件表在其内。
+   */
   const Root = (): JSX.Element => (
-    <SlotProvider registry={runtime.slots} modules={runtime.modules}>
-      <Slot name={slot} />
-    </SlotProvider>
+    <ClientStoresProvider stores={stores}>
+      <SlotProvider registry={runtime.slots} modules={runtime.modules}>
+        <Slot name={slot} />
+      </SlotProvider>
+    </ClientStoresProvider>
   )
 
   logger.info('Renderer boot completed', { windowType, locale })

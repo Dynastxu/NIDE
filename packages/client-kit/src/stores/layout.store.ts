@@ -1,5 +1,6 @@
-import { create } from 'zustand'
+import { createStore, type StoreApi } from 'zustand/vanilla'
 import { persist } from 'zustand/middleware'
+import { useClientStore, useClientStores } from './client-stores'
 
 export type ZoneId =
   'leftTop' | 'leftBottom' | 'rightTop' | 'rightBottom' | 'bottomLeft' | 'bottomRight'
@@ -70,7 +71,7 @@ const initialZones = (): Record<ZoneId, ZoneState> => ({
   bottomRight: { visible: false, activeViewId: null }
 })
 
-interface LayoutState extends Record<SizeKey, number> {
+export interface LayoutState extends Record<SizeKey, number> {
   zones: Record<ZoneId, ZoneState>
   /** 侧边按钮条是否在图标下面显示视图标题（右键按钮条切换） */
   showStripeTitles: boolean
@@ -85,38 +86,51 @@ interface LayoutState extends Record<SizeKey, number> {
   reset: () => void
 }
 
-export const useLayoutStore = create<LayoutState>()(
-  persist(
-    (set) => ({
-      ...SIZE_DEFAULTS,
-      zones: initialZones(),
-      showStripeTitles: true,
+/**
+ * 造一张布局表（工厂）。
+ *
+ * persist 仍写 localStorage：布局偏好属于这个渲染进程，重启窗口后保持。
+ * 多个实例（测试）会共用同一个 key，测试之间请各自清理。
+ */
+export function createLayoutStore(): StoreApi<LayoutState> {
+  return createStore<LayoutState>()(
+    persist(
+      (set) => ({
+        ...SIZE_DEFAULTS,
+        zones: initialZones(),
+        showStripeTitles: true,
 
-      setShowStripeTitles: (show) => set({ showStripeTitles: show }),
+        setShowStripeTitles: (show) => set({ showStripeTitles: show }),
 
-      setVisible: (id, visible) =>
-        set((s) => ({ zones: { ...s.zones, [id]: { ...s.zones[id], visible } } })),
+        setVisible: (id, visible) =>
+          set((s) => ({ zones: { ...s.zones, [id]: { ...s.zones[id], visible } } })),
 
-      showView: (id, viewId) =>
-        set((s) => ({ zones: { ...s.zones, [id]: { visible: true, activeViewId: viewId } } })),
+        showView: (id, viewId) =>
+          set((s) => ({ zones: { ...s.zones, [id]: { visible: true, activeViewId: viewId } } })),
 
-      grow: (key, delta) =>
-        set((s) => ({ [key]: clamp(s[key] + delta, LIMITS[key]) }) as Partial<LayoutState>),
+        grow: (key, delta) =>
+          set((s) => ({ [key]: clamp(s[key] + delta, LIMITS[key]) }) as Partial<LayoutState>),
 
-      setSize: (key, px) => set({ [key]: clamp(px, LIMITS[key]) } as Partial<LayoutState>),
+        setSize: (key, px) => set({ [key]: clamp(px, LIMITS[key]) } as Partial<LayoutState>),
 
-      resetSize: (key) => set({ [key]: SIZE_DEFAULTS[key] } as Partial<LayoutState>),
+        resetSize: (key) => set({ [key]: SIZE_DEFAULTS[key] } as Partial<LayoutState>),
 
-      reset: () => set({ ...SIZE_DEFAULTS, zones: initialZones(), showStripeTitles: true })
-    }),
-    {
-      name: 'nide.layout', // localStorage，重启窗口后布局保持
-      /**
-       * v1 只存了 zones[id].visible，没有 activeViewId。
-       * 语义已经从「按区开关」变成「按视图开关」，旧状态直接丢弃、回到默认布局
-       * （布局偏好重建成本很低，不值得为它写迁移代码）。
-       */
-      version: 2
-    }
+        reset: () => set({ ...SIZE_DEFAULTS, zones: initialZones(), showStripeTitles: true })
+      }),
+      {
+        name: 'nide.layout', // localStorage，重启窗口后布局保持
+        /**
+         * v1 只存了 zones[id].visible，没有 activeViewId。
+         * 语义已经从「按区开关」变成「按视图开关」，旧状态直接丢弃、回到默认布局
+         * （布局偏好重建成本很低，不值得为它写迁移代码）。
+         */
+        version: 2
+      }
+    )
   )
-)
+}
+
+/** 组件里订阅布局表的某个切片（实例来自 context，没 Provider 时用默认实例） */
+export function useLayoutStore<T>(selector: (state: LayoutState) => T): T {
+  return useClientStore(useClientStores().layout, selector)
+}

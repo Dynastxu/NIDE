@@ -119,7 +119,12 @@ for (const job of jobs) {
           find: /^@nide\/client-ui-settings\//,
           replacement: `${path.resolve(root, 'packages/client-ui-settings/src')}/`
         },
-        { find: '@nide/contracts', replacement: path.resolve(root, 'packages/contracts/src') }
+        {
+          find: /^@nide\/domain\//,
+          replacement: `${path.resolve(root, 'packages/domain/src')}/`
+        },
+        { find: '@nide/contracts', replacement: path.resolve(root, 'packages/contracts/src') },
+        { find: '@nide/domain', replacement: path.resolve(root, 'packages/domain/src') }
       ]
     },
     esbuild: {

@@ -9,12 +9,12 @@ import {
   projectPathKey,
   removeProject,
   upsertProject
-} from '../../../packages/contracts/src/project/store.ts'
+} from '../../../packages/domain/src/project/store.ts'
 import type {
   ProjectListItem,
   ProjectRecord,
   ProjectStore
-} from '../../../packages/contracts/src/project/store.ts'
+} from '../../../packages/domain/src/project/store.ts'
 
 /**
  * 「打开过的项目」的**唯一**实现。

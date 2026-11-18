@@ -1,9 +1,9 @@
-import { formatGalleryEntry, serializeGalleryConfig } from '@nide/contracts/project'
+import { formatGalleryEntry, serializeGalleryConfig } from '@nide/domain/project'
 import {
   ensureModel,
   modelFor,
   writeModelSilently
-} from '@nide/client-ui-main/editor/model-registry'
+} from '@nide/client-ui-main/shared/model-registry'
 import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 
 /**

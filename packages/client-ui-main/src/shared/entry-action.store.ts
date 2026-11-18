@@ -9,14 +9,14 @@ import {
 import {
   createGalleryAction,
   createGalleryEntryAction
-} from '@nide/client-ui-main/explorer/gallery-actions'
-import { createOverviewDocumentAction } from '@nide/client-ui-main/explorer/overview-actions'
+} from '@nide/client-ui-main/shared/gallery-actions'
+import { createOverviewDocumentAction } from '@nide/client-ui-main/shared/overview-actions'
 import {
   createScopeOf,
   type CreateScope,
   type EntryActionTarget
-} from '@nide/client-ui-main/entry/entry-menu'
-import type { CreateEntryKind, DeleteEntryFailureReason } from '@nide/contracts/project'
+} from '@nide/client-ui-main/shared/entry-menu'
+import type { CreateEntryKind, DeleteEntryFailureReason } from '@nide/domain/project'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**

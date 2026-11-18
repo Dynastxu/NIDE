@@ -6,7 +6,6 @@
  * 主进程负责写，preload 负责读，渲染进程按它决定挂载哪个界面。
  */
 
-import { projectNameFromPath } from '../project'
 import type { HostMessageKey, Translator } from '../i18n'
 
 /**
@@ -53,17 +52,19 @@ export function windowTitle(t: Translator, type: WindowType): string {
  *
  * 与自绘标题栏**刻意不同**：那里项目名由下拉显示，而任务栏 / Alt-Tab 上没有下拉，
  * 只有一行字符串可看 —— 同时开着几个项目窗口时，那一行是唯一的区分手段。
+ *
+ * 只收**项目名**而不是路径：路径 → 名称的规则属于领域层（`@nide/domain/project`
+ * 的 `projectNameFromPath`），契约层不该为了一个标题去依赖领域规则。
  */
 export function systemWindowTitle(
   t: Translator,
   type: WindowType,
-  projectPath: string | null
+  projectName: string | null
 ): string {
   const base = windowTitle(t, type)
-  if (type !== 'main' || !projectPath) return base
+  if (type !== 'main' || !projectName) return base
 
-  const name = projectNameFromPath(projectPath)
-  return name ? `${base} - ${name}` : base
+  return `${base} - ${projectName}`
 }
 
 /** 启动参数前缀：主进程建窗时把窗口种类喂进渲染进程的 `process.argv` */

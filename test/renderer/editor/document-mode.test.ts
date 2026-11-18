@@ -25,7 +25,7 @@ import {
   type ForeshadowingMetadata,
   type GalleryConfig,
   type GalleryEntryDocument
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 
 /**
  * 「这一篇能怎么看」的判据与默认值。

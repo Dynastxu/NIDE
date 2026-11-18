@@ -43,6 +43,11 @@ export default defineConfig({
         replacement: `${resolve('packages/client-ui-renderer/src')}/`
       },
       { find: '@nide/contracts', replacement: resolve('packages/contracts/src') },
+      {
+        find: /^@nide\/domain\//,
+        replacement: `${resolve('packages/domain/src')}/`
+      },
+      { find: '@nide/domain', replacement: resolve('packages/domain/src') },
       { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') }
     ]
   },
