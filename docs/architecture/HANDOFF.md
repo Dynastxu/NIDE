@@ -24,6 +24,12 @@
 > 桌面能力（`plugin-capabilities`）、后端子进程与卸载脚本（`plugin-backend`）各成
 > 一包、各挂 profile 一行。五者互不注入：后端注入其余四个，清单服务反向只按需
 > `ctx.get()`（注入成环会互相 PENDING）。跨包只允许 `import type`。
+>
+> **同一天第四轮：分层从脚本搬进 `package.json`，图与包内域规则变成门禁。**
+> 每个包声明 `"nide": { "layer": ... }`；`pnpm gen:package-graph` 生成
+> [package-graph.md](package-graph.md)（`pnpm graph:check` 在 CI 校验新鲜度）；
+> 窗口包内部的域分层由 `scripts/check-package-domains.mts` 守着（跨域只能经
+> `shared/` 或装配点，3 条存量进基线）。
 
 ## 0. 一句话状态
 
@@ -704,7 +710,9 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/contracts/src/project/store.ts`             | 纯 store 模型                                                                                           |
 | `packages/contracts/package.json`                     | ESM 标记 + `#project/*` 子路径导入映射                                                                  |
 | `packages/contracts/src/project/yaml.ts`              | 最小 YAML（原 `src/shared/yaml`，搬进 project 契约以便 `#project/yaml`）                                |
-| `scripts/check-imports.mts`                           | 包依赖门禁：分层规则 / 未分类包 / contracts 自包含 / 依赖环                                             |
+| `scripts/check-imports.mts`                           | 包依赖门禁：分层规则 / 未声明层 / contracts 自包含 / 依赖环                                             |
+| `scripts/check-package-domains.mts`                   | 包内域分层门禁：窗口包内部跨域只能经 shared / 装配点                                                    |
+| `scripts/gen-package-graph.mts`                       | 生成 [package-graph.md](package-graph.md)（`--check` 供 CI 校验新鲜度）                                 |
 
 ## 7. 不可破坏的约定
 

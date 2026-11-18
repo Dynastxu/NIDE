@@ -6,7 +6,7 @@ import {
   openCreatePrompt,
   openRenamePrompt,
   requestDelete
-} from '@nide/client-ui-main/stores/entry-action.store'
+} from '@nide/client-ui-main/entry/entry-action.store'
 import {
   buildEntryMenu,
   withViewItems,

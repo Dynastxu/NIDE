@@ -1,5 +1,8 @@
 {
   "name": "@nide/service-plugin-backend",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "nide": {
+    "layer": "service"
+  }
 }

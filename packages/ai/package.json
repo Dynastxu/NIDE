@@ -1,1 +1,8 @@
-{"name":"@nide/service-ai","private":true,"type":"module"}
+{
+  "name": "@nide/service-ai",
+  "private": true,
+  "type": "module",
+  "nide": {
+    "layer": "service"
+  }
+}

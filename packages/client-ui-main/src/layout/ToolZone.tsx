@@ -1,5 +1,5 @@
 import { JSX } from 'react'
-import { HostSlot } from '@nide/client-ui-main/plugins/HostSlot'
+import { HostSlot } from '@nide/client-ui-main/host-view/HostSlot'
 import { PluginSlot } from '@nide/client-ui-renderer/PluginSlot'
 import { useActiveView } from '@nide/client-ui-main/layout/zone-state'
 import { ViewDescriptorContext } from '@nide/client-ui-renderer/view/view-descriptor'

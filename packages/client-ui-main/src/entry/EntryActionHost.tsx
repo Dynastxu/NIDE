@@ -6,7 +6,7 @@ import {
   closePrompt,
   submitPromptName,
   useEntryActionStore
-} from '@nide/client-ui-main/stores/entry-action.store'
+} from '@nide/client-ui-main/entry/entry-action.store'
 import { NamePromptDialog } from '@nide/client-ui-main/entry/NamePromptDialog'
 import { DEFAULT_GALLERY_ENTRY_EXTENSION } from '@nide/contracts/project'
 

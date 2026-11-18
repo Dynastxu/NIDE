@@ -39,26 +39,33 @@ packages/
 
 ## 包类型与允许的依赖
 
-| 类型            | 包                                                                                                                                                            | 允许依赖                                                           | 一个包只装                                  |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
-| contract        | `contracts`                                                                                                                                                   | 无（连 `import type` 也不行）                                      | 形状、纯函数、词条基础表、端口与领域错误    |
-| kernel          | `kernel`                                                                                                                                                      | contract                                                           | ctx 扩展、RPC 表、反向桥                    |
-| service         | `project` `content` `config` `i18n` `appearance` `secrets` `ai` `plugin-runtime` `plugin-backend` `plugin-storage` `plugin-permissions` `plugin-capabilities` | contract, kernel                                                   | 一个业务域；服务之间只走 `ctx.<service>`    |
-| bootstrap       | `boot` `host`                                                                                                                                                 | contract, kernel, service, bootstrap, hello                        | 装配与进程入口                              |
-| shell           | `shell`                                                                                                                                                       | contract                                                           | 只有 Electron 才能做的事                    |
-| client-platform | `client-kit`                                                                                                                                                  | contract                                                           | 三扇窗共用的 UI / 外壳 / logger / monaco    |
-| client-sdk      | `sdk`                                                                                                                                                         | contract, client-platform                                          | 插件作者看到的 API                          |
-| client-seam     | `client-ui-slots` `client-modules` `client-ui-renderer`                                                                                                       | contract, client-platform, client-sdk, client-seam                 | slot 注册表、模块表 + bundle 加载、渲染管线 |
-| client-feature  | `client-ui-plugins`                                                                                                                                           | contract, client-platform, client-sdk, client-seam                 | 跨窗口共用的功能界面                        |
-| client-window   | `client-ui-main` `client-ui-settings` `client-ui-welcome`                                                                                                     | contract, client-platform, client-sdk, client-seam, client-feature | 一扇窗的界面与领域状态；窗口根与自己的 slot |
-| client-runtime  | `client-runtime`                                                                                                                                              | 上面所有客户端层                                                   | 只做装配                                    |
-| plugin          | `plugins/*`                                                                                                                                                   | contract, client-platform, client-sdk, client-seam                 | manifest + 贡献点                           |
-| smoke           | `hello`                                                                                                                                                       | 无                                                                 | 冒烟                                        |
+**每个包属于哪一层，由它自己的 `package.json` 声明**：`"nide": { "layer": "<层>" }`
+（与 `nide.bundle` / `nide.plugin` / `nide.client` 同一套元数据）。当前每个包分别在哪一层、
+实际的边是怎么连的，见生成物 [package-graph.md](../docs/architecture/package-graph.md)
+——不要在这份文件里抄一份包清单。
+
+| 类型            | 允许依赖                                                           | 一个包只装                                  |
+| --------------- | ------------------------------------------------------------------ | ------------------------------------------- |
+| contract        | 无（连 `import type` 也不行）                                      | 形状、纯函数、词条基础表、端口与领域错误    |
+| kernel          | contract                                                           | ctx 扩展、RPC 表、反向桥                    |
+| service         | contract, kernel                                                   | 一个业务域；服务之间只走 `ctx.<service>`    |
+| bootstrap       | contract, kernel, service, bootstrap, hello                        | 装配与进程入口                              |
+| shell           | contract                                                           | 只有 Electron 才能做的事                    |
+| client-platform | contract                                                           | 三扇窗共用的 UI / 外壳 / logger / monaco    |
+| client-sdk      | contract, client-platform                                          | 插件作者看到的 API                          |
+| client-seam     | contract, client-platform, client-sdk, client-seam                 | slot 注册表、模块表 + bundle 加载、渲染管线 |
+| client-feature  | contract, client-platform, client-sdk, client-seam                 | 跨窗口共用的功能界面                        |
+| client-window   | contract, client-platform, client-sdk, client-seam, client-feature | 一扇窗的界面与领域状态；窗口根与自己的 slot |
+| client-runtime  | 上面所有客户端层                                                   | 只做装配                                    |
+| plugin          | contract, client-platform, client-sdk, client-seam                 | manifest + 贡献点                           |
+| bundle          | 无                                                                 | 组合包：只有 manifest 与 patch，没有代码    |
+| smoke           | 无                                                                 | 冒烟                                        |
+| app             | 上面所有客户端层                                                   | 渲染进程引导壳（不是 workspace 包）         |
 
 四条硬规则：
 
-1. **新包必须同时登记两处**：`scripts/check-imports.mts` 的 `LAYER_OF` 与本表。漏一处
-   `pnpm lint:imports` 直接报「未分类的包」。
+1. **新包= 目录 + `package.json` 的 `nide.layer`**，然后跑 `pnpm gen:package-graph`。
+   少声明层，`pnpm lint:imports` 直接报「包 X 没有声明层」；图也会少一个节点。
 2. **`import type` 不产生运行时 / 打包耦合**，可以跨层 —— 只有 `contracts` 例外，
    它连类型也不许指向别的包，否则「契约层」就变成了又一个共享层。
 3. **业务包之间只有两条路**：走 `ctx.<service>`，或把纯函数 / 端口 / 领域错误搬进
@@ -72,13 +79,29 @@ packages/
 ## 门禁
 
 ```bash
-pnpm lint:imports   # 包依赖：分层规则 + 未分类包 + contracts 自包含 + 依赖环
-pnpm check          # typecheck + lint:imports + lint + test
+pnpm lint:imports        # 包依赖：分层规则 + 未声明层 + contracts 自包含 + 依赖环
+pnpm lint:domains        # 包内域分层：窗口 / 功能包内部跨域只能经 shared / 装配点
+pnpm gen:package-graph   # 重新生成 docs/architecture/package-graph.md（改依赖后必跑）
+pnpm graph:check         # 只校验生成图是否最新（CI 用）
+pnpm check               # typecheck + lint:imports + lint:domains + graph:check + lint + test
 ```
 
-- 存量违规写在脚本的 `KNOWN` 数组里（**只许删不许加**），每条都带原因；修掉一条就把
-  那一行删掉，脚本会报「基线已过期」提醒你。当前基线是 **0 条**。
+- 包间门禁的存量违规写在 `scripts/check-imports.mts` 的 `KNOWN` 里（**只许删不许加**），
+  每条都带原因；修掉一条就把那一行删掉，脚本会报「基线已过期」。当前基线是 **0 条**。
 - 新增依赖环一律报错；已知环只有在经过基线里的边时才放行，所以环不会悄悄变多。
+
+## 包内分层（窗口 / 功能包）
+
+一个窗口包内部按域分目录（`editor/` `explorer/` `entry/` `layout/` …），规则与 DSH 一致：
+
+- **共享目录**（`shared/`、`stores/`）谁都能 import；
+- **域之间不许互相 import**，跨域只能出现在装配点（`index` / `App` / `MainApp`，以及
+  声明为装配域的 `layout` / `host-view`）；
+- 只算运行时 import（`import type` 不算）；
+- 受约束的包与每包配置在 `scripts/check-package-domains.mts`；存量跨域进它自己的
+  `KNOWN`（只许删不许加），修一条删一行。
+
+这样「改编辑器」不会顺手把文件树也拖下水，单个域也能整体搬走。
 
 ## import 约定
 

@@ -4,5 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "nide": {
+    "layer": "client-runtime"
   }
 }

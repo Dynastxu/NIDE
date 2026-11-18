@@ -20,7 +20,7 @@ import {
   openCreateGalleryEntryPrompt,
   openCreateGalleryPrompt,
   openCreateOverviewDocumentPrompt
-} from '@nide/client-ui-main/stores/entry-action.store'
+} from '@nide/client-ui-main/entry/entry-action.store'
 import { EntryMenu } from '@nide/client-ui-main/entry/EntryMenu'
 import { Disclosure } from '@nide/client-kit/ui/Disclosure'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'

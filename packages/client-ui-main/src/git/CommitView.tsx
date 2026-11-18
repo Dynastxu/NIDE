@@ -1,5 +1,5 @@
 import { type JSX } from 'react'
-import { HostPlaceholder } from '@nide/client-ui-main/host-view/HostPlaceholder'
+import { HostPlaceholder } from '@nide/client-ui-main/shared/HostPlaceholder'
 import { useViewChrome } from '@nide/client-ui-renderer/view/chrome-context'
 import { ViewFrame } from '@nide/client-ui-renderer/view/ViewFrame'
 

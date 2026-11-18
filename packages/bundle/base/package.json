@@ -4,6 +4,7 @@
   "type": "module",
   "description": "NIDE base bundle: the host services every profile shares.",
   "nide": {
-    "bundle": true
+    "bundle": true,
+    "layer": "bundle"
   }
 }

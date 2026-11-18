@@ -23,12 +23,19 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 
-/** 包在依赖图上属于哪一层。新包必须在这里 + `packages/AGENTS.md` 的类型表里各加一行。 */
-type Layer =
+/**
+ * 包在依赖图上属于哪一层。
+ *
+ * **层不在这个文件里登记**：每个包的 `package.json` 声明
+ * `"nide": { "layer": "<层>" }`（与 `nide.client` / `nide.plugin` 同一套元数据），
+ * 这里只定义「层 → 允许依赖的层」。少声明一个包，本脚本会直接报「没有声明
+ * nide.layer」；生成图（`gen:package-graph`）也会随之缺一个节点。
+ */
+export type Layer =
   | 'contract'
   | 'kernel'
   | 'service'
@@ -42,49 +49,11 @@ type Layer =
   | 'client-feature'
   | 'plugin'
   | 'app'
+  | 'bundle'
   | 'smoke'
 
-const LAYER_OF: Record<string, Layer> = {
-  'packages/contracts': 'contract',
-  'packages/kernel': 'kernel',
-  // 宿主业务服务：一包一个，互相之间只走 ctx.<service>
-  'packages/ai': 'service',
-  'packages/appearance': 'service',
-  'packages/config': 'service',
-  'packages/content': 'service',
-  'packages/i18n': 'service',
-  'packages/plugin-runtime': 'service',
-  'packages/plugin-backend': 'service',
-  'packages/plugin-storage': 'service',
-  'packages/plugin-permissions': 'service',
-  'packages/plugin-capabilities': 'service',
-  'packages/project': 'service',
-  'packages/secrets': 'service',
-  // 装配
-  'packages/boot': 'bootstrap',
-  'packages/host': 'bootstrap',
-  'packages/shell': 'shell',
-  // 客户端
-  'packages/client-kit': 'client-platform',
-  'packages/sdk': 'client-sdk',
-  'packages/client-modules': 'client-seam',
-  'packages/client-ui-slots': 'client-seam',
-  'packages/client-ui-renderer': 'client-seam',
-  'packages/client-ui-plugins': 'client-feature',
-  'packages/client-ui-main': 'client-window',
-  'packages/client-ui-settings': 'client-window',
-  'packages/client-ui-welcome': 'client-window',
-  'packages/client-runtime': 'client-runtime',
-  'apps/desktop/renderer': 'app',
-  'packages/hello': 'smoke',
-  // 插件包按目录注册（见 layerOf）
-  'packages/plugins/ai-provider': 'plugin',
-  'packages/plugins/demo': 'plugin',
-  'packages/plugins/lang-en': 'plugin'
-}
-
 /** 每一层允许依赖的层。`contract` 是根，什么都不许依赖。 */
-const ALLOWED: Record<Layer, readonly Layer[]> = {
+export const ALLOWED: Record<Layer, readonly Layer[]> = {
   contract: [],
   kernel: ['contract'],
   // 业务包之间不允许实现依赖；类型导入由 kind === 'type' 放行
@@ -98,13 +67,7 @@ const ALLOWED: Record<Layer, readonly Layer[]> = {
   'client-seam': ['contract', 'client-platform', 'client-sdk', 'client-seam'],
   // 功能包：一扇窗用的界面，但不属于任何一扇窗（设置与欢迎窗口共用）
   'client-feature': ['contract', 'client-platform', 'client-sdk', 'client-seam'],
-  'client-window': [
-    'contract',
-    'client-platform',
-    'client-sdk',
-    'client-seam',
-    'client-feature'
-  ],
+  'client-window': ['contract', 'client-platform', 'client-sdk', 'client-seam', 'client-feature'],
   'client-runtime': [
     'contract',
     'client-platform',
@@ -125,6 +88,8 @@ const ALLOWED: Record<Layer, readonly Layer[]> = {
     'client-window',
     'client-runtime'
   ],
+  // 组合包只有 manifest + patch：没有代码，也就没有允许的依赖
+  bundle: [],
   smoke: []
 }
 
@@ -260,16 +225,21 @@ function toKey(rel: string): string | undefined {
   return undefined
 }
 
-async function readPackageNames(): Promise<Map<string, string>> {
+async function readPackageNames(): Promise<{
+  names: Map<string, string>
+  layers: Map<string, Layer>
+}> {
   const names = new Map<string, string>()
+  const layers = new Map<string, Layer>()
   const dirs: string[] = []
   for (const entry of await readdir(path.join(ROOT, 'packages'), { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
-    if (entry.name === 'plugins') {
-      for (const plugin of await readdir(path.join(ROOT, 'packages/plugins'), {
+    if (entry.name === 'plugins' || entry.name === 'bundle') {
+      // 这两类包在下一层：packages/plugins/<name>、packages/bundle/<name>
+      for (const child of await readdir(path.join(ROOT, 'packages', entry.name), {
         withFileTypes: true
       })) {
-        if (plugin.isDirectory()) dirs.push(`packages/plugins/${plugin.name}`)
+        if (child.isDirectory()) dirs.push(`packages/${entry.name}/${child.name}`)
       }
       continue
     }
@@ -278,13 +248,17 @@ async function readPackageNames(): Promise<Map<string, string>> {
   for (const dir of dirs) {
     try {
       const raw = await readFile(path.join(ROOT, dir, 'package.json'), 'utf8')
-      const pkg = JSON.parse(raw) as { name?: string }
+      const pkg = JSON.parse(raw) as { name?: string; nide?: { layer?: unknown } }
       if (pkg.name) names.set(pkg.name, dir)
+      // 层由包自己声明；值不合法时按「未分类」处理，由 main 报错
+      if (typeof pkg.nide?.layer === 'string') layers.set(dir, pkg.nide.layer as Layer)
     } catch {
       // 没有 package.json 的目录不是包（例如 bundle 之外的临时目录），跳过
     }
   }
-  return names
+  // 渲染进程引导壳不是 workspace 包（apps/ 下没有 package.json），按装配层算
+  layers.set('apps/desktop/renderer', 'app')
+  return { names, layers }
 }
 
 /** 把说明符解析成包 key；解析不出来（react / cordis / node:）返回 undefined。 */
@@ -313,10 +287,8 @@ function resolveSpecifier(
   return undefined
 }
 
-function layerOf(key: string): Layer | undefined {
-  if (LAYER_OF[key]) return LAYER_OF[key]
-  if (key.startsWith('packages/plugins/')) return 'plugin'
-  return undefined
+function layerOf(layers: Map<string, Layer>, key: string): Layer | undefined {
+  return layers.get(key)
 }
 
 const CONTRACT_FORBIDDEN = /^(node:|electron(\/|$))/
@@ -327,11 +299,13 @@ interface ContractViolation {
   spec: string
 }
 
-async function collect(): Promise<{
+/** 扫描全部包与它们的跨包 import；`gen:package-graph` 也用这一份结果，避免两套解析。 */
+export async function scan(): Promise<{
   edges: Edge[]
   contractViolations: ContractViolation[]
+  layers: Map<string, Layer>
 }> {
-  const names = await readPackageNames()
+  const { names, layers } = await readPackageNames()
   const files = [
     ...(await walk(path.join(ROOT, 'packages'))),
     ...(await walk(path.join(ROOT, 'apps/desktop/renderer')))
@@ -362,7 +336,7 @@ async function collect(): Promise<{
     }
   }
 
-  return { edges, contractViolations }
+  return { edges, contractViolations, layers }
 }
 
 function findCycles(edges: Edge[]): string[][] {
@@ -397,7 +371,7 @@ function findCycles(edges: Edge[]): string[][] {
 }
 
 async function main(): Promise<void> {
-  const { edges, contractViolations } = await collect()
+  const { edges, contractViolations, layers } = await scan()
   const errors: string[] = []
   const warnings: string[] = []
 
@@ -413,17 +387,17 @@ async function main(): Promise<void> {
 
   for (const edge of edges) {
     const pair = keyOf(edge)
-    const fromLayer = layerOf(edge.from)
-    const toLayer = layerOf(edge.to)
+    const fromLayer = layerOf(layers, edge.from)
+    const toLayer = layerOf(layers, edge.to)
 
     if (!fromLayer) {
       errors.push(
-        `${edge.file}:${edge.line} 未分类的包 ${edge.from}（先在 LAYER_OF 与 packages/AGENTS.md 里登记）`
+        `${edge.file}:${edge.line} 包 ${edge.from} 没有声明层（在它的 package.json 里加 "nide": { "layer": ... }，层名见 packages/AGENTS.md）`
       )
       continue
     }
     if (!toLayer) {
-      errors.push(`${edge.file}:${edge.line} ${edge.from} 依赖了未分类的包 ${edge.to}`)
+      errors.push(`${edge.file}:${edge.line} ${edge.from} 依赖了未声明层的包 ${edge.to}`)
       continue
     }
 
@@ -492,4 +466,7 @@ async function main(): Promise<void> {
   process.exitCode = total === 0 ? 0 : 1
 }
 
-void main()
+// 只有被直接执行时才跑检查：`gen:package-graph` 会 import 本文件复用 scan()
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  void main()
+}
