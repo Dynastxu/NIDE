@@ -121,7 +121,7 @@ export function EditorPanes({
      * model 仍然会建出来（见 GalleryEntryForm 里的 syncGalleryForm），否则保存没有东西可读。
      */
     return (
-      <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="px-4 py-4">
           <GalleryEntryForm tab={tab} syncing={syncing} />
         </div>
@@ -132,7 +132,7 @@ export function EditorPanes({
   if (mode === 'form' && view.kind === 'gallery-config') {
     // 字段表的表单：同样整块可滚、没有编辑器（理由同上）
     return (
-      <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="px-4 py-4">
           <GalleryConfigForm tab={tab} syncing={syncing} />
         </div>
@@ -149,7 +149,7 @@ export function EditorPanes({
      * ForeshadowingForm 里的 syncForeshadowingForm），否则保存没有东西可读。
      */
     return (
-      <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="px-4 py-4">
           <ForeshadowingForm tab={tab} syncing={syncing} />
         </div>
@@ -178,7 +178,7 @@ export function EditorPanes({
        * 是写字的地方，边距会把它变成一个窗口里的小框 —— 见 MonacoHost 的说明），而
        * 字段贴着窗口边只是难看。两处各自的留白因此各写各的，不再共用父级那一份。
        */
-      <div className="nide-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="px-4 pt-4">
           {/*
             **没有 key**：这一层自己管着「用户手上那份草稿」与「上游那份元数据」的对账

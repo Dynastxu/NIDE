@@ -54,7 +54,7 @@ export function FormTextArea({
       onChange={(event) => onChange(event.target.value)}
       {...(onBlur ? { onBlur } : {})}
       placeholder={placeholder}
-      className="nide-scrollbar w-full resize-y rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs leading-5 text-zinc-100 outline-none focus:border-blue-500"
+      className="w-full resize-y rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs leading-5 text-zinc-100 outline-none focus:border-blue-500"
     />
   )
 }

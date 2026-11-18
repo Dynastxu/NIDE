@@ -36,6 +36,23 @@
 }
 
 /*
+ * 滚动条：规则本身在 index.css 的 `:root`（`scrollbar-color` / `scrollbar-width`
+ * 都可继承），这里只换 token。
+ *
+ * 深色那一档（zinc-700）压在浅底上就是"深色滚动条"，所以滑块换成 zinc-400：比面板
+ * 深、比正文浅，与深色下的对比度大致相当。轨道两边都保持透明 —— 白、`#fafafa`、
+ * `#f4f4f5` 三种面板底色各自透出来，不需要逐面板调色。
+ *
+ * 选择器写成 `:root.theme-light` 而不是 `.theme-light`：这份表是通过 `@import`
+ * 排在 index.css 的 `:root` **之前**的，同特异性的规则会被后者盖掉。多这一档类名
+ * 就把「谁在后面」这个问题消掉，不依赖 import 顺序。
+ */
+:root.theme-light {
+  --nide-scrollbar-thumb: #a1a1aa;
+  --nide-scrollbar-track: transparent;
+}
+
+/*
  * 页面本身的底色与文字色。
  *
  * index.css 里 body 是写死的深色（`#18181b` / `#e4e4e7`），它是"窗口从出现到首帧"

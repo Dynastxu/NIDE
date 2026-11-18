@@ -52,7 +52,7 @@ export function MarkdownPreview({ content }: { content: string }): JSX.Element {
   }
 
   return (
-    <div className="nide-scrollbar min-h-0 flex-1 overflow-auto">
+    <div className="min-h-0 flex-1 overflow-auto">
       <article
         className="nide-markdown max-w-3xl px-6 py-4"
         onClick={(event) => {

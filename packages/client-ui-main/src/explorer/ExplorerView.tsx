@@ -373,7 +373,7 @@ function FileTreePane(): JSX.Element {
       <div
         role="tree"
         aria-label={t('host.explorer.title')}
-        className="nide-scrollbar min-h-0 flex-1 overflow-auto py-1"
+        className="min-h-0 flex-1 overflow-auto py-1"
         onScroll={() => setHovered(null)}
       >
         {rows.length === 0 ? (
