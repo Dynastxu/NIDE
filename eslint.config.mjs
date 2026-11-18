@@ -5,7 +5,18 @@ import eslintReact from '@eslint-react/eslint-plugin'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
 export default defineConfig(
-  { ignores: ['**/node_modules', '**/dist', '**/out', '**/.nide-dev', '**/.nide-dist'] },
+  {
+    ignores: [
+      '**/node_modules',
+      '**/dist',
+      '**/out',
+      '**/.nide-dev',
+      '**/.nide-dist',
+      // agent 的 worktree 都在 .agents/worktrees/ 下，且不进版本库（里面是同一份仓库的另一份拷贝）。
+      // 不忽略的话，本地 pnpm lint 会把那份拷贝也扫一遍：重复的命中 + 它自己的临时脚本报错。
+      '**/.agents'
+    ]
+  },
   tseslint.configs.recommended,
   eslintReact.configs.recommended,
   {
