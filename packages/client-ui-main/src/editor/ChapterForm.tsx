@@ -307,7 +307,7 @@ function CharacterPicker({
         />
 
         {open && matches.length > 0 && (
-          <ul className="nide-scrollbar absolute top-8 left-0 z-20 max-h-48 w-56 overflow-y-auto rounded border border-zinc-700 bg-zinc-800 py-1 shadow-lg shadow-black/50">
+          <ul className="absolute top-8 left-0 z-20 max-h-48 w-56 overflow-y-auto rounded border border-zinc-700 bg-zinc-800 py-1 shadow-lg shadow-black/50">
             {matches.map((label) => (
               <li key={label}>
                 {/*

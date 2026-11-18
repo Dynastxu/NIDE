@@ -23,49 +23,45 @@ body {
 }
 
 /*
- * 深色滚动条。
+ * 滚动条：一条**全局**规则，两套主题只换 token。
  *
- * 项目是纯深色界面，而 Chromium 的默认滚动条是浅色的 —— 一条白底灰条的滚动条挂在
- * zinc-950 的面板上，比它滚动的内容还显眼。这里用宿主自己的色板（zinc 系）给它描一遍。
+ * ## 为什么不能是可选的类
  *
- * 写成**普通 CSS 类**而不是 Tailwind 的 `@utility`：这段是纯 CSS，没有任何要从主题里
- * 取的值（颜色就是写死的 zinc-800 / zinc-900）。走 `@utility` 等于把整份样式表押在
- * 「这个指令在当前 Tailwind 版本里可用」上 —— 一旦不可用，坏的不是这一处，而是整个界面。
+ * Chromium 的默认滚动条是浅色的：一条白底灰条挂在 zinc-950 的面板上，比它滚动的内容
+ * 还显眼。这件事以前做成了 `.nide-scrollbar` 这个可选类，由每个调用点自己加 ——
+ * 于是"样式对不对"变成了每个滚动容器的义务，忘一个就退回原生外观；而滚动条只在
+ * 溢出时才存在，截图、短内容自测和 code review 都看不见。
  *
- * 刻意**不做成全局**（不写 `*::-webkit-scrollbar`）：宿主内嵌了 Monaco 与它自己的
- * 浮层，各自对滚动条有诉求。要用在哪，调用点自己加这个类 —— 与项目里「谁的样式归谁」
- * 的既有做法一致。
+ * ## 为什么写在 `:root`
  *
- * 两套写法都要给：Chromium（Electron 就是它）认 `::-webkit-scrollbar`，
- * Firefox 只认 `scrollbar-width` / `scrollbar-color`。
+ * `scrollbar-width` / `scrollbar-color` 都是**可继承**属性：写在根元素上一次，就覆盖
+ * 所有后代滚动容器（侧栏、标签条、下拉、设置页、插件报错 `<pre>` …），新增容器不需要
+ * 记得加任何类。深浅主题只换下面两个 token（浅色那套在 light.css）。
+ *
+ * 轨道用 `transparent`：透出来的是容器自己的底色。宿主面板从 zinc-950 到 zinc-800
+ * 深浅不一，写死任何一种轨道色都会在某一层面板上留下一条色带。
+ *
+ * 不写 `*::-webkit-scrollbar`：Chromium 里只要设置了标准属性，`::-webkit-scrollbar`
+ * 的声明就会被忽略。两套写法并存只会造成"改了、其实没生效"的假象，所以这里只留一份。
+ *
+ * Monaco 的编辑器滚动条不受影响：它是自绘的 DOM 滑块（`.scrollbar` > `.slider`），
+ * 不经过原生滚动条。
  */
-.nide-scrollbar {
+:root {
+  --nide-scrollbar-thumb: #3f3f46; /* zinc-700：深色面板上的一档浅灰 */
+  --nide-scrollbar-track: transparent; /* 透出容器底色，天然适配每一层面板 */
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent; /* zinc-700 on 透出的底色 */
+  scrollbar-color: var(--nide-scrollbar-thumb) var(--nide-scrollbar-track);
 }
 
-.nide-scrollbar::-webkit-scrollbar {
-  height: 10px;
-  width: 10px;
-}
-
-.nide-scrollbar::-webkit-scrollbar-track {
-  background: #18181b; /* zinc-900：跟面板同色，不额外画一条带子 */
-}
-
-.nide-scrollbar::-webkit-scrollbar-thumb {
-  border: 2px solid #18181b; /* 与轨道同色 -> 滑块看起来更细，且四周留出空隙 */
-  border-radius: 9999px;
-  background-color: #3f3f46; /* zinc-700 */
-}
-
-.nide-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: #52525b; /* zinc-600：悬停时提亮一档，表明可以拖 */
-}
-
-/* 两个方向交汇的那个小方块：不画的话会在右下角留一块浅色 */
-.nide-scrollbar::-webkit-scrollbar-corner {
-  background: #18181b; /* zinc-900 */
+/*
+ * 显式退回系统原生滚动条（`auto` 会被后代继承）。
+ *
+ * 默认值放对方向：需要原生外观的容器才加这个类，而不是让所有容器显式加入。
+ */
+.native-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
 }
 
 /*

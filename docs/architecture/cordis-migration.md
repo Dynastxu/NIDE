@@ -149,7 +149,7 @@ NIDE/
 
 - 七分区骨架、按钮条通高、底栏不横跨
 - 尺寸默认值 260/320/200/260/260/320 与拖拽范围
-- 深色 zinc 色阶、`.theme-light`、`nide-scrollbar`
+- 深色 zinc 色阶、`.theme-light`、滚动条主题（`:root` 上的全局 `scrollbar-color` token）
 - 32px 自绘标题栏与窗口按钮
 - Monaco 配色、字号、行高
 - 默认视图顺序（内建视图在前）与 activeView 回落规则
