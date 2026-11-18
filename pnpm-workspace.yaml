@@ -7,3 +7,8 @@ overrides:
   # DOM XSS 缺口（钩子移除的子树未中和、被强制移除的 rawtext 根节点被交还）。
   # 待 monaco-editor 更新其依赖声明后即可删除这条 override。
   dompurify: ^3.4.17
+  # minimatch 7.0.0–11.0.0 存在 attacker-controlled globparts 放大型 DoS
+  # （GHSA-g3hv-75wg-m249，CVE-2026-118764，11.0.1 修复）。electron-builder 构建链
+  # 仍固定 minimatch 9.0.9（@electron/universal）与 10.2.6（app-builder-lib）。
+  # 3.x/5.x 不在受影响区间，保持原样。待上游放宽依赖后可删除这条 override。
+  minimatch@>=7.0.0 <11.0.1: ^11.0.9
