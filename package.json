@@ -85,8 +85,5 @@
     "vite-plugin-react-click-to-component": "^4.2.3",
     "vitest": "^5.0.5"
   },
-  "overrides": {
-    "dompurify": "^3.4.17"
-  },
   "packageManager": "pnpm@12.21.0"
 }
