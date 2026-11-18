@@ -1,7 +1,7 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import { saveActiveTab } from '@nide/client-ui-main/editor/editor-save'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 import { useLayoutStore } from '@nide/client-kit/stores/layout.store'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { DropdownMenu } from '@nide/client-kit/ui/DropdownMenu'

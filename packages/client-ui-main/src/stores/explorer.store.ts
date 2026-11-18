@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getT } from './i18n.store'
+import { getT } from '@nide/client-kit/stores/i18n.store'
 import {
   isInsideProject,
   languageForPath,

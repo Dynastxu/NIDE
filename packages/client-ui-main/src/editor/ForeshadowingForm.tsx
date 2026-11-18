@@ -5,7 +5,7 @@ import {
 } from '@nide/client-ui-main/editor/foreshadowing-metadata'
 import { FormField, FormTextArea } from '@nide/client-ui-main/editor/form-controls'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import type { EditorTab } from '@nide/client-kit/stores/editor.store'
+import type { EditorTab } from '@nide/client-ui-main/stores/editor.store'
 
 /**
  * 伏笔表单：四个**固定**字段。

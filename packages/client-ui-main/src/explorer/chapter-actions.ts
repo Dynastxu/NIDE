@@ -1,6 +1,6 @@
 import { getT } from '@nide/client-kit/stores/i18n.store'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
-import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
 import { loggerFor } from '@nide/client-kit/logger'
 import {
   composeChapterDocument,

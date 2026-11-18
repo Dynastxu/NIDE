@@ -5,7 +5,7 @@ import {
   deleteProjectEntry,
   renameProjectEntry,
   useExplorerStore
-} from '@nide/client-kit/stores/explorer.store'
+} from '@nide/client-ui-main/stores/explorer.store'
 import {
   createGalleryAction,
   createGalleryEntryAction

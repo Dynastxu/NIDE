@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { saveActiveTab } from '@nide/client-ui-main/editor/editor-save'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 import { useViewChrome, type ViewChromeConfig } from '@nide/client-ui-renderer/view/chrome-context'
 import type { ViewMoreItem, ViewTab } from '@nide/contracts/plugin-api'
 

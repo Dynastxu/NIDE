@@ -4,7 +4,7 @@ import { useT } from '@nide/client-kit/stores/i18n.store'
 import {
   useDocumentViewStore,
   type DocumentViewMode
-} from '@nide/client-kit/stores/document-view.store'
+} from '@nide/client-ui-main/stores/document-view.store'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**

@@ -1,8 +1,8 @@
 import { JSX, useEffect, useState } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
-import { useGalleryStore } from '@nide/client-kit/stores/gallery.store'
-import { useOverviewStore } from '@nide/client-kit/stores/overview.store'
+import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
+import { useGalleryStore } from '@nide/client-ui-main/stores/gallery.store'
+import { useOverviewStore } from '@nide/client-ui-main/stores/overview.store'
 import { openChapterFile } from '@nide/client-ui-main/explorer/chapter-actions'
 import { openForeshadowingFile } from '@nide/client-ui-main/explorer/foreshadowing-actions'
 import {

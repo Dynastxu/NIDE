@@ -1,6 +1,6 @@
 import { loggerFor } from '@nide/client-kit/logger'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
-import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
 import { modelFor } from '@nide/client-ui-main/editor/model-registry'
 import {
   isGalleryConfigFileName,

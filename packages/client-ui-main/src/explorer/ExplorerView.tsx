@@ -8,8 +8,8 @@ import {
   createForeshadowing,
   suggestNextForeshadowing
 } from '@nide/client-ui-main/explorer/foreshadowing-actions'
-import { openProjectFile, useExplorerStore } from '@nide/client-kit/stores/explorer.store'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { openProjectFile, useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { EntryMenu } from '@nide/client-ui-main/entry/EntryMenu'
 import { NamePromptDialog } from '@nide/client-ui-main/entry/NamePromptDialog'
