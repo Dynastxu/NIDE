@@ -1,3 +1,9 @@
 allowBuilds:
   electron-winstaller: true
   esbuild: true
+
+overrides:
+  # monaco-editor 0.57.0 精确锁定 dompurify 3.4.15；3.4.16 修复 IN_PLACE 模式下的两处
+  # DOM XSS 缺口（钩子移除的子树未中和、被强制移除的 rawtext 根节点被交还）。
+  # 待 monaco-editor 更新其依赖声明后即可删除这条 override。
+  dompurify: ^3.4.17
