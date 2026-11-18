@@ -1,6 +1,6 @@
 import { JSX, useEffect } from 'react'
 import { MainApp } from '@nide/client-ui-main/MainApp'
-import { reloadClientBundles } from '@nide/client-runtime'
+import { reloadClientBundles } from '@nide/client-modules'
 import { usePluginStore } from '@nide/client-kit/stores/plugin.store'
 
 /**

@@ -5,13 +5,12 @@ import { SettingsApp } from './SettingsApp'
 /**
  * 设置窗口的 client 插件。
  *
- * 组件本体就在这个包里：设置树 / 各设置页 / 插件浏览 / 重启提示。欢迎窗口的
- * 「插件」页复用的 `PluginsBrowser` 也从这里导出（它和设置页里的插件页是同一个
- * 组件，`mode` 决定有没有「确定 / 取消」那一条）。
+ * 组件本体就在这个包里：设置树 / 各设置页 / 插件设置页的挂载点。
+ * 插件浏览（`PluginsBrowser`）与重启提示（`RestartDialog`）**不**在这里 ——
+ * 欢迎窗口的「插件」页也要用它们，所以它们住在功能包 `@nide/client-ui-plugins`，
+ * 两个窗口各自 import。跨窗口 import 另一个窗口的组件是上一轮清掉的那条债。
  */
 export { SettingsApp } from './SettingsApp'
-export { PluginsBrowser } from './PluginsBrowser'
-export { RestartDialog } from './RestartDialog'
 export { PluginSettingsSlot } from './PluginSettingsSlot'
 
 /** 这个包负责的窗口种类（client-runtime 按它装配，不再用 switch） */

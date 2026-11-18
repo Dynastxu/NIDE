@@ -4,9 +4,9 @@ import {
   describeChromeInput,
   describeViewChrome,
   resolveChromeOptions
-} from '@nide/client-ui-main/view/chrome-options'
-import { ViewDescriptorContext } from '@nide/client-ui-main/view/view-descriptor'
-import type { ViewChromeConfig, ViewChromeInput } from '@nide/client-ui-main/view/chrome-types'
+} from '@nide/client-ui-renderer/view/chrome-options'
+import { ViewDescriptorContext } from '@nide/client-ui-renderer/view/view-descriptor'
+import type { ViewChromeConfig, ViewChromeInput } from '@nide/client-ui-renderer/view/chrome-types'
 
 /**
  * 视图外壳（标题栏 + 标签条）的入口。
@@ -62,4 +62,4 @@ export type {
   ViewChromeConfig,
   ViewChromeInput,
   ViewChromePatch
-} from '@nide/client-ui-main/view/chrome-types'
+} from '@nide/client-ui-renderer/view/chrome-types'

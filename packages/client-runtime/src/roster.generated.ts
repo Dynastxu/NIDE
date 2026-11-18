@@ -15,11 +15,6 @@ export interface ClientRosterEntry {
 
 export const CLIENT_ROSTER: readonly ClientRosterEntry[] = [
   {
-    package: "@nide/client-ui-layout",
-    windowTypes: ["main"],
-    load: () => import("@nide/client-ui-layout")
-  },
-  {
     package: "@nide/client-ui-main",
     windowTypes: ["main"],
     load: () => import("@nide/client-ui-main")

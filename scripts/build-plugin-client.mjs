@@ -108,6 +108,10 @@ for (const job of jobs) {
           replacement: `${path.resolve(root, 'packages/sdk/src')}/`
         },
         {
+          find: /^@nide\/client-ui-renderer\//,
+          replacement: `${path.resolve(root, 'packages/client-ui-renderer/src')}/`
+        },
+        {
           find: /^@nide\/client-ui-main\//,
           replacement: `${path.resolve(root, 'packages/client-ui-main/src')}/`
         },

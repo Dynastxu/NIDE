@@ -2,8 +2,8 @@ import { type ComponentType, type JSX } from 'react'
 import { ExplorerView } from '@nide/client-ui-main/explorer/ExplorerView'
 import { CommitView } from '@nide/client-ui-main/git/CommitView'
 import { GitView } from '@nide/client-ui-main/git/GitView'
-import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
-import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
+import { useViewChrome } from '@nide/client-ui-renderer/view/chrome-context'
+import { ViewFrame } from '@nide/client-ui-renderer/view/ViewFrame'
 import {
   HOST_COMMIT_VIEW_ID,
   HOST_EXPLORER_VIEW_ID,

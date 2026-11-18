@@ -9,7 +9,8 @@
  * 新增一个服务时，在对应服务包里 `ctx.provide(key, value)`，再在这里补一行类型。
  */
 import type { HostProjectStore } from '../../project/src/host-project-store.ts'
-import type { SecretVault } from '../../secrets/src/secrets.ts'
+import type { ConfigService } from '../../config/src/index.ts'
+import type { SecretVault } from '../../contracts/src/secrets/index.ts'
 import type { AiService } from '../../ai/src/index.ts'
 import type { HostAppearance } from '../../appearance/src/appearance.ts'
 import type { I18nService } from '../../i18n/src/index.ts'
@@ -23,6 +24,8 @@ declare module 'cordis' {
   interface Context {
     /** 项目生命周期：列表 / 打开 / 移除 / 关闭 / 启动恢复 */
     project: HostProjectStore
+    /** 项目配置：`.nide/config.yml` 与图鉴注册表的唯一实现 */
+    config: ConfigService
     /** 密钥仓（没有 RPC） */
     secrets: SecretVault
     /** AI 供应商：宿主入口用它接上流式分片出口 */

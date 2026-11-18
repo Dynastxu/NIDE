@@ -57,6 +57,14 @@ export default defineConfig({
           replacement: `${resolve('packages/client-ui-main/src')}/`
         },
         {
+          find: /^@nide\/client-ui-plugins\//,
+          replacement: `${resolve('packages/client-ui-plugins/src')}/`
+        },
+        {
+          find: /^@nide\/client-ui-renderer\//,
+          replacement: `${resolve('packages/client-ui-renderer/src')}/`
+        },
+        {
           find: /^@nide\/client-ui-settings\//,
           replacement: `${resolve('packages/client-ui-settings/src')}/`
         },
@@ -83,8 +91,8 @@ export default defineConfig({
           replacement: resolve('packages/client-ui-main/src/index.ts')
         },
         {
-          find: '@nide/client-ui-layout',
-          replacement: resolve('packages/client-ui-layout/src/index.tsx')
+          find: '@nide/client-ui-plugins',
+          replacement: resolve('packages/client-ui-plugins/src/index.ts')
         },
         {
           find: '@nide/client-ui-settings',

@@ -39,6 +39,7 @@ type Layer =
   | 'client-seam'
   | 'client-window'
   | 'client-runtime'
+  | 'client-feature'
   | 'plugin'
   | 'app'
   | 'smoke'
@@ -65,7 +66,7 @@ const LAYER_OF: Record<string, Layer> = {
   'packages/client-modules': 'client-seam',
   'packages/client-ui-slots': 'client-seam',
   'packages/client-ui-renderer': 'client-seam',
-  'packages/client-ui-layout': 'client-seam',
+  'packages/client-ui-plugins': 'client-feature',
   'packages/client-ui-main': 'client-window',
   'packages/client-ui-settings': 'client-window',
   'packages/client-ui-welcome': 'client-window',
@@ -87,17 +88,36 @@ const ALLOWED: Record<Layer, readonly Layer[]> = {
   bootstrap: ['contract', 'kernel', 'service', 'bootstrap', 'smoke'],
   shell: ['contract'],
   'client-platform': ['contract'],
+  // 插件开发者 API 只依赖契约与平台库
   'client-sdk': ['contract', 'client-platform'],
-  'client-seam': ['contract', 'client-platform', 'client-seam'],
-  'client-window': ['contract', 'client-platform', 'client-sdk', 'client-seam'],
-  'client-runtime': ['contract', 'client-platform', 'client-sdk', 'client-seam', 'client-window'],
-  // 插件只能依赖 sdk（宿主 UI 的缺口见 docs：视图 chrome / 设置页 props 还在窗口包里）
-  plugin: ['contract', 'client-sdk'],
+  // 渲染机械：绑定 slot / 模块注册表，并给插件视图提供宿主上下文（所以可以依赖 sdk）
+  'client-seam': ['contract', 'client-platform', 'client-sdk', 'client-seam'],
+  // 功能包：一扇窗用的界面，但不属于任何一扇窗（设置与欢迎窗口共用）
+  'client-feature': ['contract', 'client-platform', 'client-sdk', 'client-seam'],
+  'client-window': [
+    'contract',
+    'client-platform',
+    'client-sdk',
+    'client-seam',
+    'client-feature'
+  ],
+  'client-runtime': [
+    'contract',
+    'client-platform',
+    'client-sdk',
+    'client-seam',
+    'client-feature',
+    'client-window'
+  ],
+  // 插件可以 import **库**（平台 / 接缝：视图外壳、基础控件），但不许 import
+  // 任何窗口或另一个功能包的实现 —— 那会把宿主窗口的改动变成插件的 break。
+  plugin: ['contract', 'client-platform', 'client-sdk', 'client-seam'],
   app: [
     'contract',
     'client-platform',
     'client-sdk',
     'client-seam',
+    'client-feature',
     'client-window',
     'client-runtime'
   ],
@@ -109,49 +129,12 @@ const ALLOWED: Record<Layer, readonly Layer[]> = {
  *
  * 每一条都对应一次真实的架构欠账；门禁对它们放行，但会在输出里逐条列出来。
  * 修掉一条就把这里的一行删掉，脚本会确认基线没有过期。
+ *
+ * 当前为空：8 条债已于 2026-11-18 全部修完（按 DSH 的包划分答案：模块层归
+ * `client-modules`、渲染机械归 `client-ui-renderer`、跨窗口共用界面归功能包、
+ * 服务之间只走 ctx、插件只 import 库）。
  */
-const KNOWN: readonly { from: string; to: string; reason: string }[] = [
-  {
-    from: 'packages/sdk',
-    to: 'packages/client-runtime',
-    reason: 'PluginSlot 用 getClientRuntime() 取注册表（与 client-runtime -> client-ui-main 成环）'
-  },
-  {
-    from: 'packages/client-ui-main',
-    to: 'packages/client-runtime',
-    reason: 'App.tsx 用 reloadClientBundles()（同上，环的另一端）'
-  },
-  {
-    from: 'packages/client-ui-welcome',
-    to: 'packages/client-ui-settings',
-    reason: '欢迎窗口复用 PluginsBrowser / RestartDialog，应当下沉成独立包'
-  },
-  {
-    from: 'packages/client-ui-layout',
-    to: 'packages/client-ui-main',
-    reason: 'zone slot 包住 main 的 ToolZone；窗口与接缝包混在了一起'
-  },
-  {
-    from: 'packages/content',
-    to: 'packages/config',
-    reason: '直接 import project-config 的纯函数（规则只允许 ctx.config）'
-  },
-  {
-    from: 'packages/ai',
-    to: 'packages/secrets',
-    reason: '直接 import SecretVault / SecretDecryptError（类型也应进 contracts）'
-  },
-  {
-    from: 'packages/plugins/demo',
-    to: 'packages/client-ui-main',
-    reason: '插件 UI 用宿主窗口的 useViewChrome / ViewFrame —— sdk 没有对应 API'
-  },
-  {
-    from: 'packages/plugins/demo',
-    to: 'packages/client-kit',
-    reason: '插件 UI 用 client-kit 的 BuiltinIcon —— 同上'
-  }
-]
+const KNOWN: readonly { from: string; to: string; reason: string }[] = []
 
 const SOURCE_EXT = new Set(['.ts', '.tsx', '.mts', '.mjs'])
 const SKIP_DIRS = new Set([

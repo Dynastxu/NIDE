@@ -1,8 +1,8 @@
 import { JSX } from 'react'
 import { HostSlot } from '@nide/client-ui-main/plugins/HostSlot'
-import { PluginSlot } from '@nide/sdk/plugin-views/PluginSlot'
+import { PluginSlot } from '@nide/client-ui-renderer/PluginSlot'
 import { useActiveView } from '@nide/client-ui-main/layout/zone-state'
-import { ViewDescriptorContext } from '@nide/client-ui-main/view/view-descriptor'
+import { ViewDescriptorContext } from '@nide/client-ui-renderer/view/view-descriptor'
 import { HOST_VIEW_PLUGIN_ID } from '@nide/contracts/plugin-api'
 import type { ZoneId } from '@nide/client-kit/stores/layout.store'
 
@@ -36,12 +36,12 @@ export function ToolZone({ id }: { id: ZoneId }): JSX.Element | null {
      * key 换掉时插槽重新按 viewId 挂载：插件视图要重新加载模块，外壳也要丢掉上一个
      * 视图留下的标签与菜单。
      */
-    <ViewDescriptorContext.Provider value={view}>
+    <ViewDescriptorContext value={view}>
       {isHostView ? (
         <HostSlot key={view.id} viewId={view.id} />
       ) : (
         <PluginSlot key={view.id} viewId={view.id} />
       )}
-    </ViewDescriptorContext.Provider>
+    </ViewDescriptorContext>
   )
 }

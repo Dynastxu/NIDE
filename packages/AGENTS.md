@@ -1,7 +1,7 @@
 # AGENTS.md — packages
 
 `packages/` 是 NIDE 的本体：宿主运行时、业务服务、插件运行时、客户端界面与 SDK。
-根目录 [AGENTS.md](../AGENTS.md) 的规则（SOLID、UX/DX/AX、git 权限）在这里同样有效；
+根目录 [AGENTS.md](../AGENTS.md) 的规则（SOLID、DX/AX、git 权限）在这里同样有效；
 本文件只补「包这一层」的约定。
 
 ## 布局
@@ -11,7 +11,7 @@
 
 ```
 packages/
-  contracts/        契约层：类型 + 纯函数 + 词条基础表（不 import electron / DOM / node:fs / 任何包）
+  contracts/        契约层：类型 + 纯函数 + 词条基础表 + 端口/领域错误（不 import 任何包）
   kernel/           内核：Cordis 上下文扩展（rpc / hostEnv）、RPC 注册表与权限挂载点、shell 反桥
   project/ content/ config/ i18n/ appearance/ secrets/ ai/ plugin-runtime/
                     宿主业务服务：一包一个业务域，彼此只走 ctx.<service>
@@ -20,31 +20,39 @@ packages/
   plugins/<name>/   插件包：manifest + 贡献点 + 可选后端 / 客户端 bundle
                            ── 以上是宿主侧（纯 Node ESM）──
   client-kit/       客户端平台层：基础 UI / 窗口外壳 / logger / monaco（不放任何窗口的领域状态）
-  sdk/              插件开发者 API：PluginSlot 渲染管线、useHost
-  client-ui-slots/ client-modules/ client-ui-renderer/ client-ui-layout/
-                    客户端接缝：slot 注册表、视图模块表、React 绑定、zone slot 注册（**不是窗口**）
+  sdk/              插件开发者 API：useHost / 受限宿主 API / 插件词条上下文
+  client-ui-slots/ client-modules/ client-ui-renderer/
+                    客户端接缝：slot 注册表、模块表 + bundle 加载、渲染管线
+                    （React 绑定 / PluginSlot / 视图外壳 ViewFrame；**不是窗口**）
+  client-ui-plugins/
+                    客户端功能包：设置与欢迎窗口共用的插件管理界面（**不是窗口**）
   client-ui-main/ client-ui-settings/ client-ui-welcome/
                     客户端窗口：一个包 = 一扇窗的界面（声明 nide.client.windowTypes）
-  client-runtime/   客户端树：按 windowType 挂载窗口包 + bundle 加载 + 生成的花名册
+  client-runtime/   客户端树：按 windowType 挂载窗口包 + 生成的花名册（**只做装配**）
   hello/            最小 Cordis 插件（冒烟用）
 ```
 
+切法对齐 DSH：**包按能力 / 角色切，共享面只有「库」**。窗口与功能包是装配出来的
+东西，不是共享层；共享代码要么进库（`client-kit` / `client-ui-renderer` /
+`client-ui-slots` / `client-modules`），要么进 `contracts`。
+
 ## 包类型与允许的依赖
 
-| 类型            | 包                                                                               | 允许依赖                                           | 一个包只装                               |
-| --------------- | -------------------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------- |
-| contract        | `contracts`                                                                      | 无（连 `import type` 也不行）                      | 形状、纯函数、词条基础表                 |
-| kernel          | `kernel`                                                                         | contract                                           | ctx 扩展、RPC 表、反向桥                 |
-| service         | `project` `content` `config` `i18n` `appearance` `secrets` `ai` `plugin-runtime` | contract, kernel                                   | 一个业务域；服务之间只走 `ctx.<service>` |
-| bootstrap       | `boot` `host`                                                                    | contract, kernel, service, bootstrap, hello        | 装配与进程入口                           |
-| shell           | `shell`                                                                          | contract                                           | 只有 Electron 才能做的事                 |
-| client-platform | `client-kit`                                                                     | contract                                           | 三扇窗共用的 UI / 外壳 / logger / monaco |
-| client-sdk      | `sdk`                                                                            | contract, client-platform                          | 插件作者看到的 API                       |
-| client-seam     | `client-ui-slots` `client-modules` `client-ui-renderer` `client-ui-layout`       | contract, client-platform, client-seam             | slot / 模块 / 渲染绑定这类接缝           |
-| client-window   | `client-ui-main` `client-ui-settings` `client-ui-welcome`                        | contract, client-platform, client-sdk, client-seam | 一扇窗的界面与领域状态                   |
-| client-runtime  | `client-runtime`                                                                 | 上面所有客户端层                                   | 客户端树与 bundle 加载                   |
-| plugin          | `plugins/*`                                                                      | contract, client-sdk                               | manifest + 贡献点                        |
-| smoke           | `hello`                                                                          | 无                                                 | 冒烟                                     |
+| 类型            | 包                                                                               | 允许依赖                                                           | 一个包只装                                  |
+| --------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
+| contract        | `contracts`                                                                      | 无（连 `import type` 也不行）                                      | 形状、纯函数、词条基础表、端口与领域错误    |
+| kernel          | `kernel`                                                                         | contract                                                           | ctx 扩展、RPC 表、反向桥                    |
+| service         | `project` `content` `config` `i18n` `appearance` `secrets` `ai` `plugin-runtime` | contract, kernel                                                   | 一个业务域；服务之间只走 `ctx.<service>`    |
+| bootstrap       | `boot` `host`                                                                    | contract, kernel, service, bootstrap, hello                        | 装配与进程入口                              |
+| shell           | `shell`                                                                          | contract                                                           | 只有 Electron 才能做的事                    |
+| client-platform | `client-kit`                                                                     | contract                                                           | 三扇窗共用的 UI / 外壳 / logger / monaco    |
+| client-sdk      | `sdk`                                                                            | contract, client-platform                                          | 插件作者看到的 API                          |
+| client-seam     | `client-ui-slots` `client-modules` `client-ui-renderer`                          | contract, client-platform, client-sdk, client-seam                 | slot 注册表、模块表 + bundle 加载、渲染管线 |
+| client-feature  | `client-ui-plugins`                                                              | contract, client-platform, client-sdk, client-seam                 | 跨窗口共用的功能界面                        |
+| client-window   | `client-ui-main` `client-ui-settings` `client-ui-welcome`                        | contract, client-platform, client-sdk, client-seam, client-feature | 一扇窗的界面与领域状态；窗口根与自己的 slot |
+| client-runtime  | `client-runtime`                                                                 | 上面所有客户端层                                                   | 只做装配                                    |
+| plugin          | `plugins/*`                                                                      | contract, client-platform, client-sdk, client-seam                 | manifest + 贡献点                           |
+| smoke           | `hello`                                                                          | 无                                                                 | 冒烟                                        |
 
 四条硬规则：
 
@@ -52,11 +60,13 @@ packages/
    `pnpm lint:imports` 直接报「未分类的包」。
 2. **`import type` 不产生运行时 / 打包耦合**，可以跨层 —— 只有 `contracts` 例外，
    它连类型也不许指向别的包，否则「契约层」就变成了又一个共享层。
-3. **业务包之间的纯函数复用没有第三条路**：要么走 `ctx.<service>`，要么把纯函数搬进
-   `contracts`。`content -> config`、`ai -> secrets` 这种「我只是 import 个纯函数」
-   的写法已经在基线里，不要再加第四条。
-4. **插件只能依赖 `sdk`**。插件作者需要宿主能力时，补 `sdk` 的 API，不要 import
-   `client-ui-*` / `client-kit` —— 那会把宿主窗口的改动直接变成插件的 break。
+3. **业务包之间只有两条路**：走 `ctx.<service>`，或把纯函数 / 端口 / 领域错误搬进
+   `contracts`。不要再 import 另一个业务包的实现（`content -> config`、`ai -> secrets`
+   两条已于 2026-11-18 修掉）。
+4. **插件只能用「库」，不能用「窗口」**：`client-kit` / `client-ui-slots` /
+   `client-ui-renderer` 是库（基础控件、视图外壳、渲染机械），插件可以 import；
+   `client-ui-main` 这类窗口包、`client-ui-plugins` 这类功能包不行 —— 那会把宿主
+   窗口的改动直接变成插件的 break。插件需要新能力时，先补进库或 `sdk`。
 
 ## 门禁
 
@@ -66,7 +76,7 @@ pnpm check          # typecheck + lint:imports + lint + test
 ```
 
 - 存量违规写在脚本的 `KNOWN` 数组里（**只许删不许加**），每条都带原因；修掉一条就把
-  那一行删掉，脚本会报「基线已过期」提醒你。
+  那一行删掉，脚本会报「基线已过期」提醒你。当前基线是 **0 条**。
 - 新增依赖环一律报错；已知环只有在经过基线里的边时才放行，所以环不会悄悄变多。
 
 ## import 约定
@@ -75,9 +85,9 @@ pnpm check          # typecheck + lint:imports + lint + test
   扩展名的相对路径；**不要**用 `@nide/*` 别名（打包产物没有别名解析），也不要 import
   宿主入口；
 - **客户端（`client-*` / `sdk` / `test/renderer`）**：用 `@nide/*` 别名（`tsconfig.web`、
-  `electron.vite.config.ts`、`vitest.config.ts` 三处必须保持一致），包内可用
-  `@nide/client-kit/...` 这类子路径；
-- 新增别名时三处一起改，否则 `typecheck` / 构建 / 测试会各绿各的。
+  `electron.vite.config.ts`、`vitest.config.ts`、`scripts/build-plugin-client.mjs`
+  四处必须保持一致），包内可用 `@nide/client-kit/...` 这类子路径；
+- 新增别名时四处一起改，否则 `typecheck` / 构建 / 插件 bundle / 测试会各绿各的。
 
 ## 服务与插件
 
@@ -87,9 +97,9 @@ pnpm check          # typecheck + lint:imports + lint + test
 - 加一个服务 = 新包 + `packages/bundle/base/cordis.patch.yml` 一行（`core: true`），
   不写装配代码；
 - `packages/plugins/*` 是 NIDE 插件包：`manifest.json` 是数据，入口 `apply` 里调用
-  `ctx.plugins.registerPackage(manifest, dir)`；插件只能依赖 `sdk`；
-- 客户端界面包必须声明 `nide.client.windowTypes` 并导出 `clientPlugins`，随后跑
-  `pnpm gen:client-roster`；不要手写窗口 → 包的表。
+  `ctx.plugins.registerPackage(manifest, dir)`；插件 UI 只依赖库（见硬规则 4）；
+- 客户端**窗口**包必须声明 `nide.client.windowTypes` 并导出 `clientPlugins`，随后跑
+  `pnpm gen:client-roster`；功能包 / 库包不要声明 `nide.client`，否则会被当成窗口挂载。
 
 ## 构建与测试
 

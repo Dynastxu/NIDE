@@ -14,18 +14,8 @@ import { attachHostIpc } from '../../kernel/src/ipc.ts'
 import { RpcRegistry } from '../../kernel/src/rpc.ts'
 import { installNideContext, type HostEnvironment } from '../../kernel/src/context.ts'
 import type {} from './service-types.ts'
-import {
-  initializeProjectDirectory,
-  loadProjectConfig,
-  updateProjectConfig
-} from '../../config/src/project-config.ts'
 import { shell } from '../../kernel/src/shell.ts'
 import type { ChatStreamEvent } from '../../../packages/contracts/src/ai-provider/index.ts'
-
-import type {
-  ProjectConfig,
-  ProjectConfigUpdateResult
-} from '../../../packages/contracts/src/project/index.ts'
 
 /**
  * 独立 host 进程入口（MVP）。
@@ -264,44 +254,6 @@ hostCtx.rpc.register('host', {
     projects: projects.list().length,
     plugins: hostCtx.plugins.list().length
   })
-})
-
-/**
-/**
- * 项目文件读写。
- *
- * 读路径：`readDir` / `readFile` / `readChapters` / `readForeshadowing`；写路径：
- * `writeFile` / `createEntry` / `renameEntry` / `deleteEntry`。范围 / 链接 / 覆盖
- * 语义与主进程那份一致。删除的二次确认**不在这里**：host 没有窗口，preload 先问
- * shell 再调本方法；改名之后的概述映射在 host 内部补（配置服务已经在这里）。
- */
-rpc.register('config', {
-  read: async (): Promise<ProjectConfig | null> => {
-    const root = projects.getCurrent()?.path
-    if (!root) return null
-
-    return loadProjectConfig(root)
-  },
-
-  update: async (patch): Promise<ProjectConfigUpdateResult | null> => {
-    const root = projects.getCurrent()?.path
-    if (!root) return null
-
-    return updateProjectConfig(root, patch)
-  },
-
-  /**
-   * 初始化一个**刚新建**的项目：默认配置、内容目录、默认角色图鉴与概述预设。
-   *
-   * 由 shell 在「新建项目」时经父端口调用（`invokeHost('config','initialize')`）：
-   * 打开已有项目**不**走这里 —— 那会替用户建出他删过的东西。
-   */
-  initialize: async (root): Promise<ProjectConfig | null> => {
-    const target = String(root ?? '')
-    if (target.length === 0) return null
-
-    return initializeProjectDirectory(target)
-  }
 })
 
 /**

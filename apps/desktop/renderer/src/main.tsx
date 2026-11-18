@@ -107,7 +107,7 @@ async function boot(): Promise<void> {
   logger.info('Window slot ready', { slot, occupants: runtime.slots.count(slot) })
 
   const Root = (): JSX.Element => (
-    <SlotProvider registry={runtime.slots}>
+    <SlotProvider registry={runtime.slots} modules={runtime.modules}>
       <Slot name={slot} />
     </SlotProvider>
   )

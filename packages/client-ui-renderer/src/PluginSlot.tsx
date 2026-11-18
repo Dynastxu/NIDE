@@ -1,23 +1,23 @@
 import { createElement, useEffect, useMemo, useState, type ComponentType, type JSX } from 'react'
-import { getClientRuntime } from '@nide/client-runtime'
 import { loggerFor } from '@nide/client-kit/logger'
 import { usePluginStore } from '@nide/client-kit/stores/plugin.store'
 import { useI18nStore, useT } from '@nide/client-kit/stores/i18n.store'
-import { PluginHostProvider } from './PluginHostProvider'
+import { PluginHostProvider } from '@nide/sdk/plugin-views/PluginHostProvider'
+import { useClientModules } from './modules-context'
 import type { PluginViewDescriptor } from '@nide/contracts/plugin-api'
 
 /**
  * 构建期由 Vite 展开成一张静态映射表：
- *   { '../../../../plugins/builtin/demo/src/ui/index.tsx': () => import('...') }
+ *   { '../../../packages/plugins/demo/src/ui/index.tsx': () => import('...') }
  *
  * 这是渲染进程加载插件 UI 的唯一途径：渲染进程在 Chromium 沙箱里没有 fs，
  * 也无法 import 任意磁盘路径；它能加载的只有「它自己的构建系统打包进来的模块」。
  *
- * 路径层数：本文件在 packages/client-kit/src/plugin-views/，四层 ../../../../ 到仓库根。
+ * 路径层数：本文件在 packages/client-ui-renderer/src/，三层 ../../../ 到仓库根。
  * 换成别的目录时必须一起改 —— `import.meta.glob` 的 key 是**相对本文件**的字符串，
  * 改错不会报错，只会得到一张空表（视图全部打不开）。
  */
-const viewModules = import.meta.glob('../../../../packages/plugins/*/src/ui/*.tsx') as Record<
+const viewModules = import.meta.glob('../../../packages/plugins/*/src/ui/*.tsx') as Record<
   string,
   () => Promise<unknown>
 >
@@ -61,9 +61,12 @@ export function PluginSlot({ viewId }: PluginSlotProps): JSX.Element {
    * 先问客户端模块表：插件在 `apply` 里注册的组件优先。
    * 未注册（内置插件尚未迁移 / 客户端树没起来）时回退到构建期 glob。
    *
-   * 注册表返回的是稳定组件标识，不是渲染期新建的组件。
+   * 注册表由 `<SlotProvider modules>` 从客户端树传进来 —— **不** import 客户端树：
+   * 那会让 `sdk/client-ui-*` 与 `client-runtime` 成环。注册表返回的是稳定组件
+   * 标识，不是渲染期新建的组件。
    */
-  const Registered = view ? getClientRuntime()?.modules.get(view.id) : undefined
+  const modules = useClientModules()
+  const Registered = view ? modules?.get(view.id) : undefined
 
   useEffect(() => {
     if (Registered) logger.info('view served by client modules', { viewId })

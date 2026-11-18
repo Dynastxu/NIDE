@@ -7,7 +7,7 @@ import type {
   ViewChromeConfig,
   ViewChromeInput,
   ViewChromePatch
-} from '@nide/client-ui-main/view/chrome-types'
+} from '@nide/client-ui-renderer/view/chrome-types'
 
 /**
  * 外壳开关与内容的**纯计算**。

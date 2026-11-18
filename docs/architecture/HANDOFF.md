@@ -11,6 +11,13 @@
 > `packages/contracts`，插件视图管线从 `client-kit` 挪到 `sdk`。
 > **包清单与依赖规则以 [packages/AGENTS.md](../../packages/AGENTS.md) 为准**，
 > 并由 `pnpm lint:imports` 强制；§6 的关键文件表已换成新路径。
+>
+> **同一天第二轮：8 条依赖债清空（基线归零）。** 按 DSH 的包划分答案落地：
+> 渲染机械（PluginSlot / ViewFrame / chrome）从 `sdk` + `client-ui-main` 收进
+> `client-ui-renderer`，bundle 加载从 `client-runtime` 收进 `client-modules`，
+> `client-ui-layout` 并回 `client-ui-main`（zone slot 由窗口自己注册），
+> 插件管理界面从设置窗口下沉成功能包 `client-ui-plugins`，`content` 改走
+> `ctx.config`、`ai` 只依赖 `contracts` 里的密钥端口。
 
 ## 0. 一句话状态
 
@@ -72,32 +79,29 @@ Host（packages/host，纯 Node ESM）
 
 Client（renderer，HTTP 页面里的第二棵 Cordis 树）
 ├─ apps/desktop/renderer/src/main.tsx：引导壳（按窗口种类 import 三个包、挂 slot）
-├─ packages/client-runtime：Context + slots + modules + bundle loader
-├─ packages/client-kit：共享层（stores / ui / 窗口外壳 / 插件视图管线）
-├─ packages/client-ui-main / client-ui-welcome / client-ui-settings：窗口 UI 本体
-├─ packages/client-ui-layout：六个工具区的 slot 插件
-├─ packages/client-ui-slots / client-ui-renderer
-└─ packages/client-modules：viewId -> Component
+├─ packages/client-runtime：Context + 花名册装配（只做装配）
+├─ packages/client-modules：viewId -> Component + bundle 加载（`__NIDE_REGISTER__` / nide-plugin://）
+├─ packages/client-ui-renderer：渲染管线（SlotProvider / Slot / PluginSlot / 视图外壳 ViewFrame）
+├─ packages/client-kit：共享层（stores / ui / 窗口外壳 / logger / monaco）
+├─ packages/client-ui-plugins：设置与欢迎窗口共用的插件管理界面
+└─ packages/client-ui-main / client-ui-welcome / client-ui-settings：窗口 UI 本体（含 zone slot）
 ```
 
 目录（**目标形态与迁移顺序见 [plugin-first-layout.md](plugin-first-layout.md)**）：
 
 ```
-src/                 # Electron 外壳 + 跨进程契约 + 引导壳（阶段 4 之后会继续缩小）
-  main/              # 窗口 / 菜单 / 对话框 / 日志 / 协议 / host 生命周期
-  preload/           # window.hostAPI 桥
-  renderer/          # 只剩 main.tsx（181 行）+ Tailwind 入口
+apps/desktop/renderer/          # 引导壳（main.tsx + Tailwind 入口）
+packages/shell/                 # Electron 外壳：窗口 / 菜单 / 对话框 / 日志 / 协议 / preload
 packages/
-  contracts/         # 跨进程契约（原 src/shared）：类型 + 纯函数 + 词条基础表
-  boot/ host/ hello/ # host 运行时与业务（host/src/services/*）
-  client-runtime/ client-modules/
-  client-kit/        # 客户端平台层：stores / ui / window 外壳 / logger / monaco
-  sdk/               # 插件开发者 API：插件视图渲染管线（PluginSlot / host-context）
-  client-ui-slots/ client-ui-renderer/
-  client-ui-main/ client-ui-layout/ client-ui-welcome/ client-ui-settings/
-packages/plugins/     # NIDE 插件包（demo / ai-provider / lang-en）
+  contracts/                    # 跨进程契约：类型 + 纯函数 + 词条基础表 + 端口 / 领域错误
+  boot/ host/ hello/           # host 运行时与装配
+  project/ content/ config/ i18n/ appearance/ secrets/ ai/ plugin-runtime/  # 宿主业务服务
+  client-runtime/ client-modules/ client-ui-slots/ client-ui-renderer/     # 装配 + 接缝
+  client-kit/ sdk/                                                        # 库 + 插件 API
+  client-ui-main/ client-ui-plugins/ client-ui-welcome/ client-ui-settings/  # 窗口 + 功能包
+packages/plugins/               # NIDE 插件包（demo / ai-provider / lang-en）
 # profile 由 packages/boot 代码生成，运行时落在 NIDE_HOME/profiles/<name>
-docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目录方案
+docs/architecture/              # 本文件 + 迁移方案 + bundle 说明 + 插件化目录方案
 ```
 
 ## 3. 已完成（可运行、已验证）
@@ -686,8 +690,8 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 | `packages/client-runtime/src/loader.ts`               | bundle 注入：dev 走 `/@fs/`，打包后走 `nide-plugin://`                                     |
 | `packages/client-ui-slots/src/index.ts`               | `SlotRegistry` / `slotsOf`                                                                 |
 | `packages/client-modules/src/index.ts`                | `ClientModuleRegistry` / `modulesOf`                                                       |
-| `packages/client-ui-renderer/src/index.tsx`           | `<SlotProvider>` / `<Slot>`                                                                |
-| `packages/sdk/src/plugin-views/PluginSlot.tsx`        | 先查注册表，再回退 glob                                                                    |
+| `packages/client-ui-renderer/src/index.tsx`           | `<SlotProvider>` / `<Slot>`；模块表由 SlotProvider 注入                                    |
+| `packages/client-ui-renderer/src/PluginSlot.tsx`      | 先查注册表（由 SlotProvider 注入），再回退 glob                                            |
 | `packages/plugins/demo/src/ui/client-entry.tsx`       | bundle 入口                                                                                |
 | `scripts/build-plugin-client.mjs`                     | IIFE 构建                                                                                  |
 | `scripts/build-host.mts`                              | 编译 host 到 `out/host`（TS Node API，不 spawn）                                           |

@@ -1,6 +1,9 @@
+import { createElement } from 'react'
 import type { Context } from 'cordis'
 import { slotsOf } from '@nide/client-ui-slots'
+import type { ZoneId } from '@nide/client-kit/stores/layout.store'
 import App from './App'
+import { ToolZone } from './layout/ToolZone'
 
 /**
  * 主窗口的 client 插件。
@@ -9,14 +12,23 @@ import App from './App'
  * 编辑器 / 文件树 / 内建视图（`HostSlot`）/ 文件菜单（`MainMenu`）。
  * 渲染进程的引导壳按窗口种类动态 import 这里的 `App`。
  *
- * 仍然是「一个根组件」：`zone.*` / `editor.*` 这些子 slot 的拆分是下一步的事，
- * 那一步只影响装配方式，不影响组件本身。
+ * **窗口根与六个工具区都在这里注册**：它们画的都是主窗口自己的布局
+ * （`WorkbenchLayout` / `ToolZone`），没有第二处实现，也就不该有第二个包。
+ * 之前那层 `client-ui-layout` 只是把同样的 `ToolZone` 包一层 slot，却要反向
+ * import 主窗口的组件 —— 那是「包切错了轴」，不是一个可以长期存在的接缝。
  */
 export { default as App } from './App'
 export { MainApp } from './MainApp'
 
-/** 这个包负责的窗口种类（client-runtime 按它装配，不再用 switch） */
-export const windowTypes = ['main'] as const
+/** 六个工具区（`WorkbenchLayout` 按位置渲染 `<Slot name="zone.*">`） */
+const ZONES: readonly ZoneId[] = [
+  'leftTop',
+  'leftBottom',
+  'rightTop',
+  'rightBottom',
+  'bottomLeft',
+  'bottomRight'
+]
 
 export const mainPlugin = {
   name: 'nide-client-ui-main',
@@ -24,7 +36,17 @@ export const mainPlugin = {
   apply(ctx: Context): void {
     const slots = slotsOf(ctx)
     ctx.effect(() => slots.register('main.root', App), 'main.root')
-    ctx.logger('client-ui-main').info('main.root registered')
+
+    // 占位者就是 `ToolZone`：视图内容仍由它按布局 store 解析。哪天视图改由别的
+    // 插件占据某个区，替换的是这里注册的组件，`WorkbenchLayout` 不用改。
+    for (const id of ZONES) {
+      const slot = `zone.${id}`
+      ctx.effect(() => slots.register(slot, () => createElement(ToolZone, { id })), slot)
+    }
+
+    ctx.logger('client-ui-main').info('main.root + zone slots registered', {
+      zones: ZONES.length
+    })
   }
 }
 

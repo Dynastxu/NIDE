@@ -1,7 +1,7 @@
 import { JSX, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
-import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
+import { useViewChrome } from '@nide/client-ui-renderer/view/chrome-context'
+import { ViewFrame } from '@nide/client-ui-renderer/view/ViewFrame'
 import { ProjectsPanel } from '@nide/client-ui-main/explorer/ProjectsPanel'
 import { createChapter, suggestNextChapter } from '@nide/client-ui-main/explorer/chapter-actions'
 import {

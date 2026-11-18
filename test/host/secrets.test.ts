@@ -4,9 +4,9 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   SecretDecryptError,
-  SecretStorageUnavailableError,
-  SecretVault
-} from '../../packages/secrets/src/secrets.ts'
+  SecretStorageUnavailableError
+} from '../../packages/contracts/src/secrets/index.ts'
+import { SecretVault } from '../../packages/secrets/src/secrets.ts'
 import type { SecretsBackend } from '../../packages/secrets/src/secrets.ts'
 
 /**

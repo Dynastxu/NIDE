@@ -1,7 +1,7 @@
 import { type JSX } from 'react'
 import { HostPlaceholder } from '@nide/client-ui-main/host-view/HostPlaceholder'
-import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
-import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
+import { useViewChrome } from '@nide/client-ui-renderer/view/chrome-context'
+import { ViewFrame } from '@nide/client-ui-renderer/view/ViewFrame'
 
 /**
  * 版本控制视图 —— 侧边按钮条**左下角**那颗按钮打开的页面。

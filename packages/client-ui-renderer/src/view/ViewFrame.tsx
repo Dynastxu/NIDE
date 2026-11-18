@@ -3,9 +3,9 @@ import { isZoneId, useLayoutStore, type ZoneId } from '@nide/client-kit/stores/l
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { DropdownMenu } from '@nide/client-kit/ui/DropdownMenu'
-import { useViewDescriptor } from '@nide/client-ui-main/view/view-descriptor'
-import { ChromeSlot, ViewTabStripView } from '@nide/client-ui-main/view/ViewTabStrip'
-import type { ViewChromeConfig } from '@nide/client-ui-main/view/chrome-context'
+import { useViewDescriptor } from '@nide/client-ui-renderer/view/view-descriptor'
+import { ChromeSlot, ViewTabStripView } from '@nide/client-ui-renderer/view/ViewTabStrip'
+import type { ViewChromeConfig } from '@nide/client-ui-renderer/view/chrome-context'
 import type { ViewChromeSlots, ViewMoreItem } from '@nide/contracts/plugin-api'
 import type { MenuItem } from '@nide/client-kit/ui/MenuItem'
 
