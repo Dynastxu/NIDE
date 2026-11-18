@@ -23,8 +23,8 @@
     "packages/client-ui-settings/src/**/*",
     "packages/client-ui-welcome/src/**/*",
     "packages/client-ui-renderer/src/**/*",
-    "plugins/builtin/*/src/ui/**/*",
-    "plugins/builtin/*/src/settings/**/*",
+    "packages/plugins/*/src/ui/**/*",
+    "packages/plugins/*/src/settings/**/*",
     "test/renderer/**/*"
   ],
   "compilerOptions": {
