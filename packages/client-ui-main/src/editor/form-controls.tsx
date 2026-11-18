@@ -24,8 +24,8 @@ export function FormField({
   return (
     <div className="flex min-w-0 gap-3">
       <div className="flex w-20 shrink-0 flex-col gap-0.5 pt-1">
-        <span className="text-xs break-words text-zinc-300">{label}</span>
-        {hint && <span className="text-[10px] leading-3 text-zinc-500">{hint}</span>}
+        <span className="text-xs break-words text-fg">{label}</span>
+        {hint && <span className="text-[10px] leading-3 text-fg-subtle">{hint}</span>}
       </div>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
@@ -54,7 +54,7 @@ export function FormTextArea({
       onChange={(event) => onChange(event.target.value)}
       {...(onBlur ? { onBlur } : {})}
       placeholder={placeholder}
-      className="w-full resize-y rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs leading-5 text-zinc-100 outline-none focus:border-blue-500"
+      className="w-full resize-y rounded border border-line bg-surface px-2 py-1 text-xs leading-5 text-fg outline-none focus:border-accent"
     />
   )
 }

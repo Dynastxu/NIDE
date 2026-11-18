@@ -33,15 +33,15 @@ export default function LanguagePage({
   return (
     <section className="flex flex-col gap-4 p-6">
       <header className="flex flex-col gap-1">
-        <h2 className="text-sm font-medium text-zinc-100">{t('host.settings.page.language')}</h2>
-        <p className="max-w-prose text-xs leading-relaxed text-zinc-400">
+        <h2 className="text-sm font-medium text-fg">{t('host.settings.page.language')}</h2>
+        <p className="max-w-prose text-xs leading-relaxed text-fg-muted">
           {t('host.settings.language.description')}
         </p>
-        <p className="text-xs text-zinc-500">{t('host.settings.language.restartHint')}</p>
+        <p className="text-xs text-fg-subtle">{t('host.settings.language.restartHint')}</p>
       </header>
 
       <div className="flex flex-col gap-2">
-        <span className="text-[11px] tracking-wide text-zinc-500 uppercase">
+        <span className="text-[11px] tracking-wide text-fg-subtle uppercase">
           {t('host.settings.language.current')}
         </span>
 
@@ -63,13 +63,15 @@ export default function LanguagePage({
                   className={[
                     'flex w-full items-center justify-between rounded border px-3 py-2 text-left text-xs transition-colors',
                     active
-                      ? 'border-blue-500 bg-blue-600/15 text-zinc-100'
-                      : 'border-zinc-700 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800'
+                      ? 'border-accent bg-accent/20 text-fg'
+                      : 'border-line text-fg hover:border-line-strong hover:bg-subtle'
                   ].join(' ')}
                 >
                   {/* label 是语言的「自称」（简体中文 / English），刻意不翻译 */}
                   <span>{descriptor.label}</span>
-                  {active && <span className="text-[11px] text-blue-400">{descriptor.locale}</span>}
+                  {active && (
+                    <span className="text-[11px] text-accent-fg">{descriptor.locale}</span>
+                  )}
                 </button>
               </li>
             )

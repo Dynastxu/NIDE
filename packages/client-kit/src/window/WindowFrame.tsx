@@ -55,11 +55,11 @@ export function WindowFrame({
   const isMac = navigator.userAgent.includes('Macintosh')
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-900 text-zinc-200">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-surface text-fg">
       {/* 右侧刻意**不留**内边距：三个窗口按钮要贴死窗口边缘，和原生标题栏一致
           （Windows 的关闭按钮就顶在右上角）。留一条缝的话，那几像素既不响应
           按钮也不响应拖拽，是个能被注意到的死区。 */}
-      <div className="flex h-8 shrink-0 items-center bg-zinc-950 select-none [-webkit-app-region:drag]">
+      <div className="flex h-8 shrink-0 items-center bg-panel select-none [-webkit-app-region:drag]">
         {/* 让开 macOS 的系统交通灯（它们固定在最左边） */}
         {isMac && <div aria-hidden="true" className="w-[78px] shrink-0" />}
 
@@ -67,7 +67,7 @@ export function WindowFrame({
             它是唯一的 flex-1：标题长了会截断，并把这之后的一切推到右边 */}
         <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-2.5">
           <img src={iconUrl} alt="" aria-hidden="true" className="h-4 w-4 shrink-0" />
-          <span className="truncate text-xs text-zinc-400">{title}</span>
+          <span className="truncate text-xs text-fg-muted">{title}</span>
 
           {/* 菜单按钮 / 菜单栏、项目下拉都挂在这里：它们在视觉上属于「靠左的那一组」，
               跟着应用名，而不是跟着右边的窗口按钮 */}

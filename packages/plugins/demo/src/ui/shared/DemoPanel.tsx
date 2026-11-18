@@ -153,14 +153,14 @@ export function DemoPanel({
           title={t('addTab')}
           aria-label={t('addTab')}
           onClick={addTab}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-fg-subtle hover:bg-subtle hover:text-fg"
         >
           <BuiltinIcon name="plus" className="h-3.5 w-3.5" />
         </button>
       )
     },
     actions: (
-      <span className="shrink-0 self-center pr-1 text-[11px] text-zinc-500">
+      <span className="shrink-0 self-center pr-1 text-[11px] text-fg-subtle">
         {t('clicked', { count })}
       </span>
     )
@@ -168,8 +168,8 @@ export function DemoPanel({
 
   return (
     <ViewFrame chrome={chrome} slots={slots}>
-      <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden p-3 text-zinc-300">
-        <div className="min-h-0 shrink-0 font-mono text-[11px] leading-4 break-all text-zinc-500">
+      <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden p-3 text-fg">
+        <div className="min-h-0 shrink-0 font-mono text-[11px] leading-4 break-all text-fg-subtle">
           {hint}
         </div>
 
@@ -178,7 +178,7 @@ export function DemoPanel({
         </p>
 
         {/* 外壳自己带了多少配置，这里就显示多少 —— 便于现场确认声明确实生效了 */}
-        <pre className="min-h-0 shrink-0 overflow-auto rounded bg-zinc-900/60 p-2 font-mono text-[10px] leading-4 text-zinc-500">
+        <pre className="min-h-0 shrink-0 overflow-auto rounded bg-subtle p-2 font-mono text-[10px] leading-4 text-fg-subtle">
           {`tabStrip=${chrome.tabStrip} tabs=${chrome.tabs.length} ` +
             `closable=${String(chrome.tabsClosable)} more=${String(
               chrome.showMore && chrome.moreItems.length > 0
@@ -188,7 +188,7 @@ export function DemoPanel({
         <button
           type="button"
           onClick={() => setCount((value) => value + 1)}
-          className="mt-auto shrink-0 self-start rounded bg-zinc-800 px-2 py-1 text-[11px] hover:bg-zinc-700"
+          className="mt-auto shrink-0 self-start rounded bg-subtle px-2 py-1 text-[11px] hover:bg-control"
         >
           {t('clicked', { count })}
         </button>

@@ -13,8 +13,8 @@ const logger = loggerFor('editor')
  * - 浅色 `vs` —— Monaco 的默认浅色。
  *
  * 想更贴合宿主自己的色板时，下一步是 `monaco.editor.defineTheme('nide-light', …)`
- * 用 light.css 里那几个值定义一套，再把这里换成 `'nide-light'`。那是**纯增量**的
- * 改动：本文件的接口不用动，只是多一个 defineTheme 调用。
+ * 用宿主 token 定义一套，再把这里换成 `'nide-light'`。那是**纯增量**的改动：
+ * 本文件的接口不用动，只是多一个 defineTheme 调用。
  */
 const MONACO_THEME: Record<ThemePalette, string> = {
   dark: 'vs-dark',

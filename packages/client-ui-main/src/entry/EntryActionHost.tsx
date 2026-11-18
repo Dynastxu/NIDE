@@ -129,14 +129,14 @@ function NoticeToast(): JSX.Element | null {
   return (
     <div
       role="alert"
-      className="fixed bottom-4 left-1/2 z-[90] flex w-max max-w-[min(560px,80vw)] -translate-x-1/2 items-start gap-2 rounded-md border border-amber-900/60 bg-amber-950/95 px-3 py-2 shadow-xl shadow-black/40"
+      className="fixed bottom-4 left-1/2 z-[90] flex w-max max-w-[min(560px,80vw)] -translate-x-1/2 items-start gap-2 rounded-md border border-warning-line bg-warning-soft px-3 py-2 shadow-xl shadow-shade"
     >
-      <p className="min-w-0 flex-1 text-[11px] leading-4 text-amber-200">{notice}</p>
+      <p className="min-w-0 flex-1 text-[11px] leading-4 text-warning-strong">{notice}</p>
       <button
         type="button"
         aria-label={t('host.editor.tab.close')}
         onClick={() => setNotice(null)}
-        className="shrink-0 rounded p-0.5 text-amber-300 hover:bg-amber-900/50"
+        className="shrink-0 rounded p-0.5 text-warning-strong hover:bg-warning-line/40"
       >
         <BuiltinIcon name="close" className="h-3 w-3" />
       </button>

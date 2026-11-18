@@ -276,7 +276,7 @@ export function PluginsBrowser({
   return (
     <section className="flex h-full min-h-0 flex-col">
       {/* 标签页 + 安装入口（按钮不放进 tablist：它不是 tab） */}
-      <div className="flex shrink-0 items-center gap-1 border-b border-zinc-800 px-4">
+      <div className="flex shrink-0 items-center gap-1 border-b border-line-subtle px-4">
         <div role="tablist" className="flex items-center gap-1">
           <Tab
             id="marketplace"
@@ -300,43 +300,43 @@ export function PluginsBrowser({
         <button
           type="button"
           onClick={() => void installPlugin()}
-          className="ml-auto rounded border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+          className="ml-auto rounded border border-line px-2 py-1 text-[11px] text-fg transition-colors hover:bg-subtle"
         >
           {t('host.settings.plugins.install')}
         </button>
       </div>
 
       {notice && (
-        <p className="shrink-0 border-b border-zinc-800 px-4 py-2 text-xs text-amber-400">
+        <p className="shrink-0 border-b border-line-subtle px-4 py-2 text-xs text-warning">
           {notice}
         </p>
       )}
 
       {tab === 'core' ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <p className="border-b border-zinc-800 px-4 py-2 text-[11px] leading-relaxed text-zinc-500">
+          <p className="border-b border-line-subtle px-4 py-2 text-[11px] leading-relaxed text-fg-subtle">
             {t('host.settings.plugins.core.intro')}
           </p>
-          <ul className="divide-y divide-zinc-800/60">
+          <ul className="divide-y divide-line-subtle/60">
             {core.map((entry) => (
               <li key={`${entry.kind}:${entry.id}`} className="flex items-start gap-3 px-4 py-2">
-                <span className="mt-0.5 shrink-0 rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                <span className="mt-0.5 shrink-0 rounded border border-line px-1.5 py-0.5 text-[10px] text-fg-muted">
                   {entry.kind === 'service'
                     ? t('host.settings.plugins.core.kind.service')
                     : t('host.settings.plugins.core.kind.package')}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-xs text-zinc-200">{entry.name}</p>
+                  <p className="text-xs text-fg">{entry.name}</p>
                   {entry.description && (
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500">
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-fg-subtle">
                       {entry.description}
                     </p>
                   )}
-                  <p className="mt-0.5 truncate font-mono text-[10px] text-zinc-600">
+                  <p className="mt-0.5 truncate font-mono text-[10px] text-fg-subtle">
                     {entry.path}
                   </p>
                 </div>
-                <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 text-[10px] text-zinc-500">
+                <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 text-[10px] text-fg-subtle">
                   <span>{t('host.settings.plugins.state.enabled')}</span>
                   <span>
                     {entry.kind === 'service'
@@ -349,17 +349,17 @@ export function PluginsBrowser({
           </ul>
         </div>
       ) : tab === 'marketplace' ? (
-        <p className="p-6 text-xs text-zinc-500">
+        <p className="p-6 text-xs text-fg-subtle">
           {t('host.settings.plugins.marketplace.placeholder')}
         </p>
       ) : (
         <div className="flex min-h-0 flex-1">
           {/* 左：插件列表 */}
-          <div className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-zinc-800">
+          <div className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-line-subtle">
             {loading ? (
-              <p className="p-4 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+              <p className="p-4 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
             ) : plugins.length === 0 ? (
-              <p className="p-4 text-xs text-zinc-500">{t('host.settings.plugins.empty')}</p>
+              <p className="p-4 text-xs text-fg-subtle">{t('host.settings.plugins.empty')}</p>
             ) : (
               <>
                 <PluginGroup
@@ -393,7 +393,7 @@ export function PluginsBrowser({
                 runtime={backends[selected.id]}
               />
             ) : (
-              <p className="p-6 text-xs text-zinc-500">
+              <p className="p-6 text-xs text-fg-subtle">
                 {t('host.settings.plugins.detail.select')}
               </p>
             )}
@@ -402,7 +402,7 @@ export function PluginsBrowser({
       )}
 
       {/* 把「会落盘、不卸载」这两条事实写在界面上，而不是只写在代码注释里 */}
-      <p className="shrink-0 border-t border-zinc-800 px-4 py-2 text-[11px] leading-relaxed text-zinc-500">
+      <p className="shrink-0 border-t border-line-subtle px-4 py-2 text-[11px] leading-relaxed text-fg-subtle">
         {t('host.settings.plugins.note')}
       </p>
 
@@ -446,9 +446,7 @@ function Tab({
       className={[
         // border-b-2 用透明代替「不画」：否则选中与未选中会差 2px 高度，切换时整行抖动
         'border-b-2 px-3 py-2 text-xs transition-colors',
-        active
-          ? 'border-blue-500 text-zinc-100'
-          : 'border-transparent text-zinc-400 hover:text-zinc-200'
+        active ? 'border-accent text-fg' : 'border-transparent text-fg-muted hover:text-fg'
       ].join(' ')}
     >
       {label}
@@ -478,7 +476,7 @@ function PluginGroup({
 
   return (
     <div className="flex flex-col py-1">
-      <span className="px-3 py-1 text-[11px] font-medium tracking-wide text-zinc-500 uppercase">
+      <span className="px-3 py-1 text-[11px] font-medium tracking-wide text-fg-subtle uppercase">
         {label}
       </span>
 
@@ -525,7 +523,7 @@ function PluginRow({
       }}
       className={[
         'flex cursor-default items-center gap-2 px-3 py-1.5 text-xs transition-colors',
-        selected ? 'bg-blue-600/20 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-800'
+        selected ? 'bg-accent/20 text-fg' : 'text-fg hover:bg-subtle'
       ].join(' ')}
     >
       <input
@@ -536,15 +534,15 @@ function PluginRow({
         aria-label={`${t('host.settings.plugins.enable')}: ${plugin.name}`}
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => onToggle(event.target.checked)}
-        className="h-3.5 w-3.5 shrink-0 accent-blue-600 disabled:opacity-40"
+        className="h-3.5 w-3.5 shrink-0 accent-[var(--color-accent)] disabled:opacity-40"
       />
-      <span className={['truncate', enabled ? '' : 'text-zinc-500 line-through'].join(' ')}>
+      <span className={['truncate', enabled ? '' : 'text-fg-subtle line-through'].join(' ')}>
         {plugin.name}
       </span>
       {plugin.requiresRestart && (
         <span
           title={t('host.settings.plugins.detail.requiresRestart')}
-          className="shrink-0 rounded bg-zinc-700/70 px-1 text-[10px] text-zinc-400"
+          className="shrink-0 rounded bg-control px-1 text-[10px] text-fg"
         >
           {t('host.settings.plugins.restartBadge')}
         </span>
@@ -584,10 +582,10 @@ function PluginDetail({
   return (
     <div className="flex flex-col gap-4 p-6">
       <header className="flex flex-col gap-1">
-        <h2 className="text-sm font-medium text-zinc-100">{plugin.name}</h2>
-        <p className="text-xs text-zinc-500">{plugin.id}</p>
+        <h2 className="text-sm font-medium text-fg">{plugin.name}</h2>
+        <p className="text-xs text-fg-subtle">{plugin.id}</p>
         {!enabled && (
-          <p className="text-xs text-amber-400">{t('host.settings.plugins.disabledWarning')}</p>
+          <p className="text-xs text-warning">{t('host.settings.plugins.disabledWarning')}</p>
         )}
       </header>
 
@@ -618,33 +616,33 @@ function PluginDetail({
         />
         <DetailRow label={t('host.settings.plugins.state.runtime')} value={runtimeValue} />
         {runtime?.error && (
-          <p className="text-[11px] leading-relaxed text-red-400">{runtime.error}</p>
+          <p className="text-[11px] leading-relaxed text-danger-fg">{runtime.error}</p>
         )}
       </dl>
 
       <div className="flex flex-col gap-1">
-        <span className="text-[11px] tracking-wide text-zinc-500 uppercase">
+        <span className="text-[11px] tracking-wide text-fg-subtle uppercase">
           {t('host.settings.plugins.detail.permissions')}
         </span>
         <PluginPermissionSummary permissions={plugin.permissions ?? { trust: 'full' }} />
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-[11px] tracking-wide text-zinc-500 uppercase">
+        <span className="text-[11px] tracking-wide text-fg-subtle uppercase">
           {t('host.settings.plugins.detail.views')}
         </span>
         {plugin.views && plugin.views.length > 0 ? (
-          <ul className="flex flex-col gap-1 text-xs text-zinc-400">
+          <ul className="flex flex-col gap-1 text-xs text-fg-muted">
             {plugin.views.map((view) => (
               <li key={view}>{view}</li>
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-zinc-400">{t('host.settings.plugins.detail.views.none')}</p>
+          <p className="text-xs text-fg-muted">{t('host.settings.plugins.detail.views.none')}</p>
         )}
       </div>
 
-      <p className="max-w-prose text-xs leading-relaxed text-zinc-500">
+      <p className="max-w-prose text-xs leading-relaxed text-fg-subtle">
         {plugin.description ?? ''}
       </p>
     </div>
@@ -654,8 +652,8 @@ function PluginDetail({
 function DetailRow({ label, value }: { label: string; value: string }): JSX.Element {
   return (
     <div className="flex gap-3">
-      <dt className="w-20 shrink-0 text-zinc-500">{label}</dt>
-      <dd className="min-w-0 break-all text-zinc-300">{value}</dd>
+      <dt className="w-20 shrink-0 text-fg-subtle">{label}</dt>
+      <dd className="min-w-0 break-all text-fg">{value}</dd>
     </div>
   )
 }
@@ -756,8 +754,8 @@ function PluginPermissionSummary({ permissions }: { permissions: PluginPermissio
     <dl className="flex flex-col gap-1 text-xs">
       {rows.map((row) => (
         <div key={row.label} className="flex gap-3">
-          <dt className="w-24 shrink-0 text-zinc-500">{row.label}</dt>
-          <dd className="min-w-0 break-all text-zinc-400">{row.value}</dd>
+          <dt className="w-24 shrink-0 text-fg-subtle">{row.label}</dt>
+          <dd className="min-w-0 break-all text-fg-muted">{row.value}</dd>
         </div>
       ))}
     </dl>

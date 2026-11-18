@@ -97,7 +97,7 @@ async function boot(): Promise<void> {
     logger.error('Client runtime unavailable; the window cannot mount', { windowType })
     ReactDOM.createRoot(document.getElementById('root')!).render(
       <ConfirmHost>
-        <p className="p-6 text-sm text-zinc-400">{getT()('host.startup.clientRuntimeFailed')}</p>
+        <p className="p-6 text-sm text-fg-muted">{getT()('host.startup.clientRuntimeFailed')}</p>
       </ConfirmHost>
     )
     return

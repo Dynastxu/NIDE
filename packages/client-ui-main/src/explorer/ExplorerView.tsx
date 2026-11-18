@@ -360,7 +360,7 @@ function FileTreePane(): JSX.Element {
    * 只回一行字：外壳（标签条）由外层画，这里只是「文件」那一面的内容。
    */
   if (!projectPath) {
-    return <p className="p-3 text-xs text-zinc-500">{t('host.explorer.empty')}</p>
+    return <p className="p-3 text-xs text-fg-subtle">{t('host.explorer.empty')}</p>
   }
 
   return (
@@ -377,7 +377,7 @@ function FileTreePane(): JSX.Element {
         onScroll={() => setHovered(null)}
       >
         {rows.length === 0 ? (
-          <p className="px-3 py-1.5 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+          <p className="px-3 py-1.5 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
         ) : (
           rows.map((row) =>
             row.kind === 'entry' ? (
@@ -501,7 +501,7 @@ function NameOverlay({
           : // 第一帧还没量到位置：先别让人看见它闪一下
             { left: 0, top: 0, visibility: 'hidden' }
       }
-      className="fixed z-60 w-max rounded border border-zinc-600 bg-zinc-900 py-0.75 text-xs text-zinc-100 shadow-lg shadow-black/60"
+      className="fixed z-60 w-max rounded border border-line-strong bg-surface py-0.75 text-xs text-fg shadow-lg shadow-shade"
     >
       {/* 不换行、不截断：外面靠窗口右边缘收住，宽度够就整条显示 */}
       <span className="block whitespace-nowrap">{entry.name}</span>
@@ -612,16 +612,16 @@ function EntryRow({
          * 它量出来就是文字的完整宽度，浮层判「有没有被切到」要的就是这个。
          */
         'flex w-max min-w-full items-center gap-1 py-0.75 pr-2 text-left text-xs transition-colors',
-        active ? 'bg-blue-600/30 text-zinc-100' : 'hover:bg-zinc-800',
+        active ? 'bg-accent/20 text-fg' : 'hover:bg-subtle',
         // 打不开的文件压低一档对比度：一眼能看出「这一支不进编辑器」，
         // 但仍然有正常的悬停反馈 —— 它不是坏掉的，只是不参与编辑
-        !active && unsupported ? 'text-zinc-400' : 'text-zinc-300'
+        !active && unsupported ? 'text-fg-muted' : 'text-fg'
       ].join(' ')}
       style={{ paddingLeft: `${depth * INDENT_WIDTH + 6}px` }}
     >
       <IndentGuides guides={row.guides} />
 
-      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-zinc-500">
+      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-fg-subtle">
         {expandable && (
           // 展开状态用同一个字形旋转表达，两种状态宽度完全一致
           <BuiltinIcon
@@ -633,9 +633,7 @@ function EntryRow({
 
       <BuiltinIcon
         name={isDir ? 'folder' : isMarkdownPath(entry.path) ? 'file' : 'code'}
-        className={['h-3.5 w-3.5 shrink-0', isDir ? 'text-amber-400/70' : 'text-zinc-500'].join(
-          ' '
-        )}
+        className={['h-3.5 w-3.5 shrink-0', isDir ? 'text-warning/70' : 'text-fg-subtle'].join(' ')}
       />
 
       {/* 不截断：宽度由文字决定，名字超长时树整体可横向滚动 */}
@@ -643,7 +641,7 @@ function EntryRow({
         ref={nameRef}
         onMouseEnter={onNameHover}
         onMouseLeave={onNameLeave}
-        className={['shrink-0 whitespace-nowrap', unsupported !== null ? 'text-zinc-400' : ''].join(
+        className={['shrink-0 whitespace-nowrap', unsupported !== null ? 'text-fg-muted' : ''].join(
           ' '
         )}
       >
@@ -659,7 +657,7 @@ function EntryRow({
  * 空目录**不在这里** —— 它不是一句话，而是那一行没有展开箭头（见 TreeRow 的 empty）。
  */
 function NoteRow({ row }: { row: Extract<TreeRow, { kind: 'note' }> }): JSX.Element {
-  const tone = row.tone === 'error' ? 'text-red-400' : 'text-zinc-500'
+  const tone = row.tone === 'error' ? 'text-danger-fg' : 'text-fg-subtle'
 
   return (
     <p
@@ -692,7 +690,7 @@ function IndentGuides({ guides }: { guides: boolean[] }): JSX.Element | null {
           aria-hidden="true"
           className={[
             'h-4 w-3 shrink-0 border-l',
-            draw ? 'border-zinc-700/60' : 'border-transparent'
+            draw ? 'border-line/60' : 'border-transparent'
           ].join(' ')}
         />
       ))}

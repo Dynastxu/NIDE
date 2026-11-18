@@ -38,10 +38,10 @@ export function onPaletteChange(listener: (palette: ThemePalette) => void): () =
 /**
  * 应用一套配色：给根元素挂 / 摘 `.theme-light`，并通知订阅者。
  *
- * **深色时刻意什么都不挂**：组件里的色阶就是深色，`index.css` 的 body 也是深色。
- * 于是"深色主题"这条路径上没有任何一层可以被写错。
+ * **深色时刻意什么都不挂**：不挂类名就是 `@theme` 里那套深色 token，`index.css` 的
+ * body 也直接引用它们。
  *
- * `color-scheme` 由 light.css 里的 `.theme-light` 规则声明（滚动条、原生 `<select>`
+ * `color-scheme` 由 light.css 的 `:root.theme-light` 规则声明（滚动条、原生 `<select>`
  * 的下拉列表、表单控件都由 Chromium 按它来画）。
  */
 export function applyPalette(palette: ThemePalette): void {

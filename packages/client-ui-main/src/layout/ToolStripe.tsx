@@ -53,9 +53,9 @@ export function ToolStripe({ side }: { side: 'left' | 'right' }): JSX.Element {
       onContextMenu={openMenu}
       title={t('host.stripe.tooltip')}
       className={[
-        'flex shrink-0 flex-col items-center gap-1 overflow-x-hidden overflow-y-auto bg-zinc-950 px-1 py-1',
+        'flex shrink-0 flex-col items-center gap-1 overflow-x-hidden overflow-y-auto bg-panel px-1 py-1',
         showTitles ? 'w-24' : 'w-9',
-        side === 'left' ? 'border-r border-zinc-800' : 'border-l border-zinc-800'
+        side === 'left' ? 'border-r border-line-subtle' : 'border-l border-line-subtle'
       ].join(' ')}
     >
       {topZones.map((id, i) => (
@@ -82,7 +82,7 @@ function StripeDivider({ wide }: { wide: boolean }): JSX.Element {
   return (
     <div
       aria-hidden="true"
-      className={['my-1 h-px shrink-0 bg-zinc-700', wide ? 'w-full' : 'w-5'].join(' ')}
+      className={['my-1 h-px shrink-0 bg-control', wide ? 'w-full' : 'w-5'].join(' ')}
     />
   )
 }
@@ -147,7 +147,7 @@ function StripeButton({ view, zoneId, isFirst, showTitles }: StripeButtonProps):
       className={[
         'flex flex-col items-center justify-center rounded transition-colors',
         showTitles ? 'w-full gap-1 px-1 py-1.5' : 'h-7 w-7',
-        shown ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200'
+        shown ? 'bg-accent text-on-accent' : 'text-fg-subtle hover:bg-subtle hover:text-fg'
       ].join(' ')}
     >
       <ViewIcon view={view} />

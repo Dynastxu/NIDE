@@ -135,8 +135,8 @@ function readBootAppearance(): AppearancePreference {
  * `.theme-light`（浅色那套样式表靠这个类名生效），晚一步就会先按深色画一帧、
  * 选浅色时表现为整屏闪一下。
  *
- * 缺失或写坏时按**深色**算：深色就是组件里写死的那套色阶，也就是"什么都不挂"的
- * 默认状态 —— 这个回落永远不会画出错误颜色。
+ * 缺失或写坏时按**深色**算：不挂类名就是 `@theme` 里的深色 token，也就是"什么都不挂"
+ * 的默认状态 —— 这个回落永远不会画出错误颜色。
  */
 function readBootPalette(): ThemePalette {
   const arg = process.argv.find((item) => item.startsWith(THEME_PALETTE_ARG_PREFIX))

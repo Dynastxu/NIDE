@@ -189,15 +189,15 @@ function ChapterSection({ onCreate }: { onCreate: () => void }): JSX.Element {
       <CreateRow label={t('host.project.panel.new')} onClick={onCreate} disabled={!canCreate} />
 
       {error ? (
-        <p className="px-3 py-1 text-xs text-red-400">{t(CHAPTER_ERROR_KEYS[error])}</p>
+        <p className="px-3 py-1 text-xs text-danger-fg">{t(CHAPTER_ERROR_KEYS[error])}</p>
       ) : (loading || configLoading) && chapters === null ? (
         /*
          * 读配置那一段也算「在加载」。少了它，启动后会先显示一帧「这个目录里还没有
          * 章节」—— 那时章节列表**还没开始读**，而内容目录是不是空的根本还不知道。
          */
-        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+        <p className="px-3 py-1 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
       ) : items.length === 0 ? (
-        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.project.panel.chapter.empty')}</p>
+        <p className="px-3 py-1 text-xs text-fg-subtle">{t('host.project.panel.chapter.empty')}</p>
       ) : (
         items.map((file) => (
           <ChapterRow
@@ -285,15 +285,15 @@ function ForeshadowingSection({ onCreate }: { onCreate: () => void }): JSX.Eleme
       <CreateRow label={t('host.project.panel.new')} onClick={onCreate} disabled={!canCreate} />
 
       {error ? (
-        <p className="px-3 py-1 text-xs text-red-400">{t(FORESHADOWING_ERROR_KEYS[error])}</p>
+        <p className="px-3 py-1 text-xs text-danger-fg">{t(FORESHADOWING_ERROR_KEYS[error])}</p>
       ) : (loading || configLoading) && foreshadowing === null ? (
         /*
          * 读配置那一段也算「在加载」：少了它，启动后会先显示一帧「这个目录里还没有
          * 伏笔」—— 那时伏笔列表**还没开始读**，而内容目录是不是空的根本还不知道。
          */
-        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+        <p className="px-3 py-1 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
       ) : items.length === 0 ? (
-        <p className="px-3 py-1 text-xs text-zinc-500">
+        <p className="px-3 py-1 text-xs text-fg-subtle">
           {t('host.project.panel.foreshadowing.empty')}
         </p>
       ) : (
@@ -368,11 +368,11 @@ function ForeshadowingRow({
         event.preventDefault()
         onContextMenu(event.clientX, event.clientY)
       }}
-      className="flex w-full items-center gap-2 px-1 py-1 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
+      className="flex w-full items-center gap-2 px-1 py-1 text-left text-xs text-fg transition-colors hover:bg-subtle"
     >
       <span className="min-w-0 flex-1 truncate">{file.label}</span>
       {range !== null && (
-        <span className="max-w-[45%] shrink-0 truncate font-mono text-[10px] text-zinc-500">
+        <span className="max-w-[45%] shrink-0 truncate font-mono text-[10px] text-fg-subtle">
           {range}
         </span>
       )}
@@ -455,11 +455,11 @@ function GallerySection(): JSX.Element {
       />
 
       {error ? (
-        <p className="px-3 py-1 text-xs text-red-400">{t(GALLERY_ERROR_KEYS[error])}</p>
+        <p className="px-3 py-1 text-xs text-danger-fg">{t(GALLERY_ERROR_KEYS[error])}</p>
       ) : galleries === null || loading ? (
-        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+        <p className="px-3 py-1 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
       ) : items.length === 0 ? (
-        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.project.panel.gallery.empty')}</p>
+        <p className="px-3 py-1 text-xs text-fg-subtle">{t('host.project.panel.gallery.empty')}</p>
       ) : (
         items.map((gallery) => (
           <Disclosure
@@ -470,7 +470,7 @@ function GallerySection(): JSX.Element {
                 <span className="truncate">{gallery.name}</span>
                 {/* 角色图鉴是章节表单的出场角色来源，值得在列表里认出来 */}
                 {
-                  <span className="shrink-0 rounded bg-zinc-700 px-1 py-0.5 text-[10px] text-zinc-300">
+                  <span className="shrink-0 rounded bg-control px-1 py-0.5 text-[10px] text-fg">
                     {t(
                       isCharacterGallery(gallery, registry)
                         ? 'host.project.panel.gallery.characters'
@@ -496,11 +496,11 @@ function GallerySection(): JSX.Element {
             />
 
             {gallery.error ? (
-              <p className="px-3 py-1 text-xs text-red-400">
+              <p className="px-3 py-1 text-xs text-danger-fg">
                 {t(GALLERY_ERROR_KEYS[gallery.error])}
               </p>
             ) : gallery.entries.length === 0 ? (
-              <p className="px-3 py-1 text-xs text-zinc-500">
+              <p className="px-3 py-1 text-xs text-fg-subtle">
                 {t('host.project.panel.gallery.entry.empty')}
               </p>
             ) : (
@@ -622,9 +622,9 @@ function GalleryEntryRow({
         event.preventDefault()
         onContextMenu(event.clientX, event.clientY)
       }}
-      className="flex w-full items-center gap-2 py-1 pr-1 pl-5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
+      className="flex w-full items-center gap-2 py-1 pr-1 pl-5 text-left text-xs text-fg transition-colors hover:bg-subtle"
     >
-      <BuiltinIcon name="file" className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+      <BuiltinIcon name="file" className="h-3.5 w-3.5 shrink-0 text-fg-subtle" />
       <span className="min-w-0 flex-1 truncate">{entry.label}</span>
     </button>
   )
@@ -695,11 +695,11 @@ function OverviewSection(): JSX.Element {
       />
 
       {error ? (
-        <p className="px-3 py-1 text-xs text-red-400">{t(OVERVIEW_ERROR_KEYS[error])}</p>
+        <p className="px-3 py-1 text-xs text-danger-fg">{t(OVERVIEW_ERROR_KEYS[error])}</p>
       ) : documents === null || loading ? (
-        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+        <p className="px-3 py-1 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
       ) : items.length === 0 ? (
-        <p className="px-3 py-1 text-xs text-zinc-500">{t('host.project.panel.overview.empty')}</p>
+        <p className="px-3 py-1 text-xs text-fg-subtle">{t('host.project.panel.overview.empty')}</p>
       ) : (
         items.map((file) => (
           <OverviewDocumentRow
@@ -801,9 +801,9 @@ function OverviewDocumentRow({
         event.preventDefault()
         onContextMenu(event.clientX, event.clientY)
       }}
-      className="flex w-full items-center gap-2 py-1 pr-1 pl-5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
+      className="flex w-full items-center gap-2 py-1 pr-1 pl-5 text-left text-xs text-fg transition-colors hover:bg-subtle"
     >
-      <BuiltinIcon name="file" className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+      <BuiltinIcon name="file" className="h-3.5 w-3.5 shrink-0 text-fg-subtle" />
       {/*
         文件名与标记放在同一个弹性容器里：文件名短时标记**紧挨着**文件名（不是被
         推到行尾），文件名长时先截断文件名、把标记留在它右边。外层 flex-1 占满剩余
@@ -812,7 +812,7 @@ function OverviewDocumentRow({
       <span className="flex min-w-0 flex-1 items-center gap-1.5">
         <span className="min-w-0 truncate">{file.name}</span>
         {role !== null && (
-          <span className="shrink-0 rounded bg-zinc-700 px-1 py-0.5 text-[10px] text-zinc-300">
+          <span className="shrink-0 rounded bg-control px-1 py-0.5 text-[10px] text-fg">
             {t(OVERVIEW_ROLE_KEYS[role])}
           </span>
         )}
@@ -848,8 +848,8 @@ function CreateRow({
         className={[
           'flex items-center gap-1 rounded px-2 py-0.5 text-[11px] transition-colors',
           disabled
-            ? 'cursor-not-allowed bg-zinc-800/60 text-zinc-600'
-            : 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700'
+            ? 'cursor-not-allowed bg-panel text-fg-disabled'
+            : 'bg-subtle text-fg hover:bg-control'
         ].join(' ')}
       >
         <BuiltinIcon name="plus" className="h-3 w-3" />
@@ -890,9 +890,9 @@ function ChapterRow({
         event.preventDefault()
         onContextMenu(event.clientX, event.clientY)
       }}
-      className="flex w-full items-center gap-2 px-1 py-1 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
+      className="flex w-full items-center gap-2 px-1 py-1 text-left text-xs text-fg transition-colors hover:bg-subtle"
     >
-      <span className="w-7 shrink-0 text-right font-mono text-[11px] text-zinc-500">
+      <span className="w-7 shrink-0 text-right font-mono text-[11px] text-fg-subtle">
         {file.chapter === null ? t('host.project.panel.chapter.unnumbered') : file.chapter}
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>

@@ -55,18 +55,18 @@
 
 ## 0. 已锁定决策
 
-| 编号 | 结论 |
-| --- | --- |
-| D1 | A：全量 dogfood，应用本身是一份插件组合，核心 UI 也是 client 插件 |
-| D2 | A：host 跑在独立 Node 进程，Electron main 只做 shell |
-| D3 | A：Cordis 4.x + ESM（宿主、shell 主进程都走 ESM） |
-| D4 | A：客户端插件用 DSH 式 client modules（宿主发 bundle + 惰性 factory + 平台模块表） |
-| D6 | 第三方插件只从 npm 安装；默认禁用；启用时确认“拥有完整 Node 权限”；官方 bundle 走白名单 |
-| D7 | 对齐 DSH：插件不 import electron；桌面能力由 shell 通过 `ctx.shell` 暴露 |
-| D8 | A：DSH 式命名 slot |
-| D9 | Monaco 进平台模块表，但只暴露 `@nide/editor-api` |
-| D10 | B：i18n 改为每包 `locale/*.json` + client locale 服务 |
-| D17 | 框架层直接依赖公开包；引擎层从公开仓库 vendor 固定版本；UI 层不引入 DSH 包 |
+| 编号 | 结论                                                                                    |
+| ---- | --------------------------------------------------------------------------------------- |
+| D1   | A：全量 dogfood，应用本身是一份插件组合，核心 UI 也是 client 插件                       |
+| D2   | A：host 跑在独立 Node 进程，Electron main 只做 shell                                    |
+| D3   | A：Cordis 4.x + ESM（宿主、shell 主进程都走 ESM）                                       |
+| D4   | A：客户端插件用 DSH 式 client modules（宿主发 bundle + 惰性 factory + 平台模块表）      |
+| D6   | 第三方插件只从 npm 安装；默认禁用；启用时确认“拥有完整 Node 权限”；官方 bundle 走白名单 |
+| D7   | 对齐 DSH：插件不 import electron；桌面能力由 shell 通过 `ctx.shell` 暴露                |
+| D8   | A：DSH 式命名 slot                                                                      |
+| D9   | Monaco 进平台模块表，但只暴露 `@nide/editor-api`                                        |
+| D10  | B：i18n 改为每包 `locale/*.json` + client locale 服务                                   |
+| D17  | 框架层直接依赖公开包；引擎层从公开仓库 vendor 固定版本；UI 层不引入 DSH 包              |
 
 硬约束：**视觉不变**。按钮的位置、颜色、字号、间距、窗口 chrome、默认布局、视图顺序，全部与现状一致。架构换，渲染结果不换。
 
@@ -135,13 +135,13 @@ NIDE/
 
 ### 1.3 包分层
 
-| 层 | 例子 | 依赖方向 |
-| --- | --- | --- |
-| 框架（vendor） | cordis、loader、include、group、timer、schemastery、ui-slots、client-modules、app-boot | 不依赖 NIDE |
-| 宿主服务 | host-services、host-shell、api-* | 只依赖框架 + sdk |
-| 客户端基础 | client-runtime、client-ui-theme、client-ui-primitives、client-ui-renderer | 只依赖框架 + sdk |
-| 功能 UI | client-ui-layout、explorer、editor、settings、welcome、plugins | 依赖客户端基础 |
-| 功能插件 | plugin-ai-provider | 依赖 sdk + api-* |
+| 层             | 例子                                                                                   | 依赖方向         |
+| -------------- | -------------------------------------------------------------------------------------- | ---------------- |
+| 框架（vendor） | cordis、loader、include、group、timer、schemastery、ui-slots、client-modules、app-boot | 不依赖 NIDE      |
+| 宿主服务       | host-services、host-shell、api-*                                                       | 只依赖框架 + sdk |
+| 客户端基础     | client-runtime、client-ui-theme、client-ui-primitives、client-ui-renderer              | 只依赖框架 + sdk |
+| 功能 UI        | client-ui-layout、explorer、editor、settings、welcome、plugins                         | 依赖客户端基础   |
+| 功能插件       | plugin-ai-provider                                                                     | 依赖 sdk + api-* |
 
 ## 2. 视觉不变量
 
@@ -149,7 +149,10 @@ NIDE/
 
 - 七分区骨架、按钮条通高、底栏不横跨
 - 尺寸默认值 260/320/200/260/260/320 与拖拽范围
-- 深色 zinc 色阶、`.theme-light`、滚动条主题（`:root` 上的全局 `scrollbar-color` token）
+- 配色：迁移期按"深色 zinc 色阶 + `.theme-light` 逐条翻译"验收；这套写法后来换成了语义
+  token（见 [ui-color-tokens.md](ui-color-tokens.md)），**那是一处有意的改动**，不是这条
+  不变量的回归
+- 滚动条主题（`:root` 上的全局 `scrollbar-color` token）
 - 32px 自绘标题栏与窗口按钮
 - Monaco 配色、字号、行高
 - 默认视图顺序（内建视图在前）与 activeView 回落规则
@@ -313,27 +316,27 @@ NIDE/
 
 ## 5. 首 10 个工作日
 
-| 天 | 任务 | 产出 |
-| --- | --- | --- |
-| 1–2 | Playwright 视觉基线 + CI job | `tests/visual`，`pnpm visual` |
-| 3–4 | workspace + ESM spike（electron-vite main ESM） | `apps/shell` 能 ESM 启动 |
-| 5–6 | vendor 固定版本 + `binName` 参数化 spike | `vendor/`、`VENDORED.md`、结论 |
-| 7–8 | host 进程 spawn + handshake + 退出清理 | 后台空树跑起来 |
-| 9–10 | profile 初始化 + `--dump-config` | `~/.nide` 结构与 dump 输出 |
+| 天   | 任务                                            | 产出                           |
+| ---- | ----------------------------------------------- | ------------------------------ |
+| 1–2  | Playwright 视觉基线 + CI job                    | `tests/visual`，`pnpm visual`  |
+| 3–4  | workspace + ESM spike（electron-vite main ESM） | `apps/shell` 能 ESM 启动       |
+| 5–6  | vendor 固定版本 + `binName` 参数化 spike        | `vendor/`、`VENDORED.md`、结论 |
+| 7–8  | host 进程 spawn + handshake + 退出清理          | 后台空树跑起来                 |
+| 9–10 | profile 初始化 + `--dump-config`                | `~/.nide` 结构与 dump 输出     |
 
 第 10 天写一份 ADR：ESM 是否可行、`binName` 是否参数化、utilityProcess 是否可靠。三个结论决定后续是否要 fork 更多包。
 
 ## 6. 风险与回退
 
-| 风险 | 触发点 | 回退 |
-| --- | --- | --- |
-| Electron ESM main 不可行 | 阶段 1 | 退回 Cordis 3.18 + CJS（需重定 D3） |
-| utilityProcess 加载 asar 失败 | 阶段 1 | `child_process.fork` + `ELECTRON_RUN_AS_NODE=1`，host 放 `asarUnpack` |
-| DSH 包 `binName` 未参数化 | 阶段 1 | fork 改名，记录补丁；或内部保留 `dsh.*` 字段（不推荐） |
-| client bundle 格式与 Tailwind 冲突 | 阶段 3 | 先单 bundle 不分片；CSS 全部走 shell 全局表 |
-| 视觉回归 | 任一阶段 | 阻断该 PR，回到上一 tag |
-| vendor 与上游漂移 | 全程 | 只跟固定版本；升级作为独立任务，不在迁移期做 |
-| 打包后插件解析失败 | 阶段 6 | 保留 `--no-sandbox` 式诊断入口；host 启动日志落盘 |
+| 风险                               | 触发点   | 回退                                                                  |
+| ---------------------------------- | -------- | --------------------------------------------------------------------- |
+| Electron ESM main 不可行           | 阶段 1   | 退回 Cordis 3.18 + CJS（需重定 D3）                                   |
+| utilityProcess 加载 asar 失败      | 阶段 1   | `child_process.fork` + `ELECTRON_RUN_AS_NODE=1`，host 放 `asarUnpack` |
+| DSH 包 `binName` 未参数化          | 阶段 1   | fork 改名，记录补丁；或内部保留 `dsh.*` 字段（不推荐）                |
+| client bundle 格式与 Tailwind 冲突 | 阶段 3   | 先单 bundle 不分片；CSS 全部走 shell 全局表                           |
+| 视觉回归                           | 任一阶段 | 阻断该 PR，回到上一 tag                                               |
+| vendor 与上游漂移                  | 全程     | 只跟固定版本；升级作为独立任务，不在迁移期做                          |
+| 打包后插件解析失败                 | 阶段 6   | 保留 `--no-sandbox` 式诊断入口；host 启动日志落盘                     |
 
 ## 7. 附录
 
@@ -373,16 +376,16 @@ NIDE/
 
 ### 7.3 slot 映射
 
-| slot | 现有组件 | 说明 |
-| --- | --- | --- |
-| `root` | `WorkbenchLayout` | 主窗口根 |
-| `stripe.left` / `stripe.right` | `ToolStripe` | 通高按钮条 |
-| `zone.leftTop` … `zone.bottomRight` | `ToolZone` | 六个工具区 |
-| `editor.tabs` | `EditorTabs` | 标签条 |
-| `editor.content` | Monaco / Diff | 编辑器 |
-| `settings.nav` / `settings.page` | 设置树 / 页面 | 设置窗口 |
-| `welcome.root` | `WelcomeApp` | 欢迎窗口 |
-| `plugins.list` / `plugins.detail` | `PluginsBrowser` | 插件页 |
+| slot                                | 现有组件          | 说明       |
+| ----------------------------------- | ----------------- | ---------- |
+| `root`                              | `WorkbenchLayout` | 主窗口根   |
+| `stripe.left` / `stripe.right`      | `ToolStripe`      | 通高按钮条 |
+| `zone.leftTop` … `zone.bottomRight` | `ToolZone`        | 六个工具区 |
+| `editor.tabs`                       | `EditorTabs`      | 标签条     |
+| `editor.content`                    | Monaco / Diff     | 编辑器     |
+| `settings.nav` / `settings.page`    | 设置树 / 页面     | 设置窗口   |
+| `welcome.root`                      | `WelcomeApp`      | 欢迎窗口   |
+| `plugins.list` / `plugins.detail`   | `PluginsBrowser`  | 插件页     |
 
 ### 7.4 每个阶段的“不许做”
 

@@ -51,7 +51,7 @@ export function Disclosure({
         aria-expanded={expanded}
         onClick={toggle}
         {...(onContextMenu ? { onContextMenu } : {})}
-        className="flex w-full shrink-0 items-center gap-1.5 px-2 py-1.5 text-left text-[11px] font-medium tracking-wide text-zinc-400 uppercase transition-colors hover:bg-zinc-800/60 hover:text-zinc-200"
+        className="flex w-full shrink-0 items-center gap-1.5 px-2 py-1.5 text-left text-[11px] font-medium tracking-wide text-fg-muted uppercase transition-colors hover:bg-subtle hover:text-fg"
       >
         {/* 展开方向用旋转的箭头表示，不额外占一个图标位 */}
         {/* TODO 不好，应该用一个图标表示 */}
@@ -65,7 +65,7 @@ export function Disclosure({
           ›
         </span>
         <span className="min-w-0 flex-1 truncate">{title}</span>
-        {summary !== undefined && <span className="shrink-0 text-zinc-500">{summary}</span>}
+        {summary !== undefined && <span className="shrink-0 text-fg-subtle">{summary}</span>}
       </button>
 
       {expanded && <div className="flex min-h-0 flex-col pb-1">{children}</div>}

@@ -190,14 +190,14 @@ export function NamePromptDialog(props: NamePromptDialogProps): JSX.Element {
     extensionOf(trimmed) !== previousExtension
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex w-[380px] max-w-[90%] flex-col gap-3 rounded-lg border border-zinc-700 bg-zinc-800 p-5 shadow-2xl shadow-black/50"
+        className="flex w-[380px] max-w-[90%] flex-col gap-3 rounded-lg border border-line bg-raised p-5 shadow-2xl shadow-shade"
       >
-        <h2 id={titleId} className="text-sm font-medium text-zinc-100">
+        <h2 id={titleId} className="text-sm font-medium text-fg">
           {title}
         </h2>
 
@@ -218,24 +218,24 @@ export function NamePromptDialog(props: NamePromptDialogProps): JSX.Element {
             aria-invalid={error !== null}
             aria-describedby={error ? `${titleId}-error` : undefined}
             placeholder={t('host.explorer.name.placeholder')}
-            className="w-full rounded border border-zinc-600 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 outline-none focus:border-blue-500"
+            className="w-full rounded border border-line-strong bg-surface px-2 py-1.5 text-xs text-fg outline-none focus:border-accent"
           />
 
           {extensionChanged && (
-            <p className="mt-1.5 text-[11px] text-amber-400">
+            <p className="mt-1.5 text-[11px] text-warning">
               {t('host.explorer.rename.extensionChanged', { name: trimmed })}
             </p>
           )}
 
           {/* 补了扩展名时把落盘的名字说出来，别让磁盘上的名字与框里那个不一样 */}
           {validation.ok && applied !== trimmed && (
-            <p className="mt-1.5 text-[11px] text-zinc-500">
+            <p className="mt-1.5 text-[11px] text-fg-subtle">
               {t('host.explorer.name.savedAs', { name: applied })}
             </p>
           )}
 
           {error && (
-            <p id={`${titleId}-error`} role="alert" className="mt-1.5 text-[11px] text-red-400">
+            <p id={`${titleId}-error`} role="alert" className="mt-1.5 text-[11px] text-danger-fg">
               {error}
             </p>
           )}
@@ -247,14 +247,14 @@ export function NamePromptDialog(props: NamePromptDialogProps): JSX.Element {
             // 未通过校验时禁用：这个动作没有二次确认，让一个必然失败的操作可点没意义
             disabled={!validation.ok || busy}
             onClick={() => void submit()}
-            className="rounded bg-blue-600 px-3.5 py-1 text-xs text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
+            className="rounded bg-accent px-3.5 py-1 text-xs text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-control disabled:text-fg-subtle"
           >
             {t(mode === 'rename' ? 'host.explorer.rename.confirm' : 'host.explorer.name.confirm')}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded bg-zinc-700 px-3.5 py-1 text-xs text-zinc-100 transition-colors hover:bg-zinc-600"
+            className="rounded bg-control px-3.5 py-1 text-xs text-fg transition-colors hover:bg-control-hover"
           >
             {t('host.dialog.cancel')}
           </button>

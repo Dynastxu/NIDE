@@ -47,7 +47,7 @@ export function SubmenuRow({
       onClick={onToggle}
       className={[
         'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors',
-        expanded ? 'bg-blue-600 text-white' : 'text-zinc-200 hover:bg-blue-600 hover:text-white'
+        expanded ? 'bg-accent text-on-accent' : 'text-fg hover:bg-accent hover:text-on-accent'
       ].join(' ')}
     >
       <IconSlot name={icon} />
@@ -69,10 +69,10 @@ export function MenuItemRow({ item }: { item: MenuItem }): JSX.Element {
       className={[
         'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors',
         item.disabled
-          ? 'cursor-not-allowed text-zinc-600'
+          ? 'cursor-not-allowed text-fg-disabled'
           : item.danger
-            ? 'text-zinc-200 hover:bg-red-600 hover:text-white'
-            : 'text-zinc-200 hover:bg-blue-600 hover:text-white'
+            ? 'text-fg hover:bg-danger-hover hover:text-on-accent'
+            : 'text-fg hover:bg-accent hover:text-on-accent'
       ].join(' ')}
     >
       <IconSlot name={item.icon} />

@@ -202,8 +202,8 @@ export function EditorTabs(): JSX.Element {
          * 有标签页时标题栏已经写着当前文件，这里再重复一遍就是占地方。
          */
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <p className="text-sm text-zinc-400">{t('host.editor.empty.title')}</p>
-          <p className="max-w-sm text-xs leading-relaxed text-zinc-500">
+          <p className="text-sm text-fg-muted">{t('host.editor.empty.title')}</p>
+          <p className="max-w-sm text-xs leading-relaxed text-fg-subtle">
             {t('host.editor.empty.hint')}
           </p>
         </div>

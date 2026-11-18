@@ -121,10 +121,8 @@ export function GalleryConfigForm({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
-        <h3 className="text-xs font-medium text-zinc-300">
-          {t('host.editor.gallery.config.title')}
-        </h3>
-        <p className="text-[11px] leading-4 text-zinc-500">
+        <h3 className="text-xs font-medium text-fg">{t('host.editor.gallery.config.title')}</h3>
+        <p className="text-[11px] leading-4 text-fg-subtle">
           {t('host.editor.gallery.config.hint')}
         </p>
       </div>
@@ -158,7 +156,7 @@ export function GalleryConfigForm({
               : undefined
           }
           onClick={addField}
-          className="flex items-center gap-1 rounded bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-800/60 disabled:text-zinc-600"
+          className="flex items-center gap-1 rounded bg-subtle px-2 py-0.5 text-[11px] text-fg transition-colors hover:bg-control disabled:cursor-not-allowed disabled:bg-panel disabled:text-fg-disabled"
         >
           <BuiltinIcon name="plus" className="h-3 w-3" />
           {t('host.editor.gallery.config.add')}
@@ -212,7 +210,7 @@ function FieldRow({
           onBlur={(event) => onBlur(event.target.value)}
           aria-invalid={warning !== null}
           placeholder={t('host.editor.gallery.config.placeholder')}
-          className="h-7 w-56 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500"
+          className="h-7 w-56 rounded border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-accent"
         />
 
         <button
@@ -220,20 +218,20 @@ function FieldRow({
           aria-label={t('host.editor.gallery.config.remove')}
           title={t('host.editor.gallery.config.remove')}
           onClick={onRemove}
-          className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+          className="rounded p-1 text-fg-subtle transition-colors hover:bg-subtle hover:text-fg"
         >
           <BuiltinIcon name="close" className="h-3 w-3" />
         </button>
 
         {/* 第一个字段就是条目的名字，这一句只说一次 */}
         {index === 0 && (
-          <span className="text-[10px] leading-3 text-zinc-500">
+          <span className="text-[10px] leading-3 text-fg-subtle">
             {t('host.editor.gallery.config.first')}
           </span>
         )}
       </div>
 
-      {warning && <p className="text-[11px] leading-4 text-red-400">{warning}</p>}
+      {warning && <p className="text-[11px] leading-4 text-danger-fg">{warning}</p>}
     </div>
   )
 }

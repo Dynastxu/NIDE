@@ -72,7 +72,7 @@ export function ForeshadowingForm({
           value={metadata.name}
           onChange={(event) => commit({ name: event.target.value })}
           placeholder={t('host.editor.form.foreshadowing.name.placeholder')}
-          className="h-7 w-72 max-w-full rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500"
+          className="h-7 w-72 max-w-full rounded border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-accent"
         />
       </FormField>
 
@@ -85,7 +85,7 @@ export function ForeshadowingForm({
           value={metadata.startChapter}
           onChange={(event) => commit({ startChapter: event.target.value })}
           placeholder={t('host.editor.form.foreshadowing.chapter.placeholder')}
-          className="h-7 w-28 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500"
+          className="h-7 w-28 rounded border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-accent"
         />
       </FormField>
 
@@ -95,7 +95,7 @@ export function ForeshadowingForm({
           value={metadata.endChapter}
           onChange={(event) => commit({ endChapter: event.target.value })}
           placeholder={t('host.editor.form.foreshadowing.chapter.placeholder')}
-          className="h-7 w-28 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500"
+          className="h-7 w-28 rounded border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-accent"
         />
       </FormField>
 

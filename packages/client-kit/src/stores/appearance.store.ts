@@ -20,11 +20,12 @@ const logger = loggerFor('appearance')
  *
  * ## 渲染进程要做的只有一件事
  *
- * 给根元素挂一个类名。配色本身在样式表里：
- * - 深色 = 组件里那些原始色阶（`bg-zinc-900` …），什么都不用挂；
- * - 浅色 = `assets/light.css`，它靠 `.theme-light` 前缀盖过那些色阶。
+ * 给根元素挂一个类名。配色本身在样式表里，而且是**一层变量**：
+ * - 深色 = `assets/index.css` 的 `@theme`（什么类都不用挂）；
+ * - 浅色 = `assets/light.css` 对同一组 `--color-*` token 的覆盖。
  *
- * 所以这里没有"令牌"、没有 CSS 变量注入 —— 换主题就是换一个类名。
+ * 组件写的是角色名（`bg-surface`），编译出来是 `var(--color-surface)` —— 所以换主题
+ * 就是换一个类名，变量跟着换值，没有第二份选择器要维护。
  */
 interface AppearanceState {
   preference: AppearancePreference

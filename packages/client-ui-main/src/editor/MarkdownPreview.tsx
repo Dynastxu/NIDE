@@ -46,7 +46,7 @@ export function MarkdownPreview({ content }: { content: string }): JSX.Element {
   if (body.trim().length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-6">
-        <p className="text-xs text-zinc-500">{t('host.editor.preview.empty')}</p>
+        <p className="text-xs text-fg-subtle">{t('host.editor.preview.empty')}</p>
       </div>
     )
   }

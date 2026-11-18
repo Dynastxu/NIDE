@@ -22,7 +22,7 @@ export function SettingsButton(): JSX.Element {
     <button
       type="button"
       onClick={() => openWindow('settings')}
-      className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+      className="flex items-center gap-1.5 rounded px-2.5 py-1 text-xs text-fg-muted transition-colors hover:bg-subtle hover:text-fg"
     >
       <BuiltinIcon name="sliders" className="h-3.5 w-3.5" />
       <span>{t('host.welcome.settings')}</span>

@@ -385,14 +385,14 @@ export default function AiProviderSettings({
   const canTest = draft.apiKey.trim().length > 0 || selected?.configured === true
 
   if (providers === null) {
-    return <p className="p-6 text-xs text-zinc-500">{t('loading')}</p>
+    return <p className="p-6 text-xs text-fg-subtle">{t('loading')}</p>
   }
 
   return (
     <section className="flex max-w-3xl flex-col gap-5 p-6">
       <header>
-        <h2 className="text-sm font-medium text-zinc-100">{t('title')}</h2>
-        <p className="mt-1 text-xs leading-5 text-zinc-500">{t('description')}</p>
+        <h2 className="text-sm font-medium text-fg">{t('title')}</h2>
+        <p className="mt-1 text-xs leading-5 text-fg-subtle">{t('description')}</p>
       </header>
 
       <div className="flex flex-wrap gap-2">
@@ -406,19 +406,19 @@ export default function AiProviderSettings({
               className={[
                 'flex min-w-40 flex-col items-start gap-0.5 rounded border px-3 py-2 text-left transition-colors',
                 active
-                  ? 'border-blue-500 bg-blue-600/15 text-zinc-100'
-                  : 'border-zinc-700 bg-zinc-900/40 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800/60'
+                  ? 'border-accent bg-accent/20 text-fg'
+                  : 'border-line bg-surface text-fg hover:border-line-strong hover:bg-subtle'
               ].join(' ')}
             >
               <span className="text-xs font-medium">
                 {provider.name}
                 {provider.default && (
-                  <span className="ml-1.5 text-[10px] font-normal text-blue-400">
+                  <span className="ml-1.5 text-[10px] font-normal text-accent-fg">
                     {t('defaultBadge')}
                   </span>
                 )}
               </span>
-              <span className="text-[10px] text-zinc-500">
+              <span className="text-[10px] text-fg-subtle">
                 {provider.configured ? provider.model : t('notConfigured')}
               </span>
             </button>
@@ -428,15 +428,15 @@ export default function AiProviderSettings({
         <button
           type="button"
           onClick={newProvider}
-          className="flex min-w-32 items-center justify-center rounded border border-dashed border-zinc-700 px-3 py-2 text-xs text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-200"
+          className="flex min-w-32 items-center justify-center rounded border border-dashed border-line px-3 py-2 text-xs text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
         >
           + {t('add')}
         </button>
       </div>
 
-      {providers.length === 0 && <p className="text-xs text-zinc-500">{t('empty')}</p>}
+      {providers.length === 0 && <p className="text-xs text-fg-subtle">{t('empty')}</p>}
 
-      <div className="flex flex-col gap-3 rounded border border-zinc-800 bg-zinc-950/40 p-4">
+      <div className="flex flex-col gap-3 rounded border border-line-subtle bg-panel p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('name')}>
             <input
@@ -468,7 +468,7 @@ export default function AiProviderSettings({
             spellCheck={false}
           />
         </Field>
-        <p className="-mt-2 text-[11px] text-zinc-500">
+        <p className="-mt-2 text-[11px] text-fg-subtle">
           {selected?.configured ? t('keySaved') : t('keyHint')}
         </p>
 
@@ -527,8 +527,8 @@ export default function AiProviderSettings({
           </select>
         </Field>
 
-        {error && <p className="text-xs text-red-400">{error}</p>}
-        {notice && <p className="text-xs text-emerald-400">{notice}</p>}
+        {error && <p className="text-xs text-danger-fg">{error}</p>}
+        {notice && <p className="text-xs text-success">{notice}</p>}
 
         <div className="flex items-center gap-2 pt-1">
           <button
@@ -537,7 +537,7 @@ export default function AiProviderSettings({
               void save()
             }}
             disabled={disabled}
-            className="rounded bg-blue-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded bg-accent px-3 py-1.5 text-xs text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy === 'saving' ? t('saving') : t('save')}
           </button>
@@ -552,8 +552,8 @@ export default function AiProviderSettings({
               className={[
                 'rounded border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                 confirmRemove
-                  ? 'border-red-500 bg-red-600/20 text-red-300 hover:bg-red-600/30'
-                  : 'border-zinc-700 text-zinc-400 hover:border-red-500/60 hover:text-red-300'
+                  ? 'border-danger bg-danger/20 text-danger-fg hover:bg-danger/30'
+                  : 'border-line text-fg-muted hover:border-danger/60 hover:text-danger-fg'
               ].join(' ')}
             >
               {confirmRemove ? t('confirmRemove') : t('remove')}
@@ -566,15 +566,15 @@ export default function AiProviderSettings({
 }
 
 const inputClass =
-  'w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-200 outline-none transition-colors focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50'
+  'w-full rounded border border-line bg-surface px-2.5 py-1.5 text-xs text-fg outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50'
 
 const secondaryButtonClass =
-  'shrink-0 rounded border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50'
+  'shrink-0 rounded border border-line px-2.5 py-1.5 text-xs text-fg transition-colors hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-50'
 
 function Field({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <span className="text-[11px] text-zinc-400">{label}</span>
+      <span className="text-[11px] text-fg-muted">{label}</span>
       {children}
     </div>
   )

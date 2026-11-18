@@ -41,17 +41,17 @@ export default function DemoView(): JSX.Element {
 
   return (
     <ViewFrame chrome={chrome}>
-      <div className="flex h-full min-h-0 flex-col text-zinc-200">
+      <div className="flex h-full min-h-0 flex-col text-fg">
         <div className="min-h-0 flex-1 space-y-1 overflow-auto p-3 font-mono text-[11px] leading-4">
           {lines.length === 0 ? (
-            <div className="text-zinc-500">
+            <div className="text-fg-subtle">
               插件宿主已连通。输入内容并发送，主进程会通过 host:event 回显。
             </div>
           ) : (
             lines.map((l, i) => <div key={i}>{l}</div>)
           )}
         </div>
-        <div className="flex shrink-0 gap-2 border-t border-zinc-800 p-2">
+        <div className="flex shrink-0 gap-2 border-t border-line-subtle p-2">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -59,11 +59,11 @@ export default function DemoView(): JSX.Element {
               if (e.key === 'Enter') send()
             }}
             placeholder="plugin host self-test"
-            className="min-w-0 flex-1 rounded bg-zinc-800 px-2 py-1 text-xs outline-none"
+            className="min-w-0 flex-1 rounded bg-subtle px-2 py-1 text-xs outline-none"
           />
           <button
             onClick={send}
-            className="shrink-0 rounded bg-blue-600 px-3 py-1 text-xs hover:bg-blue-500"
+            className="shrink-0 rounded bg-accent px-3 py-1 text-xs text-on-accent hover:bg-accent-hover"
           >
             发送
           </button>

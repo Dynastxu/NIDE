@@ -82,8 +82,8 @@ export function ProjectsPanel(): JSX.Element {
     <section className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-start justify-between gap-6 px-6 pt-6 pb-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-sm font-medium text-zinc-100">{t('host.welcome.projects.title')}</h2>
-          <p className="max-w-prose text-xs leading-relaxed text-zinc-500">
+          <h2 className="text-sm font-medium text-fg">{t('host.welcome.projects.title')}</h2>
+          <p className="max-w-prose text-xs leading-relaxed text-fg-subtle">
             {t('host.welcome.projects.hint')}
           </p>
         </div>
@@ -109,14 +109,14 @@ export function ProjectsPanel(): JSX.Element {
         {error && (
           <p
             role="alert"
-            className="mb-3 rounded border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-red-300"
+            className="mb-3 rounded border border-danger-line bg-danger-soft px-3 py-2 text-xs text-danger-fg"
           >
             {error}
           </p>
         )}
 
         {projects === null ? (
-          <p className="text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+          <p className="text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
         ) : projects.length === 0 ? (
           <EmptyState />
         ) : (
@@ -202,8 +202,8 @@ function ActionButton({
       className={[
         'flex items-center gap-1.5 rounded px-3 py-1.5 text-xs transition-colors',
         variant === 'primary'
-          ? 'bg-blue-600 text-white hover:bg-blue-500'
-          : 'bg-zinc-700 text-zinc-100 hover:bg-zinc-600'
+          ? 'bg-accent text-on-accent hover:bg-accent-hover'
+          : 'bg-control text-fg hover:bg-control-hover'
       ].join(' ')}
     >
       <BuiltinIcon name={icon} className="h-3.5 w-3.5" />
@@ -240,26 +240,25 @@ function ProjectRow({
         className={[
           'flex w-full items-center gap-3 rounded border px-3 py-2 text-left transition-colors',
           project.missing
-            ? 'cursor-not-allowed border-zinc-800 bg-zinc-900/40 text-zinc-600'
-            : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-800'
+            ? 'cursor-not-allowed border-line-subtle bg-subtle text-fg-disabled'
+            : 'border-line-subtle bg-subtle hover:border-line hover:bg-control'
         ].join(' ')}
       >
-        <BuiltinIcon name="folder" className="h-4 w-4 text-zinc-500" />
+        <BuiltinIcon name="folder" className="h-4 w-4 text-fg-subtle" />
 
         <span className="flex min-w-0 flex-1 flex-col">
           <span
-            className={[
-              'truncate text-xs',
-              project.missing ? 'text-zinc-500' : 'text-zinc-100'
-            ].join(' ')}
+            className={['truncate text-xs', project.missing ? 'text-fg-subtle' : 'text-fg'].join(
+              ' '
+            )}
           >
             {projectNameFromPath(project.path)}
           </span>
-          <span className="truncate text-[11px] text-zinc-500">{project.path}</span>
+          <span className="truncate text-[11px] text-fg-subtle">{project.path}</span>
         </span>
 
         {project.missing && (
-          <span className="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-amber-400">
+          <span className="shrink-0 rounded bg-control px-1.5 py-0.5 text-[10px] text-warning">
             {t('host.welcome.projects.missing')}
           </span>
         )}
@@ -272,10 +271,10 @@ function EmptyState(): JSX.Element {
   const t = useT()
 
   return (
-    <div className="flex flex-col items-center gap-2 rounded border border-dashed border-zinc-800 px-6 py-10 text-center">
-      <BuiltinIcon name="folder" className="h-6 w-6 text-zinc-600" />
-      <p className="text-xs text-zinc-400">{t('host.welcome.projects.empty')}</p>
-      <p className="max-w-sm text-[11px] leading-relaxed text-zinc-500">
+    <div className="flex flex-col items-center gap-2 rounded border border-dashed border-line-subtle px-6 py-10 text-center">
+      <BuiltinIcon name="folder" className="h-6 w-6 text-fg-disabled" />
+      <p className="text-xs text-fg-muted">{t('host.welcome.projects.empty')}</p>
+      <p className="max-w-sm text-[11px] leading-relaxed text-fg-subtle">
         {t('host.welcome.projects.empty.hint')}
       </p>
     </div>

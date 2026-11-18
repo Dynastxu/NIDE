@@ -47,11 +47,11 @@ export function MonacoDiffView(): JSX.Element | null {
   if (!pendingDiff) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-zinc-900 w-[90%] h-[80%] rounded shadow-xl flex flex-col">
-        <div className="flex items-center justify-between p-3 border-b border-zinc-700">
+    <div className="fixed inset-0 bg-scrim flex items-center justify-center z-50">
+      <div className="bg-surface w-[90%] h-[80%] rounded shadow-xl flex flex-col">
+        <div className="flex items-center justify-between p-3 border-b border-line">
           <span className="text-sm">{t('host.diff.title')}</span>
-          <button onClick={clearDiff} className="text-xs px-2 py-1 bg-zinc-700 rounded">
+          <button onClick={clearDiff} className="text-xs px-2 py-1 bg-control rounded">
             {t('host.diff.close')}
           </button>
         </div>

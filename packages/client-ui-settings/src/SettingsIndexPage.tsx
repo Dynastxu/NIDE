@@ -22,10 +22,10 @@ export function SettingsIndexPage({
 
   return (
     <section className="flex flex-col gap-3 p-6">
-      <h2 className="text-sm font-medium text-zinc-100">{node.label}</h2>
+      <h2 className="text-sm font-medium text-fg">{node.label}</h2>
 
       {children.length === 0 ? (
-        <p className="text-xs text-zinc-500">{t('host.settings.index.empty')}</p>
+        <p className="text-xs text-fg-subtle">{t('host.settings.index.empty')}</p>
       ) : (
         <ul className="flex max-w-md flex-col gap-1">
           {children.map((child) => (
@@ -33,11 +33,11 @@ export function SettingsIndexPage({
               <button
                 type="button"
                 onClick={() => onNavigate(child.id)}
-                className="flex w-full items-center justify-between rounded border border-zinc-700 px-3 py-2 text-left text-xs text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100"
+                className="flex w-full items-center justify-between rounded border border-line px-3 py-2 text-left text-xs text-fg transition-colors hover:border-line-strong hover:bg-subtle"
               >
                 {/* 子设置自己的页面名（而不是它在树上的标签）—— 和树上看到的措辞一致 */}
                 <span>{child.label}</span>
-                <span aria-hidden="true" className="text-zinc-500">
+                <span aria-hidden="true" className="text-fg-subtle">
                   ›
                 </span>
               </button>
