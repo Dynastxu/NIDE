@@ -112,9 +112,7 @@ export function ProjectSelector(): JSX.Element {
         onClick={() => setOpen((value) => !value)}
         className={[
           'flex h-6 max-w-[220px] items-center gap-1 rounded px-1.5 text-xs transition-colors',
-          open
-            ? 'bg-zinc-700 text-zinc-100'
-            : 'text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-100'
+          open ? 'bg-control text-fg' : 'text-fg-muted hover:bg-control hover:text-fg'
         ].join(' ')}
       >
         <BuiltinIcon name="folder" className="h-3.5 w-3.5" />
@@ -126,18 +124,18 @@ export function ProjectSelector(): JSX.Element {
         <div
           role="menu"
           aria-label={t('host.project.selector.label')}
-          className="absolute top-full left-0 z-50 mt-0.5 max-h-[60vh] min-w-[260px] overflow-y-auto rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-xl shadow-black/40"
+          className="absolute top-full left-0 z-50 mt-0.5 max-h-[60vh] min-w-[260px] overflow-y-auto rounded-md border border-line bg-raised py-1 shadow-xl shadow-shade"
         >
           {error && (
-            <p role="alert" className="px-3 py-2 text-[11px] leading-relaxed text-red-300">
+            <p role="alert" className="px-3 py-2 text-[11px] leading-relaxed text-danger-fg">
               {error}
             </p>
           )}
 
           {projects === null ? (
-            <p className="px-3 py-1.5 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+            <p className="px-3 py-1.5 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
           ) : projects.length === 0 ? (
-            <p className="px-3 py-1.5 text-xs text-zinc-500">{t('host.project.selector.empty')}</p>
+            <p className="px-3 py-1.5 text-xs text-fg-subtle">{t('host.project.selector.empty')}</p>
           ) : (
             projects.map((project) => (
               <ProjectOption
@@ -175,24 +173,24 @@ function ProjectOption({
       className={[
         'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors',
         project.missing
-          ? 'text-zinc-500 hover:bg-zinc-700/60'
+          ? 'text-fg-subtle hover:bg-control'
           : current
-            ? 'bg-blue-600/20 text-zinc-100 hover:bg-blue-600/30'
-            : 'text-zinc-200 hover:bg-blue-600 hover:text-white'
+            ? 'bg-accent/20 text-fg hover:bg-accent/30'
+            : 'text-fg hover:bg-accent hover:text-on-accent'
       ].join(' ')}
     >
       {/* 当前项占一个等宽勾位，其余项留空 —— 否则文字左边缘会不齐 */}
       <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-        {current && <BuiltinIcon name="check" className="h-3.5 w-3.5 text-blue-400" />}
+        {current && <BuiltinIcon name="check" className="h-3.5 w-3.5 text-accent-fg" />}
       </span>
 
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate">{projectNameFromPath(project.path)}</span>
-        <span className="truncate text-[10px] text-zinc-500">{project.path}</span>
+        <span className="truncate text-[10px] text-fg-subtle">{project.path}</span>
       </span>
 
       {project.missing && (
-        <span className="shrink-0 rounded bg-zinc-700/70 px-1 text-[10px] text-amber-400">
+        <span className="shrink-0 rounded bg-control px-1 text-[10px] text-warning">
           {t('host.welcome.projects.missing')}
         </span>
       )}

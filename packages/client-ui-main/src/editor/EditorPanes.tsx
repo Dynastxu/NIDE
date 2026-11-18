@@ -227,7 +227,7 @@ export function EditorPanes({
           aria-label={`${tab.name} preview`}
           className={[
             'flex min-h-0 flex-col overflow-hidden',
-            mode === 'split' ? 'w-1/2 border-l border-zinc-800' : 'flex-1'
+            mode === 'split' ? 'w-1/2 border-l border-line-subtle' : 'flex-1'
           ].join(' ')}
         >
           <MarkdownPreview content={tab.content} />

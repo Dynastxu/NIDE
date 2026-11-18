@@ -39,7 +39,7 @@ export function SettingsTreeNav({
   return (
     <nav
       aria-label={t('host.settings.nav.title')}
-      className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-zinc-800 bg-zinc-950/40 py-2"
+      className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-line-subtle bg-panel py-2"
     >
       <ul role="tree" className="flex flex-col">
         {tree.map((node) => (
@@ -91,7 +91,7 @@ function TreeItem({
       <div
         className={[
           'group mx-1.5 flex items-center rounded transition-colors',
-          active ? 'bg-blue-600 text-white' : 'text-zinc-300 hover:bg-zinc-800'
+          active ? 'bg-accent text-on-accent' : 'text-fg hover:bg-subtle'
         ].join(' ')}
       >
         {/* 折叠箭头。没有子设置时占一个等宽空位，让同级的标题左边缘对齐 */}
@@ -104,7 +104,7 @@ function TreeItem({
             onClick={() => onToggle(node.id)}
             className={[
               'flex h-6 w-5 shrink-0 items-center justify-center',
-              active ? 'text-blue-100' : 'text-zinc-500 hover:text-zinc-300'
+              active ? 'text-fg' : 'text-fg-subtle hover:text-fg'
             ].join(' ')}
           >
             <Chevron open={!isCollapsed} />

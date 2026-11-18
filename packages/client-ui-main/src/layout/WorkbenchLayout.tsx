@@ -59,7 +59,7 @@ export function WorkbenchLayout(): JSX.Element {
    * 100% 则永远等于父容器给的尺寸，标题栏多高都不影响这里。
    */
   return (
-    <div className="flex h-full w-full min-h-0 min-w-0 overflow-hidden bg-zinc-900 text-zinc-200">
+    <div className="flex h-full w-full min-h-0 min-w-0 overflow-hidden bg-surface text-fg">
       {/* 按钮条常驻且通高：工具区隐藏后它是唯一的回程入口，
           同时底栏也不会把它截断到半截高 */}
       <ToolStripe side="left" />

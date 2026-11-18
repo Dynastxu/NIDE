@@ -162,7 +162,7 @@ export function ChapterForm({
           // 失焦时把号补成规范写法（`1` -> `001`），与写进文件的那个值对上
           onBlur={normalizeIndex}
           placeholder={t('host.editor.form.index.placeholder')}
-          className="h-7 w-28 rounded border border-zinc-700 bg-zinc-900 px-2 font-mono text-xs text-zinc-100 outline-none focus:border-blue-500"
+          className="h-7 w-28 rounded border border-line bg-surface px-2 font-mono text-xs text-fg outline-none focus:border-accent"
         />
       </FormField>
 
@@ -268,7 +268,7 @@ function CharacterPicker({
           {names.map((name) => (
             <li
               key={name}
-              className="flex items-center gap-1 rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-300"
+              className="flex items-center gap-1 rounded bg-subtle px-1.5 py-0.5 text-[11px] text-fg"
             >
               {name}
               <button
@@ -276,7 +276,7 @@ function CharacterPicker({
                 aria-label={t('host.editor.form.characters.remove', { name })}
                 title={t('host.editor.form.characters.remove', { name })}
                 onClick={() => remove(name)}
-                className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
+                className="rounded p-0.5 text-fg-subtle transition-colors hover:bg-control hover:text-fg"
               >
                 <BuiltinIcon name="close" className="h-2.5 w-2.5" />
               </button>
@@ -303,11 +303,11 @@ function CharacterPicker({
             add(query)
           }}
           placeholder={t('host.editor.form.characters.placeholder')}
-          className="h-7 w-56 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500"
+          className="h-7 w-56 rounded border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-accent"
         />
 
         {open && matches.length > 0 && (
-          <ul className="absolute top-8 left-0 z-20 max-h-48 w-56 overflow-y-auto rounded border border-zinc-700 bg-zinc-800 py-1 shadow-lg shadow-black/50">
+          <ul className="absolute top-8 left-0 z-20 max-h-48 w-56 overflow-y-auto rounded border border-line bg-raised py-1 shadow-lg shadow-shade">
             {matches.map((label) => (
               <li key={label}>
                 {/*
@@ -318,7 +318,7 @@ function CharacterPicker({
                   type="button"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => add(label)}
-                  className="block w-full px-2 py-1 text-left text-xs text-zinc-200 transition-colors hover:bg-zinc-700"
+                  className="block w-full px-2 py-1 text-left text-xs text-fg transition-colors hover:bg-control"
                 >
                   {label}
                 </button>
@@ -333,7 +333,7 @@ function CharacterPicker({
         而真正的原因是「还没有哪个图鉴被设为角色图鉴」（见 .nide/config.yml 的 gallery）。
       */}
       {gallery === null && (
-        <p className="text-[10px] leading-3 text-zinc-500">
+        <p className="text-[10px] leading-3 text-fg-subtle">
           {t('host.editor.form.characters.missing')}
         </p>
       )}

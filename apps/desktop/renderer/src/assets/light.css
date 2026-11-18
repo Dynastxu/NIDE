@@ -1,367 +1,88 @@
 /*
- * 浅色主题：对**原始深色配色**做一次逐条翻译，纯 CSS。
+ * 浅色主题 = 一份 token 覆盖表。**没有第二条规则。**
  *
- * ## 为什么是"翻译"
+ * ## 它为什么可以这么短
  *
- * 组件里写的是深色下的具体色阶（`bg-zinc-900` / `text-zinc-400` / `border-zinc-700` …，
- * 全仓库 48 种）。这份表把其中每一个的**浅色对应值**写出来，靠 `.theme-light` 前缀
- * 加上选择器特异性盖过 Tailwind 的 `bg-zinc-900` 这类工具类 —— 组件一行都不用改，
- * 也不可能出现"某个窗口忘了跟"。
+ * 组件的颜色全是角色名（`bg-surface`、`text-fg-muted`、`border-line` …），它们编译成
+ * `var(--color-…)`；这些 token 在 index.css 的 `@theme` 里定义。所以换主题等于换一组
+ * 变量值 —— 不需要重写选择器，也就不存在"某个类忘了翻译"这件事。
  *
- * 暗色下这份表**完全不生效**（没有 `.theme-light`），所以深色与迁移前逐像素相同。
+ * 上一版不是这样：组件写原始色阶，这份文件逐条把 `bg-zinc-900` / `text-zinc-400`
+ * 揠成浅色值（48 条起，后来涨到 79 个类还没覆盖全）。它的失败模式很隐蔽 ——
+ * `hover:bg-zinc-800/60` 这种带变体的类没有对应规则，浅色下悬停会闪一块深灰；
+ * 而漏掉一条不会有任何报错，只有真去点一下才看得见。
  *
- * ## 翻译规则
+ * ## 值怎么选
  *
- * 1. **zinc 阶梯整体对调**：深色下的"深底浅字"变成"浅底深字"。
- *    900/950（面）→ 白与近白；100/200/300（字）→ 近黑；400/500（次要字）→ 中灰；
- *    600/700/800（线、次要按钮）→ 浅灰。
- * 2. **透明档按新底色重算**：`bg-zinc-950/40`（压在深底上更黑）浅色下要"更白"，
- *    写成 `#fafafa`；`bg-zinc-900/60`（悬停变深）写成 `#f4f4f5`（悬停变浅）。
- * 3. **近白文字压在主色淡底上要翻成深色**：`bg-blue-600/20` 那种淡蓝底浅色下仍是
- *    "淡"的，所以压在上面的 `text-zinc-100` / `text-blue-100` 必须变深。
- * 4. **语义色（红 / 琥珀）单独一组**：深色下是"深底浅字"（amber-200 压 amber-950/40），
- *    浅色下必须整组换成"浅底深字"，这一档不在 zinc 阶梯里。
- * 5. **主色实心面（blue-600 / red-600）与白字不动**：`bg-blue-600 text-white` 两种主题
- *    都成立（白字压 #2563eb 是 5.2:1）。
+ * 1. **画布与条带**：深色下"条带比画布深"是层次来源，浅色下反过来 ——
+ *    `surface` 白、`panel` 近白灰（`#fafafa`）。两者必须能区分，否则侧栏会糊在画布上。
+ * 2. **抬升面也是白**：菜单、对话框、输入框在浅色下靠**描边 + 投影**立起来，
+ *    不靠底色；`raised` 取纯白，`control` / `subtle` 才承担"有底色"的那一档。
+ * 3. **字**：正文近黑（`#18181b`），次要 `#52525b`，提示 `#71717a`，禁用 `#a1a1aa`。
+ *    深色下 100/200/300 三档近白在浅色里塌成一档 —— 这正是它们被并成一个 `fg` 的原因。
+ * 4. **语义色整组换向**：深色是"深底浅字"（`amber-950` 底 + `amber-200` 字），
+ *    浅色必须换成"浅底深字"。所以红 / 琥珀 / 绿各自有 `-soft`（底）、`-line`（描边）、
+ *    `-fg`（字）三到四个 token，而不是靠透明度凑。
+ * 5. **实心主色不动**：`bg-accent text-on-accent`（白字压 `#2563eb`，5.2:1）两种主题
+ *    都成立，所以 `accent` / `on-accent` 两边同值。
  *
  * 值尽量落在 Tailwind 的默认色板上（`#f4f4f5` = zinc-100 等），便于以后对照。
- * 覆盖范围可以用这个思路核对：组件里出现的每一个颜色类，都应当能在下面找到一条
- * 对应的规则 —— 漏掉的那一个会在浅色下保持深色值。
- */
-
-/* ============================ 页面 ============================ */
-
-.theme-light {
-  color-scheme: light;
-}
-
-/*
- * 滚动条：规则本身在 index.css 的 `:root`（`scrollbar-color` / `scrollbar-width`
- * 都可继承），这里只换 token。
  *
- * 深色那一档（zinc-700）压在浅底上就是"深色滚动条"，所以滑块换成 zinc-400：比面板
- * 深、比正文浅，与深色下的对比度大致相当。轨道两边都保持透明 —— 白、`#fafafa`、
- * `#f4f4f5` 三种面板底色各自透出来，不需要逐面板调色。
+ * ## 为什么不写成 `.theme-light`
  *
- * 选择器写成 `:root.theme-light` 而不是 `.theme-light`：这份表是通过 `@import`
- * 排在 index.css 的 `:root` **之前**的，同特异性的规则会被后者盖掉。多这一档类名
- * 就把「谁在后面」这个问题消掉，不依赖 import 顺序。
+ * `.theme-light` 挂在 `<html>` 上，它**就是** `:root`。两份文件里同特异性的规则，
+ * 谁在后面谁赢 —— 而这份表是通过 `@import` 排在 index.css 之前的。多写一档
+ * `:root` 就把"谁在后面"这个问题消掉，不依赖 import 顺序。
  */
 :root.theme-light {
-  --nide-scrollbar-thumb: #a1a1aa;
-  --nide-scrollbar-track: transparent;
-}
-
-/*
- * 页面本身的底色与文字色。
- *
- * index.css 里 body 是写死的深色（`#18181b` / `#e4e4e7`），它是"窗口从出现到首帧"
- * 之间露出来的那一层，所以必须跟着主题翻。
- */
-.theme-light body {
-  background-color: #ffffff;
-  color: #27272a;
-}
-
-/* ============================ 面 ============================ */
-
-/* 主视图面（编辑区画布） */
-.theme-light .bg-zinc-900 {
-  background-color: #ffffff;
-}
-
-/* 面板面：标题栏、侧栏、按钮条、标签条 —— 比画布略灰，关系与深色一致 */
-.theme-light .bg-zinc-950 {
-  background-color: #fafafa;
-}
-
-/* 页脚条、侧栏里那些半透明档（深色下压在深底上更黑，浅色下要更白） */
-.theme-light .bg-zinc-950\/40,
-.theme-light .bg-zinc-950\/30 {
-  background-color: #fafafa;
-}
-
-/* 浮层、输入框、可交互元素的底 */
-.theme-light .bg-zinc-800 {
-  background-color: #ffffff;
-}
-
-.theme-light .bg-zinc-800\/50,
-.theme-light .bg-zinc-800\/40 {
-  background-color: #f4f4f5;
-}
-
-/* 次要按钮与它压出来的分隔线 */
-.theme-light .bg-zinc-700 {
-  background-color: #e4e4e7;
-}
-
-.theme-light .bg-zinc-700\/70,
-.theme-light .bg-zinc-700\/60,
-.theme-light .bg-zinc-700\/20 {
-  background-color: #e4e4e7;
-}
-
-.theme-light .bg-zinc-600 {
-  background-color: #d4d4d8;
-}
-
-/* 悬停档：深色下"变深"的那几个，浅色下要"变浅" */
-.theme-light .bg-zinc-900\/60,
-.theme-light .bg-zinc-900\/40 {
-  background-color: #f4f4f5;
-}
-
-.theme-light .hover\:bg-zinc-800:hover,
-.theme-light .hover\:bg-zinc-800\/70:hover {
-  background-color: #f4f4f5;
-}
-
-.theme-light .hover\:bg-zinc-700:hover,
-.theme-light .hover\:bg-zinc-700\/70:hover,
-.theme-light .hover\:bg-zinc-700\/60:hover {
-  background-color: #e4e4e7;
-}
-
-.theme-light .hover\:bg-zinc-600:hover {
-  background-color: #d4d4d8;
-}
-
-/* ============================ 字 ============================ */
-
-/* 正文：深色下是近白，浅色下近黑 */
-.theme-light .text-zinc-100,
-.theme-light .text-zinc-200,
-.theme-light .text-zinc-300 {
-  color: #18181b;
-}
-
-/* 次要文字 */
-.theme-light .text-zinc-400 {
-  color: #52525b;
-}
-
-/* 提示、占位符、路径 */
-.theme-light .text-zinc-500 {
-  color: #71717a;
-}
-
-/* 禁用态 */
-.theme-light .text-zinc-600 {
-  color: #a1a1aa;
-}
-
-/* 悬停时提亮的文字（深色下 hover:text-zinc-100 之类） */
-.theme-light .hover\:text-zinc-100:hover,
-.theme-light .hover\:text-zinc-200:hover,
-.theme-light .hover\:text-zinc-300:hover {
-  color: #18181b;
-}
-
-/* ============================ 线 ============================ */
-
-.theme-light .border-zinc-800 {
-  border-color: #e4e4e7;
-}
-
-.theme-light .border-zinc-700 {
-  border-color: #d4d4d8;
-}
-
-/* 缩进辅助线是虚线，比常规描边更淡一档 */
-.theme-light .border-zinc-700\/60 {
-  border-color: rgb(212 212 216 / 0.7);
-}
-
-/* 输入框边框。深色下比常规描边亮一档才看得出来，浅色下要反过来深一档 */
-.theme-light .border-zinc-600 {
-  border-color: #a1a1aa;
-}
-
-.theme-light .hover\:border-zinc-600:hover {
-  border-color: #71717a;
-}
-
-/* 输入框聚焦：主色描边两种主题都看得清 */
-.theme-light .border-blue-500 {
-  border-color: #1d4ed8;
-}
-
-/* 复选框选中的勾用主色。深色深蓝在浅底上偏沉，用亮一档的蓝 */
-.theme-light .accent-blue-600 {
-  accent-color: #2563eb;
-}
-
-/* 复选框禁用态（设置页的「与操作系统同步」）：深色下那档灰在浅底上偏黑 */
-.theme-light .accent-zinc-600 {
-  accent-color: #a1a1aa;
-}
-
-/* ============================ 主色 ============================ */
-
-/*
- * 淡蓝底（选中行、当前项）：深色下 20%~30% 的蓝压在深底上，浅色下同比例会太重，
- * 所以降一档；压在上面的字从"近白"翻成深蓝，两种主题下都是"淡蓝底深字"。
- */
-.theme-light .bg-blue-600\/30,
-.theme-light .bg-blue-600\/20,
-.theme-light .bg-blue-600\/15 {
-  background-color: rgb(37 99 235 / 0.12);
-}
-
-.theme-light .hover\:bg-blue-600\/30:hover,
-.theme-light .hover\:bg-blue-600\/20:hover {
-  background-color: rgb(37 99 235 / 0.2);
-}
-
-.theme-light .text-blue-100 {
-  color: #1e3a8a;
-}
-
-/* 淡底上的勾 / 图标：深色下用 blue-400，浅色下要深一档才看得清 */
-.theme-light .text-blue-400 {
-  color: #1d4ed8;
-}
-
-/* 分隔条悬停（拖动时那一块）用主色，浅色下 blue-500 偏浅，换深一档 */
-.theme-light .bg-blue-500 {
-  background-color: #1d4ed8;
-}
-
-.theme-light .hover\:bg-blue-500:hover {
-  background-color: #1d4ed8;
-}
-
-/* ============================ 语义色 ============================ */
-
-/* 警示：深色下是 amber-950/40 底 + amber-200 字，浅色下整组换成浅底深字 */
-.theme-light .bg-amber-950\/40 {
-  background-color: #fffbeb;
-}
-
-.theme-light .border-amber-900\/50 {
-  border-color: #fcd34d;
-}
-
-.theme-light .text-amber-200 {
-  color: #78350f;
-}
-
-.theme-light .text-amber-300 {
-  color: #92400e;
-}
-
-.theme-light .hover\:bg-amber-900\/50:hover {
-  background-color: #fef3c7;
-}
-
-.theme-light .bg-amber-900\/50 {
-  background-color: #fef3c7;
-}
-
-/* 未保存圆点、目录图标这类小标记：深色下明亮的琥珀，浅色下要压深才看得见 */
-.theme-light .text-amber-400,
-.theme-light .text-amber-400\/70 {
-  color: #b45309;
-}
-
-.theme-light .bg-amber-400 {
-  background-color: #b45309;
-}
-
-/* 危险：同样是深底浅字 -> 浅底深字 */
-.theme-light .bg-red-950\/40 {
-  background-color: #fef2f2;
-}
-
-.theme-light .border-red-900\/60 {
-  border-color: #fca5a5;
-}
-
-.theme-light .text-red-300,
-.theme-light .text-red-400 {
-  color: #b91c1c;
-}
-
-/* 危险按钮的悬停档：red-500 压在浅底上偏飘，浅色下用更深一档 */
-.theme-light .bg-red-500,
-.theme-light .hover\:bg-red-500:hover {
-  background-color: #b91c1c;
-}
-
-/* ============================ 遮罩与阴影 ============================ */
-
-/*
- * 深色下 `bg-black/50` 的遮罩两种主题都能用，但浅色下略微减轻更自然。
- */
-.theme-light .bg-black\/50 {
-  background-color: rgb(0 0 0 / 0.35);
-}
-
-/*
- * 浮层阴影在浅色下要轻：深色下 `shadow-black/40` 是"更黑"，浅色下同样透明度会显脏。
- */
-.theme-light .shadow-black\/40,
-.theme-light .shadow-black\/50,
-.theme-light .shadow-black\/60 {
-  --tw-shadow-color: rgb(0 0 0 / 0.15);
-}
-
-/* ============================ Markdown 预览 ============================ */
-
-/*
- * 预览的排版是 index.css 里的一份普通 CSS（用后代选择器写 marked 生成的任意层级
- * 标签），所以这里逐条给浅色对应值 —— 规则同上面那几条：面翻成近白、字翻成近黑、
- * 线与代码底色翻成浅灰。
- */
-.theme-light .nide-markdown {
-  color: #3f3f46; /* zinc-700 */
-}
-
-.theme-light .nide-markdown h1,
-.theme-light .nide-markdown h2,
-.theme-light .nide-markdown h3,
-.theme-light .nide-markdown h4,
-.theme-light .nide-markdown h5,
-.theme-light .nide-markdown h6 {
-  color: #18181b; /* zinc-900 */
-}
-
-.theme-light .nide-markdown h1 {
-  border-bottom-color: #e4e4e7; /* zinc-200 */
-}
-
-.theme-light .nide-markdown h2 {
-  border-bottom-color: #f4f4f5; /* zinc-100 */
-}
-
-.theme-light .nide-markdown blockquote {
-  border-left-color: #d4d4d8; /* zinc-300 */
-  color: #52525b; /* zinc-600 */
-}
-
-.theme-light .nide-markdown code {
-  background: #f4f4f5; /* zinc-100 */
-}
-
-.theme-light .nide-markdown pre {
-  border-color: #e4e4e7;
-  background: #fafafa; /* zinc-50 */
-}
-
-.theme-light .nide-markdown th,
-.theme-light .nide-markdown td {
-  border-color: #d4d4d8;
-}
-
-.theme-light .nide-markdown th {
-  background: #f4f4f5;
-}
-
-.theme-light .nide-markdown hr {
-  border-top-color: #d4d4d8;
-}
-
-.theme-light .nide-markdown a {
-  color: #2563eb; /* blue-600：浅底上 blue-400 太飘 */
+  /* color-scheme 让 Chromium 自己把原生控件（下拉、滚动条、表单）按浅色画 */
+  color-scheme: light;
+
+  /* ---------- 面 ---------- */
+  --color-panel: #fafafa;
+  --color-surface: #ffffff;
+  --color-raised: #ffffff;
+  --color-subtle: #f4f4f5;
+  --color-control: #e4e4e7;
+  --color-control-hover: #d4d4d8;
+
+  /* ---------- 线 ---------- */
+  --color-line-subtle: #e4e4e7;
+  --color-line: #d4d4d8;
+  --color-line-strong: #a1a1aa;
+
+  /* ---------- 字 ---------- */
+  --color-fg: #18181b;
+  --color-fg-muted: #52525b;
+  --color-fg-subtle: #71717a;
+  --color-fg-disabled: #a1a1aa;
+
+  /* ---------- 主色 ---------- */
+  --color-accent: #2563eb;
+  /* 白底上 blue-500 偏飘，悬停反而要更深 */
+  --color-accent-hover: #1d4ed8;
+  --color-accent-fg: #1d4ed8;
+  --color-on-accent: #ffffff;
+
+  /* ---------- 语义色 ---------- */
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-fg: #b91c1c;
+  --color-danger-line: #fca5a5;
+  --color-danger-soft: #fef2f2;
+
+  --color-warning: #b45309;
+  --color-warning-strong: #78350f;
+  --color-warning-line: #fcd34d;
+  --color-warning-soft: #fffbeb;
+
+  --color-success: #047857;
+
+  /* ---------- 遮罩、阴影、滚动条 ---------- */
+  /* 浅色下遮罩与投影都要轻一档：同样透明度压在浅底上显脏 */
+  --color-scrim: rgb(0 0 0 / 0.35);
+  --color-shade: rgb(0 0 0 / 0.15);
+  /* 滑块：比面板深、比正文浅 */
+  --color-scrollbar: #a1a1aa;
+  --color-inset: #f4f4f5;
 }

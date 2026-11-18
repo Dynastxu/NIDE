@@ -50,7 +50,7 @@ export function Resizer({ axis, onDelta, onReset }: Props): JSX.Element {
       }}
       onDoubleClick={onReset}
       className={[
-        'relative z-20 shrink-0 touch-none select-none bg-zinc-800 transition-colors hover:bg-blue-500',
+        'relative z-20 shrink-0 touch-none select-none bg-line transition-colors hover:bg-accent-hover',
         axis === 'x' ? 'w-px cursor-col-resize' : 'h-px cursor-row-resize',
         hitArea
       ].join(' ')}

@@ -48,7 +48,7 @@ function HostNotice({ viewId }: { viewId: string }): JSX.Element {
 
   return (
     <ViewFrame chrome={chrome}>
-      <pre className="h-full overflow-auto p-3 font-mono text-[11px] leading-4 whitespace-pre-wrap text-red-400">
+      <pre className="h-full overflow-auto p-3 font-mono text-[11px] leading-4 whitespace-pre-wrap text-danger-fg">
         {`宿主没有实现内建视图 ${viewId}。\n主进程的 HOST_VIEWS 与渲染进程的 ` +
           'HOST_VIEW_COMPONENTS 必须一一对应。'}
       </pre>

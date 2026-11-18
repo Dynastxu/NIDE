@@ -59,9 +59,7 @@ export function DocumentViewModes({
             onClick={() => setMode(path, id)}
             className={[
               'flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors',
-              active
-                ? 'bg-zinc-700 text-zinc-100'
-                : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200'
+              active ? 'bg-control text-fg' : 'text-fg-subtle hover:bg-subtle hover:text-fg'
             ].join(' ')}
           >
             <BuiltinIcon name={item.icon} className="h-3.5 w-3.5" />

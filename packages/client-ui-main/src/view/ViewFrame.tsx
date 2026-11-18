@@ -45,9 +45,9 @@ export function ViewFrame({
   const zone = zoneOf(descriptor?.location)
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-zinc-950/30">
+    <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-panel">
       {chrome.header && (
-        <div className="flex h-7 shrink-0 items-stretch gap-1 border-b border-zinc-800 bg-zinc-900/60 pr-1 pl-2">
+        <div className="flex h-7 shrink-0 items-stretch gap-1 border-b border-line-subtle bg-surface pr-1 pl-2">
           {chrome.showTitle && <FrameTitle title={chrome.title} />}
           {chrome.showTitle && <ChromeSlot slot={slots?.title} />}
 
@@ -96,7 +96,7 @@ function FrameTitle({ title }: { title: string }): JSX.Element {
   return (
     <div
       title={title}
-      className="flex min-w-0 shrink-0 items-center pr-1 text-xs font-medium text-zinc-300"
+      className="flex min-w-0 shrink-0 items-center pr-1 text-xs font-medium text-fg"
     >
       <span className="max-w-40 truncate">{title}</span>
     </div>
@@ -258,9 +258,7 @@ function FrameIconButton({
       onClick={onClick}
       className={[
         'flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors',
-        expanded
-          ? 'bg-zinc-700 text-zinc-100'
-          : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200'
+        expanded ? 'bg-control text-fg' : 'text-fg-subtle hover:bg-subtle hover:text-fg'
       ].join(' ')}
     >
       <BuiltinIcon name={icon} className="h-3.5 w-3.5" />

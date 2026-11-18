@@ -79,9 +79,7 @@ export function SettingsMenu(): JSX.Element {
         onClick={() => setOpen((value) => !value)}
         className={[
           'flex h-7 w-7 items-center justify-center rounded transition-colors',
-          open
-            ? 'bg-zinc-700 text-zinc-100'
-            : 'text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-100'
+          open ? 'bg-control text-fg' : 'text-fg-muted hover:bg-control hover:text-fg'
         ].join(' ')}
       >
         <BuiltinIcon name="sliders" />

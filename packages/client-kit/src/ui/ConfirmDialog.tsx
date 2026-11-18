@@ -75,17 +75,17 @@ export function ConfirmDialog({
   }, [danger, onConfirm, onCancel])
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim">
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex w-[400px] max-w-[90%] flex-col gap-3 rounded-lg border border-zinc-700 bg-zinc-800 p-5 shadow-2xl shadow-black/50"
+        className="flex w-[400px] max-w-[90%] flex-col gap-3 rounded-lg border border-line bg-raised p-5 shadow-2xl shadow-shade"
       >
-        <h2 id={titleId} className="text-sm font-medium text-zinc-100">
+        <h2 id={titleId} className="text-sm font-medium text-fg">
           {title}
         </h2>
-        <p className="text-xs leading-relaxed text-zinc-400">{message}</p>
+        <p className="text-xs leading-relaxed text-fg-muted">{message}</p>
 
         <div className="mt-1 flex justify-end gap-2">
           <button
@@ -93,8 +93,8 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             className={[
-              'rounded px-3.5 py-1 text-xs text-white transition-colors',
-              danger ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'
+              'rounded px-3.5 py-1 text-xs text-on-accent transition-colors',
+              danger ? 'bg-danger hover:bg-danger-hover' : 'bg-accent hover:bg-accent-hover'
             ].join(' ')}
           >
             {confirmLabel}
@@ -103,7 +103,7 @@ export function ConfirmDialog({
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            className="rounded bg-zinc-700 px-3.5 py-1 text-xs text-zinc-100 transition-colors hover:bg-zinc-600"
+            className="rounded bg-control px-3.5 py-1 text-xs text-fg transition-colors hover:bg-control-hover"
           >
             {cancelLabel}
           </button>

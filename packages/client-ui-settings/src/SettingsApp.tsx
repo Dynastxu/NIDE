@@ -172,7 +172,7 @@ function SettingsWindowContent(): JSX.Element {
   const HostPage = page?.kind === 'host' ? PAGE_COMPONENTS[page.id] : null
 
   return (
-    <div className="relative flex h-full w-full flex-col bg-zinc-900 text-zinc-200">
+    <div className="relative flex h-full w-full flex-col bg-surface text-fg">
       <div className="flex min-h-0 flex-1">
         <SettingsTreeNav
           tree={tree}
@@ -182,14 +182,16 @@ function SettingsWindowContent(): JSX.Element {
 
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           {!loaded ? (
-            <p className="p-6 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+            <p className="p-6 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
           ) : !selected ? (
-            <p className="p-6 text-xs text-zinc-500">{t('host.settings.index.empty')}</p>
+            <p className="p-6 text-xs text-fg-subtle">{t('host.settings.index.empty')}</p>
           ) : (
             <>
               {page?.kind === 'host' && HostPage ? (
                 <Suspense
-                  fallback={<p className="p-6 text-xs text-zinc-500">{t('host.plugin.loading')}</p>}
+                  fallback={
+                    <p className="p-6 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
+                  }
                 >
                   {/* key 绑节点 id：换页时页面重新挂载，草稿自然归零 */}
                   <HostPage key={selected.id} {...pageProps} />
@@ -210,7 +212,7 @@ function SettingsWindowContent(): JSX.Element {
       </div>
 
       {/* 按钮条：右对齐，贴着内容区右下角 */}
-      <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-zinc-800 bg-zinc-950/40 px-4 py-2.5">
+      <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line-subtle bg-panel px-4 py-2.5">
         <FooterButton
           label={t('host.settings.apply.ok')}
           variant="primary"
@@ -277,10 +279,10 @@ function FooterButton({
       className={[
         'rounded px-3.5 py-1 text-xs transition-colors',
         disabled
-          ? 'cursor-not-allowed bg-zinc-800/50 text-zinc-600'
+          ? 'cursor-not-allowed bg-subtle text-fg-disabled'
           : variant === 'primary'
-            ? 'bg-blue-600 text-white hover:bg-blue-500'
-            : 'bg-zinc-700 text-zinc-100 hover:bg-zinc-600'
+            ? 'bg-accent text-on-accent hover:bg-accent-hover'
+            : 'bg-control text-fg hover:bg-control-hover'
       ].join(' ')}
     >
       {label}

@@ -118,7 +118,7 @@ function MenuPanel({
       ref={ref}
       role="menu"
       style={{ left: pos.x, top: pos.y }}
-      className="fixed z-50 min-w-[160px] rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-xl shadow-black/40"
+      className="fixed z-50 min-w-[160px] rounded-md border border-line bg-raised py-1 shadow-xl shadow-shade"
     >
       {items.map((item) =>
         isSubmenu(item) ? (
@@ -209,7 +209,7 @@ function SubmenuEntry({
           <div
             role="menu"
             aria-label={item.label}
-            className="min-w-[160px] rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-xl shadow-black/40"
+            className="min-w-[160px] rounded-md border border-line bg-raised py-1 shadow-xl shadow-shade"
           >
             {item.items.map((child) => (
               <MenuItemRow

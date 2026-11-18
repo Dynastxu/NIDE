@@ -150,14 +150,14 @@ export function PluginSlot({ viewId }: PluginSlotProps): JSX.Element {
 
   if (error) {
     return (
-      <pre className="h-full overflow-auto whitespace-pre-wrap p-3 font-mono text-[11px] leading-4 text-red-400">
+      <pre className="h-full overflow-auto whitespace-pre-wrap p-3 font-mono text-[11px] leading-4 text-danger-fg">
         {error}
       </pre>
     )
   }
 
   if (!Component) {
-    return <div className="p-3 text-xs text-zinc-500">{t('host.plugin.loading')}</div>
+    return <div className="p-3 text-xs text-fg-subtle">{t('host.plugin.loading')}</div>
   }
 
   return (

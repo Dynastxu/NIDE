@@ -7,9 +7,9 @@ import type { ThemeDescriptor, ThemeId, ThemePalette } from './types.js'
  * 而 host 加载不了任何带运行时 import 的共享文件。所以类型用 `./types.js`（纯类型，
  * 运行时会被擦除）引进来。
  *
- * 配色不在数据里 —— 它在样式表中：
- * - 深色：组件里的原始色阶（`bg-zinc-900` …）+ `assets/index.css`；
- * - 浅色：`assets/light.css` 对前者的逐条翻译。
+ * 配色不在数据里 —— 它在样式表里，而且只有一份语义 token 表：
+ * - 深色值：`assets/index.css` 的 `@theme`（组件只写 `bg-surface` 这类角色名）；
+ * - 浅色值：`assets/light.css` 对同一组 token 的覆盖。
  *
  * 这里只声明"有哪两套、各自深浅、窗口底色是什么"。
  */
@@ -33,12 +33,12 @@ export const BUILTIN_THEMES: readonly ThemeDescriptor[] = [
  * 颜色。首帧不靠它（窗口是 `ready-to-show` 之后才 show 的），它管的是**页面之外与
  * 页面重绘之前**露出来的地方：拖动改大窗口时新露出的那块、合成器还没跟上时的窗口背景。
  *
- * 值必须与样式表里两种配色的页面底色一致（深色 = `#18181b` 见 index.css 的 body，
- * 浅色 = `#ffffff` 见 light.css），否则上面那些地方会露出异色。
+ * 值必须与样式表里两种配色的画布 token 一致（深色 = `--color-surface` 的 `#18181b`，
+ * 见 index.css；浅色 = light.css 里同一个 token 的 `#ffffff`），否则上面那些地方会露出异色。
  */
 export const THEME_WINDOW_COLORS: Record<ThemePalette, string> = {
-  dark: '#18181b', // zinc-900
-  light: '#ffffff'
+  dark: '#18181b', // = --color-surface（深色）
+  light: '#ffffff' // = --color-surface（浅色）
 }
 
 /** 没有偏好时的地板 */

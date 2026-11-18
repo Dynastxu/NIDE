@@ -106,8 +106,8 @@ function ControlButton({
       onClick={onClick}
       className={[
         'flex h-full w-[46px] items-center justify-center transition-colors',
-        danger ? 'hover:bg-red-600 hover:text-white' : 'hover:bg-zinc-700/70',
-        dimmed ? 'text-zinc-500' : 'text-zinc-300'
+        danger ? 'hover:bg-danger-hover hover:text-on-accent' : 'hover:bg-control',
+        dimmed ? 'text-fg-subtle' : 'text-fg'
       ].join(' ')}
     >
       {children}

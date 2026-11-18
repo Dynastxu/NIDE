@@ -76,6 +76,7 @@ function tsxSources(): string[] {
 const indexCss = stripComments(read(INDEX_CSS))
 const lightCss = stripComments(read(LIGHT_CSS))
 const rootDeclarations = ruleBody(indexCss, ':root')
+const themeDeclarations = ruleBody(indexCss, '@theme')
 const lightDeclarations = ruleBody(lightCss, ':root\\.theme-light')
 const nativeDeclarations = ruleBody(indexCss, '\\.native-scrollbar')
 const sources = tsxSources()
@@ -86,18 +87,24 @@ describe('滚动条主题', () => {
     expect(rootDeclarations).toMatch(
       /scrollbar-color:\s*var\(--nide-scrollbar-thumb\)\s+var\(--nide-scrollbar-track\)/
     )
-    expect(tokenValue(rootDeclarations, '--nide-scrollbar-thumb')).not.toBe('')
-    expect(tokenValue(rootDeclarations, '--nide-scrollbar-track')).not.toBe('')
+    // 滑块的颜色必须是指向配色 token 的引用，写死色值等于浅色主题下又变回深色
+    expect(tokenValue(rootDeclarations, '--nide-scrollbar-thumb')).toMatch(
+      /^var\(--color-[a-z-]+\)$/
+    )
+    expect(tokenValue(rootDeclarations, '--nide-scrollbar-track')).toBe('transparent')
   })
 
   it('浅色主题换掉滑块颜色，轨道保持透明', () => {
-    const darkThumb = tokenValue(rootDeclarations, '--nide-scrollbar-thumb')
-    const lightThumb = tokenValue(lightDeclarations, '--nide-scrollbar-thumb')
+    // 滑块颜色的来源是配色 token，所以"浅色有没有换"要查那两套 token 值
+    const darkThumb = tokenValue(themeDeclarations, '--color-scrollbar')
+    const lightThumb = tokenValue(lightDeclarations, '--color-scrollbar')
 
+    expect(darkThumb).not.toBe('')
+    expect(lightThumb).not.toBe('')
     // 两边取值不同，才说明浅色下真的翻过去了（相同就等于漏改）
     expect(lightThumb).not.toBe(darkThumb)
-    expect(lightThumb).not.toBe('')
-    expect(tokenValue(lightDeclarations, '--nide-scrollbar-track')).toBe('transparent')
+    // 轨道不在这里定义：它继承 :root 的 transparent，两套配色共用
+    expect(lightDeclarations).not.toContain('--nide-scrollbar-track')
   })
 
   it('原生滚动条是显式退出，默认不提供逐容器开关', () => {

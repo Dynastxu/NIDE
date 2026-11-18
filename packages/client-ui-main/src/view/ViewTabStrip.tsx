@@ -76,8 +76,8 @@ function FlatTabStrip({
             className={[
               'group flex h-6 min-w-0 max-w-[200px] shrink-0 items-center gap-1 self-center rounded border-t-2 pr-0.5 pl-2 text-xs transition-colors',
               active
-                ? 'border-t-blue-500 bg-zinc-800 text-zinc-100'
-                : 'border-t-transparent text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
+                ? 'border-t-accent bg-raised text-fg'
+                : 'border-t-transparent text-fg-muted hover:bg-subtle hover:text-fg'
             ].join(' ')}
           >
             {/* div + button 而不是把整块做成 button：里面还有关闭按钮，嵌套 button 是无效 HTML */}
@@ -142,7 +142,7 @@ function DropdownTabStrip({
         onClick={onToggle}
         className={[
           'flex h-6 min-w-0 max-w-[200px] items-center gap-1 rounded px-2 text-xs transition-colors',
-          open ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-800'
+          open ? 'bg-control text-fg' : 'text-fg hover:bg-subtle'
         ].join(' ')}
       >
         {active?.status === 'dot' && <TabStatusDot />}
@@ -154,7 +154,7 @@ function DropdownTabStrip({
         <div
           role="menu"
           aria-label={t('host.view.tabs')}
-          className="absolute top-full left-0 z-50 mt-1 flex max-h-64 min-w-45 flex-col overflow-y-auto rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-xl shadow-black/40"
+          className="absolute top-full left-0 z-50 mt-1 flex max-h-64 min-w-45 flex-col overflow-y-auto rounded-md border border-line bg-raised py-1 shadow-xl shadow-shade"
         >
           {tabs.map((tab) => {
             const isActive = tab.id === activeTabId
@@ -164,7 +164,7 @@ function DropdownTabStrip({
                 key={tab.id}
                 className={[
                   'group flex items-center gap-1 pr-1 pl-2 text-xs',
-                  isActive ? 'bg-blue-600/25 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-700'
+                  isActive ? 'bg-accent/20 text-fg' : 'text-fg hover:bg-control'
                 ].join(' ')}
               >
                 <button
@@ -208,7 +208,7 @@ function DropdownTabStrip({
 
 /** 未保存一类的状态标识：标签文字左侧的圆点 */
 function TabStatusDot(): JSX.Element {
-  return <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+  return <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
 }
 
 /**
@@ -285,7 +285,7 @@ export function ViewTabCloseButton({
         onClose()
       }}
       className={[
-        'flex h-4 w-4 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-zinc-700 hover:text-zinc-100',
+        'flex h-4 w-4 shrink-0 items-center justify-center rounded text-fg-subtle hover:bg-control hover:text-fg',
         active || showDot
           ? 'opacity-100'
           : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
@@ -294,7 +294,7 @@ export function ViewTabCloseButton({
       {showDot ? (
         <>
           {/* 圆点是状态，叉号是动作：悬停时换过去，位置不动 */}
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 group-hover:hidden" />
+          <span className="h-1.5 w-1.5 rounded-full bg-warning group-hover:hidden" />
           <BuiltinIcon name="close" className="hidden h-3 w-3 group-hover:block" />
         </>
       ) : (

@@ -17,11 +17,11 @@ import type { SettingsPageProps } from '@nide/client-ui-settings/pages'
  * 首帧前就固化了），点下去就已经回不了头。主题没有这个约束，所以它老老实实走草稿 ——
  * 一边预览一边攒草稿的写法会让「取消」退不退得回去这个问题变得没有答案。
  *
- * ## 样式就用组件里那套色阶
+ * ## 样式就用那套 token
  *
- * 这一页和其他组件一样写 `bg-zinc-900` / `text-zinc-400` 这类**原始色阶**，浅色主题
- * 由 `assets/light.css` 统一翻译 —— 所以它不需要为浅色做任何特殊处理，也不可能
- * 成为"漏翻"的那一处。
+ * 这一页和其他组件一样写 `bg-surface` / `text-fg-muted` 这类**角色名**，配色由
+ * `@theme` 里的 token 决定，浅色主题只是覆盖同一组 token 的值 —— 所以它不需要为
+ * 浅色做任何特殊处理，也不可能成为"漏翻"的那一处。
  *
  * ## 「与操作系统同步」为什么是灰的
  *
@@ -65,8 +65,8 @@ export default function AppearancePage({
   return (
     <section className="flex flex-col gap-5 p-6">
       <header className="flex flex-col gap-1">
-        <h2 className="text-sm font-medium text-zinc-100">{t('host.settings.page.appearance')}</h2>
-        <p className="max-w-prose text-xs leading-relaxed text-zinc-400">
+        <h2 className="text-sm font-medium text-fg">{t('host.settings.page.appearance')}</h2>
+        <p className="max-w-prose text-xs leading-relaxed text-fg-muted">
           {t('host.settings.appearance.description')}
         </p>
       </header>
@@ -76,7 +76,7 @@ export default function AppearancePage({
           id="nide-settings-theme"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          className="w-56 rounded border border-zinc-600 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 outline-none focus:border-blue-500"
+          className="w-56 rounded border border-line-strong bg-surface px-2 py-1.5 text-xs text-fg outline-none focus:border-accent"
         >
           {/*
             列表为空只可能出现在一种情况下：启动参数拿到了能用的配色，但那次
@@ -106,7 +106,7 @@ export default function AppearancePage({
         <label
           htmlFor="nide-settings-follow-system"
           title={t('host.settings.appearance.followSystem.unavailable')}
-          className="flex cursor-not-allowed items-center gap-2 text-xs text-zinc-500"
+          className="flex cursor-not-allowed items-center gap-2 text-xs text-fg-subtle"
         >
           <input
             id="nide-settings-follow-system"
@@ -114,7 +114,7 @@ export default function AppearancePage({
             checked={false}
             disabled
             onChange={() => undefined}
-            className="h-3.5 w-3.5 shrink-0 disabled:cursor-not-allowed disabled:accent-zinc-600"
+            className="h-3.5 w-3.5 shrink-0 disabled:cursor-not-allowed disabled:accent-fg-disabled"
           />
           <span>{t('host.settings.appearance.followSystem.hint')}</span>
         </label>
@@ -141,7 +141,7 @@ function SettingRow({
   return (
     <div className="flex max-w-2xl flex-col gap-1">
       <div className="flex items-center gap-4">
-        <label htmlFor={htmlFor} className="w-32 shrink-0 text-xs text-zinc-300">
+        <label htmlFor={htmlFor} className="w-32 shrink-0 text-xs text-fg">
           {label}
         </label>
         {children}

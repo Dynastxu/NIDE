@@ -117,20 +117,20 @@ export function UnsavedCloseDialog({
   })
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim">
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex w-[420px] max-w-[90%] flex-col gap-3 rounded-lg border border-zinc-700 bg-zinc-800 p-5 shadow-2xl shadow-black/50"
+        className="flex w-[420px] max-w-[90%] flex-col gap-3 rounded-lg border border-line bg-raised p-5 shadow-2xl shadow-shade"
       >
-        <h2 id={titleId} className="text-sm font-medium text-zinc-100">
+        <h2 id={titleId} className="text-sm font-medium text-fg">
           {t('host.editor.unsaved.title', { name })}
         </h2>
-        <p className="text-xs leading-relaxed text-zinc-400">{t('host.editor.unsaved.message')}</p>
+        <p className="text-xs leading-relaxed text-fg-muted">{t('host.editor.unsaved.message')}</p>
 
         {failure && (
-          <p role="alert" className="text-[11px] text-red-400">
+          <p role="alert" className="text-[11px] text-danger-fg">
             {failure}
           </p>
         )}
@@ -141,7 +141,7 @@ export function UnsavedCloseDialog({
             type="button"
             disabled={busy}
             onClick={() => void submit()}
-            className="rounded bg-blue-600 px-3.5 py-1 text-xs text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
+            className="rounded bg-accent px-3.5 py-1 text-xs text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-control disabled:text-fg-subtle"
           >
             {t('host.editor.save')}
           </button>
@@ -149,7 +149,7 @@ export function UnsavedCloseDialog({
             type="button"
             disabled={busy}
             onClick={onDiscard}
-            className="rounded bg-zinc-700 px-3.5 py-1 text-xs text-zinc-100 transition-colors hover:bg-zinc-600 disabled:cursor-not-allowed disabled:text-zinc-500"
+            className="rounded bg-control px-3.5 py-1 text-xs text-fg transition-colors hover:bg-control-hover disabled:cursor-not-allowed disabled:text-fg-subtle"
           >
             {t('host.editor.unsaved.discard')}
           </button>
@@ -157,7 +157,7 @@ export function UnsavedCloseDialog({
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="rounded bg-zinc-700 px-3.5 py-1 text-xs text-zinc-100 transition-colors hover:bg-zinc-600 disabled:cursor-not-allowed disabled:text-zinc-500"
+            className="rounded bg-control px-3.5 py-1 text-xs text-fg transition-colors hover:bg-control-hover disabled:cursor-not-allowed disabled:text-fg-subtle"
           >
             {t('host.dialog.cancel')}
           </button>

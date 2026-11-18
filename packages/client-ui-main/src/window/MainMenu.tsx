@@ -247,7 +247,7 @@ export function MainMenu(): JSX.Element {
             aria-label={t('host.menu.button')}
             title={t('host.menu.button')}
             onClick={() => setMenuOpen(true)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-700/70 hover:text-zinc-100"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-fg-muted transition-colors hover:bg-control hover:text-fg"
           >
             <BuiltinIcon name="menu" />
           </button>
@@ -283,7 +283,7 @@ function MenuBarItem({
         onClick={onToggle}
         className={[
           'flex h-full items-center rounded px-2 text-xs transition-colors',
-          expanded ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-700/70'
+          expanded ? 'bg-control text-fg' : 'text-fg hover:bg-control'
         ].join(' ')}
       >
         {t(group.labelKey)}

@@ -119,14 +119,14 @@ export function PluginSettingsSlot({
 
   if (error) {
     return (
-      <pre className="h-full overflow-auto whitespace-pre-wrap p-6 font-mono text-[11px] leading-4 text-red-400">
+      <pre className="h-full overflow-auto whitespace-pre-wrap p-6 font-mono text-[11px] leading-4 text-danger-fg">
         {error}
       </pre>
     )
   }
 
   if (!Component) {
-    return <p className="p-6 text-xs text-zinc-500">{t('host.plugin.loading')}</p>
+    return <p className="p-6 text-xs text-fg-subtle">{t('host.plugin.loading')}</p>
   }
 
   return (

@@ -100,7 +100,7 @@ export function GalleryEntryForm({
   )
 
   if (allFields.length === 0) {
-    return <p className="text-xs text-zinc-500">{t('host.editor.gallery.empty')}</p>
+    return <p className="text-xs text-fg-subtle">{t('host.editor.gallery.empty')}</p>
   }
 
   return (
@@ -109,7 +109,7 @@ export function GalleryEntryForm({
 
       {/* 文件里多出来的键：单独说一句，免得用户以为它们是这个图鉴的字段 */}
       {gallery !== null && extraFields.length > 0 && (
-        <p className="text-[11px] leading-4 text-zinc-500">{t('host.editor.gallery.extra')}</p>
+        <p className="text-[11px] leading-4 text-fg-subtle">{t('host.editor.gallery.extra')}</p>
       )}
 
       {extraFields.map(field)}

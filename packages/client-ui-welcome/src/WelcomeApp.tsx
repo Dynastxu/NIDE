@@ -41,7 +41,7 @@ export default function WelcomeApp(): JSX.Element {
   return (
     <WindowFrame title={title}>
       {/* relative：重启提示是 absolute inset-0 的浮层，锚点必须是这一层 */}
-      <div className="relative flex h-full w-full flex-col bg-zinc-900 text-zinc-200">
+      <div className="relative flex h-full w-full flex-col bg-surface text-fg">
         <div className="flex min-h-0 flex-1">
           <WelcomeNav active={tab} onSelect={setTab} />
 
@@ -54,7 +54,7 @@ export default function WelcomeApp(): JSX.Element {
           </div>
         </div>
 
-        <footer className="flex shrink-0 items-center border-t border-zinc-800 bg-zinc-950/40 px-3 py-1.5">
+        <footer className="flex shrink-0 items-center border-t border-line-subtle bg-panel px-3 py-1.5">
           <SettingsButton />
         </footer>
 
@@ -102,7 +102,7 @@ function WelcomeNav({
       role="tablist"
       aria-orientation="vertical"
       aria-label={t('host.welcome.nav.title')}
-      className="flex w-52 shrink-0 flex-col gap-0.5 border-r border-zinc-800 bg-zinc-950/40 py-2"
+      className="flex w-52 shrink-0 flex-col gap-0.5 border-r border-line-subtle bg-panel py-2"
     >
       {WELCOME_TABS.map((tab) => {
         const selected = tab.id === active
@@ -116,9 +116,7 @@ function WelcomeNav({
             onClick={() => onSelect(tab.id)}
             className={[
               'mx-1.5 flex items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors',
-              selected
-                ? 'bg-blue-600 text-white'
-                : 'text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100'
+              selected ? 'bg-accent text-on-accent' : 'text-fg hover:bg-subtle'
             ].join(' ')}
           >
             <BuiltinIcon name={tab.icon} />

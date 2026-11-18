@@ -15,5 +15,5 @@ import type { HostMessageKey } from '@nide/contracts/i18n'
 export function HostPlaceholder({ messageKey }: { messageKey: HostMessageKey }): JSX.Element {
   const t = useT()
 
-  return <p className="p-3 text-xs text-zinc-500">{t(messageKey)}</p>
+  return <p className="p-3 text-xs text-fg-subtle">{t(messageKey)}</p>
 }
