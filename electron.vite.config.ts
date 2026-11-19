@@ -58,6 +58,10 @@ export default defineConfig({
           replacement: `${resolve('packages/client-ui-main/src')}/`
         },
         {
+          find: /^@nide\/client-ui-git\//,
+          replacement: `${resolve('packages/client-ui-git/src')}/`
+        },
+        {
           find: /^@nide\/client-ui-plugins\//,
           replacement: `${resolve('packages/client-ui-plugins/src')}/`
         },
@@ -91,6 +95,10 @@ export default defineConfig({
         {
           find: '@nide/client-ui-main',
           replacement: resolve('packages/client-ui-main/src/index.ts')
+        },
+        {
+          find: '@nide/client-ui-git',
+          replacement: resolve('packages/client-ui-git/src/index.ts')
         },
         {
           find: '@nide/client-ui-plugins',

@@ -13,6 +13,7 @@ import { projectService } from '../../packages/project/src/index.ts'
 import { contentService } from '../../packages/content/src/index.ts'
 import { configService } from '../../packages/config/src/index.ts'
 import { pluginsService } from '../../packages/plugin-runtime/src/index.ts'
+import { gitService } from '../../packages/git/src/index.ts'
 import { i18nService } from '../../packages/i18n/src/index.ts'
 import { appearanceService } from '../../packages/appearance/src/index.ts'
 import { secretsService } from '../../packages/secrets/src/index.ts'
@@ -21,6 +22,11 @@ import {
   CORE_PACKAGES,
   type CorePackage
 } from '../../packages/contracts/src/plugin-api/core-packages.ts'
+import {
+  HOST_COMMIT_VIEW_ID,
+  HOST_EXPLORER_VIEW_ID,
+  HOST_GIT_VIEW_ID
+} from '../../packages/contracts/src/plugin-api/view.ts'
 
 /**
  * 服务装配（阶段 A 的收口）。
@@ -36,6 +42,7 @@ const services = [
   contentService,
   configService,
   pluginsService,
+  gitService,
   i18nService,
   appearanceService,
   secretsService,
@@ -122,6 +129,13 @@ describe('host 服务装配', () => {
     expect(ctx.appearance.payload().theme).toBeTruthy()
     expect(ctx.get('i18n')).toBeTruthy()
     expect(ctx.get('ai')).toBeTruthy()
+
+    // 内建视图注册表：plugin-runtime 先登记文件树，git 服务再登记版本控制 / 提交
+    expect(ctx.builtinViews.list().map((view) => view.id)).toEqual([
+      HOST_EXPLORER_VIEW_ID,
+      HOST_GIT_VIEW_ID,
+      HOST_COMMIT_VIEW_ID
+    ])
   })
 
   it('装配之后 RPC 是通的（未知 namespace 会回 unknown-namespace）', async () => {

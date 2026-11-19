@@ -2,20 +2,25 @@ import { createElement } from 'react'
 import type { Context } from 'cordis'
 import { slotsOf } from '@nide/client-ui-slots'
 import type { ZoneId } from '@nide/client-kit/stores/layout.store'
+import { HOST_EXPLORER_VIEW_ID, hostViewSlotName } from '@nide/contracts/plugin-api'
 import App from './App'
+import { ExplorerView } from './explorer/ExplorerView'
 import { ToolZone } from './layout/ToolZone'
 
 /**
  * 主窗口的 client 插件。
  *
  * 组件本体就在这个包里：`App`（启动编排）→ `MainApp`（窗口外观）→ 布局 / 七分区 /
- * 编辑器 / 文件树 / 内建视图（`HostSlot`）/ 文件菜单（`MainMenu`）。
- * 渲染进程的引导壳按窗口种类动态 import 这里的 `App`。
+ * 编辑器 / 文件树 / 文件菜单。
  *
  * **窗口根与六个工具区都在这里注册**：它们画的都是主窗口自己的布局
  * （`WorkbenchLayout` / `ToolZone`），没有第二处实现，也就不该有第二个包。
  * 之前那层 `client-ui-layout` 只是把同样的 `ToolZone` 包一层 slot，却要反向
  * import 主窗口的组件 —— 那是「包切错了轴」，不是一个可以长期存在的接缝。
+ *
+ * **具体视图不在这里**：文件树是主窗口自己的域，注册成 `view.host.explorer`；
+ * 版本控制 / 提交由 `@nide/client-ui-git` 注册到同名约定的 slot。`HostSlot`
+ * 只按 id 查 slot，所以加一个内建视图不需要改这个包。
  */
 export { default as App } from './App'
 export { MainApp } from './MainApp'
@@ -44,8 +49,13 @@ export const mainPlugin = {
       ctx.effect(() => slots.register(slot, () => createElement(ToolZone, { id })), slot)
     }
 
+    // 文件树是主窗口自己的内建视图；版本控制 / 提交由 git 功能包注册。
+    const explorerSlot = hostViewSlotName(HOST_EXPLORER_VIEW_ID)
+    ctx.effect(() => slots.register(explorerSlot, ExplorerView), explorerSlot)
+
     ctx.logger('client-ui-main').info('main.root + zone slots registered', {
-      zones: ZONES.length
+      zones: ZONES.length,
+      viewSlots: 1
     })
   }
 }

@@ -1,0 +1,19 @@
+{
+  "name": "@nide/client-ui-git",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "//": "版本控制功能包：版本控制 / 提交两个内建视图的组件，按 slot 注册到主窗口。",
+  "//2": "不是窗口包（不注册 main.root）；windowTypes 只表示它挂到哪个窗口的客户端树。",
+  "nide": {
+    "client": {
+      "windowTypes": [
+        "main"
+      ],
+      "order": 30
+    },
+    "layer": "client-feature"
+  }
+}

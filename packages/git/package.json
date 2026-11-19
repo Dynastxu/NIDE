@@ -1,0 +1,10 @@
+{
+  "name": "@nide/service-git",
+  "private": true,
+  "type": "module",
+  "//": "版本控制域：目前只贡献两条内建视图（版本控制 / 提交）的宿主登记项。",
+  "//2": "视图组件在 @nide/client-ui-git，窗口只负责分区与 slot。",
+  "nide": {
+    "layer": "service"
+  }
+}

@@ -9,8 +9,10 @@ import type { HostMessageKey } from '@nide/contracts/i18n'
  * 视图名由侧边按钮条在图标下面显示，内容区里不再重复写一遍标题（与文件树同一条约定），
  * 所以这里只有那行说明。
  *
- * 做成一个共用组件而不是把同样的 JSX 抄两遍：抄出来的两份迟早会在样式上分叉。
- * 文案按**视图自己**的 key 取（见 shared/i18n 的宿主词条表），不在这里拼字符串。
+ * 放在 `client-kit` 而不是某个窗口里：视图组件已经跟着功能包（`client-ui-git`）
+ * 搬出主窗口了，占位页也得放在两边都能 import 的库层。
+ *
+ * 文案按**视图自己**的 key 取（见 contracts 的宿主词条表），不在这里拼字符串。
  */
 export function HostPlaceholder({ messageKey }: { messageKey: HostMessageKey }): JSX.Element {
   const t = useT()

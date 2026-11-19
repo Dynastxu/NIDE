@@ -116,6 +116,10 @@ for (const job of jobs) {
           replacement: `${path.resolve(root, 'packages/client-ui-main/src')}/`
         },
         {
+          find: /^@nide\/client-ui-git\//,
+          replacement: `${path.resolve(root, 'packages/client-ui-git/src')}/`
+        },
+        {
           find: /^@nide\/client-ui-settings\//,
           replacement: `${path.resolve(root, 'packages/client-ui-settings/src')}/`
         },
@@ -124,6 +128,10 @@ for (const job of jobs) {
           replacement: `${path.resolve(root, 'packages/domain/src')}/`
         },
         { find: '@nide/contracts', replacement: path.resolve(root, 'packages/contracts/src') },
+        {
+          find: '@nide/client-ui-git',
+          replacement: path.resolve(root, 'packages/client-ui-git/src/index.ts')
+        },
         { find: '@nide/domain', replacement: path.resolve(root, 'packages/domain/src') }
       ]
     },
