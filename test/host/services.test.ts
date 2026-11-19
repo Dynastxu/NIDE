@@ -3,7 +3,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { Context } from 'cordis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { hostServices, installNideContext, type NideContext } from '../../packages/kernel/src/context.ts'
+import {
+  hostServices,
+  installNideContext,
+  type NideContext
+} from '../../packages/kernel/src/context.ts'
 import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
 import { projectService } from '../../packages/project/src/index.ts'
 import { contentService } from '../../packages/content/src/index.ts'

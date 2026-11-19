@@ -2,10 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  deleteProjectEntry,
-  type RootsOptions
-} from '../../packages/content/src/project-files.ts'
+import { deleteProjectEntry, type RootsOptions } from '../../packages/content/src/project-files.ts'
 
 /**
  * 删除的**写盘**部分。

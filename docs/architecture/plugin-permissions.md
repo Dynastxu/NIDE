@@ -20,14 +20,14 @@
 }
 ```
 
-| 字段                               | 取值                                                       | 说明                                                                      |
-| ---------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 字段                               | 取值                                                       | 说明                                                                         |
+| ---------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `trust`                            | `full` / `sandboxed`                                       | 省略时 **v2 对象默认 `sandboxed`**；整个字段省略 = `full`；`[]` = 零能力沙箱 |
-| `fs.read` / `fs.write` / `fs.meta` | 目录数组                                                   | 绝对路径或以 `${变量}` 开头；不允许 `..`；末尾 `/**` 允许，段内通配不允许 |
-| `exec`                             | `[{ bin, args? }]`                                         | `args` 是正则白名单；没有对应宿主能力，目前只校验与展示                   |
-| `net`                              | `{ mode, hosts?, ports?, allowPlainHttp?, allowPrivate? }` | `mode: all` 只能配 `trust: full`；`allowlist` 必须给 `hosts`              |
-| `os`                               | `{ openExternal?, notifications?, clipboard?, dialogs? }`  | 桌面能力，目前只校验与展示                                                |
-| `secrets`                          | `none` / `own` / `all`                                     | 密钥仓范围；目前只校验与展示                                              |
+| `fs.read` / `fs.write` / `fs.meta` | 目录数组                                                   | 绝对路径或以 `${变量}` 开头；不允许 `..`；末尾 `/**` 允许，段内通配不允许    |
+| `exec`                             | `[{ bin, args? }]`                                         | `args` 是正则白名单；没有对应宿主能力，目前只校验与展示                      |
+| `net`                              | `{ mode, hosts?, ports?, allowPlainHttp?, allowPrivate? }` | `mode: all` 只能配 `trust: full`；`allowlist` 必须给 `hosts`                 |
+| `os`                               | `{ openExternal?, notifications?, clipboard?, dialogs? }`  | 桌面能力，目前只校验与展示                                                   |
+| `secrets`                          | `none` / `own` / `all`                                     | 密钥仓范围；目前只校验与展示                                                 |
 
 路径变量：`${project}`（当前项目根）、`${userData}`、`${pluginDir}`、`${temp}`、
 `${home}`。未知变量只警告，运行时该条作用域不会展开 —— **展开不出来就不放行**。
@@ -55,10 +55,10 @@ v1 插件跑在主进程、权限表只是额外能力的白名单；空数组�
 
 ## 2. 两种信任级别
 
-| 级别                            | 行为                                                                                                               |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 级别                            | 行为                                                                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `full`（缺省、全部老 manifest） | 与迁移前一致：宿主不限制文件 / 网络 / 子进程；`net` 只用于展示；**`os` 仍要逐项声明**（见 `plugin-capabilities.md`） |
-| `sandboxed`                     | 宿主按声明检查：`fs` 作用域之外的读写被拒绝；没声明 `net` 时 `ai.*` 被拒绝；插件管理（安装 / 卸载 / 启停）一律拒绝 |
+| `sandboxed`                     | 宿主按声明检查：`fs` 作用域之外的读写被拒绝；没声明 `net` 时 `ai.*` 被拒绝；插件管理（安装 / 卸载 / 启停）一律拒绝   |
 
 ## 3. 执行点
 
@@ -122,8 +122,8 @@ Node 的 `--permission` / `--allow-fs-*` / `--allow-child-process` 强制文件�
 | 文件                                               | 职责                                                      |
 | -------------------------------------------------- | --------------------------------------------------------- |
 | `packages/contracts/src/plugin-api/permissions.ts` | 声明类型、校验 / 归一化、变量展开、路径判断（浏览器安全） |
-| `packages/plugin-permissions/src/permissions.ts`     | 声明 -> 能力检查；`RpcAuthorizer` 的实现                  |
-| `packages/plugin-runtime/src/plugins.ts`         | 扫描时解析 `permissions`；写错的 manifest 整份忽略        |
+| `packages/plugin-permissions/src/permissions.ts`   | 声明 -> 能力检查；`RpcAuthorizer` 的实现                  |
+| `packages/plugin-runtime/src/plugins.ts`           | 扫描时解析 `permissions`；写错的 manifest 整份忽略        |
 | `packages/kernel/src/rpc.ts`                       | `RpcAuthorizer` 挂载点（分发前）                          |
 | `packages/shell/src/preload/index.ts`              | `setCaller` + 把 `caller.pluginId` 带进 RPC 请求          |
 | `packages/sdk/src/plugin-views/plugin-api.ts`      | 插件侧受限 API（`useHost().api`）                         |
