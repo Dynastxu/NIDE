@@ -115,6 +115,10 @@ pnpm check               # typecheck + lint:imports + lint:domains + graph:check
 
 这样「改编辑器」不会顺手把文件树也拖下水，单个域也能整体搬走。
 
+客户端 slot 的模型（`single` / `keyed` / `list`、声明、订阅、快照）见
+[docs/architecture/client-slots.md](../docs/architecture/client-slots.md)。窗口声明槽，
+功能包注册 occupant；窗口不 import 功能包的组件。
+
 ## import 约定
 
 - **host 侧（boot / host / kernel / 业务包 / plugin-runtime）**：纯 Node ESM，用带 `.ts`

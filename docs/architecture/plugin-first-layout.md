@@ -46,7 +46,8 @@ apps/desktop/renderer/   # 渲染进程引导壳（main.tsx + assets）
    后写的按 id 覆盖；关掉 / 替换任意能力只改最后一层；
 2. **每个包导出 `apply(ctx)`**：host 侧用 `ctx.rpc.register(...)` 与 `ctx.provide(...)`，
    客户端用 `ctx.slots`，没有中央装配；窗口包只注册窗口根与分区，具体视图由功能包
-   注册到 `view.<id>` 这类 slot 上（见 [packages/AGENTS.md](../../packages/AGENTS.md)）；
+   注册到 `view.<id>` 这类 slot 上（见 [packages/AGENTS.md](../../packages/AGENTS.md)，
+   槽的种类与声明见 [client-slots.md](client-slots.md)）；
 3. **客户端窗口种类来自包元数据**，由生成脚本变成静态 import，运行时不认识具体窗口；
 4. **依赖方向单向**：`apps → kernel → shell/services/ui → sdk → contracts`，
    反向依赖一律视为设计错误（`contracts` 不得 import 任何包）。
