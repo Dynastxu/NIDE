@@ -1,7 +1,7 @@
 import { useEffect, useState, type JSX } from 'react'
 import { useHost } from '@nide/sdk/plugin-views/host-context'
-import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
-import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
+import { useViewChrome } from '@nide/client-ui-renderer/view/chrome-context'
+import { ViewFrame } from '@nide/client-ui-renderer/view/ViewFrame'
 
 /**
  * 插件宿主自检：往主进程发一条事件，看它经由 `host:event` 原样回显。

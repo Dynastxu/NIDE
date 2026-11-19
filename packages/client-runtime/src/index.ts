@@ -1,7 +1,11 @@
 import { Context } from 'cordis'
 import { SlotRegistry } from '@nide/client-ui-slots'
-import { ClientModuleRegistry, type ModuleComponent } from '@nide/client-modules'
-import { loadClientBundles } from './loader'
+import {
+  ClientModuleRegistry,
+  installModuleSink,
+  loadClientBundles,
+  type ModuleComponent
+} from '@nide/client-modules'
 import { CLIENT_ROSTER } from './roster.generated'
 import type { ClientWindowType } from './window-type.ts'
 
@@ -14,6 +18,10 @@ import type { ClientWindowType } from './window-type.ts'
  * 加一个窗口 = 新增一个包 + 跑一次生成脚本，本文件不用改。
  *
  * 这样主窗口不会把 WelcomeApp 拖进来，欢迎窗口也不会加载 Monaco。
+ *
+ * 这个包**只做装配**：注册表、bundle 加载、全局注册入口都在 `@nide/client-modules`
+ * 里（模块层）。界面包订阅插件启停时补加载 bundle 直接 import 那个包，不必反向
+ * import 整棵客户端树 —— 那正是之前 `sdk <-> client-runtime` 成环的原因。
  *
  * TODO：
  * - list / keyed slot 语义
@@ -34,31 +42,6 @@ export interface ClientRuntime {
   modules: ClientModuleRegistry
   /** 释放整棵客户端树（测试 / 热重载用）。 */
   dispose: () => Promise<void>
-}
-
-/** 当前 renderer 的客户端树；给 `PluginSlot` 这类非插件代码取服务用。 */
-let currentRuntime: ClientRuntime | null = null
-
-export function getClientRuntime(): ClientRuntime | null {
-  return currentRuntime
-}
-
-/**
- * 按宿主当前的插件清单补加载浏览器半 bundle。
- *
- * 用在安装 / 启用第三方 UI 插件之后：renderer 启动时只会加载当时**已启用**的
- * bundle，之后新出现的插件若不补这一趟，就要重启窗口才能看到。`loadClientBundles`
- * 自己按 URL 去重，重复调用是安全的。
- */
-export async function reloadClientBundles(): Promise<void> {
-  if (!currentRuntime) return
-
-  try {
-    const descriptors = await window.hostAPI.getClientBundles()
-    await loadClientBundles(descriptors)
-  } catch (error) {
-    console.warn('[nide] failed to reload client bundles', error)
-  }
 }
 
 /** 最小客户端插件：证明激活与释放。 */
@@ -121,17 +104,10 @@ export async function createClientRuntime(options: ClientRuntimeOptions): Promis
   provide('modules', modules)
 
   /**
-   * 插件 IIFE bundle 加载时调用这个全局注册视图组件。
+   * 插件 IIFE bundle 加载时调用全局注册函数写入组件表。
    * 必须在注入任何 bundle 之前挂好。
    */
-  ;(
-    window as unknown as {
-      __NIDE_REGISTER__?: (id: string, component: ModuleComponent) => void
-    }
-  ).__NIDE_REGISTER__ = (id, component) => {
-    modules.register(id, component)
-    console.info('[nide] client module registered by bundle', { id })
-  }
+  installModuleSink(modules)
 
   const helloFiber = ctx.plugin(clientHello)
   await helloFiber
@@ -154,12 +130,12 @@ export async function createClientRuntime(options: ClientRuntimeOptions): Promis
     slots,
     modules,
     dispose: async () => {
-      currentRuntime = null
       for (const fiber of [...windowFibers].reverse()) await fiber.dispose()
       await helloFiber.dispose()
     }
   }
 
-  currentRuntime = runtime
   return runtime
 }
+
+export type { ModuleComponent }

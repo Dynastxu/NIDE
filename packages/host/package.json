@@ -4,5 +4,8 @@
   "type": "module",
   "bin": {
     "nide-host": "src/index.ts"
+  },
+  "nide": {
+    "layer": "bootstrap"
   }
 }

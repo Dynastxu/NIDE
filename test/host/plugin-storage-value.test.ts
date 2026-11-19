@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   assertStorableValue,
   UnstorableValueError
-} from '../../packages/plugin-runtime/src/backend/storage-value.ts'
+} from '../../packages/plugin-backend/src/storage-value.ts'
 
 describe('assertStorableValue', () => {
   it('JSON 能表达的值都放行', () => {

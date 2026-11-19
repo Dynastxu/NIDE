@@ -1,26 +1,54 @@
-# AGENTS.md — plugin-runtime
+# AGENTS.md — 插件子系统
 
-`packages/plugin-runtime` 是 NIDE 的插件运行时：清单与贡献点、权限声明与准入、
-每插件存储、后端 worker、桌面能力、安装 / 卸载与组合行。改这里之前先读
+插件子系统由**五个包**组成，一包一个 `ctx` 键。改这里之前先读
 [docs/architecture/plugin-permissions.md](../../docs/architecture/plugin-permissions.md)、
 [plugin-backend.md](../../docs/architecture/plugin-backend.md)、
 [plugin-lifecycle.md](../../docs/architecture/plugin-lifecycle.md)。
 
+| 包                    | `ctx` 键              | 职责                                                                                   |
+| --------------------- | --------------------- | -------------------------------------------------------------------------------------- |
+| `plugin-runtime`      | `plugins`             | 清单解析（`toEntry`）、扫描 / 注册、启停偏好、贡献点、安装事务、内建视图表、profile 行 |
+| `plugin-permissions`  | `plugin-permissions`  | 声明展开 + RPC 准入（`RpcAuthorizer` 实现）、作用域变量                                |
+| `plugin-storage`      | `plugin-storage`      | 每插件 JSON 存储（`<userData>/plugin-storage/<id>.json`），100ms 合并写盘              |
+| `plugin-capabilities` | `plugin-capabilities` | `ctx.host` 桌面能力的权限检查（`os.*`）→ kernel 反向桥                                 |
+| `plugin-backend`      | `plugin-backend`      | fork worker、沙箱 flags、起停 / 重扫、`dispatchHostCall`、卸载脚本                     |
+
+**装配**：五个包各是普通 Cordis 服务，由 `packages/bundle/base/cordis.patch.yml`
+各挂一行。它们之间**不互相 import 实现**，也**不互相注入**：
+`plugin-backend` → 注入 `plugins` / `plugin-permissions` / `plugin-storage` /
+`plugin-capabilities`；`plugin-runtime` 反向只按需 `ctx.get()`（注入成环会互相
+PENDING，与 i18n 同一套处理）。类型用 `import type` 跨包引用，`pnpm lint:imports` 管着。
+
 ## 文件职责
 
-| 文件 | 职责 |
-| --- | --- |
-| `plugins.ts` | `PluginManager`：清单解析（`toEntry`）、扫描 / 注册、启停偏好、贡献点、安装事务、卸载 |
-| `permissions.ts` | `PluginPermissionGuard`：RPC 准入（`RpcAuthorizer` 实现），能力映射与路径提取 |
-| `profile-rows.ts` | 安装行：往 profile 的 `cordis.patch.yml` upsert / remove `plugin:<id>` |
-| `storage.ts` | 每插件 JSON 存储（`<userData>/plugin-storage/<id>.json`），100ms 合并写盘 |
-| `backend/runtime.ts` | fork worker、`buildBackendFlags`、起停 / 重扫、`dispatchHostCall` |
-| `backend/worker.ts` | 子进程入口：动态 import `main`、`activate(host)`、storage 视图、host-call |
-| `backend/protocol.ts` | 宿主 ⇄ worker 消息契约与 `STORAGE_FLUSH_MS` |
-| `backend/storage-value.ts` | 存储值必须可 JSON 序列化（写之前校验） |
-| `backend/uninstall.ts` | 卸载脚本（worker 内跑，失败不删目录） |
-| `capabilities.ts` | `ctx.host` 桌面能力的权限检查（`os.*`） |
-| `plugin-contributions.ts` | manifest 贡献点收敛（视图 / 设置页 / 语言包 / chrome） |
+### plugin-runtime（清单与生命周期）
+
+| 文件                      | 职责                                                                     |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `plugins.ts`              | `PluginManager`：清单解析、扫描 / 注册、启停偏好、贡献点、安装事务、卸载 |
+| `plugin-contributions.ts` | manifest 贡献点收敛（视图 / 设置页 / 语言包 / chrome）                   |
+| `builtin-views.ts`        | 三条内建视图（文件树 / 版本控制 / 提交）+ 宿主词条 key                   |
+| `profile-rows.ts`         | 安装行：往 profile 的 `cordis.patch.yml` upsert / remove `plugin:<id>`   |
+| `index.ts`                | 服务装配 + `plugins.*` / `plugin.call` RPC                               |
+
+### plugin-backend（子进程）
+
+| 文件               | 职责                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `runtime.ts`       | fork worker、起停 / 重扫、`dispatchHostCall`、`uninstall()`                               |
+| `paths.ts`         | `buildBackendFlags` / `ensureWriteRoots` / `resolveWorkerEntry`（runtime 与卸载脚本共用） |
+| `worker.ts`        | 子进程入口：动态 import `main`、`activate(host)`、storage 视图、host-call                 |
+| `protocol.ts`      | 宿主 ⇄ worker 消息契约与 `STORAGE_FLUSH_MS`                                               |
+| `storage-value.ts` | 存储值必须可 JSON 序列化（写之前校验）                                                    |
+| `uninstall.ts`     | 卸载脚本（worker 内跑，失败不删目录；存储路径由调用方传入）                               |
+
+### 其余三包
+
+| 包                    | 文件              | 职责                                |
+| --------------------- | ----------------- | ----------------------------------- |
+| `plugin-permissions`  | `permissions.ts`  | 准入判定、能力映射与路径提取        |
+| `plugin-storage`      | `storage.ts`      | 存储实现；`filePath()` 给卸载脚本用 |
+| `plugin-capabilities` | `capabilities.ts` | `os.*` 声明检查 + 转 shell 执行     |
 
 ## 不可破坏的不变量
 
@@ -57,11 +85,12 @@
 - `test/host/plugin-backend.test.ts`：flags / 写目录 / 激活；
 - `test/host/plugin-install-rows.test.ts`：安装行 + loader 挂载 + 卸载；
 - `test/host/profile-rows.test.ts`：patch 行的 upsert / remove / 保留用户行；
-- `test/host/plugin-storage-value.test.ts`：存储值校验；
-- 改协议/权限后跑 `pnpm typecheck:host`、`pnpm test`，并同步上面三份文档。
+- `test/host/plugin-storage.test.ts` / `plugin-storage-value.test.ts`：存储与值校验；
+- 改协议 / 权限后跑 `pnpm typecheck:host`、`pnpm lint:imports`、`pnpm test`，并同步
+  上面三份文档。
 
 ## 边界（别过度承诺）
 
 - 渲染进程插件是**声明式**边界：直接摸 `window.hostAPI` 或 `setCaller` 可绕过；
 - `net.hosts` / `ports` 没有逐调用比对；`exec` 没有逐程序白名单；
-- UI 沙箱（iframe / 独立进程）尚未实现，见 issue #6；不要在本包声称「已隔离 UI」。
+- UI 沙箱（iframe / 独立进程）尚未实现，见 issue #6；不要在本子系统声称「已隔离 UI」。

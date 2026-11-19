@@ -1,7 +1,7 @@
 import { type JSX } from 'react'
-import { HostPlaceholder } from '@nide/client-ui-main/host-view/HostPlaceholder'
-import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
-import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
+import { HostPlaceholder } from '@nide/client-ui-main/shared/HostPlaceholder'
+import { useViewChrome } from '@nide/client-ui-renderer/view/chrome-context'
+import { ViewFrame } from '@nide/client-ui-renderer/view/ViewFrame'
 
 /**
  * 提交视图 —— 标题栏「文件 -> 提交」打开的页面。

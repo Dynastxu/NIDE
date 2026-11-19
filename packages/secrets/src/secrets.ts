@@ -19,24 +19,15 @@ import type {
  * - 落盘的是 `safeStorage` 的密文，不是明文；
  * - `owner` 由调用方用常量传入，**不来自 IPC 载荷**；
  * - 文件名是 `<owner>/<key>.bin`，两段都必须是安全路径段，避免 `../` 写到别处。
+ *
+ * 端口（`SecretVault` 接口）与两个领域错误住在 contracts：消费方（AI 供应商）
+ * 只依赖端口，`instanceof` 也才有唯一一份定义。
  */
-
-/** 系统级加密不可用。**不降级成明文**：写不进去比写一份明文强。 */
-export class SecretStorageUnavailableError extends Error {
-  constructor() {
-    super('系统安全存储不可用，无法保存 API Key')
-    this.name = 'SecretStorageUnavailableError'
-  }
-}
-
-/** 密文读得出来但解不开（换了机器 / 换了系统用户 / 文件损坏） */
-export class SecretDecryptError extends Error {
-  constructor(cause: unknown) {
-    super('已保存的 API Key 无法解密，请重新录入')
-    this.name = 'SecretDecryptError'
-    this.cause = cause
-  }
-}
+import {
+  SecretDecryptError,
+  SecretStorageUnavailableError
+} from '../../../packages/contracts/src/secrets/index.ts'
+import type { SecretVault as SecretVaultPort } from '../../../packages/contracts/src/secrets/index.ts'
 
 /**
  * 加解密后端。
@@ -69,7 +60,7 @@ function error(message: string, fields?: Record<string, unknown>): void {
   else console.error(`[nide-host] ${message}`)
 }
 
-export class SecretVault {
+export class SecretVault implements SecretVaultPort {
   private availability: boolean | null = null
   // 显式字段而不是参数属性：host 直接跑 .ts，Node 的类型剥离不支持 `constructor(private x)`
   private readonly rootDir: string

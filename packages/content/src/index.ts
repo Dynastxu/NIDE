@@ -36,17 +36,10 @@ import {
   renameProjectEntry,
   writeProjectFile
 } from './project-files.ts'
-// 配置包同时也是「项目配置的纯函数库」：内容服务要读它算路径 / 注册表
-import {
-  loadGalleryRegistry,
-  remapOverviewRole,
-  updateGalleryRegistry,
-  updateProjectConfig
-} from '../../config/src/project-config.ts'
 
 export const contentService = {
   name: 'nide:service:content',
-  inject: ['project', 'rpc', 'hostEnv'],
+  inject: ['project', 'config', 'rpc', 'hostEnv'],
 
   apply(ctx: NideContext): void {
     /** 当前项目根；没有打开的项目时是 undefined */
@@ -113,7 +106,7 @@ export const contentService = {
           const root = currentRoot()
           if (root) {
             try {
-              await remapOverviewRole(root, result.previousPath, result.path)
+              await ctx.config.remapOverviewRole(root, result.previousPath, result.path)
             } catch (error) {
               console.warn('[nide-host] failed to remap the overview role after a rename', {
                 error
@@ -148,7 +141,7 @@ export const contentService = {
         const root = roots[0]
         if (!root) return { ok: false, reason: 'outside-project' }
 
-        const galleryRoot = await resolveGalleryRoot(root)
+        const galleryRoot = await resolveGalleryRoot(ctx.config, root)
         if (galleryRoot === null || !samePath(galleryRoot, String(targetPath ?? ''))) {
           return { ok: false, reason: 'outside-project' }
         }
@@ -162,7 +155,7 @@ export const contentService = {
         return {
           ok: true,
           path: listing.path,
-          registry: await loadGalleryRegistry(root),
+          registry: await ctx.config.loadGalleryRegistry(root),
           galleries: listing.galleries
         }
       },
@@ -175,7 +168,7 @@ export const contentService = {
         const root = roots[0]
         if (!root) return { ok: false, reason: 'unreadable' }
 
-        const galleryRoot = await resolveGalleryRoot(root)
+        const galleryRoot = await resolveGalleryRoot(ctx.config, root)
         if (galleryRoot === null || !samePath(galleryRoot, parsed.targetPath)) {
           return { ok: false, reason: 'not-a-directory' }
         }
@@ -193,7 +186,7 @@ export const contentService = {
         const characters = parseGalleryRegistryRequest(request)
         if (characters === null) return { ok: false, reason: 'invalid-name' }
 
-        return updateGalleryRegistry(root, characters)
+        return ctx.config.updateGalleryRegistry(root, characters)
       }
     })
 
@@ -208,7 +201,7 @@ export const contentService = {
         const root = roots[0]
         if (!root) return { ok: false, reason: 'outside-project' }
 
-        const overview = await resolveOverviewContext(root)
+        const overview = await resolveOverviewContext(ctx.config, root)
         if (overview === null || !samePath(overview.path, String(targetPath ?? ''))) {
           return { ok: false, reason: 'outside-project' }
         }
@@ -227,14 +220,14 @@ export const contentService = {
         const root = roots[0]
         if (!root) return { ok: false, reason: 'unreadable' }
 
-        const overview = await resolveOverviewContext(root)
+        const overview = await resolveOverviewContext(ctx.config, root)
         if (overview === null) return { ok: false, reason: 'unreadable' }
 
         const options = { roots, caseInsensitive: caseInsensitivePaths() }
         const check = await checkProjectOverviewDocument(overview.path, parsed.fileName, options)
         if (check !== 'ok') return { ok: false, reason: check }
 
-        const updated = await updateProjectConfig(root, {
+        const updated = await ctx.config.update(root, {
           overview: { [parsed.role]: parsed.fileName }
         })
 

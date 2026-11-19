@@ -35,14 +35,7 @@ const entry = path.join(root, 'packages', 'host', 'src', 'index.ts')
  * 它不是被静态 import 的（宿主按路径 `fork` 它），所以 TS 顺着依赖树走不到，
  * 必须显式加进编译根；否则打包版里 `fork` 一个不存在的 `worker.js`。
  */
-const backendWorker = path.join(
-  root,
-  'packages',
-  'plugin-runtime',
-  'src',
-  'backend',
-  'worker.ts'
-)
+const backendWorker = path.join(root, 'packages', 'plugin-backend', 'src', 'worker.ts')
 
 /**
  * 安装式插件的组合行入口：行是运行时写进 profile patch 的，TS 走不到，
@@ -158,23 +151,32 @@ fs.writeFileSync(
 /**
  * 共享层里的 `package.json` 有两类作用：
  * - `{"type":"module"}`：产物根那份已经覆盖，不必复制；
- * - `imports` 映射（`packages/contracts/src/project` 的 `#project/*`）：**必须**带上，
+ * - `imports` 映射（`packages/domain/src/project` 的 `#project/*`）：**必须**带上，
  *   否则 `#project/store` 这种 bare specifier 解析不了。
  *
  * 映射目标是 `.ts`（源码里就是给类型剥离用的），发射后要改成 `.js`。
  */
-const sharedRoot = path.join(root, 'packages', 'contracts', 'src')
-for (const name of fs.readdirSync(sharedRoot)) {
-  const marker = path.join(sharedRoot, name, 'package.json')
-  if (!fs.existsSync(marker)) continue
+const markerRoots = [
+  path.join(root, 'packages', 'contracts', 'src'),
+  path.join(root, 'packages', 'domain', 'src')
+]
+for (const markerRoot of markerRoots) {
+  for (const name of fs.readdirSync(markerRoot)) {
+    const marker = path.join(markerRoot, name, 'package.json')
+    if (!fs.existsSync(marker)) continue
 
-  const raw = JSON.parse(fs.readFileSync(marker, 'utf-8')) as { imports?: unknown }
-  if (!raw.imports) continue
+    const raw = JSON.parse(fs.readFileSync(marker, 'utf-8')) as { imports?: unknown }
+    if (!raw.imports) continue
 
-  const rewritten = JSON.parse(JSON.stringify(raw).replaceAll('.ts"', '.js"')) as object
-  const target = path.join(outDir, 'packages', 'contracts', 'src', name, 'package.json')
-  fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.writeFileSync(target, `${JSON.stringify(rewritten, null, 2)}\n`, 'utf-8')
+    const rewritten = JSON.parse(JSON.stringify(raw).replaceAll('.ts"', '.js"')) as object
+    const target = path.join(
+      outDir,
+      path.relative(root, path.join(markerRoot, name)),
+      'package.json'
+    )
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, `${JSON.stringify(rewritten, null, 2)}\n`, 'utf-8')
+  }
 }
 
 /**

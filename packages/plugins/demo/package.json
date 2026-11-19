@@ -1,6 +1,7 @@
 {
   "nide": {
-    "plugin": true
+    "plugin": true,
+    "layer": "plugin"
   },
   "private": true,
   "description": "NIDE builtin plugin (demo): manifest + contributions.",

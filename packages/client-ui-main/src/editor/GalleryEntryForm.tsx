@@ -1,14 +1,14 @@
 import { JSX, useEffect } from 'react'
-import { galleryEntryFields } from '@nide/contracts/project'
+import { galleryEntryFields } from '@nide/domain/project'
 import { FormField, FormTextArea } from '@nide/client-ui-main/editor/form-controls'
 import {
   applyGalleryEntryValues,
   syncGalleryForm
 } from '@nide/client-ui-main/editor/gallery-metadata'
-import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
-import { galleryOfPath, useGalleryStore } from '@nide/client-kit/stores/gallery.store'
+import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
+import { galleryOfPath, useGalleryStore } from '@nide/client-ui-main/stores/gallery.store'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import type { EditorTab } from '@nide/client-kit/stores/editor.store'
+import type { EditorTab } from '@nide/client-ui-main/stores/editor.store'
 
 /**
  * 图鉴条目的表单：把一个图鉴的字段摆成一组输入框。

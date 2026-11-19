@@ -9,7 +9,7 @@ import {
   type ProjectFailureReason,
   type ProjectListItem,
   type ProjectOpenResult
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 
 const logger = loggerFor('welcome')
 

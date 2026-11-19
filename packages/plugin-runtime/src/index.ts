@@ -1,27 +1,26 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import os from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import type {} from '@cordisjs/plugin-loader'
 import { CORE_PACKAGES, type CorePackage } from '../../contracts/src/plugin-api/core-packages.ts'
-import type { PermissionVariables } from '../../contracts/src/plugin-api/permissions.ts'
 import type { NideContext } from '../../kernel/src/context.ts'
 import type { I18nService } from '../../i18n/src/index.ts'
 import { builtinViews } from './builtin-views.ts'
 import { pluginPreferencePath, PluginManager } from './plugins.ts'
-import { PluginPermissionGuard } from './permissions.ts'
-import { PluginStorage } from './storage.ts'
-import { PluginCapabilities } from './capabilities.ts'
-import { PluginBackendRuntime } from './backend/runtime.ts'
-import { runUninstallScript } from './backend/uninstall.ts'
 import { removePluginRow, upsertPluginRow } from './profile-rows.ts'
 import type { TitleResolver } from './plugins.ts'
+import type { PluginBackendRuntime } from '../../plugin-backend/src/runtime.ts'
+import type { PluginPermissionGuard } from '../../plugin-permissions/src/permissions.ts'
+import type { PluginStorage } from '../../plugin-storage/src/storage.ts'
 
 /**
- * 插件服务（`plugins.*`）。
+ * 插件服务（`plugins.*`）：清单 / 启停 / 安装 / 卸载 / 贡献点。
  *
- * 插件目录的唯一读取方仍然在 host（清单 / 启停 / 贡献点），这一层只是把它包成
- * 一组 Cordis 服务（`ctx.provide` + `declare module`）。
+ * 插件目录的唯一读取方仍然在 host。这一层负责「管理一个插件」这件事；
+ * 权限判定（`plugin-permissions`）、存储（`plugin-storage`）、桌面能力
+ * （`plugin-capabilities`）、后端子进程（`plugin-backend`）各自是独立包、各自的
+ * `ctx` 键 —— 这里**不注入**它们：后端要反过来注入 `plugins` 读清单，双向注入会
+ * 互相 PENDING。取法与 i18n 一致：调用时 `ctx.get()`。
  *
  * 标题解析依赖 i18n 服务（语言包与当前语言都在那边）：
  * - 插件视图 / 设置页的 `%key%` → `i18n.host.resolveTitle(manifestNls, spec)`；
@@ -69,6 +68,26 @@ export const pluginsService = {
       if (!service) throw new Error('i18n service is not available')
       return service
     }
+
+    /**
+     * 兄弟服务取法：同一个人（profile）装配，但互相不能注入。
+     *
+     * 后端 / 权限反过来要注入 `plugins`（要读清单），注入成环会互相 PENDING。
+     * 所以这里按需 `ctx.get()`；`optional*` 用在「测试只挂清单服务」的场景
+     * （安装 / 卸载 / 重扫仍要能跑，只是不碰子进程）。
+     */
+    const optionalService = <T>(key: string): T | undefined =>
+      (ctx as unknown as { get(name: string): unknown }).get(key) as T | undefined
+    const requireService = <T>(key: string): T => {
+      const value = optionalService<T>(key)
+      if (!value) throw new Error(`${key} service is not available`)
+      return value
+    }
+    const backend = (): PluginBackendRuntime => requireService('plugin-backend')
+    const optionalBackend = (): PluginBackendRuntime | undefined =>
+      optionalService('plugin-backend')
+    const permissions = (): PluginPermissionGuard => requireService('plugin-permissions')
+    const storage = (): PluginStorage | undefined => optionalService('plugin-storage')
 
     /** loader 按需取：注入它会让「只想跑服务、不挂 loader」的测试全部 PENDING */
     const loader = (): NonNullable<ReturnType<NideContext['get']>> => {
@@ -140,55 +159,7 @@ export const pluginsService = {
     const resolveTitle: TitleResolver = (pluginId, spec, fallback) =>
       i18n().host.resolveTitle(manager.manifestNls(pluginId), spec) || fallback
 
-    /** 当前项目根：权限作用域里的 `${project}` 靠它展开 */
-    const projectRoot = (): string | undefined => ctx.project.getCurrent()?.path
-
-    /**
-     * 权限作用域的展开变量。
-     *
-     * `pluginDir` 因插件而异，所以每次现取（`manager.locationOf`）；其余三样在一次
-     * 启动里是常量。
-     */
-    const permissionVariables = (pluginId?: string): PermissionVariables => {
-      const location = pluginId ? manager.locationOf(pluginId) : undefined
-      return {
-        ...(projectRoot() ? { project: projectRoot() } : {}),
-        userData: ctx.hostEnv.userDataDir,
-        temp: os.tmpdir(),
-        home: ctx.hostEnv.home,
-        ...(location ? { pluginDir: location.dirPath } : {})
-      }
-    }
-
-    const permissionGuard = new PluginPermissionGuard({
-      manager,
-      variables: (pluginId) => permissionVariables(pluginId),
-      projectRoot
-    })
-
-    /**
-     * 插件后端（manifest.main）。
-     *
-     * 启停由本服务统一同步；宿主入口在服务装配完成后调 `startEnabled()`，
-     * 并在退出时 `stopAll()`。测试只构造服务、不启动后端，所以不会 fork。
-     */
-    const storage = new PluginStorage({ userDataDir: ctx.hostEnv.userDataDir })
-    const capabilities = new PluginCapabilities({ manager })
-
-    const backends = new PluginBackendRuntime({
-      manager,
-      permissions: permissionGuard,
-      storage,
-      capabilities,
-      userDataDir: ctx.hostEnv.userDataDir,
-      home: ctx.hostEnv.home
-    })
-
     ctx.provide('plugins', manager)
-    ctx.provide('plugin-permissions', permissionGuard)
-    ctx.provide('plugin-storage', storage)
-    ctx.provide('plugin-capabilities', capabilities)
-    ctx.provide('plugin-backend', backends)
 
     /**
      * 后端方法的统一入口：`plugin.call(pluginId, method, params)`。
@@ -198,7 +169,7 @@ export const pluginsService = {
      */
     ctx.rpc.register('plugin', {
       call: (pluginId, method, params) =>
-        backends.invoke(String(pluginId ?? ''), String(method ?? ''), params)
+        backend().invoke(String(pluginId ?? ''), String(method ?? ''), params)
     })
 
     ctx.rpc.register('plugins', {
@@ -207,18 +178,18 @@ export const pluginsService = {
       setEnabled: async (pluginId, enabled) => {
         const id = String(pluginId ?? '')
         manager.setEnabled(id, enabled === true)
-        await backends.handleEnabled(id, enabled === true)
+        await optionalBackend()?.handleEnabled(id, enabled === true)
         return manager.disabled()
       },
       clientBundles: () => manager.clientBundles(),
 
       /** 插件后端的实时状态（启动中 / 运行中 / 失败 + 已注册方法） */
-      backends: () => backends.status(),
+      backends: () => optionalBackend()?.status() ?? [],
 
       /** 显式激活一个后端（`onView` / `onCommand` 之外的入口；也可给 Agent 用） */
       activate: async (pluginId) => {
-        await backends.ensure(String(pluginId ?? ''))
-        return backends.status()
+        await backend().ensure(String(pluginId ?? ''))
+        return backend().status()
       },
 
       /**
@@ -227,8 +198,8 @@ export const pluginsService = {
        * 视图 → 插件 的归属只有清单知道（`manager.viewOwner`），所以放在宿主判。
        */
       activateView: async (viewId) => {
-        await backends.activateForView(String(viewId ?? ''))
-        return backends.status()
+        await backend().activateForView(String(viewId ?? ''))
+        return backend().status()
       },
 
       /**
@@ -239,13 +210,13 @@ export const pluginsService = {
        */
       permissions: (pluginId) => {
         const id = String(pluginId ?? '')
-        const permissions = manager.permissionsOf(id)
-        if (!permissions) return null
+        const declared = manager.permissionsOf(id)
+        if (!declared) return null
 
         return {
           pluginId: id,
-          permissions,
-          resolved: permissionGuard.snapshot(id)?.resolved ?? null
+          permissions: declared,
+          resolved: permissions().snapshot(id)?.resolved ?? null
         }
       },
 
@@ -287,15 +258,15 @@ export const pluginsService = {
         }
 
         i18n().refresh()
-        await backends.reconcile()
+        await optionalBackend()?.reconcile()
         return result
       },
       remove: async (pluginId) => {
         const id = String(pluginId ?? '')
         // 先停后端再删目录：子进程可能正握着插件目录里的文件
-        await backends.stop(id)
+        await optionalBackend()?.stop(id)
         // 停用会 flush 一次；这里再显式落一次，确保卸载脚本读到最新快照
-        storage.flush(id)
+        storage()?.flush(id)
 
         /**
          * 卸载脚本在插件停用之后、目录删除之前跑：它清理的是插件在目录外留下的
@@ -303,15 +274,11 @@ export const pluginsService = {
          * 错误并重试，比留下一个清不干净的半成品好。
          */
         if (manager.uninstallEntryOf(id)) {
+          const runner = optionalBackend()
+          if (!runner) return { ok: false, reason: 'unreadable' as const }
+
           try {
-            await runUninstallScript({
-              manager,
-              permissions: permissionGuard,
-              pluginId: id,
-              userDataDir: ctx.hostEnv.userDataDir,
-              home: ctx.hostEnv.home,
-              log: (level, message) => console[level](`[plugin:${id}] ${message}`)
-            })
+            await runner.uninstall(id)
           } catch (error) {
             console.warn('[nide-host] plugin uninstall script failed', { pluginId: id, error })
             return { ok: false, reason: 'uninstall-failed' as const }
@@ -326,8 +293,8 @@ export const pluginsService = {
         const result = manager.remove(id)
         i18n().refresh()
         if (result.ok) {
-          storage.remove(id)
-          await backends.reconcile()
+          storage()?.remove(id)
+          await optionalBackend()?.reconcile()
         }
         return result
       },
@@ -336,7 +303,7 @@ export const pluginsService = {
       rescan: async () => {
         manager.scan()
         i18n().refresh()
-        await backends.reconcile()
+        await optionalBackend()?.reconcile()
         return manager.list()
       }
     })

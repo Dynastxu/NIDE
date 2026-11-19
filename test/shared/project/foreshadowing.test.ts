@@ -9,7 +9,7 @@ import {
   isForeshadowingDocument,
   isForeshadowingPath,
   readForeshadowingEntry
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 
 /**
  * 伏笔的 yml：固定四个字段（名称 / 起始章节 / 结束章节 / 描述）。

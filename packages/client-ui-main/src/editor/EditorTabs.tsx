@@ -7,14 +7,14 @@ import {
   resolveDocumentMode
 } from '@nide/client-ui-main/editor/document-mode'
 import { useEditorChrome } from '@nide/client-ui-main/editor/editor-chrome'
-import { saveActiveTab, saveTab } from '@nide/client-ui-main/editor/editor-save'
-import { releaseClosedModels } from '@nide/client-ui-main/editor/model-registry'
+import { saveActiveTab, saveTab } from '@nide/client-ui-main/shared/editor-save'
+import { releaseClosedModels } from '@nide/client-ui-main/shared/model-registry'
 import { UnsavedCloseDialog } from '@nide/client-ui-main/editor/UnsavedCloseDialog'
-import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
-import { useDocumentViewStore } from '@nide/client-kit/stores/document-view.store'
+import { ViewFrame } from '@nide/client-ui-renderer/view/ViewFrame'
+import { useDocumentViewStore } from '@nide/client-ui-main/stores/document-view.store'
 import { getT, useT } from '@nide/client-kit/stores/i18n.store'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
-import { type FileWriteFailureReason } from '@nide/contracts/project'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { type FileWriteFailureReason } from '@nide/domain/project'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**

@@ -23,14 +23,14 @@ import {
   sanitizeProjectConfigPatch,
   serializeGalleryConfig,
   serializeProjectConfig
-} from '../../../packages/contracts/src/project/index.ts'
+} from '../../../packages/domain/src/project/index.ts'
 import type {
   GalleryRegistry,
   GalleryRegistryUpdateResult,
   ProjectConfig,
   ProjectConfigKey,
   ProjectConfigUpdateResult
-} from '../../../packages/contracts/src/project/index.ts'
+} from '../../../packages/domain/src/project/index.ts'
 
 /**
  * host 侧的日志出口。

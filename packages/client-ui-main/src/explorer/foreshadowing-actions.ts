@@ -1,12 +1,12 @@
 import { getT } from '@nide/client-kit/stores/i18n.store'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
-import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
 import { loggerFor } from '@nide/client-kit/logger'
 import {
   composeForeshadowingEntry,
   DEFAULT_FORESHADOWING_EXTENSION,
   type CreateEntryResult
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 const logger = loggerFor('explorer')

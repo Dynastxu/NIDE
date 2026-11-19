@@ -7,18 +7,19 @@ import { reactClickToComponent } from 'vite-plugin-react-click-to-component'
 // 注意：Vite 不读 tsconfig 的 paths，@nide/contracts 必须在每个环境里显式声明别名
 // main 与 preload 的依赖外置由 v5 的 build.externalizeDeps 默认启用，无需注册 externalizeDepsPlugin
 const shared = resolve('packages/contracts/src')
+const domain = resolve('packages/domain/src')
 const projectRoot = resolve('.')
 
 export default defineConfig({
   main: {
-    resolve: { alias: { '@nide/contracts': shared } },
+    resolve: { alias: { '@nide/contracts': shared, '@nide/domain': domain } },
     // 主进程与预加载都在 packages/shell（Electron 外壳）；渲染进程只有引导壳
     build: {
       rollupOptions: { input: resolve('packages/shell/src/main/index.ts') }
     }
   },
   preload: {
-    resolve: { alias: { '@nide/contracts': shared } },
+    resolve: { alias: { '@nide/contracts': shared, '@nide/domain': domain } },
     build: {
       rollupOptions: { input: resolve('packages/shell/src/preload/index.ts') }
     }
@@ -57,6 +58,14 @@ export default defineConfig({
           replacement: `${resolve('packages/client-ui-main/src')}/`
         },
         {
+          find: /^@nide\/client-ui-plugins\//,
+          replacement: `${resolve('packages/client-ui-plugins/src')}/`
+        },
+        {
+          find: /^@nide\/client-ui-renderer\//,
+          replacement: `${resolve('packages/client-ui-renderer/src')}/`
+        },
+        {
           find: /^@nide\/client-ui-settings\//,
           replacement: `${resolve('packages/client-ui-settings/src')}/`
         },
@@ -65,6 +74,7 @@ export default defineConfig({
           replacement: `${resolve('packages/client-ui-welcome/src')}/`
         },
         { find: '@nide/contracts', replacement: shared },
+        { find: '@nide/domain', replacement: domain },
         { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') },
         {
           find: '@nide/client-runtime',
@@ -83,8 +93,8 @@ export default defineConfig({
           replacement: resolve('packages/client-ui-main/src/index.ts')
         },
         {
-          find: '@nide/client-ui-layout',
-          replacement: resolve('packages/client-ui-layout/src/index.tsx')
+          find: '@nide/client-ui-plugins',
+          replacement: resolve('packages/client-ui-plugins/src/index.ts')
         },
         {
           find: '@nide/client-ui-settings',

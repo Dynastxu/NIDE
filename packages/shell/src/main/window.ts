@@ -7,8 +7,9 @@ import {
   THEME_PALETTE_ARG_PREFIX,
   encodeAppearancePreference
 } from '@nide/contracts/appearance'
-import { PROJECT_ARG_PREFIX } from '@nide/contracts/project'
-import type { ProjectRecord } from '@nide/contracts/project'
+import { PROJECT_ARG_PREFIX } from '@nide/domain/project'
+import type { ProjectRecord } from '@nide/domain/project'
+import { projectNameFromPath } from '@nide/domain/project'
 import {
   LOG_LEVEL_ARG_PREFIX,
   WINDOW_ARG_PREFIX,
@@ -225,7 +226,7 @@ function buildWindow(type: WindowType, options: BuildOptions = {}): BrowserWindo
     // 页面加载完前先由主进程给出本地化标题。自定义标题栏显示的是渲染进程
     // 传来的文案，这个 title 只剩任务栏 / Alt-Tab / 辅助功能在用 —— 所以这里用
     // 带项目名的那一版：那块地方只有一行字符串可看，项目名是唯一的区分手段。
-    title: systemWindowTitle(t, type, projectPath),
+    title: systemWindowTitle(t, type, projectPath ? projectNameFromPath(projectPath) : null),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

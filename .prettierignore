@@ -1,7 +1,5 @@
-out
-dist
-.nide-dev
-pnpm-lock.yaml
-LICENSE.md
-tsconfig.json
-tsconfig.*.json
+# 生成物：由脚本产出、由对应的 --check 校验新鲜度，不要手工 / prettier 格式化
+docs/architecture/package-graph.md
+packages/client-runtime/src/roster.generated.ts
+# agent 的本地 worktree（不进版本库）
+.agents

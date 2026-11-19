@@ -7,7 +7,7 @@ import type {
   ForeshadowingFile,
   ForeshadowingListResult,
   ProjectConfig
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 
 /**
  * 文件树 / 项目面板的**启动顺序**测试。
@@ -103,10 +103,10 @@ function installWindow(projectPath: string | null): Host {
  * 读取也重来一遍。
  */
 async function loadStore(): Promise<
-  (typeof import('@nide/client-kit/stores/explorer.store'))['useExplorerStore']
+  (typeof import('@nide/client-ui-main/stores/explorer.store'))['useExplorerStore']
 > {
   vi.resetModules()
-  const module = await import('@nide/client-kit/stores/explorer.store')
+  const module = await import('@nide/client-ui-main/stores/explorer.store')
   return module.useExplorerStore
 }
 

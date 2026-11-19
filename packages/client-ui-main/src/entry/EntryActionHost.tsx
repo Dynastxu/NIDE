@@ -1,14 +1,14 @@
 import { JSX } from 'react'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { useExplorerStore } from '@nide/client-kit/stores/explorer.store'
+import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
 import {
   closePrompt,
   submitPromptName,
   useEntryActionStore
-} from '@nide/client-ui-main/stores/entry-action.store'
-import { NamePromptDialog } from '@nide/client-ui-main/entry/NamePromptDialog'
-import { DEFAULT_GALLERY_ENTRY_EXTENSION } from '@nide/contracts/project'
+} from '@nide/client-ui-main/shared/entry-action.store'
+import { NamePromptDialog } from '@nide/client-ui-main/shared/NamePromptDialog'
+import { DEFAULT_GALLERY_ENTRY_EXTENSION } from '@nide/domain/project'
 
 /**
  * 条目动作在界面上的两个落点：名字输入框与失败提示。

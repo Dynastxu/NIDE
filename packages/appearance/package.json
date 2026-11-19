@@ -1,1 +1,8 @@
-{"name":"@nide/service-appearance","private":true,"type":"module"}
+{
+  "name": "@nide/service-appearance",
+  "private": true,
+  "type": "module",
+  "nide": {
+    "layer": "service"
+  }
+}

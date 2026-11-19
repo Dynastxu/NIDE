@@ -1,7 +1,8 @@
-import { create } from 'zustand'
+import { createStore, type StoreApi } from 'zustand/vanilla'
+import { useClientStore, useClientStores } from './client-stores'
 import type { PluginViewDescriptor } from '@nide/contracts/plugin-api'
 
-interface PluginState {
+export interface PluginState {
   /**
    * **当前生效**的视图列表 —— 已经被禁用插件过滤过了。
    *
@@ -32,31 +33,11 @@ async function fetchVisibleViews(): Promise<{ views: PluginViewDescriptor[]; dis
   return { views: views.filter((view) => !off.has(view.pluginId)), disabled }
 }
 
-/** 多个调用点（主窗口启动 + 设置界面）可能同时触发，去重成一次 IPC */
-let inflight: Promise<void> | null = null
+/** 造一张插件表（工厂）；in-flight 去重放在闭包里，实例之间互不干扰 */
+export function createPluginStore(): StoreApi<PluginState> {
+  let inflight: Promise<void> | null = null
 
-export const usePluginStore = create<PluginState>((set) => ({
-  views: [],
-  loaded: false,
-  disabled: [],
-
-  load: () => {
-    if (inflight) return inflight
-
-    inflight = fetchVisibleViews()
-      .then(({ views, disabled }) => set({ views, disabled, loaded: true }))
-      .finally(() => {
-        inflight = null
-      })
-
-    return inflight
-  },
-
-  /**
-   * 重新拉取。**不设 loaded: false** —— 那会让整个工作台闪一下空态。
-   * 保持旧视图列表直到新结果到手，切换是原子的。
-   */
-  reload: () => {
+  const fetchInto = (set: (partial: Partial<PluginState>) => void): Promise<void> => {
     if (inflight) return inflight
 
     inflight = fetchVisibleViews()
@@ -67,4 +48,23 @@ export const usePluginStore = create<PluginState>((set) => ({
 
     return inflight
   }
-}))
+
+  return createStore<PluginState>()((set) => ({
+    views: [],
+    loaded: false,
+    disabled: [],
+
+    load: () => fetchInto(set),
+
+    /**
+     * 重新拉取。**不设 loaded: false** —— 那会让整个工作台闪一下空态。
+     * 保持旧视图列表直到新结果到手，切换是原子的。
+     */
+    reload: () => fetchInto(set)
+  }))
+}
+
+/** 组件里订阅插件表的某个切片（实例来自 context，没 Provider 时用默认实例） */
+export function usePluginStore<T>(selector: (state: PluginState) => T): T {
+  return useClientStore(useClientStores().plugin, selector)
+}

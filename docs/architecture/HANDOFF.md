@@ -4,6 +4,46 @@
 > [plugin-ui-bundles.md](plugin-ui-bundles.md)、[plugin-permissions.md](plugin-permissions.md)、
 > [plugin-backend.md](plugin-backend.md)、[plugin-capabilities.md](plugin-capabilities.md)
 > 与 [plugin-lifecycle.md](plugin-lifecycle.md)。都是当前有效的约定，不是历史记录。
+>
+> **2026-11-18：包已按职责重划（本文正文里的旧路径只作历史保留）。**
+> `packages/host/src/services/*` 拆成独立业务包（`project` / `content` / `config` /
+> `i18n` / `appearance` / `secrets` / `ai` / `plugin-runtime`），`src/shared/*` 并入
+> `packages/contracts`，插件视图管线从 `client-kit` 挪到 `sdk`。
+> **包清单与依赖规则以 [packages/AGENTS.md](../../packages/AGENTS.md) 为准**，
+> 并由 `pnpm lint:imports` 强制；§6 的关键文件表已换成新路径。
+>
+> **同一天第二轮：8 条依赖债清空（基线归零）。** 按 DSH 的包划分答案落地：
+> 渲染机械（PluginSlot / ViewFrame / chrome）从 `sdk` + `client-ui-main` 收进
+> `client-ui-renderer`，bundle 加载从 `client-runtime` 收进 `client-modules`，
+> `client-ui-layout` 并回 `client-ui-main`（zone slot 由窗口自己注册），
+> 插件管理界面从设置窗口下沉成功能包 `client-ui-plugins`，`content` 改走
+> `ctx.config`、`ai` 只依赖 `contracts` 里的密钥端口。
+>
+> **同一天第三轮：插件子系统按 `ctx` 键拆成五个包。** `plugin-runtime` 只留清单与
+> 生命周期（`plugins`）；权限（`plugin-permissions`）、存储（`plugin-storage`）、
+> 桌面能力（`plugin-capabilities`）、后端子进程与卸载脚本（`plugin-backend`）各成
+> 一包、各挂 profile 一行。五者互不注入：后端注入其余四个，清单服务反向只按需
+> `ctx.get()`（注入成环会互相 PENDING）。跨包只允许 `import type`。
+>
+> **同一天第四轮：分层从脚本搬进 `package.json`，图与包内域规则变成门禁。**
+> 每个包声明 `"nide": { "layer": ... }`；`pnpm gen:package-graph` 生成
+> [package-graph.md](package-graph.md)（`pnpm graph:check` 在 CI 校验新鲜度）；
+> 窗口包内部的域分层由 `scripts/check-package-domains.mts` 守着（跨域只能经
+> `shared/` 或装配点，3 条存量进基线）。
+>
+> **同一天第五轮：三件事收口。**
+>
+> 1. **包内跨域基线归零**：`client-ui-main` 的 8 个跨域模块（entry 菜单/对话框/动作
+>    状态、gallery/overview 动作、editor-save、model-registry）收进 `src/shared/`；
+>    域基线 3 → 0。
+> 2. **`client-kit` 的 store 改成工厂 + 注入**：`createClientStores()` 造一套实例、
+>    `ClientStoresProvider` 在引导壳注入、`getClientStores()` 给非 React 代码；
+>    hook 名字与调用点不变，测试可以拿独立实例。
+> 3. **`contracts` 拆出 `domain`**：项目结构 / 配置文本 / 章节·伏笔·图鉴·概述 / 文件树
+>    等**共享领域规则**搬到 `packages/domain`（纯层，根）；`contracts` 只留线格式、
+>    词条基础表、端口与领域错误，允许引用 domain。`#project/*` 的 Node ESM 子路径映射
+>    随目录搬到 `packages/domain/src/project/package.json`，`build:host` 现在复制两个
+>    纯层的 marker。
 
 ## 0. 一句话状态
 
@@ -65,32 +105,29 @@ Host（packages/host，纯 Node ESM）
 
 Client（renderer，HTTP 页面里的第二棵 Cordis 树）
 ├─ apps/desktop/renderer/src/main.tsx：引导壳（按窗口种类 import 三个包、挂 slot）
-├─ packages/client-runtime：Context + slots + modules + bundle loader
-├─ packages/client-kit：共享层（stores / ui / 窗口外壳 / 插件视图管线）
-├─ packages/client-ui-main / client-ui-welcome / client-ui-settings：窗口 UI 本体
-├─ packages/client-ui-layout：六个工具区的 slot 插件
-├─ packages/client-ui-slots / client-ui-renderer
-└─ packages/client-modules：viewId -> Component
+├─ packages/client-runtime：Context + 花名册装配（只做装配）
+├─ packages/client-modules：viewId -> Component + bundle 加载（`__NIDE_REGISTER__` / nide-plugin://）
+├─ packages/client-ui-renderer：渲染管线（SlotProvider / Slot / PluginSlot / 视图外壳 ViewFrame）
+├─ packages/client-kit：共享层（stores / ui / 窗口外壳 / logger / monaco）
+├─ packages/client-ui-plugins：设置与欢迎窗口共用的插件管理界面
+└─ packages/client-ui-main / client-ui-welcome / client-ui-settings：窗口 UI 本体（含 zone slot）
 ```
 
 目录（**目标形态与迁移顺序见 [plugin-first-layout.md](plugin-first-layout.md)**）：
 
 ```
-src/                 # Electron 外壳 + 跨进程契约 + 引导壳（阶段 4 之后会继续缩小）
-  main/              # 窗口 / 菜单 / 对话框 / 日志 / 协议 / host 生命周期
-  preload/           # window.hostAPI 桥
-  renderer/          # 只剩 main.tsx（181 行）+ Tailwind 入口
+apps/desktop/renderer/          # 引导壳（main.tsx + Tailwind 入口）
+packages/shell/                 # Electron 外壳：窗口 / 菜单 / 对话框 / 日志 / 协议 / preload
 packages/
-  contracts/         # 跨进程契约（原 src/shared）：类型 + 纯函数 + 词条基础表
-  boot/ host/ hello/ # host 运行时与业务（host/src/services/*）
-  client-runtime/ client-modules/
-  client-kit/        # 客户端平台层：stores / ui / window 外壳 / logger / monaco
-  sdk/               # 插件开发者 API：插件视图渲染管线（PluginSlot / host-context）
-  client-ui-slots/ client-ui-renderer/
-  client-ui-main/ client-ui-layout/ client-ui-welcome/ client-ui-settings/
-packages/plugins/     # NIDE 插件包（demo / ai-provider / lang-en）
+  contracts/                    # 跨进程契约：类型 + 纯函数 + 词条基础表 + 端口 / 领域错误
+  boot/ host/ hello/           # host 运行时与装配
+  project/ content/ config/ i18n/ appearance/ secrets/ ai/ plugin-runtime/  # 宿主业务服务
+  client-runtime/ client-modules/ client-ui-slots/ client-ui-renderer/     # 装配 + 接缝
+  client-kit/ sdk/                                                        # 库 + 插件 API
+  client-ui-main/ client-ui-plugins/ client-ui-welcome/ client-ui-settings/  # 窗口 + 功能包
+packages/plugins/               # NIDE 插件包（demo / ai-provider / lang-en）
 # profile 由 packages/boot 代码生成，运行时落在 NIDE_HOME/profiles/<name>
-docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目录方案
+docs/architecture/              # 本文件 + 迁移方案 + bundle 说明 + 插件化目录方案
 ```
 
 ## 3. 已完成（可运行、已验证）
@@ -183,7 +220,7 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
   不会静默降级成完全信任；
 - 执行点只有一个：[packages/kernel/src/rpc.ts](../../packages/kernel/src/rpc.ts) 的
   `RpcAuthorizer`（分发之前）。宿主入口在服务装配完成后接上
-  [permissions.ts](../../packages/plugin-runtime/src/permissions.ts) 的 guard；
+  [permissions.ts](../../packages/plugin-permissions/src/permissions.ts) 的 guard；
   `RpcRequest.caller.pluginId` 是判断依据，没有 caller 的调用（核心 UI / shell）一律放行；
 - 只有 `trust: 'sandboxed'` 会被限制：`fs.read` / `fs.write` 按展开后的作用域检查
   `files.*` / `gallery.*` / `overview.*` / `config.*` 的路径参数；`net` 约束 `ai.*`；
@@ -197,11 +234,11 @@ docs/architecture/   # 本文件 + 迁移方案 + bundle 说明 + 插件化目�
 ### 插件后端（工作进程，详见 [plugin-backend.md](plugin-backend.md)）
 
 - `manifest.main`（插件目录内、真实存在的 ESM 文件）交给
-  [backend/runtime.ts](../../packages/plugin-runtime/src/backend/runtime.ts)：
+  [backend/runtime.ts](../../packages/plugin-backend/src/runtime.ts)：
   `child_process.fork` 一个子进程，`buildBackendFlags()` 把权限声明翻成 Node 的
   `--permission` / `--allow-fs-read` / `--allow-fs-write` / `--allow-child-process`
   （只有 `sandboxed` 才加；`full` 不限制）；
-- 子进程入口是 [backend/worker.ts](../../packages/plugin-runtime/src/backend/worker.ts)：
+- 子进程入口是 [backend/worker.ts](../../packages/plugin-backend/src/worker.ts)：
   动态 import 插件 `main`，默认导出 `{ activate(host), deactivate? }`（或直接一个函数），
   `host.handle(method, fn)` 注册的方法由宿主 RPC `plugin.call(pluginId, method, params)`
   调用；日志、路径、方法注册都经 IPC 回传；
@@ -302,7 +339,7 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
 
 ### 客户端共享层（@nide/client-kit）
 
-- [packages/client-kit/src](packages/client-kit/src)：`stores/`（zustand 的十张表）、
+- [packages/client-kit/src](packages/client-kit/src)：`stores/`（**只留跨窗口的四张表**：i18n / appearance / layout / plugin；主窗口的 editor / explorer / gallery / overview / document-view 已随窗口下沉）、
   `ui/`（基础组件）、`window/`（窗口外壳：`WindowFrame` / `WindowControls` /
   `useWindowTitle`）、`logger`、`icons.tsx`、`appearance/palette.ts`、
   `plugin-views/`（`PluginSlot` / `PluginHostProvider` / `host-context`：插件视图的渲染管线）；
@@ -634,59 +671,62 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 
 ## 6. 关键文件
 
-| 文件                                                 | 说明                                                                                       |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `electron-builder.yml`                               | 打包：`asar: true`；`out/host/**` 与 `packages/plugins/**` 走 `asarUnpack`       |
-| `packages/shell/src/main/host/process.ts`            | spawn host、ready、attach port、`invokeHost`（shell→host RPC）、stop                       |
-| `packages/shell/src/main/host/project.ts`            | shell 侧的项目客户端：list / startup / open / forget / close（都走 `invokeHost`）          |
-| `packages/shell/src/main/window.ts`                  | 建窗；`boundProjectPath`（主窗口绑定的项目）；`openStartupWindow()` 等 host 的启动结论     |
-| `packages/shell/src/main/index.ts`                   | 启动时拉起 host；`browser-window-created` 挂 port；`will-quit` 停 host                     |
-| `packages/shell/src/main/ipc/project.ipc.ts`         | 目录对话框 / 窗口切换 / 二次确认 + 转发到 host                                             |
-| `packages/shell/src/main/ipc/host.ipc.ts`            | 其余宿主 IPC（插件、主题、i18n、`host:get-client-bundles`）                                |
-| `packages/shell/src/preload/index.ts`                | `nideHost` 桥、host 优先回退、`__NIDE_BOOT__`                                              |
-| `src/shared/host-rpc/index.ts`                       | RPC 协议                                                                                   |
-| `packages/host/src/rpc.ts`                           | RpcRegistry（renderer port 与 shell 父端口共用）                                           |
-| `packages/host/src/ipc.ts`                           | 父端口 / renderer port 的 transport 与 RPC 分发                                            |
-| `packages/host/src/services/project-store.ts`        | `projects.json` 的唯一实现：列表 / 当前 / 启动恢复 / 打开 / 移除 / 关闭                    |
-| `packages/host/src/services/project-files.ts`        | host 文件 / 章节 / 伏笔 / 图鉴 / 概述的读写                                                |
-| `packages/host/src/services/project-config.ts`       | host 项目配置（load / update / initialize / registry / remap）                             |
-| `packages/host/src/services/plugins.ts`              | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做）                            |
-| `packages/contracts/src/plugin-api/permissions.ts`   | 权限声明：类型 / 校验归一化 / 变量展开 / 路径判断（浏览器安全）                            |
-| `packages/plugin-runtime/src/permissions.ts`       | 权限执行：`RpcAuthorizer` 的能力映射与 fs 作用域检查                                       |
-| `packages/sdk/src/plugin-views/plugin-api.ts`        | 插件侧受限宿主 API（`useHost().api`，带 caller）                                           |
-| `packages/plugin-runtime/src/backend/runtime.ts`   | 插件后端子进程：权限参数、fork、RPC、起停 / 重扫对齐                                       |
-| `packages/plugin-runtime/src/backend/worker.ts`    | 子进程运行时：装载 `main`、`activate(host)`、方法注册                                      |
-| `packages/contracts/src/plugin-api/backend.ts`       | 后端插件类型（`PluginBackend` / `PluginBackendHost`）                                      |
-| `packages/plugin-runtime/src/backend/uninstall.ts` | 卸载脚本：子进程执行、超时、存储快照                                                       |
-| `packages/contracts/src/plugin-api/preference.ts`    | 启用状态：disabled / enabled / core / essential / defaultDisabled                          |
-| `packages/plugin-runtime/src/storage.ts`           | 插件存储：每插件 JSON、合并写盘、flush / remove                                            |
-| `packages/plugin-runtime/src/capabilities.ts`      | 桌面能力：`os.*` 权限检查 + 转发到 shell                                                   |
-| `packages/shell/src/main/host/capabilities.ts`       | 反向桥实现：白名单方法 + 参数收敛（外链 / 对话框 / 剪贴板 / 通知）                         |
-| `packages/host/src/services/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则） |
-| `packages/host/src/services/i18n.ts`                 | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析                      |
-| `packages/client-kit/src`                            | 客户端共享层：stores / ui / window 外壳 / logger / icons（`@nide/client-kit/*`）           |
-| `packages/host/src/services/appearance.ts`           | host 侧主题 / 外观：`appearance.json` 偏好 + 主题解析（nativeTheme 走反向桥）              |
-| `packages/host/src/services/ai-provider.ts`          | host 侧 AI 供应商：配置 / 测试连接 / SSE 转发                                              |
-| `packages/host/src/services/secrets.ts`              | host 侧密钥仓（密文落盘；加解密走 `safeStorage` 反向桥）                                   |
-| `packages/shell/src/main/ipc/ai-provider.ipc.ts`     | shell 边界：启用检查 + 把分片转给发起窗口（`subscribeHostStream`）                         |
-| `packages/shell/src/main/appearance/index.ts`        | shell 的 `AppearanceState` 缓存（窗口底色 / 启动参数要同步）                               |
-| `packages/host/src/services/builtin-views.ts`        | 三条内建视图（文件树 / 版本控制 / 提交），标题由 host 按当前语言解析                       |
-| `packages/shell/src/main/i18n/index.ts`              | shell 的载荷缓存 + `t()` + 切语言入口（语言与词条都在 host）                               |
-| `packages/shell/src/main/protocol/plugin-bundles.ts` | `nide-plugin://` 协议：打包后按 pluginId 从 host 清单取 bundle 文件                        |
-| `src/shared/plugin-api/contributions.ts`             | 贡献点的纯数据契约（未解析的 `titleSpec`、插件目录内相对路径）                             |
-| `src/shared/i18n/locale-tag.ts`                      | 语言标签规范化 + 候选链（自包含，host 也能直接加载）                                       |
-| `packages/client-runtime/src/index.ts`               | 客户端树、slots/modules、bundle 加载                                                       |
-| `packages/client-runtime/src/loader.ts`              | bundle 注入：dev 走 `/@fs/`，打包后走 `nide-plugin://`                                     |
-| `packages/client-ui-slots/src/index.ts`              | `SlotRegistry` / `slotsOf`                                                                 |
-| `packages/client-modules/src/index.ts`               | `ClientModuleRegistry` / `modulesOf`                                                       |
-| `packages/client-ui-renderer/src/index.tsx`          | `<SlotProvider>` / `<Slot>`                                                                |
-| `apps/desktop/renderer/src/plugins/PluginSlot.tsx`   | 先查注册表，再回退 glob                                                                    |
-| `packages/plugins/demo/src/ui/client-entry.tsx`       | bundle 入口                                                                                |
-| `scripts/build-plugin-client.mjs`                    | IIFE 构建                                                                                  |
-| `scripts/build-host.mts`                             | 编译 host 到 `out/host`（TS Node API，不 spawn）                                           |
-| `src/shared/project/store.ts`                        | 纯 store 模型                                                                              |
-| `src/shared/project/package.json`                    | ESM 标记 + `#project/*` 子路径导入映射                                                     |
-| `src/shared/project/yaml.ts`                         | 最小 YAML（原 `src/shared/yaml`，搬进 project 包以便 `#project/yaml`）                     |
+| 文件                                                  | 说明                                                                                                    |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `electron-builder.yml`                                | 打包：`asar: true`；`out/host/**` 与 `packages/plugins/**` 走 `asarUnpack`                              |
+| `packages/shell/src/main/host/process.ts`             | spawn host、ready、attach port、`invokeHost`（shell→host RPC）、stop                                    |
+| `packages/shell/src/main/host/project.ts`             | shell 侧的项目客户端：list / startup / open / forget / close（都走 `invokeHost`）                       |
+| `packages/shell/src/main/window.ts`                   | 建窗；`boundProjectPath`（主窗口绑定的项目）；`openStartupWindow()` 等 host 的启动结论                  |
+| `packages/shell/src/main/index.ts`                    | 启动时拉起 host；`browser-window-created` 挂 port；`will-quit` 停 host                                  |
+| `packages/shell/src/main/ipc/project.ipc.ts`          | 目录对话框 / 窗口切换 / 二次确认 + 转发到 host                                                          |
+| `packages/shell/src/main/ipc/host.ipc.ts`             | 其余宿主 IPC（插件、主题、i18n、`host:get-client-bundles`）                                             |
+| `packages/shell/src/preload/index.ts`                 | `nideHost` 桥、host 优先回退、`__NIDE_BOOT__`                                                           |
+| `packages/contracts/src/host-rpc/index.ts`            | RPC 协议                                                                                                |
+| `packages/kernel/src/rpc.ts`                          | RpcRegistry（renderer port 与 shell 父端口共用）                                                        |
+| `packages/kernel/src/ipc.ts`                          | 父端口 / renderer port 的 transport 与 RPC 分发                                                         |
+| `packages/project/src/host-project-store.ts`          | `projects.json` 的唯一实现：列表 / 当前 / 启动恢复 / 打开 / 移除 / 关闭                                 |
+| `packages/content/src/project-files.ts`               | host 文件 / 章节 / 伏笔 / 图鉴 / 概述的读写                                                             |
+| `packages/config/src/project-config.ts`               | host 项目配置（load / update / initialize / registry / remap）                                          |
+| `packages/plugin-runtime/src/plugins.ts`              | host 插件清单 / 启停 / client bundle / 本地安装卸载（npm 待做）                                         |
+| `packages/contracts/src/plugin-api/permissions.ts`    | 权限声明：类型 / 校验归一化 / 变量展开 / 路径判断（浏览器安全）                                         |
+| `packages/plugin-permissions/src/permissions.ts`      | 权限执行：`RpcAuthorizer` 的能力映射与 fs 作用域检查                                                    |
+| `packages/sdk/src/plugin-views/plugin-api.ts`         | 插件侧受限宿主 API（`useHost().api`，带 caller）                                                        |
+| `packages/plugin-backend/src/runtime.ts`              | 插件后端子进程：权限参数、fork、RPC、起停 / 重扫对齐                                                    |
+| `packages/plugin-backend/src/worker.ts`               | 子进程运行时：装载 `main`、`activate(host)`、方法注册                                                   |
+| `packages/contracts/src/plugin-api/backend.ts`        | 后端插件类型（`PluginBackend` / `PluginBackendHost`）                                                   |
+| `packages/plugin-backend/src/uninstall.ts`            | 卸载脚本：子进程执行、超时、存储快照                                                                    |
+| `packages/contracts/src/plugin-api/preference.ts`     | 启用状态：disabled / enabled / core / essential / defaultDisabled                                       |
+| `packages/plugin-storage/src/storage.ts`              | 插件存储：每插件 JSON、合并写盘、flush / remove                                                         |
+| `packages/plugin-capabilities/src/capabilities.ts`    | 桌面能力：`os.*` 权限检查 + 转发到 shell                                                                |
+| `packages/shell/src/main/host/capabilities.ts`        | 反向桥实现：白名单方法 + 参数收敛（外链 / 对话框 / 剪贴板 / 通知）                                      |
+| `packages/plugin-runtime/src/plugin-contributions.ts` | host 侧唯一读插件目录的地方：视图 / 设置页 / 语言包 / manifest 词条（路径守卫 + 收敛规则）              |
+| `packages/i18n/src/i18n.ts`                           | host 侧本地化：语言包瀑布 / 语言偏好 / `HostI18n` / manifest 标题解析                                   |
+| `packages/client-kit/src`                             | 客户端共享层：ui / window 外壳 / logger / icons / 跨窗口 stores（领域 store 已下沉到 `client-ui-main`） |
+| `packages/appearance/src/appearance.ts`               | host 侧主题 / 外观：`appearance.json` 偏好 + 主题解析（nativeTheme 走反向桥）                           |
+| `packages/ai/src/ai-provider.ts`                      | host 侧 AI 供应商：配置 / 测试连接 / SSE 转发                                                           |
+| `packages/secrets/src/secrets.ts`                     | host 侧密钥仓（密文落盘；加解密走 `safeStorage` 反向桥）                                                |
+| `packages/shell/src/main/ipc/ai-provider.ipc.ts`      | shell 边界：启用检查 + 把分片转给发起窗口（`subscribeHostStream`）                                      |
+| `packages/shell/src/main/appearance/index.ts`         | shell 的 `AppearanceState` 缓存（窗口底色 / 启动参数要同步）                                            |
+| `packages/plugin-runtime/src/builtin-views.ts`        | 三条内建视图（文件树 / 版本控制 / 提交），标题由 host 按当前语言解析                                    |
+| `packages/shell/src/main/i18n/index.ts`               | shell 的载荷缓存 + `t()` + 切语言入口（语言与词条都在 host）                                            |
+| `packages/shell/src/main/protocol/plugin-bundles.ts`  | `nide-plugin://` 协议：打包后按 pluginId 从 host 清单取 bundle 文件                                     |
+| `packages/contracts/src/plugin-api/contributions.ts`  | 贡献点的纯数据契约（未解析的 `titleSpec`、插件目录内相对路径）                                          |
+| `packages/contracts/src/i18n/locale-tag.ts`           | 语言标签规范化 + 候选链（自包含，host 也能直接加载）                                                    |
+| `packages/client-runtime/src/index.ts`                | 客户端树、slots/modules、bundle 加载                                                                    |
+| `packages/client-runtime/src/loader.ts`               | bundle 注入：dev 走 `/@fs/`，打包后走 `nide-plugin://`                                                  |
+| `packages/client-ui-slots/src/index.ts`               | `SlotRegistry` / `slotsOf`                                                                              |
+| `packages/client-modules/src/index.ts`                | `ClientModuleRegistry` / `modulesOf`                                                                    |
+| `packages/client-ui-renderer/src/index.tsx`           | `<SlotProvider>` / `<Slot>`；模块表由 SlotProvider 注入                                                 |
+| `packages/client-ui-renderer/src/PluginSlot.tsx`      | 先查注册表（由 SlotProvider 注入），再回退 glob                                                         |
+| `packages/plugins/demo/src/ui/client-entry.tsx`       | bundle 入口                                                                                             |
+| `scripts/build-plugin-client.mjs`                     | IIFE 构建                                                                                               |
+| `scripts/build-host.mts`                              | 编译 host 到 `out/host`（TS Node API，不 spawn）                                                        |
+| `packages/domain/src/project/store.ts`                | 纯 store 模型                                                                                           |
+| `packages/contracts/package.json`                     | ESM 标记 + `#project/*` 子路径导入映射                                                                  |
+| `packages/domain/src/project/yaml.ts`                 | 最小 YAML（原 `src/shared/yaml`，搬进 project 契约以便 `#project/yaml`）                                |
+| `scripts/check-imports.mts`                           | 包依赖门禁：分层规则 / 未声明层 / contracts 自包含 / 依赖环                                             |
+| `scripts/check-package-domains.mts`                   | 包内域分层门禁：窗口包内部跨域只能经 shared / 装配点                                                    |
+| `scripts/gen-package-graph.mts`                       | 生成 [package-graph.md](package-graph.md)（`--check` 供 CI 校验新鲜度）                                 |
 
 ## 7. 不可破坏的约定
 
@@ -726,7 +766,7 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
     `permissions` 检查。`window.hostAPI` 是宿主自己的入口，插件直接用它等于绕过
     权限声明（也是屏障的全部边界，别当沙箱）。
 17. **权限检查只挂在 `RpcRegistry` 的 authorizer 上**：不要在服务 handler 里各写一份。
-    新能力加进 `capabilityOf()` / `pathsOf()`（`packages/plugin-runtime/src/permissions.ts`），
+    新能力加进 `capabilityOf()` / `pathsOf()`（`packages/plugin-permissions/src/permissions.ts`），
     并补 `test/host/plugin-permissions.test.ts`。
 18. **插件后端代码只在子进程里跑**：宿主不 `import` 插件 `main`，只 `fork` 它；
     任何「先在宿主里试一下」的捷径都会让进程边界失效。

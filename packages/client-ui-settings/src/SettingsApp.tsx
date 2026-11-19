@@ -10,7 +10,7 @@ import {
 import { SettingsTreeNav } from '@nide/client-ui-settings/SettingsTreeNav'
 import { SettingsIndexPage } from '@nide/client-ui-settings/SettingsIndexPage'
 import { findNode, firstPageNodeId } from '@nide/client-ui-settings/tree-utils'
-import { RestartDialog } from '@nide/client-ui-settings/RestartDialog'
+import { RestartDialog } from '@nide/client-ui-plugins/RestartDialog'
 import { useSettingsTreeStore } from '@nide/client-ui-settings/settings-tree.store'
 import { PluginSettingsSlot } from '@nide/client-ui-settings/PluginSettingsSlot'
 import {

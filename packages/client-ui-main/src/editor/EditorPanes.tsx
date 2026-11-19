@@ -16,13 +16,13 @@ import {
   pathOfBodyModel,
   pathOfModel,
   writeModelSilently
-} from '@nide/client-ui-main/editor/model-registry'
-import { saveActiveTab } from '@nide/client-ui-main/editor/editor-save'
+} from '@nide/client-ui-main/shared/model-registry'
+import { saveActiveTab } from '@nide/client-ui-main/shared/editor-save'
 import { loggerFor } from '@nide/client-kit/logger'
-import { useEditorStore, type EditorTab } from '@nide/client-kit/stores/editor.store'
-import { chapterBodyOf, splitFrontmatter } from '@nide/contracts/project'
+import { useEditorStore, type EditorTab } from '@nide/client-ui-main/stores/editor.store'
+import { chapterBodyOf, splitFrontmatter } from '@nide/domain/project'
 import type { DocumentView } from '@nide/client-ui-main/editor/document-mode'
-import type { DocumentViewMode } from '@nide/client-kit/stores/document-view.store'
+import type { DocumentViewMode } from '@nide/client-ui-main/stores/document-view.store'
 
 const logger = loggerFor('editor')
 

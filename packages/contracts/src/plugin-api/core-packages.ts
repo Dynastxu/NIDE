@@ -83,13 +83,31 @@ export const CORE_PACKAGES: readonly Omit<CorePackage, 'kind'>[] = [
     id: 'sdk',
     name: '@nide/sdk',
     path: 'packages/sdk',
-    description: '插件开发者 API：视图渲染管线（PluginSlot / host-context）'
+    description: '插件开发者 API：useHost / 受限宿主 API / 插件词条上下文'
+  },
+  {
+    id: 'client-modules',
+    name: '@nide/client-modules',
+    path: 'packages/client-modules',
+    description: '插件浏览器半的模块表与 bundle 加载（dsviewId → 组件、nide-plugin://）'
+  },
+  {
+    id: 'ui-renderer',
+    name: '@nide/client-ui-renderer',
+    path: 'packages/client-ui-renderer',
+    description: '渲染管线：slot / 模块注册表的 React 绑定、PluginSlot、视图外壳 ViewFrame'
+  },
+  {
+    id: 'ui-plugins',
+    name: '@nide/client-ui-plugins',
+    path: 'packages/client-ui-plugins',
+    description: '插件管理界面（浏览 / 启停 / 卸载 / 重启提示）：设置与欢迎窗口共用'
   },
   {
     id: 'ui-main',
     name: '@nide/client-ui-main',
     path: 'packages/client-ui-main',
-    description: '主窗口：布局 / 编辑器 / 文件树 / 内建视图 / 文件菜单'
+    description: '主窗口：布局 / 编辑器 / 文件树 / 内建视图 / 文件菜单 / 六个工具区的 slot'
   },
   {
     id: 'ui-welcome',
@@ -101,12 +119,6 @@ export const CORE_PACKAGES: readonly Omit<CorePackage, 'kind'>[] = [
     id: 'ui-settings',
     name: '@nide/client-ui-settings',
     path: 'packages/client-ui-settings',
-    description: '设置窗口：设置树 / 各设置页 / 插件浏览'
-  },
-  {
-    id: 'ui-layout',
-    name: '@nide/client-ui-layout',
-    path: 'packages/client-ui-layout',
-    description: '六个工具区的 slot 插件'
+    description: '设置窗口：设置树 / 各设置页 / 插件设置页挂载点'
   }
 ]

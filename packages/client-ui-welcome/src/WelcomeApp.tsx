@@ -1,6 +1,6 @@
 import { JSX, useCallback, useState } from 'react'
-import { PluginsBrowser } from '@nide/client-ui-settings/PluginsBrowser'
-import { RestartDialog } from '@nide/client-ui-settings/RestartDialog'
+import { PluginsBrowser } from '@nide/client-ui-plugins/PluginsBrowser'
+import { RestartDialog } from '@nide/client-ui-plugins/RestartDialog'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { ProjectsPanel } from '@nide/client-ui-welcome/ProjectsPanel'

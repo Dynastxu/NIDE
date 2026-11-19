@@ -1,8 +1,12 @@
 /**
  * 内容服务共用的请求校验与路径解析（从 host 入口原样搬出）。
  *
- * 唯一的改动：`allowedRoots()` 从「自己去问当前项目」变成接收 `root` 参数 ——
- * 服务不该在模块级缓存项目状态，否则切换项目时要通知它。
+ * 两条改动：
+ * - `allowedRoots()` 从「自己去问当前项目」变成接收 `root` 参数 —— 服务不该在
+ *   模块级缓存项目状态，否则切换项目时要通知它；
+ * - 配置不再 import 实现：路径解析与注册表读写都走 `ctx.config`（端口见
+ *   `packages/config/src/index.ts` 的 `ConfigService`）。这样「配置归谁」只有一个
+ *   答案，内容包也不会因为纯函数复用而反向依赖业务包。
  */
 import process from 'node:process'
 import {
@@ -13,8 +17,13 @@ import {
   type OverviewRoleUpdateRequest,
   type ProjectConfig,
   type RenameEntryRequest
-} from '../../contracts/src/project/index.ts'
-import { loadProjectConfig, resolveConfigDirectory } from '../../config/src/project-config.ts'
+} from '../../domain/src/project/index.ts'
+
+/** 内容服务用到的配置能力（就是 ConfigService 的子集，避免把整包拖进来） */
+export interface ConfigPort {
+  load(root: string): Promise<ProjectConfig>
+  directory(root: string, relative: string): string
+}
 
 /** 文件读写的允许根：MVP 只有当前项目一个。 */
 export function allowedRoots(root: string | undefined): string[] {
@@ -97,10 +106,10 @@ export function parseOverviewRoleRequest(value: unknown): OverviewRoleUpdateRequ
  * 图鉴的三个通道都要它：渲染进程报上来的路径必须**正是**这一个，否则拒绝 —— 不判的
  * 话，「读图鉴」就成了一条枚举项目里任意一层子目录的通道。
  */
-export async function resolveGalleryRoot(root: string): Promise<string | null> {
+export async function resolveGalleryRoot(config: ConfigPort, root: string): Promise<string | null> {
   try {
-    const config = await loadProjectConfig(root)
-    return resolveConfigDirectory(root, config.gallery.path)
+    const project = await config.load(root)
+    return config.directory(root, project.gallery.path)
   } catch (error) {
     console.warn('[nide-host] failed to resolve the gallery directory', { error })
     return null
@@ -109,11 +118,12 @@ export async function resolveGalleryRoot(root: string): Promise<string | null> {
 
 /** 当前项目的概述配置与内容目录绝对路径；读不到配置时给 null */
 export async function resolveOverviewContext(
+  config: ConfigPort,
   root: string
 ): Promise<{ config: ProjectConfig; path: string } | null> {
   try {
-    const config = await loadProjectConfig(root)
-    return { config, path: resolveConfigDirectory(root, config.overview.path) }
+    const project = await config.load(root)
+    return { config: project, path: config.directory(root, project.overview.path) }
   } catch (error) {
     console.warn('[nide-host] failed to resolve the overview directory', { error })
     return null

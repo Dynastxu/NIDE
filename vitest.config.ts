@@ -34,7 +34,20 @@ export default defineConfig({
         find: /^@nide\/client-ui-welcome\//,
         replacement: `${resolve('packages/client-ui-welcome/src')}/`
       },
+      {
+        find: /^@nide\/client-ui-plugins\//,
+        replacement: `${resolve('packages/client-ui-plugins/src')}/`
+      },
+      {
+        find: /^@nide\/client-ui-renderer\//,
+        replacement: `${resolve('packages/client-ui-renderer/src')}/`
+      },
       { find: '@nide/contracts', replacement: resolve('packages/contracts/src') },
+      {
+        find: /^@nide\/domain\//,
+        replacement: `${resolve('packages/domain/src')}/`
+      },
+      { find: '@nide/domain', replacement: resolve('packages/domain/src') },
       { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') }
     ]
   },

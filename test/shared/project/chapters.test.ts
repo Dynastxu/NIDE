@@ -17,8 +17,8 @@ import {
   takenChapterFileNumbers,
   usedChapterNumbers,
   writeChapterBody
-} from '@nide/contracts/project'
-import type { ChapterFile } from '@nide/contracts/project'
+} from '@nide/domain/project'
+import type { ChapterFile } from '@nide/domain/project'
 
 /**
  * 章节 Markdown 的开头属性（frontmatter）里的**编号**。

@@ -1,7 +1,7 @@
 import { JSX, useEffect, useRef } from 'react'
 import * as monaco from 'monaco-editor'
 import { monacoLoader } from '@nide/client-kit/monaco-env'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 
 export function MonacoDiffView(): JSX.Element | null {

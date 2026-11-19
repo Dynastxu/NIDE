@@ -7,8 +7,11 @@
   },
   "nide": {
     "client": {
-      "windowTypes": ["main"],
+      "windowTypes": [
+        "main"
+      ],
       "order": 20
-    }
+    },
+    "layer": "client-window"
   }
 }

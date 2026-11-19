@@ -1,6 +1,6 @@
-import { writeChapterMetadata, type ChapterMetadata } from '@nide/contracts/project'
-import { modelFor, writeModelSilently } from '@nide/client-ui-main/editor/model-registry'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { writeChapterMetadata, type ChapterMetadata } from '@nide/domain/project'
+import { modelFor, writeModelSilently } from '@nide/client-ui-main/shared/model-registry'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 
 /**
  * 把**元数据**的改动写回正在编辑的那一篇。

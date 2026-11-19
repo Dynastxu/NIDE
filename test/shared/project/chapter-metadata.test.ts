@@ -13,7 +13,7 @@ import {
   readChapterMetadata,
   writeChapterMetadata,
   type ChapterMetadata
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 
 /**
  * 章节元数据（frontmatter 里的 `category` + `data` 那一段）。

@@ -1,0 +1,10 @@
+{
+  "name": "@nide/domain",
+  "private": true,
+  "type": "module",
+  "//": "共享领域规则（纯逻辑）：项目结构、配置文本、章节 / 伏笔 / 图鉴 / 概述、文件树。",
+  "//2": "host 与渲染进程都要用，所以不能碰 Electron / DOM / 文件系统；不 import 任何包。",
+  "nide": {
+    "layer": "domain"
+  }
+}

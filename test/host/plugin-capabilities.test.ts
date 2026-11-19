@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PluginCapabilities } from '../../packages/plugin-runtime/src/capabilities.ts'
+import { PluginCapabilities } from '../../packages/plugin-capabilities/src/capabilities.ts'
 import type { ShellMethod } from '../../packages/contracts/src/host-rpc/index.ts'
 import type { PluginManager } from '../../packages/plugin-runtime/src/plugins.ts'
 import type { PluginPermissions } from '../../packages/contracts/src/plugin-api/permissions.ts'

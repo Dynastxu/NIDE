@@ -1,18 +1,18 @@
 import { JSX, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { useViewChrome } from '@nide/client-ui-main/view/chrome-context'
-import { ViewFrame } from '@nide/client-ui-main/view/ViewFrame'
+import { useViewChrome } from '@nide/client-ui-renderer/view/chrome-context'
+import { ViewFrame } from '@nide/client-ui-renderer/view/ViewFrame'
 import { ProjectsPanel } from '@nide/client-ui-main/explorer/ProjectsPanel'
 import { createChapter, suggestNextChapter } from '@nide/client-ui-main/explorer/chapter-actions'
 import {
   createForeshadowing,
   suggestNextForeshadowing
 } from '@nide/client-ui-main/explorer/foreshadowing-actions'
-import { openProjectFile, useExplorerStore } from '@nide/client-kit/stores/explorer.store'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+import { openProjectFile, useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
-import { EntryMenu } from '@nide/client-ui-main/entry/EntryMenu'
-import { NamePromptDialog } from '@nide/client-ui-main/entry/NamePromptDialog'
+import { EntryMenu } from '@nide/client-ui-main/shared/EntryMenu'
+import { NamePromptDialog } from '@nide/client-ui-main/shared/NamePromptDialog'
 import {
   buildTreeRows,
   createChildVisibility,
@@ -20,10 +20,10 @@ import {
   isMarkdownPath,
   type FileTreeEntry,
   type TreeRow
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 import type { ViewTab } from '@nide/contracts/plugin-api'
-import type { DirReadFailureReason, FileUnsupportedReason } from '@nide/contracts/project'
+import type { DirReadFailureReason, FileUnsupportedReason } from '@nide/domain/project'
 
 /**
  * 文件树（宿主内建视图，挂在左上工具区）。
@@ -48,7 +48,7 @@ import type { DirReadFailureReason, FileUnsupportedReason } from '@nide/contract
  * 4. **名字过长时用自绘浮层显示全名**：原生 `title` 在 Windows 上要悬停约一秒才
  *    出现，而这一列窄到几乎每个文件名都被截断 —— 一个总要等的提示等于没有。
  * 5. **右键菜单来自条目动作层**：有哪些动作、对什么目标可用由
- *    `@nide/client-ui-main/entry/entry-menu` 定，名字对话框与失败提示由 `EntryActionHost` 在
+ *    `@nide/client-ui-main/shared/entry-menu` 定，名字对话框与失败提示由 `EntryActionHost` 在
  *    窗口顶层持有。这一层只报告「右键的是谁、指针在哪里」—— 新建落点（目录 -> 内部，
  *    文件 -> 同级）与重命名只换最后一段这两条规则，仍然由主进程从被右键的条目推导。
  * 6. **删除的二次确认不在这里**：它问在主进程的动作出口上（见 main/confirm.ts），

@@ -1,10 +1,10 @@
-import { formatForeshadowingEntry, type ForeshadowingMetadata } from '@nide/contracts/project'
+import { formatForeshadowingEntry, type ForeshadowingMetadata } from '@nide/domain/project'
 import {
   ensureModel,
   modelFor,
   writeModelSilently
-} from '@nide/client-ui-main/editor/model-registry'
-import { useEditorStore } from '@nide/client-kit/stores/editor.store'
+} from '@nide/client-ui-main/shared/model-registry'
+import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
 
 /**
  * 伏笔表单与文件之间的那一步：把表单里的改动写回正在编辑的那一份 yml。

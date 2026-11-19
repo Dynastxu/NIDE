@@ -6,14 +6,14 @@ import {
   isGalleryEntryDocument,
   isGalleryEntryPath,
   isMarkdownPath
-} from '@nide/contracts/project'
+} from '@nide/domain/project'
 import type {
   ChapterMetadata,
   ForeshadowingMetadata,
   GalleryConfig,
   GalleryEntryDocument
-} from '@nide/contracts/project'
-import type { DocumentViewMode } from '@nide/client-kit/stores/document-view.store'
+} from '@nide/domain/project'
+import type { DocumentViewMode } from '@nide/client-ui-main/stores/document-view.store'
 
 /**
  * 「这一篇在编辑器里能怎么看」的判据。

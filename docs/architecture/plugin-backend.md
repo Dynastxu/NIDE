@@ -73,7 +73,7 @@ window.nideHost.invoke('plugin', 'call', pluginId, method, params)
   [plugin-lifecycle.md](plugin-lifecycle.md)；
 - 后端跑在 `child_process.fork` 出来的子进程里；`--permission` 只在
   `trust: 'sandboxed'` 时加，`full` 与迁移前一样不受限；
-- 参数由 [runtime.ts](../../packages/plugin-runtime/src/backend/runtime.ts) 的
+- 参数由 [runtime.ts](../../packages/plugin-backend/src/runtime.ts) 的
   `buildBackendFlags()` 生成：
   - worker 自身**所在目录**与插件目录始终可读（worker 会 `import` 同目录的
     `protocol.js` / `storage-value.js`；只放行 `worker.js` 一个文件的话第二个模块

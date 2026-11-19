@@ -1,0 +1,8 @@
+{
+  "name": "@nide/service-plugin-storage",
+  "private": true,
+  "type": "module",
+  "nide": {
+    "layer": "service"
+  }
+}
