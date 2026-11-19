@@ -2,10 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  AiProviderService,
-  AiProviderServiceError
-} from '../../packages/ai/src/ai-provider.ts'
+import { AiProviderService, AiProviderServiceError } from '../../packages/ai/src/ai-provider.ts'
 import { ProviderConfigStore } from '../../packages/ai/src/ai-provider-config.ts'
 import { SecretVault } from '../../packages/secrets/src/secrets.ts'
 import type { SecretsBackend } from '../../packages/secrets/src/secrets.ts'

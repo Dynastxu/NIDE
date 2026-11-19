@@ -8,10 +8,10 @@
 
 仓库里只剩**两类「插件」**，各有明确的组合方式：
 
-| 位置 | 是什么 | 怎么进装配 |
-| --- | --- | --- |
-| `packages/plugins/<name>` | NIDE 插件（manifest + 贡献点 + 可选后端） | 插件管理器扫描 `packages/plugins`（内置）与 `<userData>/plugins`（用户装） |
-| 其余 `packages/*` | Cordis 插件（host 服务 / 客户端界面包） | 服务由 `packages/bundle/base` 的 patch 行提供；界面包在 package.json 声明 `nide.client` |
+| 位置                      | 是什么                                    | 怎么进装配                                                                              |
+| ------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `packages/plugins/<name>` | NIDE 插件（manifest + 贡献点 + 可选后端） | 插件管理器扫描 `packages/plugins`（内置）与 `<userData>/plugins`（用户装）              |
+| 其余 `packages/*`         | Cordis 插件（host 服务 / 客户端界面包）   | 服务由 `packages/bundle/base` 的 patch 行提供；界面包在 package.json 声明 `nide.client` |
 
 三个「装配点不在配置里」的信号都已消除：
 
@@ -55,15 +55,15 @@ apps/desktop/renderer/   # 渲染进程引导壳（main.tsx + assets）
 每阶段结束都必须满足：`pnpm typecheck`、`pnpm typecheck:host`、`pnpm lint` 基线、
 `pnpm test`、`pnpm dev` 可跑。阶段之间可独立提交、独立回退。
 
-| 阶段 | 动作 | 风险 | 状态 |
-| --- | --- | --- | --- |
-| 0 | 写下这份约定 + 目标树，代码不动 | 极低 | 完成 |
-| 1 | `src/shared` → `packages/contracts/src`（别名名暂留，见阶段 2） | 低（纯搬运） | 完成 |
-| 2 | 别名 `@shared` → `@nide/contracts`，删掉旧名字 | 低（机械替换） | 完成 |
-| 3 | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配 | 中 | 完成 |
-| 4 | `src/main` → `packages/shell`：窗口 / 菜单 / 对话框 / 日志 / 协议收进一个包（尚未拆成 `ctx.shell.*` 服务） | 中 | 完成（包已搬） |
-| 5 | `client-kit` 拆出 `sdk`（插件视图管线）；`client-runtime` 按声明装配窗口，引导壳去掉 `ROOTS` 兜底 | 中高 | 完成 |
-| 6 | `src/renderer` → `apps/desktop/renderer`（`src/` 消失）；`cordis.yml` 列全所有包 | 低 | 完成 |
+| 阶段 | 动作                                                                                                       | 风险           | 状态           |
+| ---- | ---------------------------------------------------------------------------------------------------------- | -------------- | -------------- |
+| 0    | 写下这份约定 + 目标树，代码不动                                                                            | 极低           | 完成           |
+| 1    | `src/shared` → `packages/contracts/src`（别名名暂留，见阶段 2）                                            | 低（纯搬运）   | 完成           |
+| 2    | 别名 `@shared` → `@nide/contracts`，删掉旧名字                                                             | 低（机械替换） | 完成           |
+| 3    | `host/src/services/*` 各自成包，RPC 注册下沉到各自 `apply(ctx)`；`host/src/index.ts` 只剩装配              | 中             | 完成           |
+| 4    | `src/main` → `packages/shell`：窗口 / 菜单 / 对话框 / 日志 / 协议收进一个包（尚未拆成 `ctx.shell.*` 服务） | 中             | 完成（包已搬） |
+| 5    | `client-kit` 拆出 `sdk`（插件视图管线）；`client-runtime` 按声明装配窗口，引导壳去掉 `ROOTS` 兜底          | 中高           | 完成           |
+| 6    | `src/renderer` → `apps/desktop/renderer`（`src/` 消失）；`cordis.yml` 列全所有包                           | 低             | 完成           |
 
 ### 阶段 1 的实际改动（已提交）
 
@@ -86,9 +86,9 @@ apps/desktop/renderer/   # 渲染进程引导壳（main.tsx + assets）
 ```ts
 // packages/kernel/src/context.ts
 interface NideContext extends Context {
-  rpc:      { register(namespace, handlers): () => void }
-  services: { provide(name, value), require<T>(name), has(name) }
-  env:      HostEnvironment   // profileDir / profileName / home / userDataDir / appRoot
+  rpc: { register(namespace, handlers): () => void }
+  services: { provide(name, value); require<T>(name); has(name) }
+  env: HostEnvironment // profileDir / profileName / home / userDataDir / appRoot
 }
 ```
 
@@ -107,7 +107,7 @@ export const projectService = {
   apply(ctx: NideContext): void {
     const store = new HostProjectStore(ctx.env.userDataDir)
     ctx.services.provide('project', store)
-    ctx.rpc.register('project', { list: () => store.list(), /* … */ })
+    ctx.rpc.register('project', { list: () => store.list() /* … */ })
   }
 }
 ```
@@ -154,10 +154,10 @@ packages/host/src/index.ts     363 行：参数 → profile → boot → kernel 
 ## 4. `cordis.yml` 现在就是装配点
 
 ```yaml
-- id: hello                                   # 普通 Cordis 插件（kind 省略 = plugin）
+- id: hello # 普通 Cordis 插件（kind 省略 = plugin）
   name: '{{NIDE_ROOT}}/packages/hello/src/index.ts'
 
-- id: project                                 # 宿主服务（kind: service）
+- id: project # 宿主服务（kind: service）
   name: '{{NIDE_ROOT}}/packages/project/src/index.ts'
   kind: service
 - id: content
@@ -168,13 +168,13 @@ packages/host/src/index.ts     363 行：参数 → profile → boot → kernel 
 
 ## 4. 与 DSH 对齐（阶段 A–D）
 
-| 阶段 | 内容 | 状态 |
-| --- | --- | --- |
-| A | 所有 profile 行都是 Cordis 插件：`ctx.provide` + `inject`，删除 `kind: service`、自建服务容器与宿主里的手工 apply | 完成 |
-| B | 分层 patch：`packages/bundle/base` → profile `cordis.yml` → `cordis.patch.yml`，`config` 整体替换、按 id 覆盖 | 完成 |
-| C | 客户端花名册由包元数据生成（`nide.client.windowTypes` → `roster.generated.ts`），运行时不认识窗口 | 完成 |
-| D1 | 内置插件从 `plugins/builtin` 搬进 `packages/plugins`，成为普通包；装配不再需要单独的 `plugins/` 树 | 完成 |
-| D2 | 安装 = 目录 + 往 profile patch 写一行（行由 loader 挂载 shim 注册）；npm 源安装与移除目录扫描待做 | 核心完成 |
+| 阶段 | 内容                                                                                                              | 状态     |
+| ---- | ----------------------------------------------------------------------------------------------------------------- | -------- |
+| A    | 所有 profile 行都是 Cordis 插件：`ctx.provide` + `inject`，删除 `kind: service`、自建服务容器与宿主里的手工 apply | 完成     |
+| B    | 分层 patch：`packages/bundle/base` → profile `cordis.yml` → `cordis.patch.yml`，`config` 整体替换、按 id 覆盖     | 完成     |
+| C    | 客户端花名册由包元数据生成（`nide.client.windowTypes` → `roster.generated.ts`），运行时不认识窗口                 | 完成     |
+| D1   | 内置插件从 `plugins/builtin` 搬进 `packages/plugins`，成为普通包；装配不再需要单独的 `plugins/` 树                | 完成     |
+| D2   | 安装 = 目录 + 往 profile patch 写一行（行由 loader 挂载 shim 注册）；npm 源安装与移除目录扫描待做                 | 核心完成 |
 
 D2 的核心已经落地：manifest 插件不是 Cordis 插件，所以「行」指向一个通用 shim
 （`packages/host/src/plugin-shim.ts`），它按 `config.dir` 读 manifest 并注册 —— 行

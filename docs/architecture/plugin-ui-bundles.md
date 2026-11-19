@@ -107,9 +107,9 @@ pnpm build:plugin-demo             # 只构建 demo（--only demo，迭代时用
 
 ## 开发 vs 生产
 
-| 环境 | bundle 来源 | 状态 |
-| --- | --- | --- |
-| dev | Vite `/@fs/<绝对路径>` | 可用 |
+| 环境 | bundle 来源                                                           | 状态 |
+| ---- | --------------------------------------------------------------------- | ---- |
+| dev  | Vite `/@fs/<绝对路径>`                                                | 可用 |
 | 生产 | `nide-plugin://plugin/<pluginId>/client.js`（shell 注册的自定义协议） | 可用 |
 
 生产这条路是 [src/main/protocol/plugin-bundles.ts](../../src/main/protocol/plugin-bundles.ts)：
@@ -173,7 +173,7 @@ pnpm dev
 如果它回退到 glob（看不到 `client bundle loaded`），检查：
 
 1. `packages/plugins/demo/dist/client.js` 是否真的进了 `resources/app`（`pnpm
-   build:plugin-demo` 要在 `build:unpack` 之前跑，`dist/` 是 gitignore 的）；
+build:plugin-demo` 要在 `build:unpack` 之前跑，`dist/` 是 gitignore 的）；
 2. 主进程日志里有没有 `Plugin bundle requested but not in the host catalog`（说明
    host 的清单里没有它：插件被禁用，或文件不存在）；
 3. DevTools Console 里是否有 CSP 报错（`nide-plugin:` 没加进 `script-src`）。

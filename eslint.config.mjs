@@ -14,7 +14,10 @@ export default defineConfig(
       '**/.nide-dist',
       // agent 的 worktree 都在 .agents/worktrees/ 下，且不进版本库（里面是同一份仓库的另一份拷贝）。
       // 不忽略的话，本地 pnpm lint 会把那份拷贝也扫一遍：重复的命中 + 它自己的临时脚本报错。
-      '**/.agents'
+      '**/.agents',
+      // 本地验证 / 构建临时目录（.gitignore 里的 /.tmp/）：探针脚本、实验文件，不是源码。
+      // 不忽略的话，探针故意写坏的 TSX 会当成真代码报错，把 lint 钉死。
+      '**/.tmp'
     ]
   },
   tseslint.configs.recommended,
