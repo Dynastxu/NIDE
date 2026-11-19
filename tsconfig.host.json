@@ -20,10 +20,9 @@
      * 一个 `import { x } from '@nide/contracts/...'` 会通过 typecheck 而在运行时炸掉。
      * host 的源码一律用带扩展名的相对路径（`.ts`）。
      */
-    "baseUrl": ".",
     "paths": {
-      "@nide/contracts/*": ["packages/contracts/src/*"],
-      "@nide/domain/*": ["packages/domain/src/*"]
+      "@nide/contracts/*": ["./packages/contracts/src/*"],
+      "@nide/domain/*": ["./packages/domain/src/*"]
     }
   },
   "include": [

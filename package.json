@@ -85,7 +85,7 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "vite": "^7.2.6",
     "vite-plugin-react-click-to-component": "^4.2.3",
     "vitest": "^5.0.5"
