@@ -31,25 +31,24 @@
   "compilerOptions": {
     "composite": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": {
-      "@nide/client-kit/*": ["packages/client-kit/src/*"],
-      "@nide/sdk/*": ["packages/sdk/src/*"],
-      "@nide/client-ui-main/*": ["packages/client-ui-main/src/*"],
-      "@nide/client-ui-plugins/*": ["packages/client-ui-plugins/src/*"],
-      "@nide/client-ui-renderer/*": ["packages/client-ui-renderer/src/*"],
-      "@nide/client-ui-settings/*": ["packages/client-ui-settings/src/*"],
-      "@nide/client-ui-welcome/*": ["packages/client-ui-welcome/src/*"],
-      "@nide/contracts/*": ["packages/contracts/src/*"],
-      "@nide/domain/*": ["packages/domain/src/*"],
-      "@nide/client-runtime": ["packages/client-runtime/src/index.ts"],
-      "@nide/client-modules": ["packages/client-modules/src/index.ts"],
-      "@nide/client-ui-slots": ["packages/client-ui-slots/src/index.ts"],
-      "@nide/client-ui-main": ["packages/client-ui-main/src/index.ts"],
-      "@nide/client-ui-plugins": ["packages/client-ui-plugins/src/index.ts"],
-      "@nide/client-ui-settings": ["packages/client-ui-settings/src/index.ts"],
-      "@nide/client-ui-welcome": ["packages/client-ui-welcome/src/index.ts"],
-      "@nide/client-ui-renderer": ["packages/client-ui-renderer/src/index.tsx"]
+      "@nide/client-kit/*": ["./packages/client-kit/src/*"],
+      "@nide/sdk/*": ["./packages/sdk/src/*"],
+      "@nide/client-ui-main/*": ["./packages/client-ui-main/src/*"],
+      "@nide/client-ui-plugins/*": ["./packages/client-ui-plugins/src/*"],
+      "@nide/client-ui-renderer/*": ["./packages/client-ui-renderer/src/*"],
+      "@nide/client-ui-settings/*": ["./packages/client-ui-settings/src/*"],
+      "@nide/client-ui-welcome/*": ["./packages/client-ui-welcome/src/*"],
+      "@nide/contracts/*": ["./packages/contracts/src/*"],
+      "@nide/domain/*": ["./packages/domain/src/*"],
+      "@nide/client-runtime": ["./packages/client-runtime/src/index.ts"],
+      "@nide/client-modules": ["./packages/client-modules/src/index.ts"],
+      "@nide/client-ui-slots": ["./packages/client-ui-slots/src/index.ts"],
+      "@nide/client-ui-main": ["./packages/client-ui-main/src/index.ts"],
+      "@nide/client-ui-plugins": ["./packages/client-ui-plugins/src/index.ts"],
+      "@nide/client-ui-settings": ["./packages/client-ui-settings/src/index.ts"],
+      "@nide/client-ui-welcome": ["./packages/client-ui-welcome/src/index.ts"],
+      "@nide/client-ui-renderer": ["./packages/client-ui-renderer/src/index.tsx"]
     }
   }
 }
