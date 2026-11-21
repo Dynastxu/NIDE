@@ -83,9 +83,10 @@ export function WorkbenchLayout(): JSX.Element {
           )}
 
           {/* 中间主页：不可隐藏，永远吃掉剩余的全部空间。
-              它是「打开的文件」那一组标签页（EditorTabs），而不是某一个文件 */}
+              它现在是一个槽（`main.editor`）：窗口只提供位置，编辑器由功能包
+              注册；迁移完成前 fallback 仍是原来的 EditorTabs，渲染结果不变 */}
           <div className="min-h-0 min-w-0 flex-1">
-            <EditorTabs />
+            <Slot name="main.editor" fallback={<EditorTabs />} />
           </div>
 
           {rightColumnOn && (

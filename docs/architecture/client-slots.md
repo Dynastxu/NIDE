@@ -1,6 +1,6 @@
 # 客户端 slot 模型升级（对齐 DSH）
 
-> 状态：Step 1 已实现（2026-11-21）；Step 2–4 待做。
+> 状态：Step 1–2 已实现（2026-11-21）；Step 3–4 待做。
 > 目标：把 `client-ui-slots` 从「只有 single 的组件表」升级到 DSH 的
 > `single / keyed / list` 三种槽 + 声明 + 订阅，为 explorer / editor 拆包提供前置。
 > 参考：DSH 的 `packages/client/ui-layout/src/client/index.ts`（声明子槽、`main` 为
@@ -222,7 +222,7 @@ key 时渲染 `fallback`，避免「切到不存在的面板」时整块空白�
 - [x] `SlotRegistry` 支持 `single / keyed / list`，旧签名零改动可用；
 - [x] `Slot` 按声明渲染，keyed 支持 `activeKey`，list 按 order；
 - [x] `subscribe` + 稳定快照通过测试；
-- [ ] `main.editor` / `shell.overlay` 用 fallback 接入后行为不变（Step 2）；
+- [x] `main.editor` / `shell.overlay` 用 fallback 接入后行为不变（Step 2）；
 - [x] `pnpm check` 全绿（含新增单测）；
 - [x] `docs/architecture/plugin-first-layout.md` 与 `packages/AGENTS.md` 补一句槽模型链接。
 
@@ -236,7 +236,9 @@ key 时渲染 `fallback`，避免「切到不存在的面板」时整块空白�
 | `main` 为 keyed、`shell.overlay` 为 list          | 同                                          | 先以 `main.editor` single 落地，keyed 留给未来多主面板 |
 | 功能包 `inject` 服务、store 在包内                | 同（后续 explorer/editor 方案）             | 服务层不在本方案内                                     |
 
-## 10. Step 1 落点
+## 10. 实现落点
+
+### Step 1（注册表 + 渲染器）
 
 - [`packages/client-ui-slots/src/index.ts`](../../packages/client-ui-slots/src/index.ts)：
   `declare` / 重载 `register` / `getKeyed` / `list` / `entries` / `snapshot` /
@@ -249,3 +251,14 @@ key 时渲染 `fallback`，避免「切到不存在的面板」时整块空白�
 - `SlotComponent` 的 props 类型从 `Record<string, never>` 改成
   `Record<never, never>`：list 渲染时 `createElement` 需要带 React `key`，原来的
   索引签名会把 `key` 推成 `never`。组件仍然不能接收业务 props。
+
+### Step 2（窗口声明槽 + fallback）
+
+- [`packages/client-ui-main/src/index.ts`](../../packages/client-ui-main/src/index.ts)：
+  `declare('main.editor', 'single')`、`declare('shell.overlay', 'list')`。
+- [`packages/client-ui-main/src/layout/WorkbenchLayout.tsx`](../../packages/client-ui-main/src/layout/WorkbenchLayout.tsx)：
+  中间区换成 `<Slot name="main.editor" fallback={<EditorTabs />} />`。
+- [`packages/client-ui-main/src/MainApp.tsx`](../../packages/client-ui-main/src/MainApp.tsx)：
+  浮层换成 `<Slot name="shell.overlay" fallback={<EntryActionHost />} />`。
+- 两处 fallback 就是原来的组件，DOM 与视觉不变；Step 3/4 把 occupant 移进功能包后，
+  窗口删掉这两个 import 即可。

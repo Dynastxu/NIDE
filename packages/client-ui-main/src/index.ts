@@ -53,6 +53,14 @@ export const mainPlugin = {
     const explorerSlot = hostViewSlotName(HOST_EXPLORER_VIEW_ID)
     ctx.effect(() => slots.register(explorerSlot, ExplorerView), explorerSlot)
 
+    /**
+     * Step 2：中间编辑区 / 窗口级浮层先声明成槽，但 occupant 仍由调用点的
+     * fallback 渲染（旧组件），行为不变。等 editor / entry 各自成包后，
+     * fallback 换成空，窗口不再 import 它们。
+     */
+    slots.declare('main.editor', 'single')
+    slots.declare('shell.overlay', 'list')
+
     ctx.logger('client-ui-main').info('main.root + zone slots registered', {
       zones: ZONES.length,
       viewSlots: 1

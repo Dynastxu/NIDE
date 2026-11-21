@@ -1,4 +1,5 @@
 import { JSX } from 'react'
+import { Slot } from '@nide/client-ui-renderer'
 import { WorkbenchLayout } from '@nide/client-ui-main/layout/WorkbenchLayout'
 import { MainMenu } from '@nide/client-ui-main/window/MainMenu'
 import { SettingsMenu } from '@nide/client-kit/window/SettingsMenu'
@@ -42,10 +43,13 @@ export function MainApp(): JSX.Element {
         跟着内容区一起被 `overflow-hidden` 裁掉，而且与任何一块面板都无关 ——
         文件树与章节列表用的是同一份（见 entry/EntryActionHost）。
 
+        它现在走窗口级的 `shell.overlay`（list 槽）：窗口只声明位置，具体 occupant
+        由功能包注册。迁移完成前 fallback 仍是原来的 EntryActionHost，行为不变。
+
         只挂主窗口：条目动作只在这里存在。这与 ConfirmHost「每种窗口都挂一次」的理由
         不同 —— 那个接的是主进程在**任何**窗口上都可能发起的二次确认。
       */}
-      <EntryActionHost />
+      <Slot name="shell.overlay" fallback={<EntryActionHost />} />
     </>
   )
 }
