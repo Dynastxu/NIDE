@@ -1,9 +1,6 @@
 import { JSX, useEffect } from 'react'
-import {
-  applyForeshadowingMetadata,
-  syncForeshadowingForm
-} from '@nide/client-ui-main/editor/foreshadowing-metadata'
-import { FormField, FormTextArea } from '@nide/client-ui-main/editor/form-controls'
+import { applyForeshadowingMetadata, syncForeshadowingForm } from './foreshadowing-metadata'
+import { FormField, FormTextArea } from './form-controls'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import type { DocumentTab } from '@nide/client-kit/stores/documents.store'
 

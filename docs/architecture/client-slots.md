@@ -1,6 +1,6 @@
 # 客户端 slot 模型升级（对齐 DSH）
 
-> 状态：Step 1–3 已实现（2026-11-21）；Step 4 待做。
+> 状态：Step 1–4 已实现（2026-11-21）。
 > 目标：把 `client-ui-slots` 从「只有 single 的组件表」升级到 DSH 的
 > `single / keyed / list` 三种槽 + 声明 + 订阅，为 explorer / editor 拆包提供前置。
 > 参考：DSH 的 `packages/client/ui-layout/src/client/index.ts`（声明子槽、`main` 为
@@ -183,12 +183,13 @@ key 时渲染 `fallback`，避免「切到不存在的面板」时整块空白�
 - explorer 包注册 `shell.overlay`（`EntryActionHost`）与 `view.host.explorer`；
 - 窗口删掉 `EntryActionHost` 的静态 import，`MainApp` 只留 `<Slot name="shell.overlay" />`。
 
-### Step 4：编辑器进功能包
+### Step 4：编辑器进功能包（已完成）
 
-- `WorkbenchLayout` 删掉 `EditorTabs` / `MonacoDiffView` 的 import；
-- editor 包注册 `main.editor`；
-- 跨功能的「打开 / 保存」走客户端文档状态（另见 [client-documents.md](client-documents.md)），
-  不走 store import。
+- `client-ui-editor` 注册 `main.editor`（EditorTabs）与 `shell.overlay`（MonacoDiffView），
+  并注册 `editor.save` 命令；
+- `WorkbenchLayout` 删掉 `EditorTabs` / `MonacoDiffView` 的 import，中间区只剩
+  `<Slot name="main.editor" />`；
+- `MainMenu` 的保存改为 `runCommand('editor.save')`，窗口不再 import 编辑器实现。
 
 ## 5. 测试与门禁
 
@@ -261,5 +262,20 @@ key 时渲染 `fallback`，避免「切到不存在的面板」时整块空白�
   中间区换成 `<Slot name="main.editor" fallback={<EditorTabs />} />`。
 - [`packages/client-ui-main/src/MainApp.tsx`](../../packages/client-ui-main/src/MainApp.tsx)：
   浮层换成 `<Slot name="shell.overlay" fallback={<EntryActionHost />} />`。
-- 两处 fallback 就是原来的组件，DOM 与视觉不变；Step 3/4 把 occupant 移进功能包后，
-  窗口删掉这两个 import 即可。
+- 两处 fallback 就是原来的组件，DOM 与视觉不变；Step 3/4 已按此收尾：`MainApp` 只剩
+  `<Slot name="shell.overlay" />`，`WorkbenchLayout` 只剩 `<Slot name="main.editor" />`。
+
+### Step 3（explorer 注册浮层）
+
+- [`packages/client-ui-explorer/src/index.ts`](../../packages/client-ui-explorer/src/index.ts)：
+  注册 `view.host.explorer` 与 `shell.overlay`（EntryActionHost）；
+- 窗口删掉 `EntryActionHost` 的静态 import。
+
+### Step 4（editor 注册主区与保存命令）
+
+- [`packages/client-ui-editor/src/index.ts`](../../packages/client-ui-editor/src/index.ts)：
+  注册 `main.editor`（EditorTabs）、`shell.overlay`（MonacoDiffView）与 `editor.save` 命令；
+- [`packages/client-ui-main/src/layout/WorkbenchLayout.tsx`](../../packages/client-ui-main/src/layout/WorkbenchLayout.tsx)：
+  中间区只剩 `<Slot name="main.editor" />`；
+- [`packages/client-ui-main/src/window/MainMenu.tsx`](../../packages/client-ui-main/src/window/MainMenu.tsx)：
+  保存改为 `runCommand('editor.save')`（client-kit 命令表）。

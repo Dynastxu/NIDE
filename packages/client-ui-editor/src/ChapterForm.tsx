@@ -1,6 +1,6 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import { formatChapterNumber, type ChapterMetadata } from '@nide/domain/project'
-import { FormField, FormTextArea } from '@nide/client-ui-main/editor/form-controls'
+import { FormField, FormTextArea } from './form-controls'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import {
   characterGalleryOf,

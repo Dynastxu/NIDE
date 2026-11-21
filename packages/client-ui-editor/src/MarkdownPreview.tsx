@@ -1,5 +1,5 @@
 import { JSX, useMemo } from 'react'
-import { renderMarkdown } from '@nide/client-ui-main/editor/markdown'
+import { renderMarkdown } from './markdown'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { chapterBodyOf } from '@nide/domain/project'
 

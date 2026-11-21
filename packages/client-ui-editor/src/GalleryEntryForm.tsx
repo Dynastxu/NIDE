@@ -1,10 +1,7 @@
 import { JSX, useEffect } from 'react'
 import { galleryEntryFields } from '@nide/domain/project'
-import { FormField, FormTextArea } from '@nide/client-ui-main/editor/form-controls'
-import {
-  applyGalleryEntryValues,
-  syncGalleryForm
-} from '@nide/client-ui-main/editor/gallery-metadata'
+import { FormField, FormTextArea } from './form-controls'
+import { applyGalleryEntryValues, syncGalleryForm } from './gallery-metadata'
 import {
   ensureGalleries,
   galleryOfPath,

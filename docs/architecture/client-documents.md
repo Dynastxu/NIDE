@@ -28,18 +28,19 @@ editor  ──┘
 
 ## 2. 落了什么
 
-| 位置                                           | 内容                                                                                                                                                                                                                                                                     |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `client-kit` 的 `stores/documents.store.ts`    | 从 `client-ui-main/stores/editor.store.ts` 搬来的 `useDocumentsStore`：`tabs` / `activePath` / `dirty` / `closeQueue` / `pendingDiff`，以及 `openFile` / `setActive` / `requestClose*` / `finishClose` / `setDocument` / `syncFromDisk` / `migratePath` / `closeSubtree` |
-| `stores/documents-events.ts`                   | `notifyDocumentSaved(path, content)` / `onDocumentSaved(listener)`：保存后的单向通知                                                                                                                                                                                     |
-| `stores/documents-cordis.ts`                   | `installDocuments(ctx)` 提供 `ctx.documents`；`documentsOf(ctx)` 取用（不注入对方包）                                                                                                                                                                                    |
-| `client-ui-main/src/index.ts`                  | `mainPlugin.apply` 里 `installDocuments(ctx)`                                                                                                                                                                                                                            |
-| `client-ui-main/src/shared/editor-save.ts`     | 保存成功后 `notifyDocumentSaved`，不再 import explorer.store                                                                                                                                                                                                             |
-| `client-ui-main/src/stores/explorer.store.ts`  | 订阅 `onDocumentSaved`，图鉴文件的刷新条件从 editor-save 搬到这里                                                                                                                                                                                                        |
-| `test/renderer/stores/documents-store.test.ts` | 打开 / 重开 / 脏标记 / syncFromDisk / migratePath / 关闭队列                                                                                                                                                                                                             |
+| 位置                                              | 内容                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `client-kit` 的 `stores/documents.store.ts`       | 从 `client-ui-main/stores/editor.store.ts` 搬来的 `useDocumentsStore`：`tabs` / `activePath` / `dirty` / `closeQueue` / `pendingDiff`，以及 `openFile` / `setActive` / `requestClose*` / `finishClose` / `setDocument` / `syncFromDisk` / `migratePath` / `closeSubtree` |
+| `stores/documents-events.ts`                      | `notifyDocumentSaved(path, content)` / `onDocumentSaved(listener)`：保存后的单向通知                                                                                                                                                                                     |
+| `stores/documents-cordis.ts`                      | `installDocuments(ctx)` 提供 `ctx.documents`；`documentsOf(ctx)` 取用（不注入对方包）                                                                                                                                                                                    |
+| `client-ui-main/src/index.ts`                     | `mainPlugin.apply` 里 `installDocuments(ctx)`                                                                                                                                                                                                                            |
+| `client-ui-editor/src/shared/editor-save.ts`      | 保存成功后 `notifyDocumentSaved`，不再 import explorer.store                                                                                                                                                                                                             |
+| `client-ui-explorer/src/stores/explorer.store.ts` | 订阅 `onDocumentSaved`，图鉴文件的刷新条件从 editor-save 搬到这里                                                                                                                                                                                                        |
+| `test/renderer/stores/documents-store.test.ts`    | 打开 / 重开 / 脏标记 / syncFromDisk / migratePath / 关闭队列                                                                                                                                                                                                             |
 
-**留在窗口里的**：Monaco model（`shared/model-registry`）、保存实现（`shared/editor-save`）、
-编辑器 UI（标签条、表单、diff 浮层）。它们是 editor 的职责，不是「文档状态」——
+**搬进 editor 包的**：Monaco model（`client-ui-editor/src/shared/model-registry`）、保存实现
+（`shared/editor-save`）、编辑器 UI（标签条、表单、diff 浮层）。它们是 editor 的职责，
+不是「文档状态」。
 
 ## 3. 怎么用
 
@@ -91,12 +92,14 @@ const off = onDocumentSaved((path, content) => {
 5. **kit 只放 workbench 级状态**：`layout` / `documents` / `gallery` / `overview` 这类
    多域共享状态可以进 `client-kit`；单个窗口专属的业务 UI 状态仍留在窗口包里。
 
-## 5. 已完成：explorer 独立成包
+## 5. 已完成：explorer 与 editor 拆出
 
-`client-ui-explorer` 已经落成，它验证了这条 seam：
+`client-ui-explorer` 与 `client-ui-editor` 已经落成，这条 seam 的最终形状是：
 
-- `ExplorerView` / `ProjectsPanel` / 章节·伏笔动作 / `EntryActionHost` 搬进功能包；
-- `explorer.store` 留在功能包（文件树自己的状态），它依赖 kit 的 `documents.store`；
+- `ExplorerView` / `ProjectsPanel` / 章节·伏笔动作 / `EntryActionHost` 搬进 explorer 包；
+- `editor/` / `editor-save` / `model-registry` / `document-view.store` 搬进 editor 包，
+  它注册 `main.editor`、`shell.overlay`（diff）与 `editor.save` 命令；
+- `explorer.store` 留在 explorer 包（文件树自己的状态），它依赖 kit 的 `documents.store`；
 - `gallery.store` / `overview.store` 搬到 `client-kit`（章节表单与图鉴表单也要用），
   explorer 用 `setGalleryLoader` 注册「项目根 + 配置 -> 图鉴目录」，编辑器表单只调
   `ensureGalleries()` —— 两边都依赖 kit，editor 不再 import explorer store；
@@ -104,11 +107,11 @@ const off = onDocumentSaved((path, content) => {
 - host 侧 `host.explorer` 描述符从 plugin-runtime 移到 `packages/content`（`files.*` 的
   拥有者），用 `ctx.builtinViews` 登记。
 
-## 6. 下一步
+## 6. 现在的窗口
 
-- `client-ui-editor`：editor 域 + `editor-save` + `model-registry` 搬进功能包；注册
-  `main.editor`；`MainMenu` 的保存改为经 `ctx.documents` / 公共命令调用。
-- 窗口最终只留 `App` / `MainApp` / `WorkbenchLayout` / `ToolZone` / `MainMenu` / chrome。
+`client-ui-main` 只剩窗口自己的东西：`App` / `MainApp` / `WorkbenchLayout` / `ToolZone` /
+`ToolStripe` / `Resizer` / `MainMenu` / `window/*`，加上 `main.root`、`zone.*`、
+`main.editor`、`shell.overlay` 的声明。文件树、编辑器、git 都是功能包注册的 occupant。
 
 ## 7. 与 DSH 的对应
 

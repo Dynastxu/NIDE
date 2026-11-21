@@ -1,13 +1,13 @@
 import { JSX, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import * as monaco from 'monaco-editor'
 import { monacoLoader } from '@nide/client-kit/monaco-env'
-import { ChapterForm } from '@nide/client-ui-main/editor/ChapterForm'
-import { ForeshadowingForm } from '@nide/client-ui-main/editor/ForeshadowingForm'
-import { GalleryConfigForm } from '@nide/client-ui-main/editor/GalleryConfigForm'
-import { GalleryEntryForm } from '@nide/client-ui-main/editor/GalleryEntryForm'
-import { MarkdownPreview } from '@nide/client-ui-main/editor/MarkdownPreview'
-import { applyChapterBody } from '@nide/client-ui-main/editor/chapter-body'
-import { applyChapterMetadata } from '@nide/client-ui-main/editor/chapter-metadata'
+import { ChapterForm } from './ChapterForm'
+import { ForeshadowingForm } from './ForeshadowingForm'
+import { GalleryConfigForm } from './GalleryConfigForm'
+import { GalleryEntryForm } from './GalleryEntryForm'
+import { MarkdownPreview } from './MarkdownPreview'
+import { applyChapterBody } from './chapter-body'
+import { applyChapterMetadata } from './chapter-metadata'
 import {
   bodyModelFor,
   ensureBodyModel,
@@ -16,13 +16,13 @@ import {
   pathOfBodyModel,
   pathOfModel,
   writeModelSilently
-} from '@nide/client-ui-main/shared/model-registry'
-import { saveActiveTab } from '@nide/client-ui-main/shared/editor-save'
+} from './shared/model-registry'
+import { saveActiveTab } from './shared/editor-save'
 import { loggerFor } from '@nide/client-kit/logger'
 import { useDocumentsStore, type DocumentTab } from '@nide/client-kit/stores/documents.store'
 import { chapterBodyOf, splitFrontmatter } from '@nide/domain/project'
-import type { DocumentView } from '@nide/client-ui-main/editor/document-mode'
-import type { DocumentViewMode } from '@nide/client-ui-main/stores/document-view.store'
+import type { DocumentView } from './document-mode'
+import type { DocumentViewMode } from './stores/document-view.store'
 
 const logger = loggerFor('editor')
 

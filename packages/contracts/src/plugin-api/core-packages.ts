@@ -107,8 +107,13 @@ export const CORE_PACKAGES: readonly Omit<CorePackage, 'kind'>[] = [
     id: 'ui-main',
     name: '@nide/client-ui-main',
     path: 'packages/client-ui-main',
-    description:
-      '主窗口：布局 / 编辑器 / 文件菜单 / 六个工具区与 main.editor / shell.overlay 的 slot'
+    description: '主窗口：布局 / 文件菜单 / 六个工具区与 main.editor / shell.overlay 的 slot'
+  },
+  {
+    id: 'ui-editor',
+    name: '@nide/client-ui-editor',
+    path: 'packages/client-ui-editor',
+    description: '编辑器功能包：中间编辑区 / diff 浮层 / editor.save 命令'
   },
   {
     id: 'ui-explorer',

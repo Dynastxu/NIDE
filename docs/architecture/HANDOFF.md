@@ -409,6 +409,20 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
   ui-explorer；`check-package-domains` 纳入新包；
 - 行为不变：文件树 / 项目面板 / 条目动作的 UI 与交互原样，默认视图顺序不变。
 
+### 编辑器独立成包（2026-11-21）
+
+- 新增 `packages/client-ui-editor`（client-feature，order 26）：editor 全部 UI、
+  `shared/editor-save`、`shared/model-registry`、`stores/document-view.store`；
+- `editorPlugin` 注册 `main.editor`（`EditorTabs`）、`shell.overlay`（`MonacoDiffView`）
+  与 `editor.save` 命令；
+- `client-ui-main` 删掉 `editor/`、`shared/`、`stores/`；`WorkbenchLayout` 中间区只剩
+  `<Slot name="main.editor" />`，`MainMenu` 的保存改为 `runCommand('editor.save')`；
+- 新增 `client-kit/commands.ts`（`registerCommand` / `runCommand`）：菜单属于窗口、
+  保存属于编辑器，两边只依赖 kit，窗口不需要 import 编辑器实现；
+- 装配：`@nide/client-ui-editor` 别名补齐四处、roster 生成；`CORE_PACKAGES` 增加
+  ui-editor；`check-package-domains` 纳入新包；
+- 行为不变：编辑区、标签条、表单、Ctrl+S、菜单保存、diff 浮层的交互与样式原样。
+
 ### 客户端 Cordis / slots
 
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；

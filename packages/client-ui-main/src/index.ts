@@ -10,8 +10,8 @@ import { ToolZone } from './layout/ToolZone'
  * 主窗口的 client 插件。
  *
  * 组件本体是**窗口自己**的东西：`App`（启动编排）→ `MainApp`（窗口外观）→ 布局 /
- * 七分区 / 编辑器 / 文件菜单。文件树与条目动作已经搬到 `@nide/client-ui-explorer`，
- * 版本控制 / 提交在 `@nide/client-ui-git`；窗口只声明槽。
+ * 七分区 / 文件菜单。文件树与条目动作在 `@nide/client-ui-explorer`，编辑器在
+ * `@nide/client-ui-editor`，版本控制 / 提交在 `@nide/client-ui-git`；窗口只声明槽。
  *
  * **窗口根、六个工具区、`main.editor`、`shell.overlay` 都在这里声明**：它们画的都是
  * 主窗口自己的布局（`WorkbenchLayout` / `ToolZone`），没有第二处实现，也就不该有

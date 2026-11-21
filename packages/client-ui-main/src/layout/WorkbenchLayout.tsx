@@ -1,7 +1,5 @@
 import { JSX } from 'react'
 import { Slot } from '@nide/client-ui-renderer'
-import { EditorTabs } from '@nide/client-ui-main/editor/EditorTabs'
-import { MonacoDiffView } from '@nide/client-ui-main/editor/MonacoDiffView'
 import { Resizer } from '@nide/client-ui-main/layout/Resizer'
 import { ToolStripe } from '@nide/client-ui-main/layout/ToolStripe'
 import { ToolZone } from '@nide/client-ui-main/layout/ToolZone'
@@ -83,10 +81,10 @@ export function WorkbenchLayout(): JSX.Element {
           )}
 
           {/* 中间主页：不可隐藏，永远吃掉剩余的全部空间。
-              它现在是一个槽（`main.editor`）：窗口只提供位置，编辑器由功能包
-              注册；迁移完成前 fallback 仍是原来的 EditorTabs，渲染结果不变 */}
+              它现在是 `main.editor` 槽：窗口只提供位置，编辑器由 @nide/client-ui-editor
+              注册。窗口不再 import 编辑器的任何组件 */}
           <div className="min-h-0 min-w-0 flex-1">
-            <Slot name="main.editor" fallback={<EditorTabs />} />
+            <Slot name="main.editor" />
           </div>
 
           {rightColumnOn && (
@@ -142,8 +140,6 @@ export function WorkbenchLayout(): JSX.Element {
       </div>
 
       <ToolStripe side="right" />
-
-      <MonacoDiffView />
     </div>
   )
 }

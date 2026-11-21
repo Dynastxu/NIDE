@@ -1,5 +1,5 @@
 import { writeChapterMetadata, type ChapterMetadata } from '@nide/domain/project'
-import { modelFor, writeModelSilently } from '@nide/client-ui-main/shared/model-registry'
+import { modelFor, writeModelSilently } from './shared/model-registry'
 import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 
 /**

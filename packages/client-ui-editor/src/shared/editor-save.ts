@@ -1,7 +1,7 @@
 import { loggerFor } from '@nide/client-kit/logger'
 import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { notifyDocumentSaved } from '@nide/client-kit/stores/documents-events'
-import { modelFor } from '@nide/client-ui-main/shared/model-registry'
+import { modelFor } from './model-registry'
 import type { FileWriteResult } from '@nide/domain/project'
 
 const logger = loggerFor('editor')

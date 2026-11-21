@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { saveActiveTab } from '@nide/client-ui-main/shared/editor-save'
+import { saveActiveTab } from './shared/editor-save'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { useViewChrome, type ViewChromeConfig } from '@nide/client-ui-renderer/view/chrome-context'

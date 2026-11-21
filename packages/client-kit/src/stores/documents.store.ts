@@ -28,7 +28,7 @@ import {
  *    而是代表一整组「这次会话打开过的东西」。识别一个标签页用**路径**，因为
  *    路径来自主进程、天然唯一；文件名只用来显示（同名文件在不同目录里很常见）。
  * 2. **标签页里没有正文的权威副本。** 正文归 Monaco 的 model（按 URI 建，见
- *    `@nide/client-ui-main/shared/model-registry`），这里只留一个 `originalValue`
+ *    `@nide/client-ui-editor/shared/model-registry`），这里只留一个 `originalValue`
  *    当作「与磁盘一致」的基准，用来算 `dirty`。两份正文迟早会不一致，而那时没人
  *    知道该信谁。
  *
@@ -46,7 +46,7 @@ export interface DocumentTab {
    * 从磁盘读到的原样内容。与当前正文不同即为「有未保存的改动」。
    *
    * 保存成功之后会被推到刚写下去的那一份（见
-   * `@nide/client-ui-main/shared/editor-save`）：它是「与磁盘一致」的基准，而不是
+   * `@nide/client-ui-editor/shared/editor-save`）：它是「与磁盘一致」的基准，而不是
    * 「读进来时的那一份」。
    */
   originalValue: string
@@ -58,14 +58,14 @@ export interface DocumentTab {
    * 实例传下去（正文的所有权在 model-registry，见那里的说明）。
    *
    * 它不是第二个真相：正文只有一处来源（model），`content` 是它每次变化时**推过来**
-   * 的结果 —— 用户在编辑器里打字（`@nide/client-ui-main/editor/EditorPanes` 的
-   * MonacoHost）与表单改元数据（`@nide/client-ui-main/editor/chapter-metadata`）都走
+   * 的结果 —— 用户在编辑器里打字（`@nide/client-ui-editor/EditorPanes` 的
+   * MonacoHost）与表单改元数据（`@nide/client-ui-editor/chapter-metadata`）都走
    * 同一条 `setDocument`。
    */
   content: string
   /**
    * `content` 里那份 frontmatter 的解析结果（见
-   * `@nide/client-ui-main/editor/chapter-metadata`）。
+   * `@nide/client-ui-editor/chapter-metadata`）。
    *
    * 与 `content` 一起更新，所以界面拿到它就知道「这一篇是不是章节、编号是多少」。
    * 没有它的话，每个要问这两个问题的组件都得自己解析一遍 —— 而它们解析的时机
@@ -87,7 +87,7 @@ export interface DocumentTab {
    *
    * 图鉴条目、图鉴字段表、普通 yml、Markdown、纯文本**都会有这一份**（没有内容的文件
    * 得到的是空白一份）：界面按它决定给不给图鉴表单，而「是不是图鉴」这件事只该由
-   * 文件自己回答（见 `@nide/client-ui-main/editor/document-mode`）。
+   * 文件自己回答（见 `@nide/client-ui-editor/document-mode`）。
    */
   gallery: GalleryEntryDocument
   /**
@@ -153,8 +153,8 @@ interface DocumentsState {
    * 请求关掉一个标签页（标签上那个关闭按钮）。
    *
    * 没有未落盘改动就直接关；有改动时**不关**，只把它挂进 `closeQueue` 等用户回答
-   * 「保存 / 不保存」。这一问归 `@nide/client-ui-main/editor/UnsavedCloseDialog`，保存与
-   * 关闭的收尾归 `@nide/client-ui-main/shared/editor-save` —— 这里只决定「要不要问」。
+   * 「保存 / 不保存」。这一问归 `@nide/client-ui-editor/UnsavedCloseDialog`，保存与
+   * 关闭的收尾归 `@nide/client-ui-editor/shared/editor-save` —— 这里只决定「要不要问」。
    */
   requestClose: (path: string) => void
   /** 请求关掉除当前这一个以外的全部标签页。没有当前标签页时什么都不做 */
@@ -176,7 +176,7 @@ interface DocumentsState {
    * 正文变化（用户在编辑器里改，或宿主推来新内容）。
    *
    * 三个字段一起更新：正文本身、由它比出来的 `dirty`、以及重算后的章节元数据（见
-   * `@nide/client-ui-main/editor/chapter-metadata`）。三者必须同一步落地 —— 分开更新会出现
+   * `@nide/client-ui-editor/chapter-metadata`）。三者必须同一步落地 —— 分开更新会出现
    * 「正文已经改了、表单还显示着上一版的编号」这种中间态。
    *
    * 正文没有变化时返回空对象：`onDidChangeModelContent` 在**每一次按键**后都会触发，

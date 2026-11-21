@@ -1,10 +1,7 @@
 import { JSX } from 'react'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import {
-  useDocumentViewStore,
-  type DocumentViewMode
-} from '@nide/client-ui-main/stores/document-view.store'
+import { useDocumentViewStore, type DocumentViewMode } from './stores/document-view.store'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**

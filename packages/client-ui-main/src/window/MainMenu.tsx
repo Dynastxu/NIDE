@@ -1,5 +1,5 @@
 import { JSX, useEffect, useRef, useState } from 'react'
-import { saveActiveTab } from '@nide/client-ui-main/shared/editor-save'
+import { runCommand } from '@nide/client-kit/commands'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { useLayoutStore } from '@nide/client-kit/stores/layout.store'
@@ -133,9 +133,12 @@ export function MainMenu(): JSX.Element {
          * 保存当前标签页。
          *
          * 与 Ctrl+S、标签条「更多 -> 保存」、以及关掉一个改过的标签页时那一问的
-         * 「保存」是**同一个函数**（见 editor/editor-save）：四条入口对「保存到底是
+         * 「保存」是**同一个函数**（见编辑器包的 editor-save）：四条入口对「保存到底是
          * 什么」只该有一种理解。没有改动时置灰 —— 那时写下去的就是磁盘上已有的那一份，
          * 一个注定什么都不改的入口不如直接说明为什么按不动。
+         *
+         * 这里只发 `editor.save` 命令：菜单属于窗口，保存实现属于编辑器功能包，
+         * 两边通过 client-kit 的命令表连接，窗口不需要 import 编辑器。
          */
         {
           id: 'save',
@@ -143,7 +146,7 @@ export function MainMenu(): JSX.Element {
           icon: 'save',
           disabled: !activeDirty,
           disabledReason: t('host.menu.file.save.disabled'),
-          onSelect: pick(() => void saveActiveTab())
+          onSelect: pick(() => void runCommand('editor.save'))
         },
         {
           id: 'closeProject',

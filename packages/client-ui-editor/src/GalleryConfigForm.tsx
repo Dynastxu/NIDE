@@ -4,7 +4,7 @@ import {
   validateGalleryField,
   type InvalidGalleryFieldReason
 } from '@nide/domain/project'
-import { applyGalleryConfig, syncGalleryForm } from '@nide/client-ui-main/editor/gallery-metadata'
+import { applyGalleryConfig, syncGalleryForm } from './gallery-metadata'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import type { DocumentTab } from '@nide/client-kit/stores/documents.store'

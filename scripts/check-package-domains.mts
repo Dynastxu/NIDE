@@ -48,6 +48,12 @@ const PACKAGES: readonly PackageConfig[] = [
     assemblyDomains: ['layout', 'host-view']
   },
   {
+    dir: 'packages/client-ui-editor',
+    shared: ['shared', 'stores'],
+    assemblyFiles: ['index.ts'],
+    assemblyDomains: []
+  },
+  {
     dir: 'packages/client-ui-explorer',
     shared: ['shared', 'stores'],
     assemblyFiles: ['index.ts'],
