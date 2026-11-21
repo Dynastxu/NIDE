@@ -5,7 +5,6 @@ import { MainMenu } from '@nide/client-ui-main/window/MainMenu'
 import { SettingsMenu } from '@nide/client-kit/window/SettingsMenu'
 import { WindowFrame } from '@nide/client-kit/window/WindowFrame'
 import { useWindowTitle } from '@nide/client-kit/window/useWindowTitle'
-import { EntryActionHost } from '@nide/client-ui-main/entry/EntryActionHost'
 
 /**
  * 主窗口。
@@ -39,17 +38,13 @@ export function MainApp(): JSX.Element {
       </WindowFrame>
 
       {/*
-        条目动作的浮层（名字输入框、失败提示）挂在**窗口骨架之外**：它是浮层，不该
-        跟着内容区一起被 `overflow-hidden` 裁掉，而且与任何一块面板都无关 ——
-        文件树与章节列表用的是同一份（见 entry/EntryActionHost）。
-
-        它现在走窗口级的 `shell.overlay`（list 槽）：窗口只声明位置，具体 occupant
-        由功能包注册。迁移完成前 fallback 仍是原来的 EntryActionHost，行为不变。
+        条目动作的浮层（名字输入框、失败提示）由 `@nide/client-ui-explorer` 注册到
+        窗口级的 `shell.overlay`（list 槽）。窗口只声明位置，不 import 它的组件。
 
         只挂主窗口：条目动作只在这里存在。这与 ConfirmHost「每种窗口都挂一次」的理由
         不同 —— 那个接的是主进程在**任何**窗口上都可能发起的二次确认。
       */}
-      <Slot name="shell.overlay" fallback={<EntryActionHost />} />
+      <Slot name="shell.overlay" />
     </>
   )
 }

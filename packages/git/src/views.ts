@@ -29,12 +29,14 @@ export const GIT_VIEWS = [
     id: HOST_GIT_VIEW_ID,
     titleKey: 'host.git.title',
     location: 'bottomLeft',
-    icon: 'gitBranch'
+    icon: 'gitBranch',
+    order: 10
   },
   {
     id: HOST_COMMIT_VIEW_ID,
     titleKey: 'host.commit.title',
     location: 'leftTop',
-    icon: 'check'
+    icon: 'check',
+    order: 20
   }
 ] satisfies readonly (BuiltinViewSpec & { titleKey: HostMessageKey })[]

@@ -1,5 +1,4 @@
 import {
-  HOST_EXPLORER_VIEW_ID,
   HOST_VIEW_PLUGIN_ID,
   type BuiltinViewRegistry,
   type BuiltinViewSpec,
@@ -23,8 +22,8 @@ type HostMessageKey = keyof typeof zhCN
  * 第二条路。
  *
  * 表本身不再写死在这个包里：plugin-runtime 提供 `ctx.builtinViews`，各业务包在
- * `apply` 里登记自己负责的视图（`packages/git` 注册版本控制 / 提交）。这里只保留
- * 宿主自己的文件树 —— 它没有独立业务包，组件也仍由主窗口提供。
+ * `apply` 里登记自己负责的视图（`packages/content` 注册文件树，`packages/git` 注册
+ * 版本控制 / 提交）。这里只保留注册表本身。
  *
  * 和插件视图的差别只有两处：
  *
@@ -38,14 +37,8 @@ type HostMessageKey = keyof typeof zhCN
  * 视图的组件由客户端功能包按 id 注册到 slot；只登记描述符、没有组件时，渲染进程
  * 会显示「宿主没有实现内建视图」的说明页，而不是空白。
  */
-export const EXPLORER_VIEW_SPEC = {
-  id: HOST_EXPLORER_VIEW_ID,
-  titleKey: 'host.explorer.title',
-  location: 'leftTop',
-  icon: 'folder'
-} satisfies BuiltinViewSpec & { titleKey: HostMessageKey }
 
-/** `ctx.builtinViews` 的实现：按注册顺序保存，注销时移除自己 */
+/** `ctx.builtinViews` 的实现：按注册顺序保存，`list()` 按 `order` 排序。 */
 export class HostBuiltinViews implements BuiltinViewRegistry {
   private readonly specs: BuiltinViewSpec[] = []
 
@@ -58,7 +51,7 @@ export class HostBuiltinViews implements BuiltinViewRegistry {
   }
 
   list(): readonly BuiltinViewSpec[] {
-    return this.specs
+    return [...this.specs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   }
 }
 

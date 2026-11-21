@@ -1,6 +1,6 @@
 # 客户端 slot 模型升级（对齐 DSH）
 
-> 状态：Step 1–2 已实现（2026-11-21）；Step 3–4 待做。
+> 状态：Step 1–3 已实现（2026-11-21）；Step 4 待做。
 > 目标：把 `client-ui-slots` 从「只有 single 的组件表」升级到 DSH 的
 > `single / keyed / list` 三种槽 + 声明 + 订阅，为 explorer / editor 拆包提供前置。
 > 参考：DSH 的 `packages/client/ui-layout/src/client/index.ts`（声明子槽、`main` 为
@@ -178,10 +178,10 @@ key 时渲染 `fallback`，避免「切到不存在的面板」时整块空白�
 - `MainApp`：`<EntryActionHost />` → `<Slot name="shell.overlay" fallback={<EntryActionHost />} />`；
 - 此时 fallback 就是旧组件，界面零变化。
 
-### Step 3：EntryActionHost 进功能包
+### Step 3：EntryActionHost 进功能包（已完成）
 
-- explorer 包（或 entry 功能包）注册 `shell.overlay`；
-- 窗口删掉 `EntryActionHost` 的静态 import。
+- explorer 包注册 `shell.overlay`（`EntryActionHost`）与 `view.host.explorer`；
+- 窗口删掉 `EntryActionHost` 的静态 import，`MainApp` 只留 `<Slot name="shell.overlay" />`。
 
 ### Step 4：编辑器进功能包
 

@@ -7,7 +7,7 @@ import {
   type CreateEntryKind,
   type InvalidNameReason
 } from '@nide/domain/project'
-import type { CreateScope, EntryActionTarget } from '@nide/client-ui-main/shared/entry-menu'
+import type { CreateScope, EntryActionTarget } from './entry-menu'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**

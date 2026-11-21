@@ -1,7 +1,7 @@
 import { getT } from '@nide/client-kit/stores/i18n.store'
 import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
-import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
-import { useOverviewStore } from '@nide/client-ui-main/stores/overview.store'
+import { useExplorerStore } from '../stores/explorer.store'
+import { useOverviewStore } from '@nide/client-kit/stores/overview.store'
 import { loggerFor } from '@nide/client-kit/logger'
 import {
   OVERVIEW_ROLES,

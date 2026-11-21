@@ -2,8 +2,11 @@ import { JSX, useEffect, useRef, useState } from 'react'
 import { formatChapterNumber, type ChapterMetadata } from '@nide/domain/project'
 import { FormField, FormTextArea } from '@nide/client-ui-main/editor/form-controls'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
-import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
-import { characterGalleryOf, useGalleryStore } from '@nide/client-ui-main/stores/gallery.store'
+import {
+  characterGalleryOf,
+  ensureGalleries,
+  useGalleryStore
+} from '@nide/client-kit/stores/gallery.store'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 
 /**
@@ -225,7 +228,6 @@ function CharacterPicker({
   const t = useT()
   const galleries = useGalleryStore((s) => s.galleries)
   const registry = useGalleryStore((s) => s.registry)
-  const loadGalleries = useExplorerStore((s) => s.loadGalleries)
 
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -235,8 +237,8 @@ function CharacterPicker({
    * 幂等（读过就不重读），所以每次打开一章都问一次是安全的。
    */
   useEffect(() => {
-    void loadGalleries()
-  }, [loadGalleries])
+    void ensureGalleries()
+  }, [])
 
   const gallery = characterGalleryOf(galleries, registry)
   const available = (gallery?.entries ?? [])

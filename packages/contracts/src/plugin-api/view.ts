@@ -70,6 +70,13 @@ export interface BuiltinViewSpec {
   titleKey: string
   location: ViewLocation
   icon: string
+  /**
+   * 视图表里的顺序（升序）。不写按 0。
+   *
+   * 注册顺序不再可靠：业务包各自 `inject: ['builtinViews']`，谁先 apply 由 Cordis
+   * 的依赖图决定。区里第一个视图是默认展示项，所以这个顺序必须显式声明。
+   */
+  order?: number
 }
 
 /**

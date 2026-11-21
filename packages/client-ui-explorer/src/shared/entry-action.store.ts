@@ -5,17 +5,10 @@ import {
   deleteProjectEntry,
   renameProjectEntry,
   useExplorerStore
-} from '@nide/client-ui-main/stores/explorer.store'
-import {
-  createGalleryAction,
-  createGalleryEntryAction
-} from '@nide/client-ui-main/shared/gallery-actions'
-import { createOverviewDocumentAction } from '@nide/client-ui-main/shared/overview-actions'
-import {
-  createScopeOf,
-  type CreateScope,
-  type EntryActionTarget
-} from '@nide/client-ui-main/shared/entry-menu'
+} from '../stores/explorer.store'
+import { createGalleryAction, createGalleryEntryAction } from './gallery-actions'
+import { createOverviewDocumentAction } from './overview-actions'
+import { createScopeOf, type CreateScope, type EntryActionTarget } from './entry-menu'
 import type { CreateEntryKind, DeleteEntryFailureReason } from '@nide/domain/project'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 

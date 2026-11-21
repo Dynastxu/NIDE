@@ -391,6 +391,24 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
 - 测试：`test/host/builtin-views.test.ts` 按真实注册顺序重建表；`services.test.ts` 把
   `gitService` 加入装配链并断言注册表内容。
 
+### 文件树独立成包（2026-11-21）
+
+- 新增 `packages/client-ui-explorer`（client-feature）：`ExplorerView` / `ProjectsPanel` /
+  章节·伏笔动作 / `EntryActionHost` / `entry` 动作层；`explorerPlugin` 注册
+  `view.host.explorer` 与 `shell.overlay`；`nide.client.windowTypes: ["main"]`，order 25；
+- `client-ui-main` 删掉 `explorer/`、`entry/`、`stores/explorer|gallery|overview` 与
+  `shared/entry-*` 等文件；`MainApp` 的浮层改为 `<Slot name="shell.overlay" />`（无 fallback），
+  窗口不再 import 文件树的任何组件；
+- `gallery.store` / `overview.store` 移到 `client-kit`（章节表单、图鉴表单也要用）；
+  explorer 通过 `setGalleryLoader` 注册「项目根 + 配置 -> 图鉴目录」，编辑器表单调
+  `ensureGalleries()`，因此 editor 不再 import explorer store；
+- host：`host.explorer` 描述符从 plugin-runtime 移到 `packages/content`（`files.*` 的
+  拥有者）；`BuiltinViewSpec` 增加 `order`，`HostBuiltinViews.list()` 按 order 排序，
+  不再依赖 Cordis 的 apply 顺序；
+- 装配：`@nide/client-ui-explorer` 别名补齐四处、roster 生成；`CORE_PACKAGES` 增加
+  ui-explorer；`check-package-domains` 纳入新包；
+- 行为不变：文件树 / 项目面板 / 条目动作的 UI 与交互原样，默认视图顺序不变。
+
 ### 客户端 Cordis / slots
 
 - `packages/client-runtime`：按 `windowType` 加载 main/welcome/settings 插件；

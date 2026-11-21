@@ -13,14 +13,16 @@ const logger = loggerFor('gallery')
  * 图鉴的消费者**不在一个面板里**：左侧「项目」标签页要列出图鉴与条目，章节表单的
  * 出场角色要从角色图鉴里选，图鉴条目的表单要知道自己那个图鉴有哪些字段。它们分布在
  * 三棵互不相邻的子树上，读的却是同一份数据 —— 放在某一个面板里就等于让另外两处
- * 各自再读一次盘。
+ * 各自再读一次盘。所以它住在 client-kit：explorer 与 editor 都依赖平台库，而不是
+ * 互相 import store。
  *
- * ## 为什么它不认识 explorer store
+ * ## 路径从哪来
  *
  * 图鉴内容目录的绝对路径来自项目配置（相对项目根算出来），那一份属于 explorer store。
  * 这里**收一个路径**（`load` 的第一个参数）而不是自己去读配置：依赖只有一个方向
- * （explorer -> gallery），两个 store 因此不会绕成一个环。谁掌握「项目根 + 配置」谁
- * 负责喂它（见 explorer.store 的 loadGalleries）。
+ * （explorer -> gallery）。explorer 在模块加载时用 `setGalleryLoader` 注册
+ * 「项目根 + 配置 -> 图鉴目录」；编辑器表单只调 `ensureGalleries()`，不 import
+ * explorer store。
  *
  * ## 生命周期
  *
@@ -131,4 +133,23 @@ export function characterGalleryOf(
   if (wanted.length === 0) return null
 
   return galleries.find((gallery) => gallery.name.toLowerCase() === wanted) ?? null
+}
+
+type GalleryLoader = (force?: boolean) => Promise<void>
+
+let loader: GalleryLoader | null = null
+
+/**
+ * 由 explorer 注册「怎么把项目根 + 配置翻译成图鉴目录」。
+ *
+ * 编辑器表单只调 `ensureGalleries()`，不知道项目根 / 配置在哪，也不 import
+ * explorer store —— 这是两边都依赖 kit、而不是互相依赖的那条边。
+ */
+export function setGalleryLoader(next: GalleryLoader | null): void {
+  loader = next
+}
+
+/** 确保图鉴列表已读（幂等：store 自己会判重）；没有注册 loader 时什么都不做。 */
+export async function ensureGalleries(force = false): Promise<void> {
+  await loader?.(force)
 }

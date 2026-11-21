@@ -5,7 +5,7 @@ import type {} from '@cordisjs/plugin-loader'
 import { CORE_PACKAGES, type CorePackage } from '../../contracts/src/plugin-api/core-packages.ts'
 import type { NideContext } from '../../kernel/src/context.ts'
 import type { I18nService } from '../../i18n/src/index.ts'
-import { EXPLORER_VIEW_SPEC, HostBuiltinViews, toViewDescriptors } from './builtin-views.ts'
+import { HostBuiltinViews, toViewDescriptors } from './builtin-views.ts'
 import { pluginPreferencePath, PluginManager } from './plugins.ts'
 import { removePluginRow, upsertPluginRow } from './profile-rows.ts'
 import type { TitleResolver } from './plugins.ts'
@@ -46,12 +46,11 @@ export const pluginsService = {
 
     /**
      * 内建视图注册表：业务包在 `apply` 里登记自己负责的视图
-     * （`packages/git` 登记版本控制 / 提交）。文件树是宿主自己的，先登记在这里。
+     * （`packages/content` 登记文件树，`packages/git` 登记版本控制 / 提交）。
      *
-     * 顺序就是视图表顺序：文件树在最前，所以左上工具区默认展示它。
+     * 这里只创建空表；顺序由每条 spec 的 `order` 决定，不依赖 Cordis 的 apply 顺序。
      */
     const builtinViews = new HostBuiltinViews()
-    builtinViews.register(EXPLORER_VIEW_SPEC)
 
     /**
      * 展示用的模块位置：**只给相对路径**。

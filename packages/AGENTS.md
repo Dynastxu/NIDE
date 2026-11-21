@@ -28,7 +28,7 @@ packages/
   client-ui-slots/ client-modules/ client-ui-renderer/
                     客户端接缝：slot 注册表、模块表 + bundle 加载、渲染管线
                     （React 绑定 / PluginSlot / 视图外壳 ViewFrame；**不是窗口**）
-  client-ui-plugins/ client-ui-git/
+  client-ui-plugins/ client-ui-explorer/ client-ui-git/
                     客户端功能包：窗口内 / 跨窗口的功能界面（只注册子 slot，不注册窗口根）
   client-ui-main/ client-ui-settings/ client-ui-welcome/
                     客户端窗口：一个包 = 一扇窗的外壳与领域状态（分区 + 窗口根 + 自己的 slot）
@@ -121,8 +121,9 @@ pnpm check               # typecheck + lint:imports + lint:domains + graph:check
 功能包注册 occupant；窗口不 import 功能包的组件。
 
 explorer / editor 共用的文档状态在 `client-kit/stores/documents.store`（打开 / 活跃 /
-脏标记 / 关闭队列），保存后的通知在 `documents-events`，客户端服务面是 `ctx.documents`。
-两个功能包都依赖 kit，不要互相 import store；细节见
+脏标记 / 关闭队列），图鉴 / 概述目录缓存在 `client-kit/stores/gallery.store` 与
+`overview.store`；保存后的通知在 `documents-events`，客户端服务面是 `ctx.documents`。
+功能包都依赖 kit，不要互相 import store；细节见
 [docs/architecture/client-documents.md](../docs/architecture/client-documents.md)。
 
 ## import 约定

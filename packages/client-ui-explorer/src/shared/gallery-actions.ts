@@ -1,7 +1,7 @@
 import { getT } from '@nide/client-kit/stores/i18n.store'
 import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
-import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
-import { characterGalleryOf, useGalleryStore } from '@nide/client-ui-main/stores/gallery.store'
+import { useExplorerStore } from '../stores/explorer.store'
+import { characterGalleryOf, useGalleryStore } from '@nide/client-kit/stores/gallery.store'
 import { loggerFor } from '@nide/client-kit/logger'
 import {
   composeGalleryEntry,

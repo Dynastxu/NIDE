@@ -37,11 +37,16 @@ import {
   writeProjectFile
 } from './project-files.ts'
 
+import { EXPLORER_VIEW_SPEC } from './views.ts'
+
 export const contentService = {
   name: 'nide:service:content',
-  inject: ['project', 'config', 'rpc', 'hostEnv'],
+  inject: ['project', 'config', 'rpc', 'hostEnv', 'builtinViews'],
 
   apply(ctx: NideContext): void {
+    // 文件树是这个域的内建视图：组件在 client-ui-explorer，宿主只登记描述符。
+    ctx.effect(() => ctx.builtinViews.register(EXPLORER_VIEW_SPEC), 'builtin view host.explorer')
+
     /** 当前项目根；没有打开的项目时是 undefined */
     const currentRoot = (): string | undefined => ctx.project.getCurrent()?.path
 

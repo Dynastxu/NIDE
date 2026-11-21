@@ -22,8 +22,8 @@ import {
 import { loggerFor } from '@nide/client-kit/logger'
 import { onDocumentSaved } from '@nide/client-kit/stores/documents-events'
 import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
-import { useGalleryStore } from './gallery.store'
-import { useOverviewStore } from './overview.store'
+import { setGalleryLoader, useGalleryStore } from '@nide/client-kit/stores/gallery.store'
+import { useOverviewStore } from '@nide/client-kit/stores/overview.store'
 
 const logger = loggerFor('explorer')
 
@@ -639,6 +639,15 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
     setNotice: (notice) => set({ notice })
   }
 })
+
+/**
+ * 注册「项目根 + 配置 -> 图鉴目录」的加载器。
+ *
+ * gallery store 住在 client-kit（章节表单 / 图鉴表单也用它），但它不该知道项目根与
+ * 配置从哪儿来 —— 那是 explorer 的职责。编辑器表单只调 `ensureGalleries()`，
+ * 两边因此都依赖 kit，而不是 editor 反向 import explorer store。
+ */
+setGalleryLoader((force) => useExplorerStore.getState().loadGalleries(force))
 
 /**
  * 保存成功后，图鉴文件（条目 / 字段表）要重读一次图鉴列表。

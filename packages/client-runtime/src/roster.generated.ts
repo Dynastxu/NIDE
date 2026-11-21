@@ -20,6 +20,11 @@ export const CLIENT_ROSTER: readonly ClientRosterEntry[] = [
     load: () => import("@nide/client-ui-main")
   },
   {
+    package: "@nide/client-ui-explorer",
+    windowTypes: ["main"],
+    load: () => import("@nide/client-ui-explorer")
+  },
+  {
     package: "@nide/client-ui-git",
     windowTypes: ["main"],
     load: () => import("@nide/client-ui-git")

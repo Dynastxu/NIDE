@@ -3,7 +3,7 @@
 
 # 包依赖图（生成物）
 
-每个包属于哪一层由它的 `package.json` 声明（`"nide": { "layer": ... }`）；边是**真实 import 扫描**的结果（与 `pnpm lint:imports` 同一份解析）。共 36 个节点 / 105 条包级依赖 / 463 条跨包 import。
+每个包属于哪一层由它的 `package.json` 声明（`"nide": { "layer": ... }`）；边是**真实 import 扫描**的结果（与 `pnpm lint:imports` 同一份解析）。共 37 个节点 / 112 条包级依赖 / 473 条跨包 import。
 
 实线 = 运行时 import；虚线 = 只有 `import type`（不产生运行时代码）。
 
@@ -52,6 +52,7 @@ flowchart TD
     pkg_packages_client_ui_slots["client-ui-slots"]
   end
   subgraph layer_client_feature["client-feature"]
+    pkg_packages_client_ui_explorer["client-ui-explorer"]
     pkg_packages_client_ui_git["client-ui-git"]
     pkg_packages_client_ui_plugins["client-ui-plugins"]
   end
@@ -92,11 +93,17 @@ flowchart TD
   pkg_packages_client_kit --> pkg_packages_domain
   pkg_packages_client_modules --> pkg_packages_contracts
   pkg_packages_client_runtime --> pkg_packages_client_modules
+  pkg_packages_client_runtime --> pkg_packages_client_ui_explorer
   pkg_packages_client_runtime --> pkg_packages_client_ui_git
   pkg_packages_client_runtime --> pkg_packages_client_ui_main
   pkg_packages_client_runtime --> pkg_packages_client_ui_settings
   pkg_packages_client_runtime --> pkg_packages_client_ui_slots
   pkg_packages_client_runtime --> pkg_packages_client_ui_welcome
+  pkg_packages_client_ui_explorer --> pkg_packages_client_kit
+  pkg_packages_client_ui_explorer --> pkg_packages_client_ui_renderer
+  pkg_packages_client_ui_explorer --> pkg_packages_client_ui_slots
+  pkg_packages_client_ui_explorer --> pkg_packages_contracts
+  pkg_packages_client_ui_explorer --> pkg_packages_domain
   pkg_packages_client_ui_git --> pkg_packages_client_kit
   pkg_packages_client_ui_git --> pkg_packages_client_ui_renderer
   pkg_packages_client_ui_git --> pkg_packages_client_ui_slots
@@ -126,6 +133,7 @@ flowchart TD
   pkg_packages_client_ui_welcome --> pkg_packages_domain
   pkg_packages_config --> pkg_packages_domain
   pkg_packages_config -.-> pkg_packages_kernel
+  pkg_packages_content --> pkg_packages_contracts
   pkg_packages_content --> pkg_packages_domain
   pkg_packages_content -.-> pkg_packages_kernel
   pkg_packages_git --> pkg_packages_contracts
@@ -197,7 +205,7 @@ flowchart TD
 | `client-platform` | `client-kit` | `domain`, `contract` |
 | `client-sdk` | `sdk` | `domain`, `contract`, `client-platform` |
 | `client-seam` | `client-modules` `client-ui-renderer` `client-ui-slots` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |
-| `client-feature` | `client-ui-git` `client-ui-plugins` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |
+| `client-feature` | `client-ui-explorer` `client-ui-git` `client-ui-plugins` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |
 | `client-window` | `client-ui-main` `client-ui-settings` `client-ui-welcome` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature` |
 | `client-runtime` | `client-runtime` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature`, `client-window` |
 | `plugin` | `plugins/ai-provider` `plugins/demo` `plugins/lang-en` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |

@@ -88,19 +88,29 @@ const off = onDocumentSaved((path, content) => {
 3. **保存不 import 具体功能**：保存方只发 `document-saved`；刷新什么由订阅方判断。
 4. **`documentsOf` 只看 `ctx`**：功能包之间不 import 对方的 store / 模块；`ctx.documents`
    是唯一跨包入口。
-5. **kit 只放 workbench 级状态**：`layout` / `documents` 这类多域共享状态可以进
-   `client-kit`；单个窗口专属的业务 UI 状态仍留在窗口包里。
+5. **kit 只放 workbench 级状态**：`layout` / `documents` / `gallery` / `overview` 这类
+   多域共享状态可以进 `client-kit`；单个窗口专属的业务 UI 状态仍留在窗口包里。
 
-## 5. 下一步
+## 5. 已完成：explorer 独立成包
 
-- `client-ui-explorer`：ExplorerView + ProjectsPanel + `explorer/gallery/overview` store +
-  entry 动作搬进功能包；它直接 import `client-kit/stores/documents.store`，不需要
-  `ctx.documents`（React 侧），非 React 的 `apply` 用 `documentsOf(ctx)`。
+`client-ui-explorer` 已经落成，它验证了这条 seam：
+
+- `ExplorerView` / `ProjectsPanel` / 章节·伏笔动作 / `EntryActionHost` 搬进功能包；
+- `explorer.store` 留在功能包（文件树自己的状态），它依赖 kit 的 `documents.store`；
+- `gallery.store` / `overview.store` 搬到 `client-kit`（章节表单与图鉴表单也要用），
+  explorer 用 `setGalleryLoader` 注册「项目根 + 配置 -> 图鉴目录」，编辑器表单只调
+  `ensureGalleries()` —— 两边都依赖 kit，editor 不再 import explorer store；
+- 条目动作浮层注册到窗口声明的 `shell.overlay`（list 槽）；
+- host 侧 `host.explorer` 描述符从 plugin-runtime 移到 `packages/content`（`files.*` 的
+  拥有者），用 `ctx.builtinViews` 登记。
+
+## 6. 下一步
+
 - `client-ui-editor`：editor 域 + `editor-save` + `model-registry` 搬进功能包；注册
   `main.editor`；`MainMenu` 的保存改为经 `ctx.documents` / 公共命令调用。
 - 窗口最终只留 `App` / `MainApp` / `WorkbenchLayout` / `ToolZone` / `MainMenu` / chrome。
 
-## 6. 与 DSH 的对应
+## 7. 与 DSH 的对应
 
 | DSH                                         | NIDE                                                                             |
 | ------------------------------------------- | -------------------------------------------------------------------------------- |

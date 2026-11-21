@@ -5,8 +5,11 @@ import {
   applyGalleryEntryValues,
   syncGalleryForm
 } from '@nide/client-ui-main/editor/gallery-metadata'
-import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
-import { galleryOfPath, useGalleryStore } from '@nide/client-ui-main/stores/gallery.store'
+import {
+  ensureGalleries,
+  galleryOfPath,
+  useGalleryStore
+} from '@nide/client-kit/stores/gallery.store'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 import type { DocumentTab } from '@nide/client-kit/stores/documents.store'
 
@@ -44,15 +47,14 @@ export function GalleryEntryForm({
 }): JSX.Element {
   const t = useT()
   const galleries = useGalleryStore((s) => s.galleries)
-  const loadGalleries = useExplorerStore((s) => s.loadGalleries)
 
   /*
    * 补一次图鉴列表：字段表在 gallery store 里，而「项目」那一面可能从来没挂载过
    * （打开一个条目完全可能只走文件树）。这一步幂等，读过就不重读。
    */
   useEffect(() => {
-    void loadGalleries()
-  }, [loadGalleries])
+    void ensureGalleries()
+  }, [])
 
   /*
    * 表单模式里没有编辑器，model 得有人建出来并让它与标签页上那份正文对齐 —— 保存读的

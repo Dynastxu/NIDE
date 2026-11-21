@@ -1,13 +1,9 @@
 import { JSX } from 'react'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
-import {
-  closePrompt,
-  submitPromptName,
-  useEntryActionStore
-} from '@nide/client-ui-main/shared/entry-action.store'
-import { NamePromptDialog } from '@nide/client-ui-main/shared/NamePromptDialog'
+import { useExplorerStore } from './stores/explorer.store'
+import { closePrompt, submitPromptName, useEntryActionStore } from './shared/entry-action.store'
+import { NamePromptDialog } from './shared/NamePromptDialog'
 import { DEFAULT_GALLERY_ENTRY_EXTENSION } from '@nide/domain/project'
 
 /**
