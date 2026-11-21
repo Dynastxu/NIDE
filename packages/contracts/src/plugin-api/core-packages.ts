@@ -77,7 +77,7 @@ export const CORE_PACKAGES: readonly Omit<CorePackage, 'kind'>[] = [
     id: 'client-kit',
     name: '@nide/client-kit',
     path: 'packages/client-kit',
-    description: '客户端平台层：stores / ui 基础组件 / 窗口外壳 / logger / monaco'
+    description: '客户端平台层：stores / ui 基础组件 / 窗口外壳 / logger / monaco / 文档状态'
   },
   {
     id: 'sdk',

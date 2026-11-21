@@ -5,7 +5,7 @@ import {
 } from '@nide/client-ui-main/editor/foreshadowing-metadata'
 import { FormField, FormTextArea } from '@nide/client-ui-main/editor/form-controls'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import type { EditorTab } from '@nide/client-ui-main/stores/editor.store'
+import type { DocumentTab } from '@nide/client-kit/stores/documents.store'
 
 /**
  * 伏笔表单：四个**固定**字段。
@@ -36,7 +36,7 @@ export function ForeshadowingForm({
   tab,
   syncing
 }: {
-  tab: EditorTab
+  tab: DocumentTab
   /** 「这次 model 写入是宿主发起的」标记，与编辑器那一层共用同一个 */
   syncing: { current: boolean }
 }): JSX.Element {

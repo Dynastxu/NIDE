@@ -7,7 +7,7 @@ import {
 import { applyGalleryConfig, syncGalleryForm } from '@nide/client-ui-main/editor/gallery-metadata'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import type { EditorTab } from '@nide/client-ui-main/stores/editor.store'
+import type { DocumentTab } from '@nide/client-kit/stores/documents.store'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
 /**
@@ -47,7 +47,7 @@ export function GalleryConfigForm({
   tab,
   syncing
 }: {
-  tab: EditorTab
+  tab: DocumentTab
   /** 「这次 model 写入是宿主发起的」标记，与编辑器那一层共用同一个 */
   syncing: { current: boolean }
 }): JSX.Element {

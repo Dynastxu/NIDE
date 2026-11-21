@@ -19,7 +19,7 @@ import {
 } from '@nide/client-ui-main/shared/model-registry'
 import { saveActiveTab } from '@nide/client-ui-main/shared/editor-save'
 import { loggerFor } from '@nide/client-kit/logger'
-import { useEditorStore, type EditorTab } from '@nide/client-ui-main/stores/editor.store'
+import { useDocumentsStore, type DocumentTab } from '@nide/client-kit/stores/documents.store'
 import { chapterBodyOf, splitFrontmatter } from '@nide/domain/project'
 import type { DocumentView } from '@nide/client-ui-main/editor/document-mode'
 import type { DocumentViewMode } from '@nide/client-ui-main/stores/document-view.store'
@@ -97,7 +97,7 @@ export function EditorPanes({
   syncing
 }: {
   /** 当前标签页。它的语言、路径与元数据决定这一帧长什么样 */
-  tab: EditorTab
+  tab: DocumentTab
   /**
    * 这一篇能怎么看（见 editor/document-mode.ts）。
    *
@@ -400,7 +400,7 @@ function MonacoHost({
   className = 'h-full w-full'
 }: {
   /** 当前标签页：路径决定用哪个 model，正文决定写什么 */
-  tab: EditorTab
+  tab: DocumentTab
   /** 「这次写入是宿主发起的」标记，见下面那条写入 effect */
   syncing: { current: boolean }
   /** 这一格编辑的是哪一种东西。两种的格式与高度规则都不同（见组件头部） */
@@ -572,7 +572,7 @@ function MonacoHost({
          * 它，而表单模式下这一格绑的是另一份（只有正文的那一份）—— 不在这里建，整篇
          * 那一份在表单模式里就永远不存在，保存会以「没有 model」被拒。
          */
-        const current = useEditorStore.getState().tabs.find((item) => item.path === tab.path)
+        const current = useDocumentsStore.getState().tabs.find((item) => item.path === tab.path)
         if (current) ensureModel(current)
 
         /**
@@ -617,7 +617,7 @@ function MonacoHost({
             return
           }
 
-          useEditorStore.getState().setDocument(changed, model.getValue())
+          useDocumentsStore.getState().setDocument(changed, model.getValue())
         })
 
         /**
@@ -684,7 +684,7 @@ function MonacoHost({
     const editor = editorRef.current
     if (!editor) return
 
-    const current = useEditorStore.getState().tabs.find((item) => item.path === tab.path)
+    const current = useDocumentsStore.getState().tabs.find((item) => item.path === tab.path)
 
     if (!current) {
       editor.setModel(null)

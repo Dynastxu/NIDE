@@ -1,7 +1,7 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import { saveActiveTab } from '@nide/client-ui-main/shared/editor-save'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { useLayoutStore } from '@nide/client-kit/stores/layout.store'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { DropdownMenu } from '@nide/client-kit/ui/DropdownMenu'
@@ -67,7 +67,7 @@ export function MainMenu(): JSX.Element {
    * 的是**布尔值**而不是那个标签页对象 —— 后者每次都是新引用，会让菜单每敲一个字
    * 就重渲染一遍（与 editor store 里 setDocument 那条早退同一个理由）。
    */
-  const activeDirty = useEditorStore(
+  const activeDirty = useDocumentsStore(
     (s) => s.tabs.find((tab) => tab.path === s.activePath)?.dirty ?? false
   )
   /** false = 显示菜单按钮 + 项目下拉；true = 显示「文件 / 编辑」 */

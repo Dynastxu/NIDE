@@ -1,13 +1,7 @@
 import { loggerFor } from '@nide/client-kit/logger'
-import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
-import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
+import { notifyDocumentSaved } from '@nide/client-kit/stores/documents-events'
 import { modelFor } from '@nide/client-ui-main/shared/model-registry'
-import {
-  isGalleryConfigFileName,
-  isGalleryEntryDocument,
-  isGalleryEntryPath,
-  readGalleryEntry
-} from '@nide/domain/project'
 import type { FileWriteResult } from '@nide/domain/project'
 
 const logger = loggerFor('editor')
@@ -18,7 +12,7 @@ const logger = loggerFor('editor')
  * ## 正文从哪儿来
  *
  * 从 **model** 里来，不从 store 里来 —— store 里只有「与磁盘一致的那一份」和一个
- * dirty 结论，正文本身只有一份，就在 model 里（见 stores/editor.store 的说明）。
+ * dirty 结论，正文本身只有一份，就在 model 里（见 client-kit 的 documents.store 说明）。
  * 所以这里是「读 model -> 走一条 IPC -> 把基准推到刚写下去的那一份」。
  *
  * ## 谁赢
@@ -35,8 +29,9 @@ const logger = loggerFor('editor')
  *
  * ## 保存之后只有一件事是「顺带」做的
  *
- * 图鉴的文件（条目 / 字段表）存下去之后，图鉴列表那一份缓存要重读一次：列表里的名字
- * 与条目表单的字段都来自它，而它是按「一次会话读一次」缓存的（见下面那条说明）。
+ * 写完盘之后发一条 `document-saved` 事件（`documents-events`）。谁会因此刷新什么，
+ * 由订阅方自己决定 —— 例如图鉴列表要在图鉴文件保存后重读一次。保存这一层不认识
+ * explorer，也不该反向 import 它的 store：以后 explorer 独立成包时，这条边不会被带过去。
  * 除此之外没有任何副作用 —— 写完盘之后，谁赢、要不要留副本，仍然没有第二套规则。
  */
 
@@ -73,7 +68,7 @@ export async function saveTab(path: string): Promise<FileWriteResult> {
       return result
     }
 
-    const store = useEditorStore.getState()
+    const store = useDocumentsStore.getState()
 
     /**
      * 磁盘上现在就是这一份内容 —— 把它记成这个标签页的新基准（清掉圆点）。
@@ -93,20 +88,17 @@ export async function saveTab(path: string): Promise<FileWriteResult> {
     if (latest !== content) store.setDocument(path, latest)
 
     /**
-     * 保存的是一份**图鉴的文件**时（条目或字段表），把图鉴列表那一份缓存也刷一次。
+     * 保存的是一份**图鉴的文件**时（条目或字段表），订阅方会重读图鉴列表。
      *
      * 「项目 -> 图鉴」里每一行显示的名字取自条目的第一个字段，而那一份是按「一次会话
      * 读一次」缓存着的（见 gallery.store）：刚把 `名称` 填上、存下来之后不刷新，列表里
      * 那一行还是旧名字 —— 用户会以为自己的改动没生效。字段表同理：条目表单的字段来自它。
      *
-     * 刷在**保存**这一处而不是表单的每次输入上：后者是一次按键一条 IPC，而保存本来就是
-     * 用户显式说「就以这一份为准」的那一下。
+     * 刷新条件（文件名 / 内容）由订阅方判断，保存这一层只负责把「存了哪个文件、存的是
+     * 什么内容」说出去。刷在**保存**这一处而不是表单的每次输入上：后者是一次按键一条
+     * IPC，而保存本来就是用户显式说「就以这一份为准」的那一下。
      */
-    const galleryFile =
-      isGalleryConfigFileName(path) ||
-      (isGalleryEntryPath(path) && isGalleryEntryDocument(readGalleryEntry(content)))
-
-    if (galleryFile) void useExplorerStore.getState().loadGalleries(true)
+    notifyDocumentSaved(path, content)
 
     logger.info('File saved', { file: path })
     return { ok: true, path }
@@ -128,7 +120,7 @@ export async function saveTab(path: string): Promise<FileWriteResult> {
  *   比「按了有时有反应、有时没有」诚实。
  */
 export async function saveActiveTab(): Promise<FileWriteResult | null> {
-  const { tabs, activePath } = useEditorStore.getState()
+  const { tabs, activePath } = useDocumentsStore.getState()
   const tab = tabs.find((item) => item.path === activePath)
 
   if (!tab || !tab.dirty) return null

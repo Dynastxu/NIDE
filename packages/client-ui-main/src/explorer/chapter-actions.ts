@@ -1,5 +1,5 @@
 import { getT } from '@nide/client-kit/stores/i18n.store'
-import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
 import { loggerFor } from '@nide/client-kit/logger'
 import {
@@ -106,7 +106,7 @@ async function openChapter(path: string, name: string): Promise<void> {
       return
     }
 
-    useEditorStore.getState().openFile({
+    useDocumentsStore.getState().openFile({
       path: content.path,
       name,
       language: 'markdown',
@@ -133,7 +133,7 @@ export async function openChapterFile(file: { path: string; name: string }): Pro
       return
     }
 
-    useEditorStore.getState().openFile({
+    useDocumentsStore.getState().openFile({
       path: result.path,
       name: file.name,
       language: 'markdown',

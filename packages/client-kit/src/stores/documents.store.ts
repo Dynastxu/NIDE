@@ -15,19 +15,27 @@ import {
 } from '@nide/domain/project'
 
 /**
- * 主编辑区的状态：**打开了哪些文件、当前看的是哪一个**。
+ * 工作台的文档状态：**打开了哪些文件、当前看的是哪一个、哪些还没落盘**。
+ *
+ * 住在这里而不是主窗口里，是因为 explorer（文件树）与 editor（编辑区）都要用它：
+ * 一个要拿 `activePath` 高亮、要在打开/改名/删除后改标签页，另一个要画标签条与
+ * 关闭队列。让两边都依赖 client-kit，就不必互相 import store —— 以后它们各自成包时，
+ * 依赖方向仍然是「功能包 → 平台库」。
  *
  * 这里有两点是刻意的：
  *
  * 1. **不是「一个当前文件」，而是一组标签页。** 中间区域不再代表某一支文件，
  *    而是代表一整组「这次会话打开过的东西」。识别一个标签页用**路径**，因为
  *    路径来自主进程、天然唯一；文件名只用来显示（同名文件在不同目录里很常见）。
- * 2. **标签页里没有正文。** 正文归 Monaco 的 model（按 URI 建，见
- *    editor/model-registry.ts），这里只留一个 `originalValue` 当作「与磁盘一致」
- *    的基准，用来算 `dirty`。两份正文迟早会不一致，而那时没人知道该信谁。
+ * 2. **标签页里没有正文的权威副本。** 正文归 Monaco 的 model（按 URI 建，见
+ *    `@nide/client-ui-main/shared/model-registry`），这里只留一个 `originalValue`
+ *    当作「与磁盘一致」的基准，用来算 `dirty`。两份正文迟早会不一致，而那时没人
+ *    知道该信谁。
+ *
+ * `ctx.documents` 服务面见 `documents-cordis.ts`；保存后的通知见 `documents-events.ts`。
  */
 
-export interface EditorTab {
+export interface DocumentTab {
   /** 文件绝对路径。标签页的身份 */
   path: string
   /** 显示名（路径最后一段） */
@@ -37,8 +45,9 @@ export interface EditorTab {
   /**
    * 从磁盘读到的原样内容。与当前正文不同即为「有未保存的改动」。
    *
-   * 保存成功之后会被推到刚写下去的那一份（见 editor/editor-save.ts）：它是
-   * 「与磁盘一致」的基准，而不是「读进来时的那一份」。
+   * 保存成功之后会被推到刚写下去的那一份（见
+   * `@nide/client-ui-main/shared/editor-save`）：它是「与磁盘一致」的基准，而不是
+   * 「读进来时的那一份」。
    */
   originalValue: string
   /**
@@ -49,12 +58,14 @@ export interface EditorTab {
    * 实例传下去（正文的所有权在 model-registry，见那里的说明）。
    *
    * 它不是第二个真相：正文只有一处来源（model），`content` 是它每次变化时**推过来**
-   * 的结果 —— 用户在编辑器里打字（editor/EditorPanes 的 MonacoHost）与表单改元数据
-   * （editor/chapter-metadata.ts）都走同一条 `setDocument`。
+   * 的结果 —— 用户在编辑器里打字（`@nide/client-ui-main/editor/EditorPanes` 的
+   * MonacoHost）与表单改元数据（`@nide/client-ui-main/editor/chapter-metadata`）都走
+   * 同一条 `setDocument`。
    */
   content: string
   /**
-   * `content` 里那份 frontmatter 的解析结果（见 editor/chapter-metadata.ts）。
+   * `content` 里那份 frontmatter 的解析结果（见
+   * `@nide/client-ui-main/editor/chapter-metadata`）。
    *
    * 与 `content` 一起更新，所以界面拿到它就知道「这一篇是不是章节、编号是多少」。
    * 没有它的话，每个要问这两个问题的组件都得自己解析一遍 —— 而它们解析的时机
@@ -76,7 +87,7 @@ export interface EditorTab {
    *
    * 图鉴条目、图鉴字段表、普通 yml、Markdown、纯文本**都会有这一份**（没有内容的文件
    * 得到的是空白一份）：界面按它决定给不给图鉴表单，而「是不是图鉴」这件事只该由
-   * 文件自己回答（见 editor/document-mode.ts）。
+   * 文件自己回答（见 `@nide/client-ui-main/editor/document-mode`）。
    */
   gallery: GalleryEntryDocument
   /**
@@ -109,9 +120,9 @@ export interface EditorTab {
   refreshToken: number
 }
 
-interface EditorState {
+interface DocumentsState {
   /** 按打开顺序排列的标签页 */
-  tabs: EditorTab[]
+  tabs: DocumentTab[]
   /** 当前活跃的标签页路径；null 表示一个都没开 */
   activePath: string | null
   /** 需要展示的 Diff（AI 提议修改时触发）。与标签页无关，是覆盖在上面的浮层 */
@@ -133,7 +144,7 @@ interface EditorState {
    *
    * 已经打开过的**不重复建标签页**，只是切过去、并把 `originalValue` 刷新成
    * 这次读到的内容 —— 重开一次代表的正是「以磁盘上的版本为准」。刷新会推进
-   * `refreshToken`，编辑器据此把 model 也拉回同一份内容（见 EditorTabs）。
+   * `refreshToken`，编辑器据此把 model 也拉回同一份内容（见 DocumentTabs）。
    */
   openFile: (file: { path: string; name: string; language: string; content: string }) => void
   /** 切到某个标签页。路径不存在时什么都不做 */
@@ -142,8 +153,8 @@ interface EditorState {
    * 请求关掉一个标签页（标签上那个关闭按钮）。
    *
    * 没有未落盘改动就直接关；有改动时**不关**，只把它挂进 `closeQueue` 等用户回答
-   * 「保存 / 不保存」。这一问归 editor/UnsavedCloseDialog，保存与关闭的收尾归
-   * editor/editor-save.ts —— 这里只决定「要不要问」。
+   * 「保存 / 不保存」。这一问归 `@nide/client-ui-main/editor/UnsavedCloseDialog`，保存与
+   * 关闭的收尾归 `@nide/client-ui-main/shared/editor-save` —— 这里只决定「要不要问」。
    */
   requestClose: (path: string) => void
   /** 请求关掉除当前这一个以外的全部标签页。没有当前标签页时什么都不做 */
@@ -155,7 +166,7 @@ interface EditorState {
   /**
    * 用户对队首那一问做了决定（保存完了，或者选了「不保存」）：关掉它，继续处理队列。
    *
-   * 「保存」先由 editor-save 写盘、把基准推到新内容，再走到这里；「不保存」直接走到
+   * 「保存」先由 `shared/editor-save` 写盘、把基准推到新内容，再走到这里；「不保存」直接走到
    * 这里 —— 两条路在这一步之后是同一个动作：这个标签页不该再留着了。
    */
   finishClose: () => void
@@ -165,8 +176,8 @@ interface EditorState {
    * 正文变化（用户在编辑器里改，或宿主推来新内容）。
    *
    * 三个字段一起更新：正文本身、由它比出来的 `dirty`、以及重算后的章节元数据（见
-   * editor/chapter-metadata.ts）。三者必须同一步落地 —— 分开更新会出现「正文已经
-   * 改了、表单还显示着上一版的编号」这种中间态。
+   * `@nide/client-ui-main/editor/chapter-metadata`）。三者必须同一步落地 —— 分开更新会出现
+   * 「正文已经改了、表单还显示着上一版的编号」这种中间态。
    *
    * 正文没有变化时返回空对象：`onDidChangeModelContent` 在**每一次按键**后都会触发，
    * 而每一步都换新引用会让标签条与文件树跟着白重渲染（下面那条早退的说明）。
@@ -226,7 +237,7 @@ function tabText(
   content: string,
   originalValue: string
 ): Pick<
-  EditorTab,
+  DocumentTab,
   'content' | 'metadata' | 'foreshadowing' | 'gallery' | 'galleryConfig' | 'dirty'
 > {
   return {
@@ -244,11 +255,11 @@ function tabText(
  * 与「关标签页」有关的那一半状态。
  *
  * 抽出来是因为关闭有一串公共步骤（算邻居、摘队列），它们既要在 zustand 的更新函数里
- * 用，也要在几条动作之间复用 —— 直接对着整份 EditorState 写会把「标签数组」与
+ * 用，也要在几条动作之间复用 —— 直接对着整份 DocumentsState 写会把「标签数组」与
  * 「关闭队列」两件事混在一处。
  */
 interface CloseSlice {
-  tabs: EditorTab[]
+  tabs: DocumentTab[]
   activePath: string | null
 }
 
@@ -314,7 +325,7 @@ function drainCloseQueue(
  * 已经在队列里的路径不再接一次：连点两下关闭按钮不该问两遍同一件事。一个都没接上时
  * 返回空对象 —— 让 zustand 跳过这次通知，与 setDocument 那条早退同一个理由。
  */
-function enqueueClose(state: EditorState, paths: readonly string[]): Partial<EditorState> {
+function enqueueClose(state: DocumentsState, paths: readonly string[]): Partial<DocumentsState> {
   const queued = new Set(state.closeQueue)
   const additions = paths.filter((path) => !queued.has(path))
   if (additions.length === 0) return {}
@@ -323,7 +334,7 @@ function enqueueClose(state: EditorState, paths: readonly string[]): Partial<Edi
 }
 
 /** 当前标签页以外的全部标签页（「关闭其他」要关的就是这些） */
-function othersOf(state: EditorState): string[] {
+function othersOf(state: DocumentsState): string[] {
   return state.tabs.filter((tab) => tab.path !== state.activePath).map((tab) => tab.path)
 }
 
@@ -340,7 +351,7 @@ function renameInQueue(queue: readonly string[], previousPath: string, nextPath:
   return [...new Set(queue.map((path) => (path === previousPath ? nextPath : path)))]
 }
 
-export const useEditorStore = create<EditorState>((set) => ({
+export const useDocumentsStore = create<DocumentsState>((set) => ({
   tabs: [],
   activePath: null,
   pendingDiff: null,

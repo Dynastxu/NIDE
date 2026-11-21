@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { saveActiveTab } from '@nide/client-ui-main/shared/editor-save'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { useViewChrome, type ViewChromeConfig } from '@nide/client-ui-renderer/view/chrome-context'
 import type { ViewMoreItem, ViewTab } from '@nide/contracts/plugin-api'
 
@@ -10,7 +10,7 @@ import type { ViewMoreItem, ViewTab } from '@nide/contracts/plugin-api'
  *
  * 中间这一块与其他六个工具区走的是**同一套外壳**（见 view/ViewFrame）：标签页、
  * 关闭按钮、右上角的「更多」都由那一层画。这里只做翻译 ——
- * `editor.store` 的 `EditorTab` 与外壳要的 `ViewTab` 是两件事：
+ * `documents.store` 的 `DocumentTab` 与外壳要的 `ViewTab` 是两件事：
  *
  * | 外壳要的（纯展示）   | 编辑器有的（业务状态）           |
  * | -------------------- | -------------------------------- |
@@ -18,7 +18,7 @@ import type { ViewMoreItem, ViewTab } from '@nide/contracts/plugin-api'
  * | status（圆点）       | dirty（还没落盘）                |
  * | closable / closeIcon | 文件标签页永远可关，形状看 dirty |
  *
- * 刻意**不**把 `EditorTab` 直接当 `ViewTab` 用：外壳不该知道 Monaco model、
+ * 刻意**不**把 `DocumentTab` 直接当 `ViewTab` 用：外壳不该知道 Monaco model、
  * refreshToken 这些概念，而编辑器也不该知道关闭按钮画成什么形状。
  *
  * 三处刻意的差别，都由「它在'主'区」这一条推出：
@@ -35,9 +35,9 @@ import type { ViewMoreItem, ViewTab } from '@nide/contracts/plugin-api'
  */
 export function useEditorChrome(activePath: string | null): ViewChromeConfig {
   const t = useT()
-  const tabs = useEditorStore((s) => s.tabs)
-  const setActive = useEditorStore((s) => s.setActive)
-  const requestClose = useEditorStore((s) => s.requestClose)
+  const tabs = useDocumentsStore((s) => s.tabs)
+  const setActive = useDocumentsStore((s) => s.setActive)
+  const requestClose = useDocumentsStore((s) => s.requestClose)
 
   const viewTabs = useMemo<ViewTab[]>(
     () =>
@@ -79,7 +79,7 @@ export function useEditorChrome(activePath: string | null): ViewChromeConfig {
         label: t('host.editor.menu.closeOthers'),
         disabled: tabs.length < 2,
         disabledReason: t('host.editor.menu.closeOthers.disabled'),
-        onSelect: () => useEditorStore.getState().requestCloseOthers()
+        onSelect: () => useDocumentsStore.getState().requestCloseOthers()
       },
       {
         id: 'close-saved',
@@ -87,12 +87,12 @@ export function useEditorChrome(activePath: string | null): ViewChromeConfig {
         // 一个文件都没落盘时它什么都关不掉 —— 不给一个注定空转的入口
         disabled: !tabs.some((tab) => !tab.dirty),
         disabledReason: t('host.editor.menu.closeSaved.disabled'),
-        onSelect: () => useEditorStore.getState().requestCloseSaved()
+        onSelect: () => useDocumentsStore.getState().requestCloseSaved()
       },
       {
         id: 'close-all',
         label: t('host.editor.menu.closeAll'),
-        onSelect: () => useEditorStore.getState().requestCloseAll()
+        onSelect: () => useDocumentsStore.getState().requestCloseAll()
       }
     ]
   }, [tabs, t, activePath])

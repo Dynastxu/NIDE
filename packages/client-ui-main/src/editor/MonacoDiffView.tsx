@@ -1,13 +1,13 @@
 import { JSX, useEffect, useRef } from 'react'
 import * as monaco from 'monaco-editor'
 import { monacoLoader } from '@nide/client-kit/monaco-env'
-import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { useT } from '@nide/client-kit/stores/i18n.store'
 
 export function MonacoDiffView(): JSX.Element | null {
   const containerRef = useRef<HTMLDivElement>(null)
   const diffRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)
-  const { pendingDiff, clearDiff } = useEditorStore()
+  const { pendingDiff, clearDiff } = useDocumentsStore()
   const t = useT()
 
   useEffect(() => {

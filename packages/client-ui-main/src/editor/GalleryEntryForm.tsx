@@ -8,7 +8,7 @@ import {
 import { useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
 import { galleryOfPath, useGalleryStore } from '@nide/client-ui-main/stores/gallery.store'
 import { useT } from '@nide/client-kit/stores/i18n.store'
-import type { EditorTab } from '@nide/client-ui-main/stores/editor.store'
+import type { DocumentTab } from '@nide/client-kit/stores/documents.store'
 
 /**
  * 图鉴条目的表单：把一个图鉴的字段摆成一组输入框。
@@ -38,7 +38,7 @@ export function GalleryEntryForm({
   tab,
   syncing
 }: {
-  tab: EditorTab
+  tab: DocumentTab
   /** 「这次 model 写入是宿主发起的」标记，与编辑器那一层共用同一个 */
   syncing: { current: boolean }
 }): JSX.Element {

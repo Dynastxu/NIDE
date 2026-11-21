@@ -9,7 +9,7 @@ import {
   suggestNextForeshadowing
 } from '@nide/client-ui-main/explorer/foreshadowing-actions'
 import { openProjectFile, useExplorerStore } from '@nide/client-ui-main/stores/explorer.store'
-import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { BuiltinIcon } from '@nide/client-kit/ui/BuiltinIcon'
 import { EntryMenu } from '@nide/client-ui-main/shared/EntryMenu'
 import { NamePromptDialog } from '@nide/client-ui-main/shared/NamePromptDialog'
@@ -528,7 +528,7 @@ function EntryRow({
   const expanded = useExplorerStore((s) => s.expanded[entry.path] ?? false)
   const toggle = useExplorerStore((s) => s.toggle)
   const setNotice = useExplorerStore((s) => s.setNotice)
-  const activePath = useEditorStore((s) => s.activePath)
+  const activePath = useDocumentsStore((s) => s.activePath)
 
   const isDir = entry.kind === 'directory'
   const active = entry.path === activePath

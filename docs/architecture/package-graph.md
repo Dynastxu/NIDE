@@ -3,7 +3,7 @@
 
 # 包依赖图（生成物）
 
-每个包属于哪一层由它的 `package.json` 声明（`"nide": { "layer": ... }`）；边是**真实 import 扫描**的结果（与 `pnpm lint:imports` 同一份解析）。共 36 个节点 / 105 条包级依赖 / 442 条跨包 import。
+每个包属于哪一层由它的 `package.json` 声明（`"nide": { "layer": ... }`）；边是**真实 import 扫描**的结果（与 `pnpm lint:imports` 同一份解析）。共 36 个节点 / 105 条包级依赖 / 463 条跨包 import。
 
 实线 = 运行时 import；虚线 = 只有 `import type`（不产生运行时代码）。
 

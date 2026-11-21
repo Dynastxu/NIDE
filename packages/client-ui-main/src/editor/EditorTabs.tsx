@@ -13,7 +13,7 @@ import { UnsavedCloseDialog } from '@nide/client-ui-main/editor/UnsavedCloseDial
 import { ViewFrame } from '@nide/client-ui-renderer/view/ViewFrame'
 import { useDocumentViewStore } from '@nide/client-ui-main/stores/document-view.store'
 import { getT, useT } from '@nide/client-kit/stores/i18n.store'
-import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { type FileWriteFailureReason } from '@nide/domain/project'
 import type { HostMessageKey } from '@nide/contracts/i18n'
 
@@ -42,7 +42,7 @@ import type { HostMessageKey } from '@nide/contracts/i18n'
  *
  * store 存 `originalValue`（磁盘上的原样）、`content`（当前正文的副本）与由它们算出的
  * `dirty`。副本是给**正文之外的消费者**用的：章节表单与 Markdown 预览都要按正文渲染，
- * 而它们不该为此拿到一个编辑器实例（见 stores/editor.store 里那段说明）。
+ * 而它们不该为此拿到一个编辑器实例（见 client-kit 的 documents.store 那段说明）。
  *
  * ## 视图模式
  *
@@ -62,7 +62,7 @@ import type { HostMessageKey } from '@nide/contracts/i18n'
  * ## 关掉一个改过的标签页
  *
  * 关闭是**两步**的：没有未落盘改动就直接关，有改动的先问一句（保存 / 不保存 /
- * 取消）。要问哪一问由 store 的关闭队列说了算（见 stores/editor.store），这一层
+ * 取消）。要问哪一问由 store 的关闭队列说了算（见 client-kit 的 documents.store），这一层
  * 只把队首画成 `UnsavedCloseDialog`，并把用户的回答交给保存与收尾那两步。
  * 放在这里而不是外壳里，是因为那一问要用到 model（保存要读正文）—— 那是编辑器
  * 这一层才知道的事，通用外壳不该认识它。
@@ -95,21 +95,21 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function EditorTabs(): JSX.Element {
-  const tabs = useEditorStore((s) => s.tabs)
+  const tabs = useDocumentsStore((s) => s.tabs)
   /**
    * 当前标签页。
    *
    * 这个组件本身不拿它换 model（那是正文那一层的事），但**必须订阅**：标题栏上的
    * 标题、视图模式按钮、以及正文按哪一种模式渲染，全都跟着活跃标签页走。
    */
-  const activePath = useEditorStore((s) => s.activePath)
+  const activePath = useDocumentsStore((s) => s.activePath)
   /**
    * 等着用户回答「保存吗」的那些标签页。
    *
-   * 队首那个就是要画出来的那一问（见 stores/editor.store 的 drainCloseQueue）：
+   * 队首那个就是要画出来的那一问（见 client-kit 的 documents.store 的 drainCloseQueue）：
    * 一次关多个时，要问的会一个一个问过来，而不是同时摆出几个浮层。
    */
-  const closeQueue = useEditorStore((s) => s.closeQueue)
+  const closeQueue = useDocumentsStore((s) => s.closeQueue)
   const t = useT()
 
   const activeTab = tabs.find((tab) => tab.path === activePath) ?? null
@@ -235,11 +235,11 @@ export function EditorTabs(): JSX.Element {
             if (!result.ok) return getT()(SAVE_FAILURE_KEYS[result.reason])
 
             // 写盘成功了，把它从队列里摘掉，继续处理后面那些（可能还有要问的）
-            useEditorStore.getState().finishClose()
+            useDocumentsStore.getState().finishClose()
             return null
           }}
-          onDiscard={() => useEditorStore.getState().finishClose()}
-          onCancel={() => useEditorStore.getState().cancelClose()}
+          onDiscard={() => useDocumentsStore.getState().finishClose()}
+          onCancel={() => useDocumentsStore.getState().cancelClose()}
         />
       )}
     </ViewFrame>

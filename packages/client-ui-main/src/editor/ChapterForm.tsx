@@ -49,7 +49,7 @@ export function ChapterForm({
   revision,
   onChange
 }: {
-  /** frontmatter 里的元数据（上游那份，见 useEditorStore 的 EditorTab.metadata） */
+  /** frontmatter 里的元数据（上游那份，见 useDocumentsStore 的 DocumentTab.metadata） */
   metadata: ChapterMetadata
   /**
    * 这一篇 frontmatter 的**原文**。

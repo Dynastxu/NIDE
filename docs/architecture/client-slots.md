@@ -187,7 +187,8 @@ key 时渲染 `fallback`，避免「切到不存在的面板」时整块空白�
 
 - `WorkbenchLayout` 删掉 `EditorTabs` / `MonacoDiffView` 的 import；
 - editor 包注册 `main.editor`；
-- 跨功能的「打开/保存」走客户端服务（另见 explorer/editor 的方案），不走 store import。
+- 跨功能的「打开 / 保存」走客户端文档状态（另见 [client-documents.md](client-documents.md)），
+  不走 store import。
 
 ## 5. 测试与门禁
 

@@ -2,6 +2,7 @@ import { createElement } from 'react'
 import type { Context } from 'cordis'
 import { slotsOf } from '@nide/client-ui-slots'
 import type { ZoneId } from '@nide/client-kit/stores/layout.store'
+import { installDocuments } from '@nide/client-kit/stores/documents-cordis'
 import { HOST_EXPLORER_VIEW_ID, hostViewSlotName } from '@nide/contracts/plugin-api'
 import App from './App'
 import { ExplorerView } from './explorer/ExplorerView'
@@ -39,6 +40,10 @@ export const mainPlugin = {
   name: 'nide-client-ui-main',
   inject: ['slots'],
   apply(ctx: Context): void {
+    // workbench 的文档状态（打开 / 活跃 / 脏标记）对客户端功能包开放为 `ctx.documents`；
+    // React 侧仍用 client-kit 的 `useDocumentsStore`。
+    installDocuments(ctx)
+
     const slots = slotsOf(ctx)
     ctx.effect(() => slots.register('main.root', App), 'main.root')
 

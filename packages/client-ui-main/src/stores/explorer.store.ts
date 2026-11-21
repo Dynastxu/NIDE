@@ -1,8 +1,12 @@
 import { create } from 'zustand'
 import { getT } from '@nide/client-kit/stores/i18n.store'
 import {
+  isGalleryConfigFileName,
+  isGalleryEntryDocument,
+  isGalleryEntryPath,
   isInsideProject,
   languageForPath,
+  readGalleryEntry,
   type ChapterFile,
   type ChapterListResult,
   type CreateEntryKind,
@@ -16,7 +20,8 @@ import {
   type RenameEntryResult
 } from '@nide/domain/project'
 import { loggerFor } from '@nide/client-kit/logger'
-import { useEditorStore } from './editor.store'
+import { onDocumentSaved } from '@nide/client-kit/stores/documents-events'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 import { useGalleryStore } from './gallery.store'
 import { useOverviewStore } from './overview.store'
 
@@ -25,8 +30,8 @@ const logger = loggerFor('explorer')
 /**
  * 项目文件树的状态。
  *
- * 只放**目录树**：打开了哪些文件、当前看的是哪一个属于 editor store
- * （见 stores/editor.store.ts）。两者分开是因为它们的生命周期不一样 ——
+ * 只放**目录树**：打开了哪些文件、当前看的是哪一个属于 documents store
+ * （见 `@nide/client-kit/stores/documents.store`）。两者分开是因为它们的生命周期不一样 ——
  * 关掉一个标签页不该影响树，收起一个目录也不该影响编辑器。
  *
  * ## 多个根
@@ -636,6 +641,24 @@ export const useExplorerStore = create<ExplorerState>((set, get) => {
 })
 
 /**
+ * 保存成功后，图鉴文件（条目 / 字段表）要重读一次图鉴列表。
+ *
+ * 这段判断原来在 shared/editor-save 里，并且直接 import 了 explorer.store ——
+ * 保存这一层因此反向依赖了「谁关心保存」。改成事件订阅后，保存方只说「存了哪个
+ * 文件、内容是什么」，刷新与否归 explorer 自己判断；explorer 独立成包时这条边
+ * 不会跟着搬过去。
+ *
+ * 条件与原来一致：文件名是字段表，或者路径像图鉴条目、内容也确实是图鉴文档。
+ */
+onDocumentSaved((path, content) => {
+  const galleryFile =
+    isGalleryConfigFileName(path) ||
+    (isGalleryEntryPath(path) && isGalleryEntryDocument(readGalleryEntry(content)))
+
+  if (galleryFile) void useExplorerStore.getState().loadGalleries(true)
+})
+
+/**
  * 一个条目改动之后，那些**从磁盘读出来的缓存**该不该跟着刷新。
  *
  * 同一份内容在**几处**各有一份缓存：文件树的 `children`、「项目」标签页的 `chapters`
@@ -687,8 +710,8 @@ export async function openProjectFile(entry: { path: string; name: string }): Pr
       return
     }
 
-    // 内容已经在手上，标签页不必再去读一次盘（editor store 只收内容）
-    useEditorStore.getState().openFile({
+    // 内容已经在手上，标签页不必再去读一次盘（documents store 只收内容）
+    useDocumentsStore.getState().openFile({
       path: result.path,
       name: entry.name,
       language: languageForPath(result.path),
@@ -769,7 +792,7 @@ export async function renameProjectEntry(
   store.setNotice(null)
 
   // 标签页按路径认文件，改名之后必须跟着走（文件 → 目录：那一支的标签页都跟着）
-  useEditorStore.getState().migratePath(result.previousPath, result.path)
+  useDocumentsStore.getState().migratePath(result.previousPath, result.path)
 
   const parentDir = parentOf(result.path)
   await store.refreshDir(parentDir)
@@ -818,7 +841,7 @@ export async function deleteProjectEntry(targetPath: string): Promise<DeleteEntr
   store.setNotice(null)
 
   // 打开着的标签页要一并关掉：它的文件已经不在了，留着就是一个点不开的空标签
-  useEditorStore.getState().closeSubtree(targetPath)
+  useDocumentsStore.getState().closeSubtree(targetPath)
 
   store.forgetSubtree(targetPath)
   await store.refreshDir(parentOf(targetPath))

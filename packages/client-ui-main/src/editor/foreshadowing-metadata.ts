@@ -4,7 +4,7 @@ import {
   modelFor,
   writeModelSilently
 } from '@nide/client-ui-main/shared/model-registry'
-import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 
 /**
  * 伏笔表单与文件之间的那一步：把表单里的改动写回正在编辑的那一份 yml。
@@ -65,5 +65,5 @@ export function applyForeshadowingMetadata(
   if (after === before) return
 
   writeModelSilently(model, after, syncing)
-  useEditorStore.getState().setDocument(path, after)
+  useDocumentsStore.getState().setDocument(path, after)
 }

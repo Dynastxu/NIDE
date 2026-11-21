@@ -1,6 +1,6 @@
 import { writeChapterBody } from '@nide/domain/project'
 import { modelFor, writeModelSilently } from '@nide/client-ui-main/shared/model-registry'
-import { useEditorStore } from '@nide/client-ui-main/stores/editor.store'
+import { useDocumentsStore } from '@nide/client-kit/stores/documents.store'
 
 /**
  * 把**正文**的改动写回正在编辑的那一篇。
@@ -37,5 +37,5 @@ export function applyChapterBody(path: string, body: string, syncing: { current:
 
   writeModelSilently(model, after, syncing)
 
-  useEditorStore.getState().setDocument(path, after)
+  useDocumentsStore.getState().setDocument(path, after)
 }
