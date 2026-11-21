@@ -111,7 +111,7 @@ flowchart TD
   pkg_packages_client_ui_plugins -.-> pkg_packages_contracts
   pkg_packages_client_ui_renderer --> pkg_packages_client_kit
   pkg_packages_client_ui_renderer -.-> pkg_packages_client_modules
-  pkg_packages_client_ui_renderer -.-> pkg_packages_client_ui_slots
+  pkg_packages_client_ui_renderer --> pkg_packages_client_ui_slots
   pkg_packages_client_ui_renderer --> pkg_packages_contracts
   pkg_packages_client_ui_renderer --> pkg_packages_sdk
   pkg_packages_client_ui_settings --> pkg_packages_client_kit

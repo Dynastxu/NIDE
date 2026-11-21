@@ -1,6 +1,6 @@
 # 客户端 slot 模型升级（对齐 DSH）
 
-> 状态：设计稿，尚未实现。
+> 状态：Step 1 已实现（2026-11-21）；Step 2–4 待做。
 > 目标：把 `client-ui-slots` 从「只有 single 的组件表」升级到 DSH 的
 > `single / keyed / list` 三种槽 + 声明 + 订阅，为 explorer / editor 拆包提供前置。
 > 参考：DSH 的 `packages/client/ui-layout/src/client/index.ts`（声明子槽、`main` 为
@@ -80,8 +80,9 @@ export class SlotRegistry {
    * 声明一个槽的种类。父包（窗口）在 apply 里调用一次。
    * 未声明的槽默认 `single` —— 现有调用点零改动。
    * 同一声明重复调用：kind 相同幂等，不同则抛错（装配错误要在启动期暴露）。
+   * 声明随这个 SlotRegistry（这扇窗的客户端树）一起销毁，不单独撤销。
    */
-  declare(name: string, kind: SlotKind): () => void
+  declare(name: string, kind: SlotKind): void
 
   /** 旧签名：等价于 register({ name }, component)，single 语义 */
   register(name: string, component: SlotComponent): () => void
@@ -119,8 +120,9 @@ export class SlotRegistry {
 
 - **single**：`get` 取第一个；重复注册按现有行为（先注册者生效），注销时移除自己。
 - **keyed**：同一 `key` 后注册覆盖；不同 key 并存；`register` 时没有 `key` 直接抛错。
+  被覆盖的旧 occupant 的注销函数是**无操作**，不能把新 occupant 删掉。
 - **list**：全部保留；按 `order` 升序，`order` 相同按注册顺序；`register` 时带 `key` 抛错。
-- **order**：只对 keyed / list 有意义；single 忽略。
+- **order**：只对 keyed / list 有意义；single 忽略 key / order（旧签名零改动）。
 - **快照**：每个槽维护一个版本号；`entries/snapshot` 在版本未变时返回**同一个数组引用**，
   避免 React 在 `useSyncExternalStore` 里无限重渲染。
 - **订阅**：注册 / 注销 / 覆盖 key 都触发一次对应槽的 listener；listener 抛错不影响其他
@@ -217,12 +219,12 @@ key 时渲染 `fallback`，避免「切到不存在的面板」时整块空白�
 
 ## 8. 验收清单
 
-- [ ] `SlotRegistry` 支持 `single / keyed / list`，旧签名零改动可用；
-- [ ] `Slot` 按声明渲染，keyed 支持 `activeKey`，list 按 order；
-- [ ] `subscribe` + 稳定快照通过测试；
-- [ ] `main.editor` / `shell.overlay` 用 fallback 接入后行为不变；
-- [ ] `pnpm check` 全绿（含新增单测）；
-- [ ] `docs/architecture/plugin-first-layout.md` 与 `packages/AGENTS.md` 补一句槽模型链接。
+- [x] `SlotRegistry` 支持 `single / keyed / list`，旧签名零改动可用；
+- [x] `Slot` 按声明渲染，keyed 支持 `activeKey`，list 按 order；
+- [x] `subscribe` + 稳定快照通过测试；
+- [ ] `main.editor` / `shell.overlay` 用 fallback 接入后行为不变（Step 2）；
+- [x] `pnpm check` 全绿（含新增单测）；
+- [x] `docs/architecture/plugin-first-layout.md` 与 `packages/AGENTS.md` 补一句槽模型链接。
 
 ## 9. 与 DSH 的对应关系
 
@@ -233,3 +235,17 @@ key 时渲染 `fallback`，避免「切到不存在的面板」时整块空白�
 | `ctx.slots.entries('main')` / `subscribe('main')` | `entries` / `snapshot` / `subscribe`        | 语义对齐                                               |
 | `main` 为 keyed、`shell.overlay` 为 list          | 同                                          | 先以 `main.editor` single 落地，keyed 留给未来多主面板 |
 | 功能包 `inject` 服务、store 在包内                | 同（后续 explorer/editor 方案）             | 服务层不在本方案内                                     |
+
+## 10. Step 1 落点
+
+- [`packages/client-ui-slots/src/index.ts`](../../packages/client-ui-slots/src/index.ts)：
+  `declare` / 重载 `register` / `getKeyed` / `list` / `entries` / `snapshot` /
+  `subscribe` / `resolveSlot`；未声明槽默认 single。
+- [`packages/client-ui-renderer/src/index.tsx`](../../packages/client-ui-renderer/src/index.tsx)：
+  `Slot` 用 `useSyncExternalStore` 订阅，支持 `activeKey`，single / keyed / list 共用
+  一个入口，不产生包装 DOM。
+- [`test/renderer/client-slots.test.ts`](../../test/renderer/client-slots.test.ts)：
+  三种语义、非法注册、快照稳定性、订阅、`resolveSlot`。
+- `SlotComponent` 的 props 类型从 `Record<string, never>` 改成
+  `Record<never, never>`：list 渲染时 `createElement` 需要带 React `key`，原来的
+  索引签名会把 `key` 推成 `never`。组件仍然不能接收业务 props。
