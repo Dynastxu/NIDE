@@ -19,6 +19,7 @@ import type { PluginPermissionGuard } from '../../plugin-permissions/src/permiss
 import type { PluginStorage } from '../../plugin-storage/src/storage.ts'
 import type { PluginCapabilities } from '../../plugin-capabilities/src/capabilities.ts'
 import type { PluginBackendRuntime } from '../../plugin-backend/src/runtime.ts'
+import type { BuiltinViewRegistry } from '../../contracts/src/plugin-api/view.ts'
 
 declare module 'cordis' {
   interface Context {
@@ -36,6 +37,8 @@ declare module 'cordis' {
     i18n: I18nService
     /** 插件清单 / 启停 / 贡献点 */
     plugins: PluginManager
+    /** 内建视图登记表：业务包按域注册自己的视图 */
+    builtinViews: BuiltinViewRegistry
     /** 插件权限准入（RpcAuthorizer 的实现） */
     'plugin-permissions': PluginPermissionGuard
     /** 每插件命名空间的键值存储 */

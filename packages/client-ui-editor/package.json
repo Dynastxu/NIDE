@@ -1,0 +1,18 @@
+{
+  "name": "@nide/client-ui-editor",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "//": "编辑器功能包：中间编辑区、diff 浮层、保存命令；按 slot / command 注册到主窗口。",
+  "nide": {
+    "client": {
+      "windowTypes": [
+        "main"
+      ],
+      "order": 26
+    },
+    "layer": "client-feature"
+  }
+}

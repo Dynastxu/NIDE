@@ -7,7 +7,7 @@ import {
   type EntryActionHandlers,
   type EntryActionTarget,
   type EntryMenuContext
-} from '@nide/client-ui-main/shared/entry-menu'
+} from '@nide/client-ui-explorer/shared/entry-menu'
 import type {
   ContextMenuEntry,
   ContextMenuItem,

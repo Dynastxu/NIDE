@@ -5,13 +5,13 @@
 [plugin-backend.md](../../docs/architecture/plugin-backend.md)、
 [plugin-lifecycle.md](../../docs/architecture/plugin-lifecycle.md)。
 
-| 包                    | `ctx` 键              | 职责                                                                                   |
-| --------------------- | --------------------- | -------------------------------------------------------------------------------------- |
-| `plugin-runtime`      | `plugins`             | 清单解析（`toEntry`）、扫描 / 注册、启停偏好、贡献点、安装事务、内建视图表、profile 行 |
-| `plugin-permissions`  | `plugin-permissions`  | 声明展开 + RPC 准入（`RpcAuthorizer` 实现）、作用域变量                                |
-| `plugin-storage`      | `plugin-storage`      | 每插件 JSON 存储（`<userData>/plugin-storage/<id>.json`），100ms 合并写盘              |
-| `plugin-capabilities` | `plugin-capabilities` | `ctx.host` 桌面能力的权限检查（`os.*`）→ kernel 反向桥                                 |
-| `plugin-backend`      | `plugin-backend`      | fork worker、沙箱 flags、起停 / 重扫、`dispatchHostCall`、卸载脚本                     |
+| 包                    | `ctx` 键              | 职责                                                                                       |
+| --------------------- | --------------------- | ------------------------------------------------------------------------------------------ |
+| `plugin-runtime`      | `plugins`             | 清单解析（`toEntry`）、扫描 / 注册、启停偏好、贡献点、安装事务、内建视图注册表、profile 行 |
+| `plugin-permissions`  | `plugin-permissions`  | 声明展开 + RPC 准入（`RpcAuthorizer` 实现）、作用域变量                                    |
+| `plugin-storage`      | `plugin-storage`      | 每插件 JSON 存储（`<userData>/plugin-storage/<id>.json`），100ms 合并写盘                  |
+| `plugin-capabilities` | `plugin-capabilities` | `ctx.host` 桌面能力的权限检查（`os.*`）→ kernel 反向桥                                     |
+| `plugin-backend`      | `plugin-backend`      | fork worker、沙箱 flags、起停 / 重扫、`dispatchHostCall`、卸载脚本                         |
 
 **装配**：五个包各是普通 Cordis 服务，由 `packages/bundle/base/cordis.patch.yml`
 各挂一行。它们之间**不互相 import 实现**，也**不互相注入**：
@@ -23,13 +23,13 @@ PENDING，与 i18n 同一套处理）。类型用 `import type` 跨包引用，`
 
 ### plugin-runtime（清单与生命周期）
 
-| 文件                      | 职责                                                                     |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `plugins.ts`              | `PluginManager`：清单解析、扫描 / 注册、启停偏好、贡献点、安装事务、卸载 |
-| `plugin-contributions.ts` | manifest 贡献点收敛（视图 / 设置页 / 语言包 / chrome）                   |
-| `builtin-views.ts`        | 三条内建视图（文件树 / 版本控制 / 提交）+ 宿主词条 key                   |
-| `profile-rows.ts`         | 安装行：往 profile 的 `cordis.patch.yml` upsert / remove `plugin:<id>`   |
-| `index.ts`                | 服务装配 + `plugins.*` / `plugin.call` RPC                               |
+| 文件                      | 职责                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `plugins.ts`              | `PluginManager`：清单解析、扫描 / 注册、启停偏好、贡献点、安装事务、卸载                |
+| `plugin-contributions.ts` | manifest 贡献点收敛（视图 / 设置页 / 语言包 / chrome）                                  |
+| `builtin-views.ts`        | 内建视图注册表（`ctx.builtinViews`）+ 文件树登记；版本控制 / 提交由 `packages/git` 注册 |
+| `profile-rows.ts`         | 安装行：往 profile 的 `cordis.patch.yml` upsert / remove `plugin:<id>`                  |
+| `index.ts`                | 服务装配 + `plugins.*` / `plugin.call` RPC                                              |
 
 ### plugin-backend（子进程）
 

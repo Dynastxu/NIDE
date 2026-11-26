@@ -20,7 +20,11 @@
     - id: plugins
       name: '{{NIDE_ROOT}}/packages/plugin-runtime/src/index.ts'
       core: true
-      description: 插件清单 / 启停 / 贡献点（视图、设置页、语言包）/ 内建视图表
+      description: 插件清单 / 启停 / 贡献点（视图、设置页、语言包）/ 内建视图注册表
+    - id: git
+      name: '{{NIDE_ROOT}}/packages/git/src/index.ts'
+      core: true
+      description: 版本控制：登记版本控制 / 提交两条内建视图；git 操作尚未实现
     - id: plugin-permissions
       name: '{{NIDE_ROOT}}/packages/plugin-permissions/src/index.ts'
       core: true

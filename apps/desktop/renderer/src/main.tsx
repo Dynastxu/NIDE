@@ -87,7 +87,7 @@ async function boot(): Promise<void> {
    * 先按默认浅色画一帧再跳。
    */
   if (windowType === 'main') {
-    const { initMonacoTheme } = await import('@nide/client-ui-main/editor/monaco-theme')
+    const { initMonacoTheme } = await import('@nide/client-ui-editor/monaco-theme')
     initMonacoTheme()
   }
 

@@ -77,7 +77,7 @@ export const CORE_PACKAGES: readonly Omit<CorePackage, 'kind'>[] = [
     id: 'client-kit',
     name: '@nide/client-kit',
     path: 'packages/client-kit',
-    description: '客户端平台层：stores / ui 基础组件 / 窗口外壳 / logger / monaco'
+    description: '客户端平台层：stores / ui 基础组件 / 窗口外壳 / logger / monaco / 文档状态'
   },
   {
     id: 'sdk',
@@ -107,7 +107,26 @@ export const CORE_PACKAGES: readonly Omit<CorePackage, 'kind'>[] = [
     id: 'ui-main',
     name: '@nide/client-ui-main',
     path: 'packages/client-ui-main',
-    description: '主窗口：布局 / 编辑器 / 文件树 / 内建视图 / 文件菜单 / 六个工具区的 slot'
+    description: '主窗口：布局 / 文件菜单 / 六个工具区与 main.editor / shell.overlay 的 slot'
+  },
+  {
+    id: 'ui-editor',
+    name: '@nide/client-ui-editor',
+    path: 'packages/client-ui-editor',
+    description: '编辑器功能包：中间编辑区 / diff 浮层 / editor.save 命令'
+  },
+  {
+    id: 'ui-explorer',
+    name: '@nide/client-ui-explorer',
+    path: 'packages/client-ui-explorer',
+    description:
+      '文件树功能包：文件树 / 项目面板 / 条目动作，注册 view.host.explorer 与 shell.overlay'
+  },
+  {
+    id: 'ui-git',
+    name: '@nide/client-ui-git',
+    path: 'packages/client-ui-git',
+    description: '版本控制功能包：版本控制 / 提交视图的组件（注册到主窗口的 slot）'
   },
   {
     id: 'ui-welcome',

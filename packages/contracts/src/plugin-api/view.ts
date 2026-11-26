@@ -45,6 +45,54 @@ export function isReservedHostId(id: string): boolean {
   return id === HOST_VIEW_PLUGIN_ID || id.startsWith(HOST_NAMESPACE_PREFIX)
 }
 
+/**
+ * 内建视图在当前窗口里的 slot 名。
+ *
+ * 窗口包只负责分区与窗口根；具体视图的组件由功能包注册到这些 slot 上
+ * （`ctx.slots.register(hostViewSlotName(id), Component)`），窗口按视图 id 渲染。
+ * 两端用同一个纯函数拼名字，避免「窗口拼 `view.host.git`、功能包拼 `host.git.view`」
+ * 这类只能靠手动跑应用发现的错位。
+ */
+export function hostViewSlotName(viewId: string): string {
+  return `view.${viewId}`
+}
+
+/**
+ * 内建视图的登记项（host 侧）。
+ *
+ * 和插件视图的描述符不同，这里只有**静态数据**：标题是宿主词条表的 key，
+ * 组件在客户端由功能包按 `id` 注册。`location` 与 `icon` 决定按钮条 / 工具区的位置，
+ * 写错不会 typecheck 失败，只会让视图去错区或画不出图标 —— 所以测试锁住它们。
+ */
+export interface BuiltinViewSpec {
+  id: string
+  /** 宿主词条表的 key（`host.*`）；注册方用 `HostMessageKey` 约束拼写 */
+  titleKey: string
+  location: ViewLocation
+  icon: string
+  /**
+   * 视图表里的顺序（升序）。不写按 0。
+   *
+   * 注册顺序不再可靠：业务包各自 `inject: ['builtinViews']`，谁先 apply 由 Cordis
+   * 的依赖图决定。区里第一个视图是默认展示项，所以这个顺序必须显式声明。
+   */
+  order?: number
+}
+
+/**
+ * 内建视图注册表。
+ *
+ * 由 plugin-runtime 作为 `ctx.builtinViews` 提供，业务包在 `apply` 里注册自己负责的
+ * 视图（例如 git 包注册版本控制 / 提交）。这样视图表不再是一张写死在插件服务里的
+ * 静态清单，功能包搬走时视图跟着搬走。
+ */
+export interface BuiltinViewRegistry {
+  /** 注册一条内建视图；返回注销函数（可直接交给 `ctx.effect`） */
+  register(spec: BuiltinViewSpec): () => void
+  /** 当前登记的全部内建视图（注册顺序） */
+  list(): readonly BuiltinViewSpec[]
+}
+
 /** 文件树视图的 id。渲染进程按它选组件，主进程按它注册 */
 export const HOST_EXPLORER_VIEW_ID = 'host.explorer'
 

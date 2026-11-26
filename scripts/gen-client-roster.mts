@@ -1,12 +1,13 @@
 /**
- * 生成客户端窗口 roster（`packages/client-runtime/src/roster.generated.ts`）。
+ * 生成客户端 roster（`packages/client-runtime/src/roster.generated.ts`）。
  *
- * 装配点从运行时代码挪到**包元数据**：每个界面包在 package.json 里声明
+ * 装配点从运行时代码挪到**包元数据**：每个客户端包在 package.json 里声明
  *
  *   "nide": { "client": { "windowTypes": ["main"], "order": 20 } }
  *
- * 并导出 `clientPlugins`。加一个窗口 = 新增一个包 + 跑一次本脚本，运行时不认识
- * 任何具体窗口（与 DSH 的 `dsh.client` 花名册同一思路）。
+ * 并导出 `clientPlugins`。窗口包注册 `<window>.root`；功能包只注册自己负责的
+ * slot（例如 `client-ui-git` 注册两个内建视图）。加一个客户端包 = 新增一个包 +
+ * 跑一次本脚本，运行时不认识任何具体窗口或功能。
  *
  * 生成物要**提交**：它带静态 `import()`，Vite 才能做代码分割；运行时读
  * package.json 会绕开打包器的静态分析。
@@ -62,7 +63,7 @@ const file = `/**
  * 由 \`scripts/gen-client-roster.mts\` 生成，不要手改。
  *
  * 元数据在各自的 package.json（\`nide.client.windowTypes\` / \`order\`），
- * 生成物只把「哪个包属于哪个窗口」变成静态 import，交给 Vite 分割。
+ * 生成物只把「哪个包挂到哪个窗口」变成静态 import，交给 Vite 分割。
  */
 import type { ClientWindowType } from './window-type'
 

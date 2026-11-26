@@ -3,7 +3,7 @@
 
 # 包依赖图（生成物）
 
-每个包属于哪一层由它的 `package.json` 声明（`"nide": { "layer": ... }`）；边是**真实 import 扫描**的结果（与 `pnpm lint:imports` 同一份解析）。共 34 个节点 / 98 条包级依赖 / 432 条跨包 import。
+每个包属于哪一层由它的 `package.json` 声明（`"nide": { "layer": ... }`）；边是**真实 import 扫描**的结果（与 `pnpm lint:imports` 同一份解析）。共 38 个节点 / 117 条包级依赖 / 476 条跨包 import。
 
 实线 = 运行时 import；虚线 = 只有 `import type`（不产生运行时代码）。
 
@@ -23,6 +23,7 @@ flowchart TD
     pkg_packages_appearance["appearance"]
     pkg_packages_config["config"]
     pkg_packages_content["content"]
+    pkg_packages_git["git"]
     pkg_packages_i18n["i18n"]
     pkg_packages_plugin_backend["plugin-backend"]
     pkg_packages_plugin_capabilities["plugin-capabilities"]
@@ -51,6 +52,9 @@ flowchart TD
     pkg_packages_client_ui_slots["client-ui-slots"]
   end
   subgraph layer_client_feature["client-feature"]
+    pkg_packages_client_ui_editor["client-ui-editor"]
+    pkg_packages_client_ui_explorer["client-ui-explorer"]
+    pkg_packages_client_ui_git["client-ui-git"]
     pkg_packages_client_ui_plugins["client-ui-plugins"]
   end
   subgraph layer_client_window["client-window"]
@@ -77,7 +81,7 @@ flowchart TD
   end
   pkg_apps_desktop_renderer --> pkg_packages_client_kit
   pkg_apps_desktop_renderer --> pkg_packages_client_runtime
-  pkg_apps_desktop_renderer --> pkg_packages_client_ui_main
+  pkg_apps_desktop_renderer --> pkg_packages_client_ui_editor
   pkg_apps_desktop_renderer --> pkg_packages_client_ui_renderer
   pkg_apps_desktop_renderer --> pkg_packages_contracts
   pkg_apps_desktop_renderer --> pkg_packages_domain
@@ -90,21 +94,37 @@ flowchart TD
   pkg_packages_client_kit --> pkg_packages_domain
   pkg_packages_client_modules --> pkg_packages_contracts
   pkg_packages_client_runtime --> pkg_packages_client_modules
+  pkg_packages_client_runtime --> pkg_packages_client_ui_editor
+  pkg_packages_client_runtime --> pkg_packages_client_ui_explorer
+  pkg_packages_client_runtime --> pkg_packages_client_ui_git
   pkg_packages_client_runtime --> pkg_packages_client_ui_main
   pkg_packages_client_runtime --> pkg_packages_client_ui_settings
   pkg_packages_client_runtime --> pkg_packages_client_ui_slots
   pkg_packages_client_runtime --> pkg_packages_client_ui_welcome
+  pkg_packages_client_ui_editor --> pkg_packages_client_kit
+  pkg_packages_client_ui_editor --> pkg_packages_client_ui_renderer
+  pkg_packages_client_ui_editor --> pkg_packages_client_ui_slots
+  pkg_packages_client_ui_editor -.-> pkg_packages_contracts
+  pkg_packages_client_ui_editor --> pkg_packages_domain
+  pkg_packages_client_ui_explorer --> pkg_packages_client_kit
+  pkg_packages_client_ui_explorer --> pkg_packages_client_ui_renderer
+  pkg_packages_client_ui_explorer --> pkg_packages_client_ui_slots
+  pkg_packages_client_ui_explorer --> pkg_packages_contracts
+  pkg_packages_client_ui_explorer --> pkg_packages_domain
+  pkg_packages_client_ui_git --> pkg_packages_client_kit
+  pkg_packages_client_ui_git --> pkg_packages_client_ui_renderer
+  pkg_packages_client_ui_git --> pkg_packages_client_ui_slots
+  pkg_packages_client_ui_git --> pkg_packages_contracts
   pkg_packages_client_ui_main --> pkg_packages_client_kit
   pkg_packages_client_ui_main --> pkg_packages_client_modules
   pkg_packages_client_ui_main --> pkg_packages_client_ui_renderer
   pkg_packages_client_ui_main --> pkg_packages_client_ui_slots
   pkg_packages_client_ui_main --> pkg_packages_contracts
-  pkg_packages_client_ui_main --> pkg_packages_domain
   pkg_packages_client_ui_plugins --> pkg_packages_client_kit
   pkg_packages_client_ui_plugins -.-> pkg_packages_contracts
   pkg_packages_client_ui_renderer --> pkg_packages_client_kit
   pkg_packages_client_ui_renderer -.-> pkg_packages_client_modules
-  pkg_packages_client_ui_renderer -.-> pkg_packages_client_ui_slots
+  pkg_packages_client_ui_renderer --> pkg_packages_client_ui_slots
   pkg_packages_client_ui_renderer --> pkg_packages_contracts
   pkg_packages_client_ui_renderer --> pkg_packages_sdk
   pkg_packages_client_ui_settings --> pkg_packages_client_kit
@@ -119,8 +139,11 @@ flowchart TD
   pkg_packages_client_ui_welcome --> pkg_packages_domain
   pkg_packages_config --> pkg_packages_domain
   pkg_packages_config -.-> pkg_packages_kernel
+  pkg_packages_content --> pkg_packages_contracts
   pkg_packages_content --> pkg_packages_domain
   pkg_packages_content -.-> pkg_packages_kernel
+  pkg_packages_git --> pkg_packages_contracts
+  pkg_packages_git -.-> pkg_packages_kernel
   pkg_packages_host -.-> pkg_packages_ai
   pkg_packages_host -.-> pkg_packages_appearance
   pkg_packages_host --> pkg_packages_boot
@@ -182,13 +205,13 @@ flowchart TD
 | `domain` | `domain` | （无） |
 | `contract` | `contracts` | （无） |
 | `kernel` | `kernel` | `domain`, `contract` |
-| `service` | `ai` `appearance` `config` `content` `i18n` `plugin-backend` `plugin-capabilities` `plugin-permissions` `plugin-runtime` `plugin-storage` `project` `secrets` | `domain`, `contract`, `kernel` |
+| `service` | `ai` `appearance` `config` `content` `git` `i18n` `plugin-backend` `plugin-capabilities` `plugin-permissions` `plugin-runtime` `plugin-storage` `project` `secrets` | `domain`, `contract`, `kernel` |
 | `bootstrap` | `boot` `host` | `domain`, `contract`, `kernel`, `service`, `bootstrap`, `smoke` |
 | `shell` | `shell` | `domain`, `contract` |
 | `client-platform` | `client-kit` | `domain`, `contract` |
 | `client-sdk` | `sdk` | `domain`, `contract`, `client-platform` |
 | `client-seam` | `client-modules` `client-ui-renderer` `client-ui-slots` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |
-| `client-feature` | `client-ui-plugins` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |
+| `client-feature` | `client-ui-editor` `client-ui-explorer` `client-ui-git` `client-ui-plugins` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |
 | `client-window` | `client-ui-main` `client-ui-settings` `client-ui-welcome` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature` |
 | `client-runtime` | `client-runtime` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam`, `client-feature`, `client-window` |
 | `plugin` | `plugins/ai-provider` `plugins/demo` `plugins/lang-en` | `domain`, `contract`, `client-platform`, `client-sdk`, `client-seam` |

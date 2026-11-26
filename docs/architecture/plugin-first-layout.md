@@ -28,13 +28,13 @@ packages/
   contracts/             # 跨进程契约：类型 + 纯函数 + 词条基础表（无 Electron / DOM / IO）
   kernel/                # Cordis 树 + RPC 注册表 + transport + ctx.shell 反桥
   shell/                 # Electron 外壳：main（窗口/菜单/对话框/日志/协议）+ preload
-  project/ content/ config/ plugin-runtime/ i18n/ appearance/ secrets/ ai/  # host 业务，一包一个
+  project/ content/ config/ plugin-runtime/ i18n/ appearance/ secrets/ ai/ git/  # host 业务，一包一个
   bundle/base/           # 组合包：宿主服务的 patch 行
   plugins/<name>/        # NIDE 插件（manifest + 贡献点；只能依赖 sdk）
   client-runtime/        # 客户端 Cordis 树 + slot + bundle loader + 生成的花名册
   client-kit/            # 客户端平台层：stores / ui 基础组件 / 窗口外壳 / logger / monaco
   sdk/                   # 插件开发者 API：视图渲染管线（PluginSlot / host-context）
-  client-ui-*/           # 三个窗口的界面（各自声明 nide.client.windowTypes）
+  client-ui-*/           # 客户端窗口（窗口根）与功能包（只注册子 slot）；各自声明 nide.client
   boot/ hello/ host/     # host 运行时（host 只剩装配）
 # profile 不落在仓库：首次启动由 packages/boot 生成到 NIDE_HOME/profiles/<name>
 apps/desktop/renderer/   # 渲染进程引导壳（main.tsx + assets）
@@ -45,7 +45,9 @@ apps/desktop/renderer/   # 渲染进程引导壳（main.tsx + assets）
 1. **装配点是分层的**：`nide.profile.bundles` → `cordis.yml` → `cordis.patch.yml`，
    后写的按 id 覆盖；关掉 / 替换任意能力只改最后一层；
 2. **每个包导出 `apply(ctx)`**：host 侧用 `ctx.rpc.register(...)` 与 `ctx.provide(...)`，
-   客户端用 `ctx.slots`，没有中央装配；
+   客户端用 `ctx.slots`，没有中央装配；窗口包只注册窗口根与分区，具体视图由功能包
+   注册到 `view.<id>` 这类 slot 上（见 [packages/AGENTS.md](../../packages/AGENTS.md)，
+   槽的种类与声明见 [client-slots.md](client-slots.md)）；
 3. **客户端窗口种类来自包元数据**，由生成脚本变成静态 import，运行时不认识具体窗口；
 4. **依赖方向单向**：`apps → kernel → shell/services/ui → sdk → contracts`，
    反向依赖一律视为设计错误（`contracts` 不得 import 任何包）。
@@ -128,7 +130,7 @@ packages/
   project/     project.*       projects.json 的唯一实现
   content/     files.* gallery.* overview.*（同一批读写实现）
   config/      config.*        + 作为「项目配置纯函数库」被 content 复用
-  plugins/     plugins.*       清单 / 贡献点 / 内建视图表
+  plugins/     plugins.*       清单 / 贡献点 / 内建视图注册表
   i18n/        i18n.*          I18nService：refresh() + HostI18n
   appearance/  appearance.*
   secrets/     （无 RPC）      基础设施：由 ai 服务 require
