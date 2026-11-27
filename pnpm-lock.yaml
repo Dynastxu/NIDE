@@ -239,15 +239,6 @@ importers:
       prettier:
         specifier: ^3.7.4
         version: 3.10.1
-      react:
-        specifier: ^19.2.1
-        version: 19.3.1
-      react-dom:
-        specifier: ^19.2.1
-        version: 19.3.1(react@19.3.1)
-      tailwindcss:
-        specifier: ^4.3.3
-        version: 4.3.5
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -260,6 +251,37 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.1.0(@types/node@24.19.2)(vite@7.3.8(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+
+  apps/desktop:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../../packages/client-kit
+      '@nide/client-runtime':
+        specifier: workspace:*
+        version: link:../../packages/client-runtime
+      '@nide/client-ui-editor':
+        specifier: workspace:*
+        version: link:../../packages/client-ui-editor
+      '@nide/client-ui-renderer':
+        specifier: workspace:*
+        version: link:../../packages/client-ui-renderer
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@nide/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.1
+        version: 19.3.1(react@19.3.1)
+    devDependencies:
+      tailwindcss:
+        specifier: ^4.3.3
+        version: 4.3.5
 
   packages/ai:
     dependencies:

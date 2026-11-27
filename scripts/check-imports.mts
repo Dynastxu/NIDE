@@ -297,8 +297,28 @@ async function readPackageNames(): Promise<{
       // 没有 package.json 的目录不是包（例如 bundle 之外的临时目录），跳过
     }
   }
-  // 渲染进程引导壳不是 workspace 包（apps/ 下没有 package.json），按装配层算
-  layers.set('apps/desktop/renderer', 'app')
+  // 渲染进程引导壳：apps/desktop 是 workspace 包，但它的源码根是 apps/desktop/renderer
+  const appKey = 'apps/desktop/renderer'
+  layers.set(appKey, 'app')
+  try {
+    const pkg = JSON.parse(
+      await readFile(path.join(ROOT, 'apps/desktop/package.json'), 'utf8')
+    ) as {
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+      peerDependencies?: Record<string, string>
+    }
+    declared.set(
+      appKey,
+      new Set([
+        ...Object.keys(pkg.dependencies ?? {}),
+        ...Object.keys(pkg.devDependencies ?? {}),
+        ...Object.keys(pkg.peerDependencies ?? {})
+      ])
+    )
+  } catch {
+    // 没有 apps/desktop/package.json 时按无声明处理（旧检出 / 局部测试）
+  }
   return { names, packageNameByKey, layers, declared }
 }
 
@@ -433,10 +453,11 @@ async function main(): Promise<void> {
       )
     }
 
-    if (!edge.from.startsWith('packages/')) continue
     const targetName = packageNameByKey.get(edge.to)
     if (!targetName) continue
-    if (!declared.get(edge.from)?.has(targetName)) {
+    const declaredDeps = declared.get(edge.from)
+    if (!declaredDeps) continue
+    if (!declaredDeps.has(targetName)) {
       errors.push(
         `${edge.file}:${edge.line} ${edge.from} 没有声明依赖 ${targetName}（在它的 package.json 里加 "dependencies"）`
       )

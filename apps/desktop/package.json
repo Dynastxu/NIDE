@@ -1,0 +1,22 @@
+{
+  "name": "@nide/desktop",
+  "private": true,
+  "type": "module",
+  "description": "NIDE 桌面应用的渲染进程壳：main / preload 在 @nide/shell，构建与打包脚本在根。",
+  "nide": {
+    "layer": "app"
+  },
+  "dependencies": {
+    "@nide/client-kit": "workspace:*",
+    "@nide/client-runtime": "workspace:*",
+    "@nide/client-ui-editor": "workspace:*",
+    "@nide/client-ui-renderer": "workspace:*",
+    "@nide/contracts": "workspace:*",
+    "@nide/domain": "workspace:*",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.3.3"
+  }
+}

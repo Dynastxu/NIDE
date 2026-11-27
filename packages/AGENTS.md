@@ -34,6 +34,8 @@ packages/
                     客户端窗口：一个包 = 一扇窗的外壳与领域状态（分区 + 窗口根 + 自己的 slot）
   client-runtime/   客户端树：按 windowType 挂载窗口包 + 生成的花名册（**只做装配**）
   hello/            最小 Cordis 插件（冒烟用）
+
+apps/desktop/       渲染进程引导壳（workspace 包；main / preload 在 packages/shell）
 ```
 
 切法对齐 DSH：**包按能力 / 角色切，共享面只有「库」**。窗口与功能包是装配出来的
@@ -73,7 +75,7 @@ DOM / fs。
 | plugin          | contract, client-platform, client-sdk, client-seam                 | manifest + 贡献点                                             |
 | bundle          | 无                                                                 | 组合包：只有 manifest 与 patch，没有代码                      |
 | smoke           | 无                                                                 | 冒烟                                                          |
-| app             | 上面所有客户端层                                                   | 渲染进程引导壳（不是 workspace 包）                           |
+| app             | 上面所有客户端层                                                   | 渲染进程引导壳（`apps/desktop`，workspace 包，不发布）        |
 
 四条硬规则：
 

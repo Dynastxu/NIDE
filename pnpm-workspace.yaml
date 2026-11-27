@@ -3,6 +3,8 @@ packages:
   - 'packages/*'
   - 'packages/plugins/*'
   - 'packages/bundle/*'
+  # 桌面应用的渲染进程壳（依赖属于它自己，不写回根）
+  - 'apps/*'
 
 allowBuilds:
   electron-winstaller: true

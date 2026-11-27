@@ -116,6 +116,7 @@ Client（renderer，HTTP 页面里的第二棵 Cordis 树）
 目录（**目标形态与迁移顺序见 [plugin-first-layout.md](plugin-first-layout.md)**）：
 
 ```
+apps/desktop/                   # @nide/desktop：渲染进程壳（workspace 包，依赖自持）
 apps/desktop/renderer/          # 引导壳（main.tsx + Tailwind 入口）
 packages/shell/                 # Electron 外壳：窗口 / 菜单 / 对话框 / 日志 / 协议 / preload
 packages/
