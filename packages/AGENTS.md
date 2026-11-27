@@ -136,14 +136,17 @@ explorer / editor 共用的文档状态在 `client-kit/stores/documents.store`�
   包内文件之间仍然用相对路径。
 - **host 侧（boot / host / kernel / 业务包 / plugin-runtime）**：纯 Node ESM，包名后带
   `.ts` 子路径（`@nide/kernel/context.ts`）。`pnpm build:host` 发射时会把包名改写成
-  相对 `.js`（`out/host` 没有 node_modules，见 `scripts/build-host.mts`）。
+  相对 `.js`，并把第三方依赖闭包复制到 `out/host/node_modules`（见
+  `scripts/build-host.mts`）。
 - **客户端（`client-*` / `sdk` / `test/renderer`）**：包名后不带扩展名
   （`@nide/client-kit/stores/documents.store`），由 Vite 别名解析。`tsconfig.web`、
   `electron.vite.config.ts`、`vitest.config.ts`、`scripts/build-plugin-client.mjs`
   四处必须保持一致；新增客户端包时四处一起改。
 - **每个包的 `exports` 暴露源码**：`"./*": "./src/*"`；有根入口时再加 `"."`。
-  **依赖写在自己的 `package.json`**（workspace 包用 `workspace:*`），根
-  `@nide/nide-root` 只保留打包版 host / main / preload 的运行时依赖与工具链。
+  **依赖写在自己的 `package.json`**（workspace 包用 `workspace:*`）。根
+  `@nide/nide-root` 不声明 `dependencies`，只保留工具链 `devDependencies`：
+  `pnpm build:host` 把 host 的运行时依赖闭包复制到 `out/host/node_modules`，
+  main / preload 由 electron-vite 打进 bundle。
   `pnpm lint:imports` 会拦「跨包相对导入」和「没声明依赖」。
 
 ## 服务与插件

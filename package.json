@@ -50,17 +50,8 @@
     "host:dist:smoke": "node out/host/packages/host/src/index.js --profile desktop --home .nide-dist --app-root . --dist-root out/host --reset --once",
     "build:dist": "pnpm run build && pnpm run build:host"
   },
-  "//dependencies": "只保留打包版 host / main / preload 运行时真正要 require 的依赖（electron-builder 从根 package.json 收集生产依赖）。各包自己的依赖写在各包 package.json 里；这里不重复客户端库，它们会被 Vite 打进 bundle。",
-  "dependencies": {
-    "@cordisjs/plugin-include": "1.2.0",
-    "@cordisjs/plugin-loader": "1.0.0-rc.9",
-    "@electron-toolkit/preload": "^3.0.2",
-    "@electron-toolkit/utils": "^4.0.0",
-    "cordis": "4.0.0-rc.12",
-    "electron-log": "^5.4.4",
-    "js-yaml": "4.3.2"
-  },
   "devDependencies": {
+    "@cordisjs/plugin-loader": "1.0.0-rc.9",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
@@ -71,11 +62,14 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "cordis": "4.0.0-rc.12",
     "electron": "^45.0.0",
     "electron-builder": "^26.15.3",
+    "electron-log": "^5.4.4",
     "electron-vite": "^5.0.0",
     "eslint": "^10.13.0",
     "eslint-plugin-react-refresh": "^0.5.7",
+    "js-yaml": "4.3.2",
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

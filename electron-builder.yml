@@ -21,6 +21,9 @@ asarUnpack:
 files:
   # 渲染进程 / 主进程 / 预加载的构建产物 + 编译后的 host（out/host）
   - out/**
+  # host 的第三方依赖闭包（build:host 复制进去）；根 package.json 没有 dependencies，
+  # electron-builder 不会自动收集 node_modules，所以这里必须显式带上
+  - out/host/node_modules/**
   # 内建插件：普通包，带 manifest 与 dist/client.js
   - packages/plugins/**
   - package.json

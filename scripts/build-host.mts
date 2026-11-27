@@ -19,6 +19,7 @@
  *   out/host/package.json                   ← {"type":"module"}
  */
 import fs from 'node:fs'
+import { builtinModules, createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
 import ts from 'typescript'
@@ -394,5 +395,139 @@ if (fs.existsSync(pluginsSource)) {
     }
   }
 }
+
+/**
+ * 把 host 产物里的第三方 import 闭包复制到 `out/host/node_modules`。
+ *
+ * 根 package.json 不声明 dependencies（workspace 根只做装配）；electron-builder
+ * 因此不会从根收集任何 node_modules。host 是编译目录而不是单文件 bundle，所以
+ * 这里按 emitted JS 里的裸导入解析真实包目录，连同 dependencies / optional /
+ * 非可选 peer 一起复制 —— `out/host` 自己就是运行时根，`node out/host/...` 与
+ * 打包后的 asar.unpacked 都能直接解析。
+ *
+ * 只复制 `dependencies` 闭包，不复制 devDependencies；同一个包名解析到不同版本
+ * 时直接失败（当前闭包里没有冲突，出现冲突时应改成嵌套 node_modules）。
+ */
+function copyHostRuntimeDependencies(): void {
+  const requests = new Map<string, string>()
+  const copied = new Map<string, string>()
+
+  /** emitted `out/host/packages/x/src/y.js` → source `packages/x/src/y.ts(x)` */
+  const sourceFileFor = (emitted: string): string | undefined => {
+    const relative = path.relative(outDir, emitted).split(path.sep).join('/')
+    for (const extension of ['.ts', '.tsx']) {
+      const candidate = path.join(root, relative.replace(/\.js$/, extension))
+      if (fs.existsSync(candidate)) return candidate
+    }
+    return undefined
+  }
+
+  const walk = (dir: string, files: string[] = []): string[] => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules') continue
+      const file = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(file, files)
+      else if (entry.name.endsWith('.js')) files.push(file)
+    }
+    return files
+  }
+
+  for (const file of walk(outDir)) {
+    const sourceFile = sourceFileFor(file)
+    if (!sourceFile) continue
+    const source = fs.readFileSync(file, 'utf-8')
+    for (const match of source.matchAll(/(?:from\s*|import\s*\(\s*)['"]([^'"]+)['"]/g)) {
+      const specifier = match[1]
+      if (
+        specifier.startsWith('.') ||
+        specifier.startsWith('node:') ||
+        specifier.startsWith('#') ||
+        specifier.startsWith('@nide/') ||
+        specifier === 'electron'
+      ) {
+        continue
+      }
+      const name = specifier.startsWith('@')
+        ? specifier.split('/').slice(0, 2).join('/')
+        : specifier.split('/')[0]
+      if (builtinModules.includes(name)) continue
+      if (!requests.has(name)) requests.set(name, sourceFile)
+    }
+  }
+
+  const resolvePackageDir = (name: string, fromFile: string): string => {
+    const requireFrom = createRequire(fromFile)
+    let resolved: string
+    try {
+      resolved = requireFrom.resolve(`${name}/package.json`)
+    } catch {
+      resolved = requireFrom.resolve(name)
+    }
+    let dir = path.dirname(resolved)
+    while (dir !== path.dirname(dir)) {
+      if (fs.existsSync(path.join(dir, 'package.json'))) return dir
+      dir = path.dirname(dir)
+    }
+    throw new Error(`[build-host] 找不到 ${name} 的 package.json（from ${fromFile}）`)
+  }
+
+  const copyPackage = (name: string, fromFile: string, optional: boolean): void => {
+    let packageDir: string
+    try {
+      packageDir = resolvePackageDir(name, fromFile)
+    } catch (error) {
+      if (optional) return
+      throw error
+    }
+
+    const existing = copied.get(name)
+    if (existing) {
+      if (existing !== packageDir) {
+        throw new Error(
+          `[build-host] ${name} 解析到多个版本：${existing} / ${packageDir}；请改成嵌套 node_modules`
+        )
+      }
+      return
+    }
+    copied.set(name, packageDir)
+
+    const target = path.join(outDir, 'node_modules', name)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.cpSync(packageDir, target, {
+      recursive: true,
+      dereference: true,
+      filter: (source) =>
+        !path.relative(packageDir, source).split(path.sep).includes('node_modules')
+    })
+
+    const pkg = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf-8')) as {
+      dependencies?: Record<string, string>
+      optionalDependencies?: Record<string, string>
+      peerDependencies?: Record<string, string>
+      peerDependenciesMeta?: Record<string, { optional?: boolean }>
+    }
+    const fromManifest = path.join(packageDir, 'package.json')
+    for (const dependency of Object.keys(pkg.dependencies ?? {})) {
+      copyPackage(dependency, fromManifest, false)
+    }
+    for (const dependency of Object.keys(pkg.optionalDependencies ?? {})) {
+      copyPackage(dependency, fromManifest, true)
+    }
+    for (const dependency of Object.keys(pkg.peerDependencies ?? {})) {
+      if (pkg.peerDependenciesMeta?.[dependency]?.optional) continue
+      copyPackage(dependency, fromManifest, true)
+    }
+  }
+
+  for (const [name, fromFile] of requests) copyPackage(name, fromFile, false)
+
+  if (copied.size > 0) {
+    console.log(
+      `[build-host] copied ${copied.size} runtime dependencies into out/host/node_modules`
+    )
+  }
+}
+
+copyHostRuntimeDependencies()
 
 console.log(`[build-host] built ${path.relative(root, outDir)}`)
