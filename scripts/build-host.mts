@@ -26,6 +26,169 @@ import ts from 'typescript'
 const root = process.cwd()
 const outDir = path.join(root, 'out', 'host')
 
+/**
+ * workspace 包名 → `src` 目录。
+ *
+ * host 源码跨包写 `@nide/<包>/<子路径>.ts`（与客户端、测试一致）。`out/host`
+ * 里没有 node_modules，所以发射时必须把裸包名改写成相对路径；这份表就是
+ * 改写用的索引。它只读仓库里的 package.json，不依赖 pnpm 的 node_modules。
+ */
+function readPackageSources(): Map<string, string> {
+  const sources = new Map<string, string>()
+
+  const add = (dir: string): void => {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8')) as {
+        name?: string
+      }
+      if (pkg.name) sources.set(pkg.name, path.join(dir, 'src'))
+    } catch {
+      // 没有 package.json 的目录不是包（例如临时目录），跳过
+    }
+  }
+
+  const groups = ['', 'plugins', 'bundle']
+  for (const group of groups) {
+    const dir = path.join(root, 'packages', group)
+    if (!fs.existsSync(dir)) continue
+    for (const name of fs.readdirSync(dir)) {
+      const child = path.join(dir, name)
+      if (!fs.statSync(child).isDirectory() || name === 'node_modules') continue
+      add(child)
+    }
+  }
+
+  return sources
+}
+
+const packageSources = readPackageSources()
+
+/**
+ * 让 TS 直接解析到包源码，而不是 pnpm 的 node_modules 链接。
+ *
+ * 走 node_modules 时 TS 会把 workspace 包当成 external library（不发射文件），
+ * 产物里就只剩 host 自己的 `.js`。用 paths 指向真实源码目录后，它们属于同一个
+ * program，会按 rootDir 正常发射；发射期再由 rewritePackageImports 改成相对路径。
+ */
+const workspacePaths: Record<string, string[]> = {}
+for (const [name, srcDir] of packageSources) {
+  workspacePaths[`${name}/*`] = [path.join(srcDir, '*')]
+  if (fs.existsSync(path.join(srcDir, 'index.ts')))
+    workspacePaths[name] = [path.join(srcDir, 'index.ts')]
+  else if (fs.existsSync(path.join(srcDir, 'index.tsx')))
+    workspacePaths[name] = [path.join(srcDir, 'index.tsx')]
+}
+
+/** 把 `@nide/foo/bar.ts` 解析成相对当前文件的 `../../foo/src/bar.js`。 */
+function rewritePackageSpecifier(spec: string, fileName: string): string {
+  if (!spec.startsWith('@nide/')) return spec
+
+  let best: string | undefined
+  for (const name of packageSources.keys()) {
+    if (best && name.length <= best.length) continue
+    if (spec === name || spec.startsWith(`${name}/`)) best = name
+  }
+  if (!best) throw new Error(`[build-host] 未登记的包：${spec}（imported from ${fileName}）`)
+
+  const srcDir = packageSources.get(best)!
+  const subpath = spec === best ? '' : spec.slice(best.length + 1)
+  let target = subpath ? path.join(srcDir, subpath) : path.join(srcDir, 'index.ts')
+
+  if (!fs.existsSync(target)) {
+    if (fs.existsSync(`${target}.ts`)) target = `${target}.ts`
+    else if (fs.existsSync(`${target}.tsx`)) target = `${target}.tsx`
+    else if (fs.existsSync(path.join(target, 'index.ts'))) target = path.join(target, 'index.ts')
+    else if (fs.existsSync(path.join(target, 'index.tsx'))) target = path.join(target, 'index.tsx')
+    else throw new Error(`[build-host] 无法解析 ${spec}（from ${fileName}）`)
+  }
+
+  const relative = path.relative(path.dirname(fileName), target).split(path.sep).join('/')
+  const prefixed = relative.startsWith('.') ? relative : `./${relative}`
+  return prefixed.replace(/\.tsx?$/, '.js')
+}
+
+/**
+ * 发射期改写：只动 import / export / 动态 import / `import type` 里的裸包名。
+ * 相对导入交给 TypeScript 的 `rewriteRelativeImportExtensions`。
+ */
+const rewritePackageImports: ts.TransformerFactory<ts.SourceFile> = (context) => {
+  const { factory } = context
+
+  return (sourceFile) => {
+    const fileName = sourceFile.fileName
+
+    const visit: ts.Visitor = (node) => {
+      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+        const next = rewritePackageSpecifier(node.moduleSpecifier.text, fileName)
+        if (next !== node.moduleSpecifier.text) {
+          return factory.updateImportDeclaration(
+            node,
+            node.modifiers,
+            node.importClause,
+            factory.createStringLiteral(next),
+            node.attributes
+          )
+        }
+      }
+
+      if (
+        ts.isExportDeclaration(node) &&
+        node.moduleSpecifier &&
+        ts.isStringLiteral(node.moduleSpecifier)
+      ) {
+        const next = rewritePackageSpecifier(node.moduleSpecifier.text, fileName)
+        if (next !== node.moduleSpecifier.text) {
+          return factory.updateExportDeclaration(
+            node,
+            node.modifiers,
+            node.isTypeOnly,
+            node.exportClause,
+            factory.createStringLiteral(next),
+            node.attributes
+          )
+        }
+      }
+
+      if (
+        ts.isCallExpression(node) &&
+        node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        node.arguments.length > 0 &&
+        ts.isStringLiteral(node.arguments[0])
+      ) {
+        const next = rewritePackageSpecifier(node.arguments[0].text, fileName)
+        if (next !== node.arguments[0].text) {
+          return factory.updateCallExpression(node, node.expression, node.typeArguments, [
+            factory.createStringLiteral(next),
+            ...node.arguments.slice(1)
+          ])
+        }
+      }
+
+      if (
+        ts.isImportTypeNode(node) &&
+        ts.isLiteralTypeNode(node.argument) &&
+        ts.isStringLiteral(node.argument.literal)
+      ) {
+        const next = rewritePackageSpecifier(node.argument.literal.text, fileName)
+        if (next !== node.argument.literal.text) {
+          return factory.updateImportTypeNode(
+            node,
+            factory.createLiteralTypeNode(factory.createStringLiteral(next)),
+            node.attributes,
+            node.qualifier,
+            node.typeArguments,
+            node.isTypeOf
+          )
+        }
+      }
+
+      return ts.visitEachChild(node, visit, context)
+    }
+
+    return ts.visitNode(sourceFile, visit) as ts.SourceFile
+  }
+}
+
 /** 编译入口：host 进程。它 import 到的东西由 TS 自己顺着依赖树编出来 */
 const entry = path.join(root, 'packages', 'host', 'src', 'index.ts')
 
@@ -104,7 +267,8 @@ const options: ts.CompilerOptions = {
   resolveJsonModule: true,
   skipLibCheck: true,
   strict: true,
-  types: ['node']
+  types: ['node'],
+  paths: workspacePaths
 }
 
 const roots = [entry, backendWorker, pluginShim, ...dynamicEntries()]
@@ -115,12 +279,25 @@ for (const rootFile of roots) {
 fs.rmSync(outDir, { recursive: true, force: true })
 
 const program = ts.createProgram(roots, options)
-const emitResult = program.emit()
+const emitResult = program.emit(undefined, undefined, undefined, undefined, {
+  before: [rewritePackageImports]
+})
 
 const diagnostics = ts
   .getPreEmitDiagnostics(program)
   .concat(emitResult.diagnostics)
   .filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error)
+  /*
+   * TS 只对**相对** `.ts` 说明符做自动改写，遇到 `@nide/kernel/context.ts` 会报
+   * 「不会被改写」。那是本脚本的 rewritePackageImports 负责的事，前置 transformer
+   * 已经把所有裸包名改写成相对 `.js`；这里只过滤这一条误报。
+   */
+  .filter(
+    (diagnostic) =>
+      !ts
+        .flattenDiagnosticMessageText(diagnostic.messageText, '\n')
+        .includes('will not be rewritten during emit because it is not a relative path')
+  )
 
 if (diagnostics.length > 0) {
   for (const diagnostic of diagnostics.slice(0, 20)) {

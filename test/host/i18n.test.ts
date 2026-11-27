@@ -2,10 +2,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { HostI18n, LanguagePackRegistry, resolvePluginTitle } from '../../packages/i18n/src/i18n.ts'
-import type { LanguagePackEntry } from '../../packages/i18n/src/i18n.ts'
-import { parsePlaceholder } from '../../packages/contracts/src/plugin-api/manifest-nls.ts'
-import type { PluginManifestNls } from '../../packages/contracts/src/plugin-api/contributions.ts'
+import { HostI18n, LanguagePackRegistry, resolvePluginTitle } from '@nide/service-i18n/i18n.ts'
+import type { LanguagePackEntry } from '@nide/service-i18n/i18n.ts'
+import { parsePlaceholder } from '@nide/contracts/plugin-api/manifest-nls.ts'
+import type { PluginManifestNls } from '@nide/contracts/plugin-api/contributions.ts'
 
 /**
  * host 侧的本地化：语言包注册表 + 逐 key 瀑布 + manifest 文案解析 + 偏好。

@@ -1,7 +1,7 @@
 import { Context } from 'cordis'
 import { describe, expect, it } from 'vitest'
-import { installNideContext } from '../../packages/kernel/src/context.ts'
-import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
+import { installNideContext } from '@nide/kernel/context.ts'
+import { RpcRegistry } from '@nide/kernel/rpc.ts'
 
 /**
  * 内核的上下文扩展。

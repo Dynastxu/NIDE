@@ -1,11 +1,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { isSafePathSegment } from '../../../packages/contracts/src/ai-provider/index.ts'
-import { shell } from '../../kernel/src/shell.ts'
-import type {
-  SafeStoragePlaintext,
-  SafeStorageStatus
-} from '../../../packages/contracts/src/host-rpc/index.ts'
+import { isSafePathSegment } from '@nide/contracts/ai-provider/index.ts'
+import { shell } from '@nide/kernel/shell.ts'
+import type { SafeStoragePlaintext, SafeStorageStatus } from '@nide/contracts/host-rpc/index.ts'
 
 /**
  * 按插件分命名空间的密钥仓（host 侧）。
@@ -23,11 +20,8 @@ import type {
  * 端口（`SecretVault` 接口）与两个领域错误住在 contracts：消费方（AI 供应商）
  * 只依赖端口，`instanceof` 也才有唯一一份定义。
  */
-import {
-  SecretDecryptError,
-  SecretStorageUnavailableError
-} from '../../../packages/contracts/src/secrets/index.ts'
-import type { SecretVault as SecretVaultPort } from '../../../packages/contracts/src/secrets/index.ts'
+import { SecretDecryptError, SecretStorageUnavailableError } from '@nide/contracts/secrets/index.ts'
+import type { SecretVault as SecretVaultPort } from '@nide/contracts/secrets/index.ts'
 
 /**
  * 加解密后端。

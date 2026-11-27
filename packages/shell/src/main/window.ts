@@ -1,5 +1,5 @@
 import { BrowserWindow, screen, shell } from 'electron'
-import { join } from 'path'
+import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import { LOCALE_ARG_PREFIX } from '@nide/contracts/i18n'
 import {

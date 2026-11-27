@@ -48,6 +48,7 @@
       "@nide/contracts/*": ["./packages/contracts/src/*"],
       "@nide/domain/*": ["./packages/domain/src/*"],
       "@nide/client-runtime": ["./packages/client-runtime/src/index.ts"],
+      "@nide/client-runtime/*": ["./packages/client-runtime/src/*"],
       "@nide/client-modules": ["./packages/client-modules/src/index.ts"],
       "@nide/client-ui-slots": ["./packages/client-ui-slots/src/index.ts"],
       "@nide/client-ui-main": ["./packages/client-ui-main/src/index.ts"],

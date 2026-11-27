@@ -6,14 +6,14 @@ import {
   checkProjectOverviewDocument,
   readProjectOverview,
   type RootsOptions
-} from '../../packages/content/src/project-files.ts'
+} from '@nide/service-content/project-files.ts'
 import {
   loadProjectConfig,
   projectConfigPath,
   remapOverviewRole,
   updateProjectConfig
-} from '../../packages/config/src/project-config.ts'
-import { parseProjectConfig } from '../../packages/domain/src/project/index.ts'
+} from '@nide/service-config/project-config.ts'
+import { parseProjectConfig } from '@nide/domain/project/index.ts'
 
 /**
  * 概述的**读盘**部分：读目录里的普通 Markdown、确认某份文档能不能被标记，以及改名

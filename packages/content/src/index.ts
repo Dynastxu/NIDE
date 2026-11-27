@@ -8,7 +8,7 @@
  * 「当前项目」不缓存：每次调用都问 `ctx.project`（`inject: ['project']`），切项目
  * 之后不需要通知任何服务。
  */
-import type { NideContext } from '../../kernel/src/context.ts'
+import type { NideContext } from '@nide/kernel/context.ts'
 import {
   allowedRoots,
   caseInsensitivePaths,

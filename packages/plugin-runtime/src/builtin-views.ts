@@ -3,7 +3,7 @@ import {
   type BuiltinViewRegistry,
   type BuiltinViewSpec,
   type PluginViewDescriptor
-} from '../../../packages/contracts/src/plugin-api/view.ts'
+} from '@nide/contracts/plugin-api/view.ts'
 
 /**
  * 内建视图的**注册表**。

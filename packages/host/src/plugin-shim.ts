@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { NideContext } from '../../kernel/src/context.ts'
+import type { NideContext } from '@nide/kernel/context.ts'
 
 /**
  * 安装式插件的**组合行入口**。

@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import { fork } from 'node:child_process'
-import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
-import type { PluginPermissionGuard } from '../../plugin-permissions/src/permissions.ts'
+import type { PluginManager } from '@nide/service-plugins/plugins.ts'
+import type { PluginPermissionGuard } from '@nide/service-plugin-permissions/permissions.ts'
 import type { HostToWorker, WorkerToHost } from './protocol.ts'
 import { buildBackendFlags, resolveWorkerEntry } from './paths.ts'
 

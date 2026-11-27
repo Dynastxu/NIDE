@@ -2,7 +2,21 @@
   "name": "@nide/service-plugins",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
   "nide": {
     "layer": "service"
+  },
+  "dependencies": {
+    "@cordisjs/plugin-loader": "1.0.0-rc.9",
+    "@nide/contracts": "workspace:*",
+    "@nide/kernel": "workspace:*",
+    "@nide/service-i18n": "workspace:*",
+    "@nide/service-plugin-backend": "workspace:*",
+    "@nide/service-plugin-permissions": "workspace:*",
+    "@nide/service-plugin-storage": "workspace:*",
+    "js-yaml": "4.3.2"
   }
 }

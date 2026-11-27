@@ -3,5 +3,8 @@ docs/architecture/package-graph.md
 packages/client-runtime/src/roster.generated.ts
 # 包管理器产物：由 pnpm 生成并维护，prettier 重排会与 pnpm 写回的格式互相打架
 pnpm-lock.yaml
-# agent 的本地 worktree（不进版本库）
+# agent 的本地 worktree / 本地验证目录（不进版本库）
 .agents
+.tmp
+# Cordis loader 的运行时缓存
+.cordis

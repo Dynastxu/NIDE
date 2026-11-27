@@ -3,8 +3,8 @@ import path from 'node:path'
 import {
   PROVIDER_CONFIG_VERSION,
   parseAiProviderConfigFile
-} from '../../../packages/contracts/src/ai-provider/index.ts'
-import type { AiProviderConfigFile } from '../../../packages/contracts/src/ai-provider/index.ts'
+} from '@nide/contracts/ai-provider/index.ts'
+import type { AiProviderConfigFile } from '@nide/contracts/ai-provider/index.ts'
 
 /**
  * 供应商**非密**配置的落盘（host 侧）。

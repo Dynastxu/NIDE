@@ -4,10 +4,10 @@ import {
   DEFAULT_LOCALE,
   localeCandidates,
   normalizeLocale
-} from '../../../packages/contracts/src/i18n/locale-tag.ts'
-import { TIER_PRIORITY } from '../../../packages/contracts/src/i18n/types.ts'
-import { zhCN } from '../../../packages/contracts/src/i18n/locales/zh-CN.ts'
-import { parsePlaceholder } from '../../../packages/contracts/src/plugin-api/manifest-nls.ts'
+} from '@nide/contracts/i18n/locale-tag.ts'
+import { TIER_PRIORITY } from '@nide/contracts/i18n/types.ts'
+import { zhCN } from '@nide/contracts/i18n/locales/zh-CN.ts'
+import { parsePlaceholder } from '@nide/contracts/plugin-api/manifest-nls.ts'
 import type {
   I18nPayload,
   LocaleConflict,
@@ -16,11 +16,11 @@ import type {
   LocaleProviderRef,
   LocaleSourceTier,
   MessageTable
-} from '../../../packages/contracts/src/i18n/types.ts'
+} from '@nide/contracts/i18n/types.ts'
 import type {
   PluginLocalePack,
   PluginManifestNls
-} from '../../../packages/contracts/src/plugin-api/contributions.ts'
+} from '@nide/contracts/plugin-api/contributions.ts'
 
 /**
  * 本地化（host 侧）：语言包注册表、语言偏好、载荷构建。

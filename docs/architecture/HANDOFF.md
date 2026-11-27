@@ -486,8 +486,8 @@ readClipboard/writeClipboard/notify`，宿主侧 `PluginCapabilities` 按 `permi
   工作流里装不动（镜像地址 / 可用性都不受我们控制），所以锁文件只认
   `registry.npmjs.org`；
 - **运行时是公开 Cordis 生态**，不再使用任何 `@deepseek-ai/*` 包：
-  `cordis@4.0.0-rc.12` + `@cordisjs/plugin-{loader,include,group,timer}`
-  （与 mics 同一套依赖形态）。`@deepseek-ai/*` 那套是 DSH 的私有前缀，
+  `cordis@4.0.0-rc.12` + `@cordisjs/plugin-{loader,include}`
+  （group / timer 没有实际使用，2026-11-26 随依赖下沉一并移除）。`@deepseek-ai/*` 那套是 DSH 的私有前缀，
   与公开包同源但版本线不同，长期只能跟着 DSH 走；换成公开包后可以独立升级。
   代码里只改了 import 说明符，API 面（`Context` / `ctx.plugin` / `ctx.logger` /
   `ctx.loader.*` / `ctx.effect`）与公开包一致，`typecheck` / `typecheck:host`
@@ -791,9 +791,10 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 7. **所有新路径都要有回退**：host 直连 port 失败回退 IPC（现在也转发到 host）；
    bundle 失败回退 glob；slot 失败回退 fallback。
 8. **不做 Context 模块增强**：Cordis 的 `Context` 是 re-export，会遮蔽原接口。
-9. **`src/shared/project` 内的模块之间只用 `#project/*`**：`@nide/contracts/*` 是构建期别名、
-   免扩展名的相对导入也一样，host 的纯 Node ESM 都解析不了。`package.json#imports`
-   是 Node / tsc / Vite 三边都认的那一层（见 `src/shared/project/package.json`）。
+9. **`packages/domain/src/project` 内的模块之间只用 `#project/*`**：`package.json#imports`
+   是 Node / tsc / Vite 三边都认的那一层（见
+   `packages/domain/src/project/package.json`）；`build:host` 会把映射里的 `.ts` 改写成
+   `.js` 后带进产物。
 10. **host 是必需进程**：文件 / 配置的全部实现都在它里面。打包目前靠
     `asar: true` + `asarUnpack` 带 `out/host/**` 与 `packages/plugins/**`；
     改回 asar 之前必须先让 host 有编译产物，否则打包版读不到自己的源码。
@@ -809,11 +810,10 @@ Agent 的执行环境有文件/进程沙箱，以下命令会 `EPERM`，**必须
 14. **语言与词条表只住在 host**：shell 只缓存 `I18nPayload`（窗口标题、原生菜单、
     对话框要同步取文案）。新增「需要翻译的 shell 代码」时用 `createMainTranslator()`
     读缓存，不要自己 import 语言包或读 `locale.json`。
-15. **`src/shared` 里能被 host 加载的文件必须自包含**：要么没有任何 import（如
-    `plugin-api/view.ts`、`i18n/locale-tag.ts`、`i18n/locales/zh-CN.ts`），要么
-    import 的是同类自包含文件。跨目录引用 `@nide/contracts/*` 在 host 里解析不了；共享目录
-    内的相对导入在 NodeNext 下要写 `./x.js`（见 `plugin-api/contributions.ts`）——
-    纯类型导入会被擦除，安全。
+15. **`contracts` / `domain` 里能被 host 加载的文件必须自包含**：要么没有任何 import
+    （如 `plugin-api/view.ts`、`i18n/locale-tag.ts`、`i18n/locales/zh-CN.ts`），要么
+    import 的是同类文件。跨包引用一律写 `@nide/<包>`；`build:host` 在发射时把它改写成
+    相对 `.js`，纯类型导入会被擦除，安全。
 16. **插件 UI 调宿主只用 `useHost().api`**：它会把插件 id 带进 RPC，宿主才能按
     `permissions` 检查。`window.hostAPI` 是宿主自己的入口，插件直接用它等于绕过
     权限声明（也是屏障的全部边界，别当沙箱）。

@@ -12,8 +12,8 @@
    * 所以这个划分只有 IDE 与 `tsc -p tsconfig.node.json`（不带那个开关）才知道对错。
    * 加用例之前先想清楚它测的是哪一侧。
    *
-   * 别名两个都要能解析：这一侧的用例会用 `@nide/contracts/*`，将来也可能用到 `@renderer/*`
-   * 的**类型**（只 import type 不会把文件拉进工程，所以不会触发 TS6307）。
+   * 这一侧的用例用 `@nide/contracts/*`、`@nide/domain/*` 与 `@nide/shell/*`
+   * 这些包名导入（路径由 tsconfig paths 解析，与包自己的 `exports` 保持一致）。
    */
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "include": [
@@ -32,7 +32,8 @@
     "types": ["electron-vite/node"],
     "paths": {
       "@nide/contracts/*": ["./packages/contracts/src/*"],
-      "@nide/domain/*": ["./packages/domain/src/*"]
+      "@nide/domain/*": ["./packages/domain/src/*"],
+      "@nide/shell/*": ["./packages/shell/src/*"]
     }
   }
 }

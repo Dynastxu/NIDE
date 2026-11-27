@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import yaml from 'js-yaml'
 import { Context } from 'cordis'
 import Loader from '@cordisjs/plugin-loader'
-import { hostServices, type InstallOptions } from '../../kernel/src/context.ts'
+import { hostServices, type InstallOptions } from '@nide/kernel/context.ts'
 import { applyPatches, toPatchOperations, type PatchOperation, type PatchRow } from './patch.ts'
 
 /**

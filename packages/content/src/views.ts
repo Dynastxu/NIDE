@@ -1,8 +1,5 @@
-import type { zhCN } from '../../../packages/contracts/src/i18n/locales/zh-CN.ts'
-import {
-  HOST_EXPLORER_VIEW_ID,
-  type BuiltinViewSpec
-} from '../../../packages/contracts/src/plugin-api/view.ts'
+import type { zhCN } from '@nide/contracts/i18n/locales/zh-CN.ts'
+import { HOST_EXPLORER_VIEW_ID, type BuiltinViewSpec } from '@nide/contracts/plugin-api/view.ts'
 
 /**
  * 宿主词条表的 key 集合。

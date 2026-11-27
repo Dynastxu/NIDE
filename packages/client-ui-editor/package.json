@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./*": "./src/*"
   },
   "//": "编辑器功能包：中间编辑区、diff 浮层、保存命令；按 slot / command 注册到主窗口。",
   "nide": {
@@ -14,5 +15,18 @@
       "order": 26
     },
     "layer": "client-feature"
+  },
+  "dependencies": {
+    "@nide/client-kit": "workspace:*",
+    "@nide/client-ui-renderer": "workspace:*",
+    "@nide/client-ui-slots": "workspace:*",
+    "@nide/contracts": "workspace:*",
+    "@nide/domain": "workspace:*",
+    "cordis": "4.0.0-rc.12",
+    "marked": "^14.0.0",
+    "monaco-editor": "^0.57.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "zustand": "^5.0.15"
   }
 }

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { ResolvedPermissions } from '../../contracts/src/plugin-api/permissions.ts'
+import type { ResolvedPermissions } from '@nide/contracts/plugin-api/permissions.ts'
 
 /**
  * 后端子进程的**路径与启动参数**。

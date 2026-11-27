@@ -75,9 +75,10 @@ apps/desktop/renderer/   # 渲染进程引导壳（main.tsx + assets）
 - 五处别名的目标路径（`tsconfig.{json,node,web,host}`、`electron.vite.config`、
   `vitest.config`、插件 bundle 构建脚本）从 `src/shared` 指向
   `packages/contracts/src`；别名名在阶段 2 一起改成 `@nide/contracts`。
-- host 的运行时导入是**相对路径**（`../../../packages/contracts/src/...`），
-  所以搬目录必须跟着改；`scripts/build-host.mts` 里复制 `imports` 映射的目标
-  也跟着改成 `out/host/packages/contracts/src/...`。
+- host 的运行时导入现在统一写 `@nide/contracts/...`（2026-11-26 从
+  `../../../packages/contracts/src/...` 迁过来）；`scripts/build-host.mts` 在发射时
+  把包名改写成相对 `.js`，并复制 `imports` 映射到
+  `out/host/packages/contracts/src/...`。
 
 ## 3.1 阶段 3 的设计（内核 + 服务）
 

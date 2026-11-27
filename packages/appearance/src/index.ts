@@ -1,4 +1,4 @@
-import type { NideContext } from '../../kernel/src/context.ts'
+import type { NideContext } from '@nide/kernel/context.ts'
 import { HostAppearance } from './appearance.ts'
 
 /**

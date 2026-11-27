@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { NideContext } from '../../kernel/src/context.ts'
+import type { NideContext } from '@nide/kernel/context.ts'
 import { SecretVault } from './secrets.ts'
 
 /**

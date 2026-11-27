@@ -6,29 +6,26 @@ import {
   isPluginEnabled,
   parsePluginPreference,
   setPluginEnabled as applyPluginEnabled
-} from '../../../packages/contracts/src/plugin-api/preference.ts'
-import { isReservedHostId } from '../../../packages/contracts/src/plugin-api/view.ts'
-import { emptyPluginContributions } from '../../../packages/contracts/src/plugin-api/contributions.ts'
-import { parsePluginPermissions } from '../../../packages/contracts/src/plugin-api/permissions.ts'
+} from '@nide/contracts/plugin-api/preference.ts'
+import { isReservedHostId } from '@nide/contracts/plugin-api/view.ts'
+import { emptyPluginContributions } from '@nide/contracts/plugin-api/contributions.ts'
+import { parsePluginPermissions } from '@nide/contracts/plugin-api/permissions.ts'
 import { readPluginContributions } from './plugin-contributions.ts'
 import type { PluginContributionSet } from './plugin-contributions.ts'
-import type {
-  PluginPreference,
-  PluginEnabledFlags
-} from '../../../packages/contracts/src/plugin-api/preference.ts'
-import type { ClientBundleDescriptor } from '../../../packages/contracts/src/plugin-api/client-bundle.ts'
-import type { PluginPermissions } from '../../../packages/contracts/src/plugin-api/permissions.ts'
+import type { PluginPreference, PluginEnabledFlags } from '@nide/contracts/plugin-api/preference.ts'
+import type { ClientBundleDescriptor } from '@nide/contracts/plugin-api/client-bundle.ts'
+import type { PluginPermissions } from '@nide/contracts/plugin-api/permissions.ts'
 import type {
   PluginContributions,
   PluginManifestNls
-} from '../../../packages/contracts/src/plugin-api/contributions.ts'
-import type { PluginSettingsDescriptor } from '../../../packages/contracts/src/plugin-api/manifest.ts'
-import type { PluginViewDescriptor } from '../../../packages/contracts/src/plugin-api/view.ts'
+} from '@nide/contracts/plugin-api/contributions.ts'
+import type { PluginSettingsDescriptor } from '@nide/contracts/plugin-api/manifest.ts'
+import type { PluginViewDescriptor } from '@nide/contracts/plugin-api/view.ts'
 import type {
   PluginDescriptor,
   PluginInstallResult,
   PluginRemoveResult
-} from '../../../packages/contracts/src/plugin-api/plugin.ts'
+} from '@nide/contracts/plugin-api/plugin.ts'
 
 /**
  * 把一个贡献点的标题解析成当前语言的文案。

@@ -2,9 +2,22 @@
   "name": "@nide/client-kit",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
   "//": "客户端 UI 的共享层：基础组件 / 窗口外壳 / logger / monaco / 跨窗口与 workbench 级 store（layout / documents）。",
   "//2": "没有构建产物：Vite 通过 `@nide/client-kit/*` 别名直接解析 src（见 electron.vite.config.ts）。",
   "nide": {
     "layer": "client-platform"
+  },
+  "dependencies": {
+    "@monaco-editor/loader": "^1.7.0",
+    "@nide/contracts": "workspace:*",
+    "@nide/domain": "workspace:*",
+    "cordis": "4.0.0-rc.12",
+    "monaco-editor": "^0.57.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "zustand": "^5.0.15"
   }
 }

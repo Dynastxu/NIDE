@@ -89,6 +89,10 @@ export default defineConfig({
         { find: '@nide/domain', replacement: domain },
         { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') },
         {
+          find: /^@nide\/client-runtime\//,
+          replacement: `${resolve('packages/client-runtime/src')}/`
+        },
+        {
           find: '@nide/client-runtime',
           replacement: resolve('packages/client-runtime/src/index.ts')
         },

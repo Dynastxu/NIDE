@@ -3,9 +3,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./*": "./src/*"
   },
   "nide": {
     "layer": "client-runtime"
+  },
+  "dependencies": {
+    "@nide/client-modules": "workspace:*",
+    "@nide/client-ui-editor": "workspace:*",
+    "@nide/client-ui-explorer": "workspace:*",
+    "@nide/client-ui-git": "workspace:*",
+    "@nide/client-ui-main": "workspace:*",
+    "@nide/client-ui-settings": "workspace:*",
+    "@nide/client-ui-slots": "workspace:*",
+    "@nide/client-ui-welcome": "workspace:*",
+    "cordis": "4.0.0-rc.12"
   }
 }

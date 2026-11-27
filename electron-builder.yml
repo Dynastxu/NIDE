@@ -41,7 +41,8 @@ win:
   #   signAndEditExecutable: true
   #   forceCodeSigning: true
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  # 根包名是 @nide/nide-root（带 scope），不能直接拼进文件名
+  artifactName: ${productName}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
@@ -63,7 +64,7 @@ linux:
   maintainer: 'Dynastxu <dynastxu@qq.com>'
   category: Utility
 appImage:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${productName}-${version}.${ext}
 npmRebuild: false
 publish:
   provider: github

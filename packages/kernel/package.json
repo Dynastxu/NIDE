@@ -2,9 +2,16 @@
   "name": "@nide/kernel",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
   "//": "host 的内核：Cordis 上下文扩展 + RPC 注册表 + 父端口 / renderer 端口 transport。",
   "//2": "业务不在这里 —— 每个服务是独立包，通过 ctx.rpc / ctx.services / ctx.env 接入。",
   "nide": {
     "layer": "kernel"
+  },
+  "dependencies": {
+    "@nide/contracts": "workspace:*",
+    "cordis": "4.0.0-rc.12"
   }
 }

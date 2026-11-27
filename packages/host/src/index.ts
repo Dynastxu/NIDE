@@ -9,13 +9,13 @@ import {
   loadRows,
   resolveProfile,
   shutdown
-} from '../../boot/src/index.ts'
-import { attachHostIpc } from '../../kernel/src/ipc.ts'
-import { RpcRegistry } from '../../kernel/src/rpc.ts'
-import { installNideContext, type HostEnvironment } from '../../kernel/src/context.ts'
+} from '@nide/boot'
+import { attachHostIpc } from '@nide/kernel/ipc.ts'
+import { RpcRegistry } from '@nide/kernel/rpc.ts'
+import { installNideContext, type HostEnvironment } from '@nide/kernel/context.ts'
 import type {} from './service-types.ts'
-import { shell } from '../../kernel/src/shell.ts'
-import type { ChatStreamEvent } from '../../../packages/contracts/src/ai-provider/index.ts'
+import { shell } from '@nide/kernel/shell.ts'
+import type { ChatStreamEvent } from '@nide/contracts/ai-provider/index.ts'
 
 /**
  * 独立 host 进程入口（MVP）。

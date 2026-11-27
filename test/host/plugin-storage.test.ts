@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { PluginStorage, pluginStorageFile } from '../../packages/plugin-storage/src/storage.ts'
+import { PluginStorage, pluginStorageFile } from '@nide/service-plugin-storage/storage.ts'
 
 let base = ''
 

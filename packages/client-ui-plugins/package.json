@@ -2,9 +2,17 @@
   "name": "@nide/client-ui-plugins",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
   "//": "插件管理界面（浏览 / 启用 / 卸载 / 重启提示）：设置窗口与欢迎窗口共用的功能包。",
   "//2": "不是窗口插件（没有 nide.client.windowTypes），是两边 import 的库；组件由消费方放进自己的布局。",
   "nide": {
     "layer": "client-feature"
+  },
+  "dependencies": {
+    "@nide/client-kit": "workspace:*",
+    "@nide/contracts": "workspace:*",
+    "react": "^19.2.1"
   }
 }

@@ -20,7 +20,7 @@ import {
   readForeshadowingEntry,
   readGalleryEntry,
   serializeGalleryConfig
-} from '../../../packages/domain/src/project/index.ts'
+} from '@nide/domain/project/index.ts'
 import type {
   ChapterFile,
   ChapterListResult,
@@ -33,7 +33,7 @@ import type {
   GalleryFoldersResult,
   OverviewDocument,
   OverviewListResult
-} from '../../../packages/domain/src/project/index.ts'
+} from '@nide/domain/project/index.ts'
 import {
   HOST_TEMP_FILE_PREFIX,
   MAX_TEXT_FILE_BYTES,
@@ -45,7 +45,7 @@ import {
   isSupportedTextPath,
   sortTreeEntries,
   validateEntryName
-} from '../../../packages/domain/src/project/files.ts'
+} from '@nide/domain/project/files.ts'
 import type {
   CreateEntryFailureReason,
   CreateEntryRequest,
@@ -64,7 +64,7 @@ import type {
   RenameEntryRequest,
   RenameEntryResult,
   WriteFileRequest
-} from '../../../packages/domain/src/project/files.ts'
+} from '@nide/domain/project/files.ts'
 
 /**
  * 项目文件读写（host 侧）。

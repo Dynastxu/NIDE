@@ -2,7 +2,16 @@
   "name": "@nide/service-plugin-permissions",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
   "nide": {
     "layer": "service"
+  },
+  "dependencies": {
+    "@nide/contracts": "workspace:*",
+    "@nide/kernel": "workspace:*",
+    "@nide/service-plugins": "workspace:*"
   }
 }

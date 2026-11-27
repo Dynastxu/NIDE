@@ -2,6 +2,9 @@
   "name": "@nide/contracts",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
   "//": "跨进程契约：线格式、词条基础表、端口与领域错误。host / shell / renderer 三方共用；",
   "//2": "共享领域规则（项目结构 / 配置文本等）在 @nide/domain；这里只放跨进程要用的那份。",
   "nide": {

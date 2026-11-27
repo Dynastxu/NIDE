@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./*": "./src/*"
   },
   "//": "版本控制功能包：版本控制 / 提交两个内建视图的组件，按 slot 注册到主窗口。",
   "//2": "不是窗口包（不注册 main.root）；windowTypes 只表示它挂到哪个窗口的客户端树。",
@@ -15,5 +16,13 @@
       "order": 30
     },
     "layer": "client-feature"
+  },
+  "dependencies": {
+    "@nide/client-kit": "workspace:*",
+    "@nide/client-ui-renderer": "workspace:*",
+    "@nide/client-ui-slots": "workspace:*",
+    "@nide/contracts": "workspace:*",
+    "cordis": "4.0.0-rc.12",
+    "react": "^19.2.1"
   }
 }

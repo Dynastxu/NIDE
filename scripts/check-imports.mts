@@ -8,6 +8,10 @@
  * 继续长。这里把「包属于哪一层」「这一层能依赖哪几层」写成表，扫描真实的 import
  * 语句，**新增一条违规就让 CI 红**。
  *
+ * 同时守住「包化」的两条底线：跨包只能用包名（`@nide/...`），且必须写进自己的
+ * `package.json`。只看目录相对路径的 import 会让 pnpm 不知道包边界，干净检出直接
+ * 解析失败；只在根 package.json 写依赖则会让每个包悄悄依赖别人装好的库。
+ *
  * 设计取舍：
  * - 不依赖 TypeScript / 任何 npm 包：这是仓库卫生脚本，`node scripts/check-imports.mts`
  *   在干净的检出里就能跑（`build:host` 也是这个思路）；
@@ -244,10 +248,14 @@ function toKey(rel: string): string | undefined {
 
 async function readPackageNames(): Promise<{
   names: Map<string, string>
+  packageNameByKey: Map<string, string>
   layers: Map<string, Layer>
+  declared: Map<string, Set<string>>
 }> {
   const names = new Map<string, string>()
+  const packageNameByKey = new Map<string, string>()
   const layers = new Map<string, Layer>()
+  const declared = new Map<string, Set<string>>()
   const dirs: string[] = []
   for (const entry of await readdir(path.join(ROOT, 'packages'), { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
@@ -265,17 +273,33 @@ async function readPackageNames(): Promise<{
   for (const dir of dirs) {
     try {
       const raw = await readFile(path.join(ROOT, dir, 'package.json'), 'utf8')
-      const pkg = JSON.parse(raw) as { name?: string; nide?: { layer?: unknown } }
-      if (pkg.name) names.set(pkg.name, dir)
+      const pkg = JSON.parse(raw) as {
+        name?: string
+        nide?: { layer?: unknown }
+        dependencies?: Record<string, string>
+        devDependencies?: Record<string, string>
+        peerDependencies?: Record<string, string>
+      }
+      if (pkg.name) {
+        names.set(pkg.name, dir)
+        packageNameByKey.set(dir, pkg.name)
+      }
       // 层由包自己声明；值不合法时按「未分类」处理，由 main 报错
       if (typeof pkg.nide?.layer === 'string') layers.set(dir, pkg.nide.layer as Layer)
+      // 依赖声明：跨包 import 必须能在自己的 package.json 里找到（只查名字，不查版本）
+      const deps = new Set([
+        ...Object.keys(pkg.dependencies ?? {}),
+        ...Object.keys(pkg.devDependencies ?? {}),
+        ...Object.keys(pkg.peerDependencies ?? {})
+      ])
+      declared.set(dir, deps)
     } catch {
       // 没有 package.json 的目录不是包（例如 bundle 之外的临时目录），跳过
     }
   }
   // 渲染进程引导壳不是 workspace 包（apps/ 下没有 package.json），按装配层算
   layers.set('apps/desktop/renderer', 'app')
-  return { names, layers }
+  return { names, packageNameByKey, layers, declared }
 }
 
 /** 把说明符解析成包 key；解析不出来（react / cordis / node:）返回 undefined。 */
@@ -321,8 +345,10 @@ export async function scan(): Promise<{
   edges: Edge[]
   contractViolations: ContractViolation[]
   layers: Map<string, Layer>
+  packageNameByKey: Map<string, string>
+  declared: Map<string, Set<string>>
 }> {
-  const { names, layers } = await readPackageNames()
+  const { names, packageNameByKey, layers, declared } = await readPackageNames()
   const files = [
     ...(await walk(path.join(ROOT, 'packages'))),
     ...(await walk(path.join(ROOT, 'apps/desktop/renderer')))
@@ -355,7 +381,7 @@ export async function scan(): Promise<{
     }
   }
 
-  return { edges, contractViolations, layers }
+  return { edges, contractViolations, layers, packageNameByKey, declared }
 }
 
 function findCycles(edges: Edge[]): string[][] {
@@ -390,9 +416,32 @@ function findCycles(edges: Edge[]): string[][] {
 }
 
 async function main(): Promise<void> {
-  const { edges, contractViolations, layers } = await scan()
+  const { edges, contractViolations, layers, packageNameByKey, declared } = await scan()
   const errors: string[] = []
   const warnings: string[] = []
+
+  /*
+   * 两条「包化」硬规则（2026-11-26）：
+   * 1. 跨包一律用包名（`@nide/...`），相对路径只能指向包内 —— 否则包边界只是目录；
+   * 2. 跨包 import 必须在自己的 package.json 里声明依赖 —— 否则 pnpm 不建链接，
+   *    开发机能跑、干净检出跑不了。
+   */
+  for (const edge of edges) {
+    if (edge.spec.startsWith('.')) {
+      errors.push(
+        `${edge.file}:${edge.line} 跨包相对导入：${edge.spec}（改用 ${packageNameByKey.get(edge.to) ?? edge.to} 的包名）`
+      )
+    }
+
+    if (!edge.from.startsWith('packages/')) continue
+    const targetName = packageNameByKey.get(edge.to)
+    if (!targetName) continue
+    if (!declared.get(edge.from)?.has(targetName)) {
+      errors.push(
+        `${edge.file}:${edge.line} ${edge.from} 没有声明依赖 ${targetName}（在它的 package.json 里加 "dependencies"）`
+      )
+    }
+  }
 
   for (const item of contractViolations) {
     errors.push(

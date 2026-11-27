@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import type { NideContext } from '../../../kernel/src/context.ts'
+import type { NideContext } from '@nide/kernel/context.ts'
 import manifest from '../manifest.json' with { type: 'json' }
 
 /**

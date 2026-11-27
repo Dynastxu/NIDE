@@ -2,12 +2,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  SecretDecryptError,
-  SecretStorageUnavailableError
-} from '../../packages/contracts/src/secrets/index.ts'
-import { SecretVault } from '../../packages/secrets/src/secrets.ts'
-import type { SecretsBackend } from '../../packages/secrets/src/secrets.ts'
+import { SecretDecryptError, SecretStorageUnavailableError } from '@nide/contracts/secrets/index.ts'
+import { SecretVault } from '@nide/service-secrets/secrets.ts'
+import type { SecretsBackend } from '@nide/service-secrets/secrets.ts'
 
 /**
  * 密钥仓（host 侧）。

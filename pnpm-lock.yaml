@@ -179,48 +179,27 @@ importers:
 
   .:
     dependencies:
-      '@cordisjs/plugin-group':
-        specifier: 1.0.0
-        version: 1.0.0(@cordisjs/plugin-loader@1.0.0-rc.9)
       '@cordisjs/plugin-include':
         specifier: 1.2.0
         version: 1.2.0(@cordisjs/plugin-loader@1.0.0-rc.9)(cordis@4.0.0-rc.12)
       '@cordisjs/plugin-loader':
         specifier: 1.0.0-rc.9
         version: 1.0.0-rc.9(cordis@4.0.0-rc.12)
-      '@cordisjs/plugin-timer':
-        specifier: 1.1.4
-        version: 1.1.4(cordis@4.0.0-rc.12)
       '@electron-toolkit/preload':
         specifier: ^3.0.2
         version: 3.0.2(electron@45.3.3(supports-color@7.2.0))
       '@electron-toolkit/utils':
         specifier: ^4.0.0
         version: 4.0.0(electron@45.3.3(supports-color@7.2.0))
-      '@monaco-editor/loader':
-        specifier: ^1.7.0
-        version: 1.7.0
       cordis:
         specifier: 4.0.0-rc.12
         version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
       electron-log:
         specifier: ^5.4.4
         version: 5.4.4
-      electron-updater:
-        specifier: ^6.3.9
-        version: 6.8.11(supports-color@7.2.0)
       js-yaml:
         specifier: 4.3.2
         version: 4.3.2
-      marked:
-        specifier: ^14.0.0
-        version: 14.1.4
-      monaco-editor:
-        specifier: ^0.57.0
-        version: 0.57.0
-      zustand:
-        specifier: ^5.0.15
-        version: 5.1.0(@types/react@19.3.0)(react@19.3.1)
     devDependencies:
       '@electron-toolkit/eslint-config-prettier':
         specifier: ^3.0.0
@@ -291,6 +270,585 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.1.0(@types/node@24.19.2)(vite@7.3.8(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+
+  packages/ai:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/appearance:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/boot:
+    dependencies:
+      '@cordisjs/plugin-loader':
+        specifier: 1.0.0-rc.9
+        version: 1.0.0-rc.9(cordis@4.0.0-rc.12)
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      js-yaml:
+        specifier: 4.3.2
+        version: 4.3.2
+
+  packages/bundle/base: {}
+
+  packages/client-kit:
+    dependencies:
+      '@monaco-editor/loader':
+        specifier: ^1.7.0
+        version: 1.7.0
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/domain':
+        specifier: workspace:*
+        version: link:../domain
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      monaco-editor:
+        specifier: ^0.57.0
+        version: 0.57.0
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.1
+        version: 19.3.1(react@19.3.1)
+      zustand:
+        specifier: ^5.0.15
+        version: 5.1.0(@types/react@19.3.0)(react@19.3.1)
+
+  packages/client-modules:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/client-runtime:
+    dependencies:
+      '@nide/client-modules':
+        specifier: workspace:*
+        version: link:../client-modules
+      '@nide/client-ui-editor':
+        specifier: workspace:*
+        version: link:../client-ui-editor
+      '@nide/client-ui-explorer':
+        specifier: workspace:*
+        version: link:../client-ui-explorer
+      '@nide/client-ui-git':
+        specifier: workspace:*
+        version: link:../client-ui-git
+      '@nide/client-ui-main':
+        specifier: workspace:*
+        version: link:../client-ui-main
+      '@nide/client-ui-settings':
+        specifier: workspace:*
+        version: link:../client-ui-settings
+      '@nide/client-ui-slots':
+        specifier: workspace:*
+        version: link:../client-ui-slots
+      '@nide/client-ui-welcome':
+        specifier: workspace:*
+        version: link:../client-ui-welcome
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+
+  packages/client-ui-editor:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../client-kit
+      '@nide/client-ui-renderer':
+        specifier: workspace:*
+        version: link:../client-ui-renderer
+      '@nide/client-ui-slots':
+        specifier: workspace:*
+        version: link:../client-ui-slots
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/domain':
+        specifier: workspace:*
+        version: link:../domain
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      marked:
+        specifier: ^14.0.0
+        version: 14.1.4
+      monaco-editor:
+        specifier: ^0.57.0
+        version: 0.57.0
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.1
+        version: 19.3.1(react@19.3.1)
+      zustand:
+        specifier: ^5.0.15
+        version: 5.1.0(@types/react@19.3.0)(react@19.3.1)
+
+  packages/client-ui-explorer:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../client-kit
+      '@nide/client-ui-renderer':
+        specifier: workspace:*
+        version: link:../client-ui-renderer
+      '@nide/client-ui-slots':
+        specifier: workspace:*
+        version: link:../client-ui-slots
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/domain':
+        specifier: workspace:*
+        version: link:../domain
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.2.1
+        version: 19.3.1(react@19.3.1)
+      zustand:
+        specifier: ^5.0.15
+        version: 5.1.0(@types/react@19.3.0)(react@19.3.1)
+
+  packages/client-ui-git:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../client-kit
+      '@nide/client-ui-renderer':
+        specifier: workspace:*
+        version: link:../client-ui-renderer
+      '@nide/client-ui-slots':
+        specifier: workspace:*
+        version: link:../client-ui-slots
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/client-ui-main:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../client-kit
+      '@nide/client-modules':
+        specifier: workspace:*
+        version: link:../client-modules
+      '@nide/client-ui-renderer':
+        specifier: workspace:*
+        version: link:../client-ui-renderer
+      '@nide/client-ui-slots':
+        specifier: workspace:*
+        version: link:../client-ui-slots
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/client-ui-plugins:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../client-kit
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/client-ui-renderer:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../client-kit
+      '@nide/client-modules':
+        specifier: workspace:*
+        version: link:../client-modules
+      '@nide/client-ui-slots':
+        specifier: workspace:*
+        version: link:../client-ui-slots
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/client-ui-settings:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../client-kit
+      '@nide/client-ui-plugins':
+        specifier: workspace:*
+        version: link:../client-ui-plugins
+      '@nide/client-ui-slots':
+        specifier: workspace:*
+        version: link:../client-ui-slots
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+      zustand:
+        specifier: ^5.0.15
+        version: 5.1.0(@types/react@19.3.0)(react@19.3.1)
+
+  packages/client-ui-slots:
+    dependencies:
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/client-ui-welcome:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../client-kit
+      '@nide/client-ui-plugins':
+        specifier: workspace:*
+        version: link:../client-ui-plugins
+      '@nide/client-ui-slots':
+        specifier: workspace:*
+        version: link:../client-ui-slots
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/domain':
+        specifier: workspace:*
+        version: link:../domain
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/config:
+    dependencies:
+      '@nide/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/content:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/contracts: {}
+
+  packages/domain: {}
+
+  packages/git:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/hello:
+    dependencies:
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+
+  packages/host:
+    dependencies:
+      '@nide/boot':
+        specifier: workspace:*
+        version: link:../boot
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@nide/service-ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@nide/service-appearance':
+        specifier: workspace:*
+        version: link:../appearance
+      '@nide/service-config':
+        specifier: workspace:*
+        version: link:../config
+      '@nide/service-i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@nide/service-plugin-backend':
+        specifier: workspace:*
+        version: link:../plugin-backend
+      '@nide/service-plugin-capabilities':
+        specifier: workspace:*
+        version: link:../plugin-capabilities
+      '@nide/service-plugin-permissions':
+        specifier: workspace:*
+        version: link:../plugin-permissions
+      '@nide/service-plugin-storage':
+        specifier: workspace:*
+        version: link:../plugin-storage
+      '@nide/service-plugins':
+        specifier: workspace:*
+        version: link:../plugin-runtime
+      '@nide/service-project':
+        specifier: workspace:*
+        version: link:../project
+
+  packages/i18n:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/kernel:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      cordis:
+        specifier: 4.0.0-rc.12
+        version: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
+
+  packages/plugin-backend:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@nide/service-plugin-capabilities':
+        specifier: workspace:*
+        version: link:../plugin-capabilities
+      '@nide/service-plugin-permissions':
+        specifier: workspace:*
+        version: link:../plugin-permissions
+      '@nide/service-plugin-storage':
+        specifier: workspace:*
+        version: link:../plugin-storage
+      '@nide/service-plugins':
+        specifier: workspace:*
+        version: link:../plugin-runtime
+
+  packages/plugin-capabilities:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@nide/service-plugins':
+        specifier: workspace:*
+        version: link:../plugin-runtime
+
+  packages/plugin-permissions:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@nide/service-plugins':
+        specifier: workspace:*
+        version: link:../plugin-runtime
+
+  packages/plugin-runtime:
+    dependencies:
+      '@cordisjs/plugin-loader':
+        specifier: 1.0.0-rc.9
+        version: 1.0.0-rc.9(cordis@4.0.0-rc.12)
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@nide/service-i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@nide/service-plugin-backend':
+        specifier: workspace:*
+        version: link:../plugin-backend
+      '@nide/service-plugin-permissions':
+        specifier: workspace:*
+        version: link:../plugin-permissions
+      '@nide/service-plugin-storage':
+        specifier: workspace:*
+        version: link:../plugin-storage
+      js-yaml:
+        specifier: 4.3.2
+        version: 4.3.2
+
+  packages/plugin-storage:
+    dependencies:
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/plugins/ai-provider:
+    dependencies:
+      '@nide/client-ui-settings':
+        specifier: workspace:*
+        version: link:../../client-ui-settings
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@nide/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/plugins/demo:
+    dependencies:
+      '@nide/client-kit':
+        specifier: workspace:*
+        version: link:../../client-kit
+      '@nide/client-ui-renderer':
+        specifier: workspace:*
+        version: link:../../client-ui-renderer
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@nide/sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/plugins/lang-en:
+    dependencies:
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+
+  packages/project:
+    dependencies:
+      '@nide/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/sdk:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      react:
+        specifier: ^19.2.1
+        version: 19.3.1
+
+  packages/secrets:
+    dependencies:
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+
+  packages/shell:
+    dependencies:
+      '@electron-toolkit/preload':
+        specifier: ^3.0.2
+        version: 3.0.2(electron@45.3.3(supports-color@7.2.0))
+      '@electron-toolkit/utils':
+        specifier: ^4.0.0
+        version: 4.0.0(electron@45.3.3(supports-color@7.2.0))
+      '@nide/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nide/domain':
+        specifier: workspace:*
+        version: link:../domain
+      electron:
+        specifier: ^45.0.0
+        version: 45.3.3(supports-color@7.2.0)
+      electron-log:
+        specifier: ^5.4.4
+        version: 5.4.4
 
 packages:
 
@@ -389,11 +947,6 @@ packages:
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
 
-  '@cordisjs/plugin-group@1.0.0':
-    resolution: {integrity: sha512-rzANH1wlDTU/bJWx6T2/RUDUsRvDvubvw5bKSO94MWmfhlW2gNzYtTm9pc7PaW18zHAUienZ0EgXoo6cPxvdKg==}
-    peerDependencies:
-      '@cordisjs/plugin-loader': ^1.0.0-beta.4
-
   '@cordisjs/plugin-include@1.2.0':
     resolution: {integrity: sha512-NuVOusSBifrx4443cj57JbMd3XJpd6S8Y5fEjMWAzL5yYXQ7kVRIPZ8wvFM2E8581D0KqlZE0PjGJBmbFiXzLQ==}
     peerDependencies:
@@ -408,11 +961,6 @@ packages:
     peerDependenciesMeta:
       node-addon-require-builtin:
         optional: true
-
-  '@cordisjs/plugin-timer@1.1.4':
-    resolution: {integrity: sha512-hxm4MmT0hrNzue05EE30We2WYVTTR6g2Nj5kYDu4EWzM9B7JgrUQg8qfUvG03rzB+59uJJywm8u/9OeJXhYIcg==}
-    peerDependencies:
-      cordis: ^4.0.0-rc.11
 
   '@dual-bundle/import-meta-resolve@4.2.1':
     resolution: {integrity: sha512-id+7YRUgoUX6CgV0DtuhirQWodeeA7Lf4i2x71JS/vtA5pRb/hIGWlw+G6MeXvsM+MXrz0VAydTGElX1rAfgPg==}
@@ -1712,9 +2260,6 @@ packages:
   electron-to-chromium@1.5.487:
     resolution: {integrity: sha512-qWotOhQYeYEj+DK4+Y+cfPj44qiC6ETIiWtJLfmDJydED2BJJ7loPA4SfBbbrMI6X/X3tryJgxnY9nxsO545Zw==}
 
-  electron-updater@6.8.11:
-    resolution: {integrity: sha512-12U/mbzaIKQS3Q543aQ7DjyAZMXeVJy1Wpu0qdq5ne4RXpIQDpWYm25zRjgXngAoo6swMrm4C4owGyiIipelsg==}
-
   electron-vite@5.0.0:
     resolution: {integrity: sha512-OHp/vjdlubNlhNkPkL/+3JD34ii5ov7M0GpuXEVdQeqdQ3ulvVR7Dg/rNBLfS5XPIFwgoBLDf9sjjrL+CuDyRQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2302,13 +2847,6 @@ packages:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
     engines: {node: '>=10'}
 
-  lodash.escaperegexp@4.1.2:
-    resolution: {integrity: sha512-TM9YBvyC84ZxE3rgfefxUWiQKLilstD6k7PTGt6wfbtXF8ixIJLOL3VYyV/z+ZiPLsVxAsKAFVwWlWeb2Y8Yyw==}
-
-  lodash.isequal@4.5.0:
-    resolution: {integrity: sha512-pDo3lu8Jhfjqls6GkMgpahsF9kCyayhgykjyLMNFTKWrpVdAQtYyB4muAMWozBB4ig/dtWAmsMxLEI8wuz+DYQ==}
-    deprecated: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
-
   lodash@4.18.1:
     resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
@@ -2736,9 +3274,6 @@ packages:
   tiny-async-pool@1.3.0:
     resolution: {integrity: sha512-01EAw5EDrcVrdgyCLgoSPvqznC0sVxDSVeiOz09FUpjh71G79VCqneOr+xvt7T1r76CF6ZZfPjHorN2+d+3mqA==}
 
-  tiny-typed-emitter@2.1.0:
-    resolution: {integrity: sha512-qVtvMxeXbVej0cQWKqVSSAHmKZEHAvxdF8HEUBFWts8h+xEo5m/lEiPakuyZ3BnCBjOD8i24kzNOiOLLgsSxhA==}
-
   tinybench@6.2.3:
     resolution: {integrity: sha512-Al01C2JIBnO2CXCAPbpAl6sUiOZHeThGtHYNTa51JRw9PyWOCdr+9Ong05R4qg/Sk3+H645E8ov1h2c58ityNw==}
     engines: {node: '>=20.0.0'}
@@ -3138,10 +3673,6 @@ snapshots:
       hashery: 1.5.1
       keyv: 5.6.0
 
-  '@cordisjs/plugin-group@1.0.0(@cordisjs/plugin-loader@1.0.0-rc.9)':
-    dependencies:
-      '@cordisjs/plugin-loader': 1.0.0-rc.9(cordis@4.0.0-rc.12)
-
   '@cordisjs/plugin-include@1.2.0(@cordisjs/plugin-loader@1.0.0-rc.9)(cordis@4.0.0-rc.12)':
     dependencies:
       '@cordisjs/plugin-loader': 1.0.0-rc.9(cordis@4.0.0-rc.12)
@@ -3150,11 +3681,6 @@ snapshots:
       yaml: 2.9.1
 
   '@cordisjs/plugin-loader@1.0.0-rc.9(cordis@4.0.0-rc.12)':
-    dependencies:
-      cordis: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
-      cosmokit: 1.8.1
-
-  '@cordisjs/plugin-timer@1.1.4(cordis@4.0.0-rc.12)':
     dependencies:
       cordis: 4.0.0-rc.12(@cordisjs/plugin-include@1.2.0)(@cordisjs/plugin-loader@1.0.0-rc.9)
       cosmokit: 1.8.1
@@ -4403,19 +4929,6 @@ snapshots:
 
   electron-to-chromium@1.5.487: {}
 
-  electron-updater@6.8.11(supports-color@7.2.0):
-    dependencies:
-      builder-util-runtime: 9.7.0(supports-color@7.2.0)
-      fs-extra: 10.1.0
-      js-yaml: 4.3.2
-      lazy-val: 1.0.5
-      lodash.escaperegexp: 4.1.2
-      lodash.isequal: 4.5.0
-      semver: 7.7.4
-      tiny-typed-emitter: 2.1.0
-    transitivePeerDependencies:
-      - supports-color
-
   electron-vite@5.0.0(supports-color@7.2.0)(vite@7.3.8(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1)):
     dependencies:
       '@babel/core': 7.29.13(supports-color@7.2.0)
@@ -5096,10 +5609,6 @@ snapshots:
     dependencies:
       p-locate: 5.0.0
 
-  lodash.escaperegexp@4.1.2: {}
-
-  lodash.isequal@4.5.0: {}
-
   lodash@4.18.1: {}
 
   lowercase-keys@2.0.0: {}
@@ -5519,8 +6028,6 @@ snapshots:
   tiny-async-pool@1.3.0:
     dependencies:
       semver: 5.7.3
-
-  tiny-typed-emitter@2.1.0: {}
 
   tinybench@6.2.3: {}
 

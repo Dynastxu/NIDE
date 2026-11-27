@@ -1,10 +1,21 @@
 {
+  "name": "@nide/plugin-ai-provider",
+  "private": true,
+  "type": "module",
+  "description": "NIDE builtin plugin (ai-provider): manifest + contributions.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
   "nide": {
     "plugin": true,
     "layer": "plugin"
   },
-  "private": true,
-  "description": "NIDE builtin plugin (ai-provider): manifest + contributions.",
-  "name": "@nide/plugin-ai-provider",
-  "type": "module"
+  "dependencies": {
+    "@nide/client-ui-settings": "workspace:*",
+    "@nide/contracts": "workspace:*",
+    "@nide/kernel": "workspace:*",
+    "@nide/sdk": "workspace:*",
+    "react": "^19.2.1"
+  }
 }

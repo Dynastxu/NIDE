@@ -1,6 +1,6 @@
 import os from 'node:os'
-import type { NideContext } from '../../kernel/src/context.ts'
-import type { PermissionVariables } from '../../contracts/src/plugin-api/permissions.ts'
+import type { NideContext } from '@nide/kernel/context.ts'
+import type { PermissionVariables } from '@nide/contracts/plugin-api/permissions.ts'
 import { PluginPermissionGuard } from './permissions.ts'
 
 /**
