@@ -34,6 +34,8 @@ packages/
                     客户端窗口：一个包 = 一扇窗的外壳与领域状态（分区 + 窗口根 + 自己的 slot）
   client-runtime/   客户端树：按 windowType 挂载窗口包 + 生成的花名册（**只做装配**）
   hello/            最小 Cordis 插件（冒烟用）
+
+apps/desktop/       渲染进程引导壳（workspace 包；main / preload 在 packages/shell）
 ```
 
 切法对齐 DSH：**包按能力 / 角色切，共享面只有「库」**。窗口与功能包是装配出来的
@@ -73,12 +75,14 @@ DOM / fs。
 | plugin          | contract, client-platform, client-sdk, client-seam                 | manifest + 贡献点                                             |
 | bundle          | 无                                                                 | 组合包：只有 manifest 与 patch，没有代码                      |
 | smoke           | 无                                                                 | 冒烟                                                          |
-| app             | 上面所有客户端层                                                   | 渲染进程引导壳（不是 workspace 包）                           |
+| app             | 上面所有客户端层                                                   | 渲染进程引导壳（`apps/desktop`，workspace 包，不发布）        |
 
 四条硬规则：
 
-1. **新包= 目录 + `package.json` 的 `nide.layer`**，然后跑 `pnpm gen:package-graph`。
-   少声明层，`pnpm lint:imports` 直接报「包 X 没有声明层」；图也会少一个节点。
+1. **新包 = 目录 + `package.json`（`name` / `exports` / `nide.layer` / 依赖）**，然后跑
+   `pnpm gen:package-graph`。少声明层，`pnpm lint:imports` 直接报「包 X 没有声明层」；
+   跨包 import 了却没写进自己的 `dependencies`，同一个门禁报「没有声明依赖」。
+   `exports` 至少覆盖 `./* → ./src/*`，有根入口时再加 `"."`。
 2. **`import type` 不产生运行时 / 打包耦合**，可以跨层 —— 两个纯层例外（`contracts`
    什么都不 import，`domain` 也什么都不 import），否则纯层就变成了又一个共享层。
 3. **业务包之间只有两条路**：走 `ctx.<service>`，或把纯函数 / 端口 / 领域错误搬进
@@ -92,7 +96,7 @@ DOM / fs。
 ## 门禁
 
 ```bash
-pnpm lint:imports        # 包依赖：分层规则 + 未声明层 + 纯层自包含 + 依赖环
+pnpm lint:imports        # 包依赖：分层规则 + 未声明层 / 未声明依赖 + 跨包相对导入 + 纯层自包含 + 依赖环
 pnpm lint:domains        # 包内域分层：窗口 / 功能包内部跨域只能经 shared / 装配点
 pnpm gen:package-graph   # 重新生成 docs/architecture/package-graph.md（改依赖后必跑）
 pnpm graph:check         # 只校验生成图是否最新（CI 用）
@@ -128,13 +132,24 @@ explorer / editor 共用的文档状态在 `client-kit/stores/documents.store`�
 
 ## import 约定
 
-- **host 侧（boot / host / kernel / 业务包 / plugin-runtime）**：纯 Node ESM，用带 `.ts`
-  扩展名的相对路径；**不要**用 `@nide/*` 别名（打包产物没有别名解析），也不要 import
-  宿主入口；
-- **客户端（`client-*` / `sdk` / `test/renderer`）**：用 `@nide/*` 别名（`tsconfig.web`、
+- **跨包一律用包名**：`@nide/<包>/<子路径>`。包名看目标包的 `package.json`，不一定等于
+  目录名（`packages/plugin-runtime` 是 `@nide/service-plugins`）。**不要**写
+  `../../kernel/src/...` 或 `../../../packages/contracts/src/...`：包边界不能只靠目录。
+  包内文件之间仍然用相对路径。
+- **host 侧（boot / host / kernel / 业务包 / plugin-runtime）**：纯 Node ESM，包名后带
+  `.ts` 子路径（`@nide/kernel/context.ts`）。`pnpm build:host` 发射时会把包名改写成
+  相对 `.js`，并把第三方依赖闭包复制到 `out/host/node_modules`（见
+  `scripts/build-host.mts`）。
+- **客户端（`client-*` / `sdk` / `test/renderer`）**：包名后不带扩展名
+  （`@nide/client-kit/stores/documents.store`），由 Vite 别名解析。`tsconfig.web`、
   `electron.vite.config.ts`、`vitest.config.ts`、`scripts/build-plugin-client.mjs`
-  四处必须保持一致），包内可用 `@nide/client-kit/...` 这类子路径；
-- 新增别名时四处一起改，否则 `typecheck` / 构建 / 插件 bundle / 测试会各绿各的。
+  四处必须保持一致；新增客户端包时四处一起改。
+- **每个包的 `exports` 暴露源码**：`"./*": "./src/*"`；有根入口时再加 `"."`。
+  **依赖写在自己的 `package.json`**（workspace 包用 `workspace:*`）。根
+  `@nide/nide-root` 不声明 `dependencies`，只保留工具链 `devDependencies`：
+  `pnpm build:host` 把 host 的运行时依赖闭包复制到 `out/host/node_modules`，
+  main / preload 由 electron-vite 打进 bundle。
+  `pnpm lint:imports` 会拦「跨包相对导入」和「没声明依赖」。
 
 ## 服务与插件
 

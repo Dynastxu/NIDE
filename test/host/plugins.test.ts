@@ -2,8 +2,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { PluginManager, pluginPreferencePath } from '../../packages/plugin-runtime/src/plugins.ts'
-import { parsePluginPreference } from '../../packages/contracts/src/plugin-api/preference.ts'
+import { PluginManager, pluginPreferencePath } from '@nide/service-plugins/plugins.ts'
+import { parsePluginPreference } from '@nide/contracts/plugin-api/preference.ts'
 
 /**
  * host 侧插件清单与启用状态。

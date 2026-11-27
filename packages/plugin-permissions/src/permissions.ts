@@ -3,15 +3,15 @@ import type {
   PermissionVariables,
   PluginPermissions,
   ResolvedPermissions
-} from '../../../packages/contracts/src/plugin-api/permissions.ts'
+} from '@nide/contracts/plugin-api/permissions.ts'
 import {
   allowsLegacy,
   isPathWithinScopes,
   resolvePermissions
-} from '../../../packages/contracts/src/plugin-api/permissions.ts'
-import type { RpcRequest } from '../../../packages/contracts/src/host-rpc/index.ts'
-import type { RpcDenial } from '../../kernel/src/rpc.ts'
-import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
+} from '@nide/contracts/plugin-api/permissions.ts'
+import type { RpcRequest } from '@nide/contracts/host-rpc/index.ts'
+import type { RpcDenial } from '@nide/kernel/rpc.ts'
+import type { PluginManager } from '@nide/service-plugins/plugins.ts'
 
 /**
  * 插件权限的**执行侧**（mics 的 PermissionsService 对应物）。

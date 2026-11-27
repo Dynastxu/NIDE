@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./*": "./src/*"
   },
   "nide": {
     "client": {
@@ -13,5 +14,14 @@
       "order": 20
     },
     "layer": "client-window"
+  },
+  "dependencies": {
+    "@nide/client-kit": "workspace:*",
+    "@nide/client-modules": "workspace:*",
+    "@nide/client-ui-renderer": "workspace:*",
+    "@nide/client-ui-slots": "workspace:*",
+    "@nide/contracts": "workspace:*",
+    "cordis": "4.0.0-rc.12",
+    "react": "^19.2.1"
   }
 }

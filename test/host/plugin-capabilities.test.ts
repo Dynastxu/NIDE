@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { PluginCapabilities } from '../../packages/plugin-capabilities/src/capabilities.ts'
-import type { ShellMethod } from '../../packages/contracts/src/host-rpc/index.ts'
-import type { PluginManager } from '../../packages/plugin-runtime/src/plugins.ts'
-import type { PluginPermissions } from '../../packages/contracts/src/plugin-api/permissions.ts'
+import { PluginCapabilities } from '@nide/service-plugin-capabilities/capabilities.ts'
+import type { ShellMethod } from '@nide/contracts/host-rpc/index.ts'
+import type { PluginManager } from '@nide/service-plugins/plugins.ts'
+import type { PluginPermissions } from '@nide/contracts/plugin-api/permissions.ts'
 
 const GRANTS: Record<string, PluginPermissions> = {
   'demo.none': { trust: 'sandboxed' },

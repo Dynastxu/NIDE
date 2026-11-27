@@ -4,7 +4,7 @@ import {
   SlotRegistry,
   type SlotComponent,
   type SlotEntry
-} from '../../packages/client-ui-slots/src'
+} from '@nide/client-ui-slots'
 
 /**
  * slot 注册表的三种语义。

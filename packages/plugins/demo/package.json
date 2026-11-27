@@ -1,10 +1,22 @@
 {
+  "name": "@nide/plugin-demo",
+  "private": true,
+  "type": "module",
+  "description": "NIDE builtin plugin (demo): manifest + contributions.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
   "nide": {
     "plugin": true,
     "layer": "plugin"
   },
-  "private": true,
-  "description": "NIDE builtin plugin (demo): manifest + contributions.",
-  "name": "@nide/plugin-demo",
-  "type": "module"
+  "dependencies": {
+    "@nide/client-kit": "workspace:*",
+    "@nide/client-ui-renderer": "workspace:*",
+    "@nide/contracts": "workspace:*",
+    "@nide/kernel": "workspace:*",
+    "@nide/sdk": "workspace:*",
+    "react": "^19.2.1"
+  }
 }

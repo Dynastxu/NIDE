@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./*": "./src/*"
   },
   "//": "文件树 / 项目面板 / 条目动作：按 slot 注册到主窗口，不注册窗口根。",
   "nide": {
@@ -14,5 +15,16 @@
       "order": 25
     },
     "layer": "client-feature"
+  },
+  "dependencies": {
+    "@nide/client-kit": "workspace:*",
+    "@nide/client-ui-renderer": "workspace:*",
+    "@nide/client-ui-slots": "workspace:*",
+    "@nide/contracts": "workspace:*",
+    "@nide/domain": "workspace:*",
+    "cordis": "4.0.0-rc.12",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "zustand": "^5.0.15"
   }
 }

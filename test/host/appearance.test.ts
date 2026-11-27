@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { HostAppearance } from '../../packages/appearance/src/appearance.ts'
+import { HostAppearance } from '@nide/service-appearance/appearance.ts'
 
 /**
  * 主题 / 外观（host 侧）。

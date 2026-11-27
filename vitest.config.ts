@@ -2,6 +2,40 @@ import { resolve } from 'path'
 import { defineConfig } from 'vitest/config'
 
 /**
+ * host 侧的包名 → 源码目录。
+ *
+ * test/host 直接跑在 Node 里，不经过 electron-vite；这些包现在用 `@nide/<包>`
+ * 互相 import，所以测试也要能解析。顺序（子路径正则在前、精确匹配在后）与
+ * electron.vite.config.ts 的 renderer 别名一致。
+ */
+const hostPackages: Record<string, string> = {
+  '@nide/kernel': 'packages/kernel/src',
+  '@nide/boot': 'packages/boot/src',
+  '@nide/host': 'packages/host/src',
+  '@nide/hello': 'packages/hello/src',
+  '@nide/service-ai': 'packages/ai/src',
+  '@nide/service-appearance': 'packages/appearance/src',
+  '@nide/service-config': 'packages/config/src',
+  '@nide/service-content': 'packages/content/src',
+  '@nide/service-git': 'packages/git/src',
+  '@nide/service-i18n': 'packages/i18n/src',
+  '@nide/service-plugin-backend': 'packages/plugin-backend/src',
+  '@nide/service-plugin-capabilities': 'packages/plugin-capabilities/src',
+  '@nide/service-plugin-permissions': 'packages/plugin-permissions/src',
+  '@nide/service-plugins': 'packages/plugin-runtime/src',
+  '@nide/service-plugin-storage': 'packages/plugin-storage/src',
+  '@nide/service-project': 'packages/project/src',
+  '@nide/service-secrets': 'packages/secrets/src'
+}
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const hostAliases = Object.entries(hostPackages).flatMap(([name, dir]) => [
+  { find: new RegExp(`^${escapeRegExp(name)}/`), replacement: `${resolve(dir)}/` },
+  { find: name, replacement: resolve(`${dir}/index.ts`) }
+])
+
+/**
  * 测试配置。
  *
  * 覆盖范围刻意只包括**不依赖 electron** 的纯逻辑：locale 归一化、语言包合并与
@@ -20,8 +54,19 @@ export default defineConfig({
      * 测试只用到 kit 与 settings 的 pages（`test/renderer/**` 跟着被测代码走）。
      */
     alias: [
+      ...hostAliases,
+      // 所有子路径正则必须排在精确别名之前（字符串别名也会匹配 `pkg/sub`）
+      { find: /^@nide\/shell\//, replacement: `${resolve('packages/shell/src')}/` },
       { find: /^@nide\/client-kit\//, replacement: `${resolve('packages/client-kit/src')}/` },
       { find: /^@nide\/sdk\//, replacement: `${resolve('packages/sdk/src')}/` },
+      {
+        find: /^@nide\/client-modules\//,
+        replacement: `${resolve('packages/client-modules/src')}/`
+      },
+      {
+        find: /^@nide\/client-runtime\//,
+        replacement: `${resolve('packages/client-runtime/src')}/`
+      },
       {
         find: /^@nide\/client-ui-main\//,
         replacement: `${resolve('packages/client-ui-main/src')}/`
@@ -54,7 +99,31 @@ export default defineConfig({
         find: /^@nide\/client-ui-renderer\//,
         replacement: `${resolve('packages/client-ui-renderer/src')}/`
       },
+      {
+        find: /^@nide\/client-ui-slots\//,
+        replacement: `${resolve('packages/client-ui-slots/src')}/`
+      },
+      {
+        find: /^@nide\/domain\//,
+        replacement: `${resolve('packages/domain/src')}/`
+      },
+      // 精确包名（无子路径）
       { find: '@nide/contracts', replacement: resolve('packages/contracts/src') },
+      { find: '@nide/domain', replacement: resolve('packages/domain/src') },
+      { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') },
+      { find: '@nide/sdk', replacement: resolve('packages/sdk/src') },
+      {
+        find: '@nide/client-modules',
+        replacement: resolve('packages/client-modules/src/index.ts')
+      },
+      {
+        find: '@nide/client-runtime',
+        replacement: resolve('packages/client-runtime/src/index.ts')
+      },
+      {
+        find: '@nide/client-ui-main',
+        replacement: resolve('packages/client-ui-main/src/index.ts')
+      },
       {
         find: '@nide/client-ui-editor',
         replacement: resolve('packages/client-ui-editor/src/index.ts')
@@ -68,11 +137,25 @@ export default defineConfig({
         replacement: resolve('packages/client-ui-git/src/index.ts')
       },
       {
-        find: /^@nide\/domain\//,
-        replacement: `${resolve('packages/domain/src')}/`
+        find: '@nide/client-ui-settings',
+        replacement: resolve('packages/client-ui-settings/src/index.ts')
       },
-      { find: '@nide/domain', replacement: resolve('packages/domain/src') },
-      { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') }
+      {
+        find: '@nide/client-ui-welcome',
+        replacement: resolve('packages/client-ui-welcome/src/index.ts')
+      },
+      {
+        find: '@nide/client-ui-plugins',
+        replacement: resolve('packages/client-ui-plugins/src/index.ts')
+      },
+      {
+        find: '@nide/client-ui-renderer',
+        replacement: resolve('packages/client-ui-renderer/src/index.tsx')
+      },
+      {
+        find: '@nide/client-ui-slots',
+        replacement: resolve('packages/client-ui-slots/src/index.ts')
+      }
     ]
   },
   test: {

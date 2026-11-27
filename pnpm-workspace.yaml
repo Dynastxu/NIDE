@@ -1,3 +1,11 @@
+packages:
+  # 包按层分组，但 pnpm 只认目录：每个带 package.json 的包都是 workspace 包
+  - 'packages/*'
+  - 'packages/plugins/*'
+  - 'packages/bundle/*'
+  # 桌面应用的渲染进程壳（依赖属于它自己，不写回根）
+  - 'apps/*'
+
 allowBuilds:
   electron-winstaller: true
   esbuild: true

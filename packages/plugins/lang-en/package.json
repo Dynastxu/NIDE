@@ -1,10 +1,17 @@
 {
+  "name": "@nide/plugin-lang-en",
+  "private": true,
+  "type": "module",
+  "description": "NIDE builtin plugin (lang-en): manifest + contributions.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
   "nide": {
     "plugin": true,
     "layer": "plugin"
   },
-  "private": true,
-  "description": "NIDE builtin plugin (lang-en): manifest + contributions.",
-  "name": "@nide/plugin-lang-en",
-  "type": "module"
+  "dependencies": {
+    "@nide/kernel": "workspace:*"
+  }
 }

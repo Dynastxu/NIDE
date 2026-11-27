@@ -1,16 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import {
-  HostBuiltinViews,
-  toViewDescriptors
-} from '../../packages/plugin-runtime/src/builtin-views.ts'
-import { EXPLORER_VIEW_SPEC } from '../../packages/content/src/views.ts'
-import { GIT_VIEWS } from '../../packages/git/src/views.ts'
+import { HostBuiltinViews, toViewDescriptors } from '@nide/service-plugins/builtin-views.ts'
+import { EXPLORER_VIEW_SPEC } from '@nide/service-content/views.ts'
+import { GIT_VIEWS } from '@nide/service-git/views.ts'
 import {
   HOST_COMMIT_VIEW_ID,
   HOST_EXPLORER_VIEW_ID,
   HOST_GIT_VIEW_ID,
   HOST_VIEW_PLUGIN_ID
-} from '../../packages/contracts/src/plugin-api/view.ts'
+} from '@nide/contracts/plugin-api/view.ts'
 
 /**
  * 内建视图表（host 侧）。

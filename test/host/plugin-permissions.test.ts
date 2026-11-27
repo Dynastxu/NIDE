@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
+import { RpcRegistry } from '@nide/kernel/rpc.ts'
 import {
   PluginPermissionGuard,
   capabilityOf,
   pathsOf
-} from '../../packages/plugin-permissions/src/permissions.ts'
-import type { PluginManager } from '../../packages/plugin-runtime/src/plugins.ts'
-import type { PluginPermissions } from '../../packages/contracts/src/plugin-api/permissions.ts'
-import type { RpcRequest } from '../../packages/contracts/src/host-rpc/index.ts'
+} from '@nide/service-plugin-permissions/permissions.ts'
+import type { PluginManager } from '@nide/service-plugins/plugins.ts'
+import type { PluginPermissions } from '@nide/contracts/plugin-api/permissions.ts'
+import type { RpcRequest } from '@nide/contracts/host-rpc/index.ts'
 
 const PROJECT = 'C:\\work\\novel'
 const USER_DATA = 'C:\\Users\\u\\AppData\\Roaming\\NIDE'

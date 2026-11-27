@@ -2,10 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  readProjectForeshadowing,
-  type RootsOptions
-} from '../../packages/content/src/project-files.ts'
+import { readProjectForeshadowing, type RootsOptions } from '@nide/service-content/project-files.ts'
 
 /**
  * 伏笔列表的**读盘**部分。

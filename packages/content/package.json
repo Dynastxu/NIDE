@@ -2,8 +2,17 @@
   "name": "@nide/service-content",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
   "//": "内容读写：文件树 / 图鉴 / 概述。三个 RPC 命名空间共用同一批实现。",
   "nide": {
     "layer": "service"
+  },
+  "dependencies": {
+    "@nide/contracts": "workspace:*",
+    "@nide/domain": "workspace:*",
+    "@nide/kernel": "workspace:*"
   }
 }

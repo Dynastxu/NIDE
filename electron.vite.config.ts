@@ -4,8 +4,10 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { reactClickToComponent } from 'vite-plugin-react-click-to-component'
 
-// 注意：Vite 不读 tsconfig 的 paths，@nide/contracts 必须在每个环境里显式声明别名
-// main 与 preload 的依赖外置由 v5 的 build.externalizeDeps 默认启用，无需注册 externalizeDepsPlugin
+// 注意：Vite 不读 tsconfig 的 paths，@nide/contracts 必须在每个环境里显式声明别名。
+// 根 package.json 不声明 dependencies（与 DSH 的 workspace 根一样），所以 main /
+// preload 必须把 electron-log / @electron-toolkit/* 打进 bundle：显式关掉
+// build.externalizeDeps。electron 本身仍由 electron-vite 当内置外置处理。
 const shared = resolve('packages/contracts/src')
 const domain = resolve('packages/domain/src')
 const projectRoot = resolve('.')
@@ -15,12 +17,14 @@ export default defineConfig({
     resolve: { alias: { '@nide/contracts': shared, '@nide/domain': domain } },
     // 主进程与预加载都在 packages/shell（Electron 外壳）；渲染进程只有引导壳
     build: {
+      externalizeDeps: false,
       rollupOptions: { input: resolve('packages/shell/src/main/index.ts') }
     }
   },
   preload: {
     resolve: { alias: { '@nide/contracts': shared, '@nide/domain': domain } },
     build: {
+      externalizeDeps: false,
       rollupOptions: { input: resolve('packages/shell/src/preload/index.ts') }
     }
   },
@@ -88,6 +92,10 @@ export default defineConfig({
         { find: '@nide/contracts', replacement: shared },
         { find: '@nide/domain', replacement: domain },
         { find: '@nide/client-kit', replacement: resolve('packages/client-kit/src') },
+        {
+          find: /^@nide\/client-runtime\//,
+          replacement: `${resolve('packages/client-runtime/src')}/`
+        },
         {
           find: '@nide/client-runtime',
           replacement: resolve('packages/client-runtime/src/index.ts')

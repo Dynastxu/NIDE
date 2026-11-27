@@ -12,17 +12,57 @@
     "skipLibCheck": true,
     "types": ["node"],
     /*
-     * `@nide/contracts/*` 只为**类型**解析：host 直接加载的 `src/shared/*` 契约文件
-     * （例如 plugin-api/contributions.ts）之间用的是 shell 那一侧的无扩展名相对
-     * 导入，NodeNext 解析不了。
+     * host 侧跨包一律写 `@nide/<包>/<子路径>.ts`。运行时由 pnpm 的 workspace
+     * 链接 + 各包 `exports` 解析；打包时 `scripts/build-host.mts` 会把它们改写成
+     * 相对 `.js`（`out/host` 里没有 node_modules）。
      *
-     * 这条通路**不能**拿来写运行时导入：host 是纯 Node ESM，没有构建期别名，
-     * 一个 `import { x } from '@nide/contracts/...'` 会通过 typecheck 而在运行时炸掉。
-     * host 的源码一律用带扩展名的相对路径（`.ts`）。
+     * 这里的 paths 是给「还没跑 pnpm install」的 typecheck 兜底，也覆盖
+     * test/host 这种不在任何包目录下的用例。
      */
     "paths": {
+      "@nide/service-ai": ["./packages/ai/src/index.ts"],
+      "@nide/service-ai/*": ["./packages/ai/src/*"],
+      "@nide/service-appearance": ["./packages/appearance/src/index.ts"],
+      "@nide/service-appearance/*": ["./packages/appearance/src/*"],
+      "@nide/boot": ["./packages/boot/src/index.ts"],
+      "@nide/boot/*": ["./packages/boot/src/*"],
+      "@nide/service-config": ["./packages/config/src/index.ts"],
+      "@nide/service-config/*": ["./packages/config/src/*"],
+      "@nide/service-content": ["./packages/content/src/index.ts"],
+      "@nide/service-content/*": ["./packages/content/src/*"],
       "@nide/contracts/*": ["./packages/contracts/src/*"],
-      "@nide/domain/*": ["./packages/domain/src/*"]
+      "@nide/domain/*": ["./packages/domain/src/*"],
+      "@nide/service-git": ["./packages/git/src/index.ts"],
+      "@nide/service-git/*": ["./packages/git/src/*"],
+      "@nide/hello": ["./packages/hello/src/index.ts"],
+      "@nide/hello/*": ["./packages/hello/src/*"],
+      "@nide/host": ["./packages/host/src/index.ts"],
+      "@nide/host/*": ["./packages/host/src/*"],
+      "@nide/service-i18n": ["./packages/i18n/src/index.ts"],
+      "@nide/service-i18n/*": ["./packages/i18n/src/*"],
+      "@nide/kernel": ["./packages/kernel/src/index.ts"],
+      "@nide/kernel/*": ["./packages/kernel/src/*"],
+      "@nide/service-plugin-backend": ["./packages/plugin-backend/src/index.ts"],
+      "@nide/service-plugin-backend/*": ["./packages/plugin-backend/src/*"],
+      "@nide/service-plugin-capabilities": ["./packages/plugin-capabilities/src/index.ts"],
+      "@nide/service-plugin-capabilities/*": ["./packages/plugin-capabilities/src/*"],
+      "@nide/service-plugin-permissions": ["./packages/plugin-permissions/src/index.ts"],
+      "@nide/service-plugin-permissions/*": ["./packages/plugin-permissions/src/*"],
+      "@nide/service-plugins": ["./packages/plugin-runtime/src/index.ts"],
+      "@nide/service-plugins/*": ["./packages/plugin-runtime/src/*"],
+      "@nide/service-plugin-storage": ["./packages/plugin-storage/src/index.ts"],
+      "@nide/service-plugin-storage/*": ["./packages/plugin-storage/src/*"],
+      "@nide/service-project": ["./packages/project/src/index.ts"],
+      "@nide/service-project/*": ["./packages/project/src/*"],
+      "@nide/service-secrets": ["./packages/secrets/src/index.ts"],
+      "@nide/service-secrets/*": ["./packages/secrets/src/*"],
+      "@nide/shell/*": ["./packages/shell/src/*"],
+      "@nide/plugin-ai-provider": ["./packages/plugins/ai-provider/src/index.ts"],
+      "@nide/plugin-ai-provider/*": ["./packages/plugins/ai-provider/src/*"],
+      "@nide/plugin-demo": ["./packages/plugins/demo/src/index.ts"],
+      "@nide/plugin-demo/*": ["./packages/plugins/demo/src/*"],
+      "@nide/plugin-lang-en": ["./packages/plugins/lang-en/src/index.ts"],
+      "@nide/plugin-lang-en/*": ["./packages/plugins/lang-en/src/*"]
     }
   },
   "include": [

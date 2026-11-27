@@ -3,9 +3,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./*": "./src/*"
   },
   "nide": {
     "layer": "client-seam"
+  },
+  "dependencies": {
+    "cordis": "4.0.0-rc.12",
+    "react": "^19.2.1"
   }
 }

@@ -3,7 +3,7 @@ import type {
   RpcRequest,
   RpcResponse,
   RpcSuccess
-} from '../../../packages/contracts/src/host-rpc/index.ts'
+} from '@nide/contracts/host-rpc/index.ts'
 
 /**
  * Host 侧 RPC 注册表（MVP）。

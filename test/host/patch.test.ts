@@ -4,7 +4,7 @@ import {
   toPatchOperations,
   type PatchOperation,
   type PatchWarning
-} from '../../packages/boot/src/patch.ts'
+} from '@nide/boot/patch.ts'
 
 /**
  * patch 方言（与 DSH 的 cordis.patch.yml 一致）。

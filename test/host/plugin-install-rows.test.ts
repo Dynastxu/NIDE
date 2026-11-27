@@ -5,17 +5,13 @@ import { pathToFileURL } from 'node:url'
 import { Context } from 'cordis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import Loader from '@cordisjs/plugin-loader'
-import {
-  hostServices,
-  installNideContext,
-  type NideContext
-} from '../../packages/kernel/src/context.ts'
-import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
-import { projectService } from '../../packages/project/src/index.ts'
-import { pluginsService } from '../../packages/plugin-runtime/src/index.ts'
-import { i18nService } from '../../packages/i18n/src/index.ts'
-import { readPatch } from '../../packages/plugin-runtime/src/profile-rows.ts'
-import type {} from '../../packages/host/src/service-types.ts'
+import { hostServices, installNideContext, type NideContext } from '@nide/kernel/context.ts'
+import { RpcRegistry } from '@nide/kernel/rpc.ts'
+import { projectService } from '@nide/service-project'
+import { pluginsService } from '@nide/service-plugins'
+import { i18nService } from '@nide/service-i18n'
+import { readPatch } from '@nide/service-plugins/profile-rows.ts'
+import type {} from '@nide/host/service-types.ts'
 
 /**
  * 安装 / 卸载的端到端语义（阶段 D2）：

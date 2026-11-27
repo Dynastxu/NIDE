@@ -17,7 +17,9 @@ export default defineConfig(
       '**/.agents',
       // 本地验证 / 构建临时目录（.gitignore 里的 /.tmp/）：探针脚本、实验文件，不是源码。
       // 不忽略的话，探针故意写坏的 TSX 会当成真代码报错，把 lint 钉死。
-      '**/.tmp'
+      '**/.tmp',
+      // Cordis loader 的运行时解析缓存（host 冒烟 / dev 会写），不是源码。
+      '**/.cordis'
     ]
   },
   tseslint.configs.recommended,

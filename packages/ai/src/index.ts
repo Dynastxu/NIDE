@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { NideContext } from '../../kernel/src/context.ts'
+import type { NideContext } from '@nide/kernel/context.ts'
 import { AiProviderService, AiProviderServiceError } from './ai-provider.ts'
 import { ProviderConfigStore } from './ai-provider-config.ts'
 import {
@@ -9,7 +9,7 @@ import {
   type ProviderError,
   type SaveProviderRequest,
   type TestProviderRequest
-} from '../../contracts/src/ai-provider/index.ts'
+} from '@nide/contracts/ai-provider/index.ts'
 
 /**
  * AI 供应商服务（`ai.*`）。

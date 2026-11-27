@@ -1,11 +1,11 @@
-import type { NideContext } from '../../kernel/src/context.ts'
+import type { NideContext } from '@nide/kernel/context.ts'
 import type {
   GalleryRegistry,
   GalleryRegistryUpdateResult,
   ProjectConfig,
   ProjectConfigPatch,
   ProjectConfigUpdateResult
-} from '../../domain/src/project/index.ts'
+} from '@nide/domain/project/index.ts'
 import {
   initializeProjectDirectory,
   loadGalleryRegistry,

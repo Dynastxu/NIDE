@@ -25,9 +25,9 @@ import {
   type SaveProviderRequest,
   type TestProviderRequest,
   type TestProviderResult
-} from '../../../packages/contracts/src/ai-provider/index.ts'
+} from '@nide/contracts/ai-provider/index.ts'
 
-import { SecretDecryptError, type SecretVault } from '../../contracts/src/secrets/index.ts'
+import { SecretDecryptError, type SecretVault } from '@nide/contracts/secrets/index.ts'
 import { ProviderConfigStore } from './ai-provider-config.ts'
 import {
   ProviderRequestError,

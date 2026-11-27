@@ -7,10 +7,10 @@ import {
   ensureWriteRoots,
   isEagerActivation,
   resolveWorkerEntry
-} from '../../packages/plugin-backend/src/runtime.ts'
-import { PluginManager } from '../../packages/plugin-runtime/src/plugins.ts'
-import { resolvePermissions } from '../../packages/contracts/src/plugin-api/permissions.ts'
-import type { PluginPermissions } from '../../packages/contracts/src/plugin-api/permissions.ts'
+} from '@nide/service-plugin-backend/runtime.ts'
+import { PluginManager } from '@nide/service-plugins/plugins.ts'
+import { resolvePermissions } from '@nide/contracts/plugin-api/permissions.ts'
+import type { PluginPermissions } from '@nide/contracts/plugin-api/permissions.ts'
 
 let base = ''
 let builtinDir = ''

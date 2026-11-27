@@ -1,11 +1,11 @@
 import type {
   PluginDialogOptions,
   PluginHostCapabilities
-} from '../../../packages/contracts/src/plugin-api/backend.ts'
-import { allowsLegacy } from '../../../packages/contracts/src/plugin-api/permissions.ts'
-import type { ShellMethod } from '../../../packages/contracts/src/host-rpc/index.ts'
-import { shell } from '../../kernel/src/shell.ts'
-import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
+} from '@nide/contracts/plugin-api/backend.ts'
+import { allowsLegacy } from '@nide/contracts/plugin-api/permissions.ts'
+import type { ShellMethod } from '@nide/contracts/host-rpc/index.ts'
+import { shell } from '@nide/kernel/shell.ts'
+import type { PluginManager } from '@nide/service-plugins/plugins.ts'
 
 /**
  * 插件后端的桌面能力（`ctx.host.*`）。

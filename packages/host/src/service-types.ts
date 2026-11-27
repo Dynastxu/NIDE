@@ -8,18 +8,18 @@
  * 消费方拿到类型的方式与 DSH 一致：`inject: ['project']` 之后直接 `ctx.project`。
  * 新增一个服务时，在对应服务包里 `ctx.provide(key, value)`，再在这里补一行类型。
  */
-import type { HostProjectStore } from '../../project/src/host-project-store.ts'
-import type { ConfigService } from '../../config/src/index.ts'
-import type { SecretVault } from '../../contracts/src/secrets/index.ts'
-import type { AiService } from '../../ai/src/index.ts'
-import type { HostAppearance } from '../../appearance/src/appearance.ts'
-import type { I18nService } from '../../i18n/src/index.ts'
-import type { PluginManager } from '../../plugin-runtime/src/plugins.ts'
-import type { PluginPermissionGuard } from '../../plugin-permissions/src/permissions.ts'
-import type { PluginStorage } from '../../plugin-storage/src/storage.ts'
-import type { PluginCapabilities } from '../../plugin-capabilities/src/capabilities.ts'
-import type { PluginBackendRuntime } from '../../plugin-backend/src/runtime.ts'
-import type { BuiltinViewRegistry } from '../../contracts/src/plugin-api/view.ts'
+import type { HostProjectStore } from '@nide/service-project/host-project-store.ts'
+import type { ConfigService } from '@nide/service-config'
+import type { SecretVault } from '@nide/contracts/secrets/index.ts'
+import type { AiService } from '@nide/service-ai'
+import type { HostAppearance } from '@nide/service-appearance/appearance.ts'
+import type { I18nService } from '@nide/service-i18n'
+import type { PluginManager } from '@nide/service-plugins/plugins.ts'
+import type { PluginPermissionGuard } from '@nide/service-plugin-permissions/permissions.ts'
+import type { PluginStorage } from '@nide/service-plugin-storage/storage.ts'
+import type { PluginCapabilities } from '@nide/service-plugin-capabilities/capabilities.ts'
+import type { PluginBackendRuntime } from '@nide/service-plugin-backend/runtime.ts'
+import type { BuiltinViewRegistry } from '@nide/contracts/plugin-api/view.ts'
 
 declare module 'cordis' {
   interface Context {

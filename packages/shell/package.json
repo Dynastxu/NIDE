@@ -2,9 +2,27 @@
   "name": "@nide/shell",
   "private": true,
   "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
   "//": "Electron 外壳：main（窗口 / 菜单 / 对话框 / 协议 / host 子进程）+ preload。",
   "//2": "只有 Electron 才能做的事在这里；它不 import 任何宿主业务包，只碰 contracts。",
   "nide": {
     "layer": "shell"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.2",
+    "@electron-toolkit/utils": "^4.0.0",
+    "@nide/contracts": "workspace:*",
+    "@nide/domain": "workspace:*",
+    "electron-log": "^5.4.4"
+  },
+  "peerDependencies": {
+    "electron": "^45.0.0"
+  },
+  "peerDependenciesMeta": {
+    "electron": {
+      "optional": true
+    }
   }
 }

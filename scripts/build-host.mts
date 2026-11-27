@@ -19,12 +19,176 @@
  *   out/host/package.json                   ← {"type":"module"}
  */
 import fs from 'node:fs'
+import { builtinModules, createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
 import ts from 'typescript'
 
 const root = process.cwd()
 const outDir = path.join(root, 'out', 'host')
+
+/**
+ * workspace 包名 → `src` 目录。
+ *
+ * host 源码跨包写 `@nide/<包>/<子路径>.ts`（与客户端、测试一致）。`out/host`
+ * 里没有 node_modules，所以发射时必须把裸包名改写成相对路径；这份表就是
+ * 改写用的索引。它只读仓库里的 package.json，不依赖 pnpm 的 node_modules。
+ */
+function readPackageSources(): Map<string, string> {
+  const sources = new Map<string, string>()
+
+  const add = (dir: string): void => {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8')) as {
+        name?: string
+      }
+      if (pkg.name) sources.set(pkg.name, path.join(dir, 'src'))
+    } catch {
+      // 没有 package.json 的目录不是包（例如临时目录），跳过
+    }
+  }
+
+  const groups = ['', 'plugins', 'bundle']
+  for (const group of groups) {
+    const dir = path.join(root, 'packages', group)
+    if (!fs.existsSync(dir)) continue
+    for (const name of fs.readdirSync(dir)) {
+      const child = path.join(dir, name)
+      if (!fs.statSync(child).isDirectory() || name === 'node_modules') continue
+      add(child)
+    }
+  }
+
+  return sources
+}
+
+const packageSources = readPackageSources()
+
+/**
+ * 让 TS 直接解析到包源码，而不是 pnpm 的 node_modules 链接。
+ *
+ * 走 node_modules 时 TS 会把 workspace 包当成 external library（不发射文件），
+ * 产物里就只剩 host 自己的 `.js`。用 paths 指向真实源码目录后，它们属于同一个
+ * program，会按 rootDir 正常发射；发射期再由 rewritePackageImports 改成相对路径。
+ */
+const workspacePaths: Record<string, string[]> = {}
+for (const [name, srcDir] of packageSources) {
+  workspacePaths[`${name}/*`] = [path.join(srcDir, '*')]
+  if (fs.existsSync(path.join(srcDir, 'index.ts')))
+    workspacePaths[name] = [path.join(srcDir, 'index.ts')]
+  else if (fs.existsSync(path.join(srcDir, 'index.tsx')))
+    workspacePaths[name] = [path.join(srcDir, 'index.tsx')]
+}
+
+/** 把 `@nide/foo/bar.ts` 解析成相对当前文件的 `../../foo/src/bar.js`。 */
+function rewritePackageSpecifier(spec: string, fileName: string): string {
+  if (!spec.startsWith('@nide/')) return spec
+
+  let best: string | undefined
+  for (const name of packageSources.keys()) {
+    if (best && name.length <= best.length) continue
+    if (spec === name || spec.startsWith(`${name}/`)) best = name
+  }
+  if (!best) throw new Error(`[build-host] 未登记的包：${spec}（imported from ${fileName}）`)
+
+  const srcDir = packageSources.get(best)!
+  const subpath = spec === best ? '' : spec.slice(best.length + 1)
+  let target = subpath ? path.join(srcDir, subpath) : path.join(srcDir, 'index.ts')
+
+  if (!fs.existsSync(target)) {
+    if (fs.existsSync(`${target}.ts`)) target = `${target}.ts`
+    else if (fs.existsSync(`${target}.tsx`)) target = `${target}.tsx`
+    else if (fs.existsSync(path.join(target, 'index.ts'))) target = path.join(target, 'index.ts')
+    else if (fs.existsSync(path.join(target, 'index.tsx'))) target = path.join(target, 'index.tsx')
+    else throw new Error(`[build-host] 无法解析 ${spec}（from ${fileName}）`)
+  }
+
+  const relative = path.relative(path.dirname(fileName), target).split(path.sep).join('/')
+  const prefixed = relative.startsWith('.') ? relative : `./${relative}`
+  return prefixed.replace(/\.tsx?$/, '.js')
+}
+
+/**
+ * 发射期改写：只动 import / export / 动态 import / `import type` 里的裸包名。
+ * 相对导入交给 TypeScript 的 `rewriteRelativeImportExtensions`。
+ */
+const rewritePackageImports: ts.TransformerFactory<ts.SourceFile> = (context) => {
+  const { factory } = context
+
+  return (sourceFile) => {
+    const fileName = sourceFile.fileName
+
+    const visit: ts.Visitor = (node) => {
+      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+        const next = rewritePackageSpecifier(node.moduleSpecifier.text, fileName)
+        if (next !== node.moduleSpecifier.text) {
+          return factory.updateImportDeclaration(
+            node,
+            node.modifiers,
+            node.importClause,
+            factory.createStringLiteral(next),
+            node.attributes
+          )
+        }
+      }
+
+      if (
+        ts.isExportDeclaration(node) &&
+        node.moduleSpecifier &&
+        ts.isStringLiteral(node.moduleSpecifier)
+      ) {
+        const next = rewritePackageSpecifier(node.moduleSpecifier.text, fileName)
+        if (next !== node.moduleSpecifier.text) {
+          return factory.updateExportDeclaration(
+            node,
+            node.modifiers,
+            node.isTypeOnly,
+            node.exportClause,
+            factory.createStringLiteral(next),
+            node.attributes
+          )
+        }
+      }
+
+      if (
+        ts.isCallExpression(node) &&
+        node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        node.arguments.length > 0 &&
+        ts.isStringLiteral(node.arguments[0])
+      ) {
+        const next = rewritePackageSpecifier(node.arguments[0].text, fileName)
+        if (next !== node.arguments[0].text) {
+          return factory.updateCallExpression(node, node.expression, node.typeArguments, [
+            factory.createStringLiteral(next),
+            ...node.arguments.slice(1)
+          ])
+        }
+      }
+
+      if (
+        ts.isImportTypeNode(node) &&
+        ts.isLiteralTypeNode(node.argument) &&
+        ts.isStringLiteral(node.argument.literal)
+      ) {
+        const next = rewritePackageSpecifier(node.argument.literal.text, fileName)
+        if (next !== node.argument.literal.text) {
+          return factory.updateImportTypeNode(
+            node,
+            factory.createLiteralTypeNode(factory.createStringLiteral(next)),
+            node.attributes,
+            node.qualifier,
+            node.typeArguments,
+            node.isTypeOf
+          )
+        }
+      }
+
+      return ts.visitEachChild(node, visit, context)
+    }
+
+    return ts.visitNode(sourceFile, visit) as ts.SourceFile
+  }
+}
 
 /** 编译入口：host 进程。它 import 到的东西由 TS 自己顺着依赖树编出来 */
 const entry = path.join(root, 'packages', 'host', 'src', 'index.ts')
@@ -104,7 +268,8 @@ const options: ts.CompilerOptions = {
   resolveJsonModule: true,
   skipLibCheck: true,
   strict: true,
-  types: ['node']
+  types: ['node'],
+  paths: workspacePaths
 }
 
 const roots = [entry, backendWorker, pluginShim, ...dynamicEntries()]
@@ -115,12 +280,25 @@ for (const rootFile of roots) {
 fs.rmSync(outDir, { recursive: true, force: true })
 
 const program = ts.createProgram(roots, options)
-const emitResult = program.emit()
+const emitResult = program.emit(undefined, undefined, undefined, undefined, {
+  before: [rewritePackageImports]
+})
 
 const diagnostics = ts
   .getPreEmitDiagnostics(program)
   .concat(emitResult.diagnostics)
   .filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error)
+  /*
+   * TS 只对**相对** `.ts` 说明符做自动改写，遇到 `@nide/kernel/context.ts` 会报
+   * 「不会被改写」。那是本脚本的 rewritePackageImports 负责的事，前置 transformer
+   * 已经把所有裸包名改写成相对 `.js`；这里只过滤这一条误报。
+   */
+  .filter(
+    (diagnostic) =>
+      !ts
+        .flattenDiagnosticMessageText(diagnostic.messageText, '\n')
+        .includes('will not be rewritten during emit because it is not a relative path')
+  )
 
 if (diagnostics.length > 0) {
   for (const diagnostic of diagnostics.slice(0, 20)) {
@@ -217,5 +395,139 @@ if (fs.existsSync(pluginsSource)) {
     }
   }
 }
+
+/**
+ * 把 host 产物里的第三方 import 闭包复制到 `out/host/node_modules`。
+ *
+ * 根 package.json 不声明 dependencies（workspace 根只做装配）；electron-builder
+ * 因此不会从根收集任何 node_modules。host 是编译目录而不是单文件 bundle，所以
+ * 这里按 emitted JS 里的裸导入解析真实包目录，连同 dependencies / optional /
+ * 非可选 peer 一起复制 —— `out/host` 自己就是运行时根，`node out/host/...` 与
+ * 打包后的 asar.unpacked 都能直接解析。
+ *
+ * 只复制 `dependencies` 闭包，不复制 devDependencies；同一个包名解析到不同版本
+ * 时直接失败（当前闭包里没有冲突，出现冲突时应改成嵌套 node_modules）。
+ */
+function copyHostRuntimeDependencies(): void {
+  const requests = new Map<string, string>()
+  const copied = new Map<string, string>()
+
+  /** emitted `out/host/packages/x/src/y.js` → source `packages/x/src/y.ts(x)` */
+  const sourceFileFor = (emitted: string): string | undefined => {
+    const relative = path.relative(outDir, emitted).split(path.sep).join('/')
+    for (const extension of ['.ts', '.tsx']) {
+      const candidate = path.join(root, relative.replace(/\.js$/, extension))
+      if (fs.existsSync(candidate)) return candidate
+    }
+    return undefined
+  }
+
+  const walk = (dir: string, files: string[] = []): string[] => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules') continue
+      const file = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(file, files)
+      else if (entry.name.endsWith('.js')) files.push(file)
+    }
+    return files
+  }
+
+  for (const file of walk(outDir)) {
+    const sourceFile = sourceFileFor(file)
+    if (!sourceFile) continue
+    const source = fs.readFileSync(file, 'utf-8')
+    for (const match of source.matchAll(/(?:from\s*|import\s*\(\s*)['"]([^'"]+)['"]/g)) {
+      const specifier = match[1]
+      if (
+        specifier.startsWith('.') ||
+        specifier.startsWith('node:') ||
+        specifier.startsWith('#') ||
+        specifier.startsWith('@nide/') ||
+        specifier === 'electron'
+      ) {
+        continue
+      }
+      const name = specifier.startsWith('@')
+        ? specifier.split('/').slice(0, 2).join('/')
+        : specifier.split('/')[0]
+      if (builtinModules.includes(name)) continue
+      if (!requests.has(name)) requests.set(name, sourceFile)
+    }
+  }
+
+  const resolvePackageDir = (name: string, fromFile: string): string => {
+    const requireFrom = createRequire(fromFile)
+    let resolved: string
+    try {
+      resolved = requireFrom.resolve(`${name}/package.json`)
+    } catch {
+      resolved = requireFrom.resolve(name)
+    }
+    let dir = path.dirname(resolved)
+    while (dir !== path.dirname(dir)) {
+      if (fs.existsSync(path.join(dir, 'package.json'))) return dir
+      dir = path.dirname(dir)
+    }
+    throw new Error(`[build-host] 找不到 ${name} 的 package.json（from ${fromFile}）`)
+  }
+
+  const copyPackage = (name: string, fromFile: string, optional: boolean): void => {
+    let packageDir: string
+    try {
+      packageDir = resolvePackageDir(name, fromFile)
+    } catch (error) {
+      if (optional) return
+      throw error
+    }
+
+    const existing = copied.get(name)
+    if (existing) {
+      if (existing !== packageDir) {
+        throw new Error(
+          `[build-host] ${name} 解析到多个版本：${existing} / ${packageDir}；请改成嵌套 node_modules`
+        )
+      }
+      return
+    }
+    copied.set(name, packageDir)
+
+    const target = path.join(outDir, 'node_modules', name)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.cpSync(packageDir, target, {
+      recursive: true,
+      dereference: true,
+      filter: (source) =>
+        !path.relative(packageDir, source).split(path.sep).includes('node_modules')
+    })
+
+    const pkg = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf-8')) as {
+      dependencies?: Record<string, string>
+      optionalDependencies?: Record<string, string>
+      peerDependencies?: Record<string, string>
+      peerDependenciesMeta?: Record<string, { optional?: boolean }>
+    }
+    const fromManifest = path.join(packageDir, 'package.json')
+    for (const dependency of Object.keys(pkg.dependencies ?? {})) {
+      copyPackage(dependency, fromManifest, false)
+    }
+    for (const dependency of Object.keys(pkg.optionalDependencies ?? {})) {
+      copyPackage(dependency, fromManifest, true)
+    }
+    for (const dependency of Object.keys(pkg.peerDependencies ?? {})) {
+      if (pkg.peerDependenciesMeta?.[dependency]?.optional) continue
+      copyPackage(dependency, fromManifest, true)
+    }
+  }
+
+  for (const [name, fromFile] of requests) copyPackage(name, fromFile, false)
+
+  if (copied.size > 0) {
+    console.log(
+      `[build-host] copied ${copied.size} runtime dependencies into out/host/node_modules`
+    )
+  }
+}
+
+copyHostRuntimeDependencies()
 
 console.log(`[build-host] built ${path.relative(root, outDir)}`)

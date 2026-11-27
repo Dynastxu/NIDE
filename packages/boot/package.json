@@ -3,9 +3,16 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./*": "./src/*"
   },
   "nide": {
     "layer": "bootstrap"
+  },
+  "dependencies": {
+    "@cordisjs/plugin-loader": "1.0.0-rc.9",
+    "@nide/kernel": "workspace:*",
+    "cordis": "4.0.0-rc.12",
+    "js-yaml": "4.3.2"
   }
 }

@@ -3,22 +3,14 @@ import path from 'node:path'
 import {
   DEFAULT_APPEARANCE,
   normalizeAppearancePreference
-} from '../../../packages/contracts/src/appearance/preference.ts'
-import {
-  BUILTIN_THEMES,
-  DEFAULT_THEME,
-  findBuiltinTheme
-} from '../../../packages/contracts/src/theme/builtin.ts'
-import { shell } from '../../kernel/src/shell.ts'
+} from '@nide/contracts/appearance/preference.ts'
+import { BUILTIN_THEMES, DEFAULT_THEME, findBuiltinTheme } from '@nide/contracts/theme/builtin.ts'
+import { shell } from '@nide/kernel/shell.ts'
 import type {
   AppearancePreference,
   AppearanceState
-} from '../../../packages/contracts/src/appearance/preference.ts'
-import type {
-  ThemeId,
-  ThemePalette,
-  ThemePayload
-} from '../../../packages/contracts/src/theme/types.ts'
+} from '@nide/contracts/appearance/preference.ts'
+import type { ThemeId, ThemePalette, ThemePayload } from '@nide/contracts/theme/types.ts'
 
 /**
  * 主题 / 外观（host 侧）。

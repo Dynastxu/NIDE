@@ -3,30 +3,23 @@ import os from 'node:os'
 import path from 'node:path'
 import { Context } from 'cordis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  hostServices,
-  installNideContext,
-  type NideContext
-} from '../../packages/kernel/src/context.ts'
-import { RpcRegistry } from '../../packages/kernel/src/rpc.ts'
-import { projectService } from '../../packages/project/src/index.ts'
-import { contentService } from '../../packages/content/src/index.ts'
-import { configService } from '../../packages/config/src/index.ts'
-import { pluginsService } from '../../packages/plugin-runtime/src/index.ts'
-import { gitService } from '../../packages/git/src/index.ts'
-import { i18nService } from '../../packages/i18n/src/index.ts'
-import { appearanceService } from '../../packages/appearance/src/index.ts'
-import { secretsService } from '../../packages/secrets/src/index.ts'
-import { aiService } from '../../packages/ai/src/index.ts'
-import {
-  CORE_PACKAGES,
-  type CorePackage
-} from '../../packages/contracts/src/plugin-api/core-packages.ts'
+import { hostServices, installNideContext, type NideContext } from '@nide/kernel/context.ts'
+import { RpcRegistry } from '@nide/kernel/rpc.ts'
+import { projectService } from '@nide/service-project'
+import { contentService } from '@nide/service-content'
+import { configService } from '@nide/service-config'
+import { pluginsService } from '@nide/service-plugins'
+import { gitService } from '@nide/service-git'
+import { i18nService } from '@nide/service-i18n'
+import { appearanceService } from '@nide/service-appearance'
+import { secretsService } from '@nide/service-secrets'
+import { aiService } from '@nide/service-ai'
+import { CORE_PACKAGES, type CorePackage } from '@nide/contracts/plugin-api/core-packages.ts'
 import {
   HOST_COMMIT_VIEW_ID,
   HOST_EXPLORER_VIEW_ID,
   HOST_GIT_VIEW_ID
-} from '../../packages/contracts/src/plugin-api/view.ts'
+} from '@nide/contracts/plugin-api/view.ts'
 
 /**
  * 服务装配（阶段 A 的收口）。

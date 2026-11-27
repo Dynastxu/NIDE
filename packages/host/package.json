@@ -2,10 +2,29 @@
   "name": "@nide/host",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
   "bin": {
     "nide-host": "src/index.ts"
   },
   "nide": {
     "layer": "bootstrap"
+  },
+  "dependencies": {
+    "@nide/boot": "workspace:*",
+    "@nide/contracts": "workspace:*",
+    "@nide/kernel": "workspace:*",
+    "@nide/service-ai": "workspace:*",
+    "@nide/service-appearance": "workspace:*",
+    "@nide/service-config": "workspace:*",
+    "@nide/service-i18n": "workspace:*",
+    "@nide/service-plugin-backend": "workspace:*",
+    "@nide/service-plugin-capabilities": "workspace:*",
+    "@nide/service-plugin-permissions": "workspace:*",
+    "@nide/service-plugin-storage": "workspace:*",
+    "@nide/service-plugins": "workspace:*",
+    "@nide/service-project": "workspace:*"
   }
 }
